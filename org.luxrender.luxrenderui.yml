@@ -16,7 +16,6 @@ cleanup:
   - /include
   - /lib/pkgconfig
   - /lib/cmake
-  - /lib/*.a
   - /share/cmake
   - /share/doc
   - /bin/exr*
@@ -29,6 +28,18 @@ modules:
 # Additionally, Qt5 Core, Gui, Widgets, and Imageformats are required for TIFF output.
 
 # Python 3.5 requires an older OpenSSL version.
+
+  - name: tiff
+    buildsystem: simple
+    build-commands:
+      - ./configure --prefix=/app
+      - make install -j "${FLATPAK_BUILDER_N_JOBS}" cxxflags="-w -fPIC -std=c++11"
+    build-options:
+      no-debuginfo: true
+      no-debuginfo-compression: true
+    sources:
+      - type: archive
+        path: deps/tiff-4.0.3.tar.xz
 
   - name: OpenSSL
     buildsystem: simple
@@ -351,10 +362,11 @@ modules:
       - -D PYTHON_CUSTOM=TRUE
       - -D PYTHON_INCLUDE_PATH=/app/include/python3.5m
       - -D PYTHON_LIBRARIES=/app/lib/libpython3.5m.so
-      - -D LUX_USE_FREEIMAGE=TRUE
+      - -D LUX_USE_FREEIMAGE=ON
       - -D FREEIMAGE_INCLUDE_DIR=/app/include
       - -D OpenEXR_Imath_INCLUDE_DIR=/app/include/Imath/
       - -D OpenEXR_half_INCLUDE_DIR=/app/include/Imath/
+      - -D TIFF_INCLUDE_DIR=/app/lib
       - -D PYTHON_HOME=/app/bin
       - -D Qt5_DIR=/app/lib/cmake/Qt5
       - -D CMAKE_PREFIX_PATH=/app/lib/cmake/Qt5

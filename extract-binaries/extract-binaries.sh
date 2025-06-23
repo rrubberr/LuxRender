@@ -31,7 +31,10 @@ cp -v ../.build-dir/files/lib/libtbbmalloc.so ./shared/libtbbmalloc.so
 cp -v ../.build-dir/files/lib/libGLU.so.1.3.1 ./shared/libGLU.so.1
 cp -v ../.build-dir/files/lib/libHalf.so.12.0.0 ./shared/libHalf.so.12
 cp -v ../.build-dir/files/lib/libIlmImf-2_2.so.22.0.0 ./shared/libIlmImf-2_2.so.22
-cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/files/lib/x86_64-linux-gnu/libtiff.so.5.8.0 ./shared/libtiff.so.5
+cp -v ../.build-dir/files/lib/libtiff.so.5.2.0 ./shared/libtiff.so.5
+# cp -v ../.build-dir/files/lib/libQt5Core.so.5.15.10 ./shared/libQt5Core.so.5
+# cp -v ../.build-dir/files/lib/libQt5Widgets.so.5.15.10 ./shared/libQt5Widgets.so.5
+# cp -v ../.build-dir/files/lib/libQt5Gui.so.5.15.10 ./shared/libQt5Gui.so.5
 cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/files/lib/x86_64-linux-gnu/libjpeg.so.62.3.0 ./shared/libjpeg.so.62
 cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/files/lib/x86_64-linux-gnu/libz.so.1.3.1 ./shared/libz.so.1
 cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/files/lib/x86_64-linux-gnu/libzstd.so.1.5.5 ./shared/libzstd.so.1
