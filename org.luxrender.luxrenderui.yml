@@ -324,7 +324,7 @@ modules:
   - name: LuxRays
     buildsystem: cmake
     build-options:
-      cxxflags: -w -march=native -std=c++11 -msse -msse2 -mavx -mfpmath=sse -O3 -pipe -ftree-vectorize -fno-math-errno -fno-signed-zeros -fno-trapping-math -fassociative-math -fno-rounding-math -fno-signaling-nans -fcx-limited-range -floop-interchange -floop-strip-mine -floop-block -fsee -ftree-loop-linear -ftree-loop-distribution -ftree-loop-im -fivopts -ftracer -fomit-frame-pointer -fno-stack-protector -Wno-narrowing -pthread -DBOOST_DISABLE_ASSERTS -DHAVE_PTHREAD_H -DLUXCORE_DISABLE_EMBREE_BVH_BUILDER -DCL_USE_DEPRECATED_OPENCL_1_2_APIS -DCL_TARGET_OPENCL_VERSION=120 -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m -lpython3.5m -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0 -lOpenImageIO_Util
+      cxxflags: -w -march=native -std=c++11 -mavx -mfpmath=sse -O3 -pipe -ftree-vectorize -fno-math-errno -fno-signed-zeros -fno-trapping-math -fassociative-math -fno-rounding-math -fno-signaling-nans -fcx-limited-range -floop-nest-optimize -ftree-loop-im -fno-stack-protector -Wno-narrowing -pthread -DBOOST_DISABLE_ASSERTS -DHAVE_PTHREAD_H -DLUXCORE_DISABLE_EMBREE_BVH_BUILDER -DCL_USE_DEPRECATED_OPENCL_1_2_APIS -DCL_TARGET_OPENCL_VERSION=120 -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m -lpython3.5m -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0 -lOpenImageIO_Util
       cflags: -L /app/lib -lOpenImageIO_Util -lpython3.5m -I /app/include/python3.5m -L /usr/lib/x86_64-linux-gnu -lpthread -lgobject-2.0 -lgtk-3 -lglib-2.0 -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0
       ldflags: -Wl,-rpath,$ORIGIN/shared
       no-debuginfo: true
@@ -351,7 +351,7 @@ modules:
   - name: LuxRender
     buildsystem: cmake
     build-options:
-      cxxflags: -w -march=native -std=c++11 -msse -msse2 -mavx -mfpmath=sse -O3 -pipe -ftree-vectorize -fno-math-errno -fno-signed-zeros -fno-trapping-math -fassociative-math -fno-rounding-math -fno-signaling-nans -fcx-limited-range -floop-interchange -floop-strip-mine -floop-block -fsee -ftree-loop-linear -ftree-loop-distribution -ftree-loop-im -fivopts -ftracer -fomit-frame-pointer -fno-stack-protector -Wno-narrowing -pthread -DBOOST_DISABLE_ASSERTS -DHAVE_PTHREAD_H -DCL_USE_DEPRECATED_OPENCL_1_2_APIS -DCL_TARGET_OPENCL_VERSION=120 -DCMAKE_BUILD_TYPE=Release -I /app/bin -I /app/lib -I /app/include/python3.5m -lpython3.5m -I /app/lib/cmake/ -I /app/lib/cmake/Qt5 -L /app/lib -lQt5Core -lQt5Gui -lQt5Widgets -L /usr/lib/x86_64-linux-gnu -lOpenImageIO_Util -I /app/include/OpenImageIO -lOpenImageIO
+      cxxflags: -w -march=native -std=c++11 -mavx -mfpmath=sse -O3 -pipe -ftree-vectorize -fno-math-errno -fno-signed-zeros -fno-trapping-math -fassociative-math -fno-rounding-math -fno-signaling-nans -fcx-limited-range -floop-nest-optimize -ftree-loop-im -fno-stack-protector -Wno-narrowing -pthread -DBOOST_DISABLE_ASSERTS -DHAVE_PTHREAD_H -DCL_USE_DEPRECATED_OPENCL_1_2_APIS -DCL_TARGET_OPENCL_VERSION=120 -DCMAKE_BUILD_TYPE=Release -I /app/bin -I /app/lib -I /app/include/python3.5m -lpython3.5m -I /app/lib/cmake/ -I /app/lib/cmake/Qt5 -L /app/lib -lQt5Core -lQt5Gui -lQt5Widgets -L /usr/lib/x86_64-linux-gnu -lOpenImageIO_Util -I /app/include/OpenImageIO -lOpenImageIO
       ldflags: -Wl,-rpath,$ORIGIN/shared
       no-debuginfo: true
       no-debuginfo-compression: true
@@ -362,7 +362,7 @@ modules:
       - -D PYTHON_CUSTOM=TRUE
       - -D PYTHON_INCLUDE_PATH=/app/include/python3.5m
       - -D PYTHON_LIBRARIES=/app/lib/libpython3.5m.so
-      - -D LUX_USE_FREEIMAGE=ON
+      - -D LUX_USE_FREEIMAGE=OFF
       - -D FREEIMAGE_INCLUDE_DIR=/app/include
       - -D OpenEXR_Imath_INCLUDE_DIR=/app/include/Imath/
       - -D OpenEXR_half_INCLUDE_DIR=/app/include/Imath/
