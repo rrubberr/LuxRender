@@ -2219,7 +2219,7 @@ bool MainWindow::event (QEvent *event)
 
 void MainWindow::logEvent(LuxLogEvent *event)
 {
-	static const QColor debugColour = Qt::white;
+	static const QColor debugColour = Qt::black;
 	static const QColor infoColour = Qt::green;
 	static const QColor warningColour = Qt::darkYellow;
 	static const QColor errorColour = Qt::red;
@@ -2237,7 +2237,7 @@ void MainWindow::logEvent(LuxLogEvent *event)
 
 	QTextCharFormat fmt(cursor.charFormat());
 
-	QColor textColor = Qt::white;
+	QColor textColor = Qt::black;
 
 	switch(event->getSeverity()) {
 		case LUX_DEBUG:
@@ -2270,7 +2270,7 @@ void MainWindow::logEvent(LuxLogEvent *event)
 	cursor.setCharFormat(fmt);
 	cursor.insertText(ss.readAll());
 
-	fmt.setForeground(QBrush(Qt::white));
+	fmt.setForeground(QBrush(Qt::black));
 	cursor.setCharFormat(fmt);
 	ss << event->getMessage() << endl;
 	cursor.insertText(ss.readAll());
