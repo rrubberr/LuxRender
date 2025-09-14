@@ -46,3 +46,4 @@ cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/f
 cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/files/lib/x86_64-linux-gnu/libfreetype.so.6.18.3 ./shared/libfreetype.so.6
 cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/files/lib/x86_64-linux-gnu/libfftw3.so.3.6.10 ./shared/libfftw3.so.3
 cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/files/lib/x86_64-linux-gnu/libbz2.so.1.0.8 ./shared/libbz2.so.1
+cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/files/lib/x86_64-linux-gnu/libharfbuzz.so.0.50200.0 ./shared/libharfbuzz.so.0

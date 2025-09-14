@@ -46,3 +46,4 @@ extract-binaries/shared/libtiff.so.5
 extract-binaries/shared/libz.so.1
 extract-binaries/shared/libzstd.so.1
 extract-binaries/shared/libembree.so.2
+extract-binaries/shared/libharfbuzz.so.0
