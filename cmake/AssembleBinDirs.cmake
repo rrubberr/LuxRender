@@ -37,8 +37,6 @@ ELSE (WIN32)
 		OUTPUT "${SLG2_BIN_WIN32_DIR}"
 		COMMAND rm -rf ${SLG2_BIN_WIN32_DIR}
 		COMMAND mkdir ${SLG2_BIN_WIN32_DIR}
-		COMMAND cp -r scenes ${SLG2_BIN_WIN32_DIR}
-		COMMAND find ${SLG2_BIN_WIN32_DIR}/scenes -name "*.blend" > filelist.tmp
 		COMMAND rm -f `cat filelist.tmp`
 		COMMAND rm -f cat filelist.tmp
 		COMMAND cp samples/smallluxgpu2/bat/*.bat ${SLG2_BIN_WIN32_DIR}
@@ -63,8 +61,6 @@ ELSE (WIN32)
 		OUTPUT "${SLG2_BIN_WIN64_DIR}"
 		COMMAND rm -rf ${SLG2_BIN_WIN64_DIR}
 		COMMAND mkdir ${SLG2_BIN_WIN64_DIR}
-		COMMAND cp -r scenes ${SLG2_BIN_WIN64_DIR}
-		COMMAND find ${SLG2_BIN_WIN64_DIR}/scenes -name "*.blend" > filelist.tmp
 		COMMAND rm -f `cat filelist.tmp`
 		COMMAND rm -f cat filelist.tmp
 		COMMAND cp samples/smallluxgpu2/bat/*.bat ${SLG2_BIN_WIN64_DIR}
@@ -89,8 +85,6 @@ ELSE (WIN32)
 		OUTPUT "${SLG2_BIN_LINUX64_DIR}"
 		COMMAND rm -rf ${SLG2_BIN_LINUX64_DIR}
 		COMMAND mkdir ${SLG2_BIN_LINUX64_DIR}
-		COMMAND cp -r scenes ${SLG2_BIN_LINUX64_DIR}
-		COMMAND find ${SLG2_BIN_LINUX64_DIR}/scenes -name "*.blend" > filelist.tmp
 		COMMAND rm -f `cat filelist.tmp`
 		COMMAND rm -f cat filelist.tmp
 		COMMAND cp samples/smallluxgpu2/sh/*.sh ${SLG2_BIN_LINUX64_DIR}

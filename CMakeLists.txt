@@ -87,14 +87,6 @@ if (NOT OPENGL_FOUND AND NOT LUXRAYS_DISABLE_OPENCL)
 	SET(LUXRAYS_DISABLE_OPENCL 1)
 endif()
 
-if (NOT GLEW_FOUND)
-	MESSAGE(FATAL_ERROR "--> Could not locate required GLEW files, disabling samples build - Please check ${GLEW_SEARCH_PATH}")
-endif()
-
-if (NOT GLUT_FOUND)
-	MESSAGE(FATAL_ERROR "--> Could not locate required GLUT files, disabling samples build - Please check ${GLUT_SEARCH_PATH}")
-endif()
-
 ################################################################################
 #
 # Build options

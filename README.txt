@@ -20,8 +20,6 @@ It is the most complete example of LuxCore API usage and it is available inside
 samples/luxcoreui directory.
 Just run luxcoreui from the root directory with:
 
-./bin/luxcoreui scenes/luxball/luxball-hdr.cfg
-
 to check how it works.
 
 SLG (SmallLuxGPU)
@@ -53,13 +51,10 @@ Credits
 
 A special thanks goes to:
 
-- Alain "Chiaroscuro" Ducharme for Blender 2.5 exporter and several scenes provided;
-- Sladjan "lom" Ristic for several scenes provided;
 - Riku "rikb" Walve for source patches;
 - David "livuxman" Rodr�guez for source patches;
 - Daniel "ZanQdo" Salazar (http://www.3developer.com/) for Sala scene and Michael "neo2068" Klemm for SLG2 adaptation;
 - Mourelas Konstantinos "Moure" (http://moure-portfolio.blogspot.com/) for Room Scene;
-- Nate Robins for glut32.dll;
 - Diego Nehab for PLY reading/writing library;
 - http://www.hdrlabs.com/sibl/archive.html and http://shtlab.blogspot.com/2009/08/hdri-panoramic-skies-for-free.html for HDR maps;
 - http://chronosphere.home.comcast.net/~chronosphere/radiosity.htm for Cornell Blender scene;
