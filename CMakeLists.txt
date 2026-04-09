@@ -77,10 +77,6 @@ if (NOT Boost_FOUND)
 	MESSAGE(FATAL_ERROR "--> Could not locate required Boost files - Please check ${BOOST_SEARCH_PATH}")
 endif()
 
-if (NOT OPENIMAGEIO_FOUND)
-	MESSAGE(FATAL_ERROR "--> Could not locate required OpenImageIO files - Please check ${OPENIMAGEIO_SEARCH_PATH}")
-endif()
-
 if (NOT OPENCL_FOUND AND NOT LUXRAYS_DISABLE_OPENCL)
 	MESSAGE(ERROR "--> Could not locate required OpenCL files, disabling OpenCL support - Please check ${OPENCL_SEARCH_PATH}")
 	SET(LUXRAYS_DISABLE_OPENCL 1)
@@ -99,10 +95,6 @@ if (NOT GLUT_FOUND)
 	MESSAGE(FATAL_ERROR "--> Could not locate required GLUT files, disabling samples build - Please check ${GLUT_SEARCH_PATH}")
 endif()
 
-if (NOT EMBREE_FOUND)
-	MESSAGE(FATAL_ERROR "--> Could not locate required Intel Embree files - Please check ${EMBREE_SEARCH_PATH}")
-endif()
-
 ################################################################################
 #
 # Build options
@@ -111,10 +103,6 @@ endif()
 
 if (LUXRAYS_DISABLE_OPENCL)
 	ADD_DEFINITIONS("-DLUXRAYS_DISABLE_OPENCL")
-endif()
-
-if (LUXCORE_DISABLE_EMBREE_BVH_BUILDER)
-	ADD_DEFINITIONS("-DLUXCORE_DISABLE_EMBREE_BVH_BUILDER")
 endif()
 
 ################################################################################

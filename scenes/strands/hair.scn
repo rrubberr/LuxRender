@@ -49,7 +49,6 @@ scene.shapes.hair_shape.file = scenes/strands/natural.hair
 # -D accelerator.type BVH -D accelerator.bvh.builder.type CLASSIC -D accelerator.bvh.treetype 2 => BVH build time: 9830ms and 0.71 samples/sec
 # -D accelerator.type BVH -D accelerator.bvh.builder.type CLASSIC -D accelerator.bvh.treetype 4 => BVH build time: 8493ms and 0.82 samples/sec
 # -D accelerator.type BVH -D accelerator.bvh.builder.type CLASSIC -D accelerator.bvh.treetype 8 => BVH build time: 8172ms and 0.79 samples/sec
-# -D accelerator.type BVH -D accelerator.bvh.builder.type EMBREE => BVH build time: 12759ms and 0.76 samples/sec
 scene.shapes.hair_shape.tessellation.type = solidadaptive
 scene.shapes.hair_shape.tessellation.solid.sidecount = 13
 scene.shapes.hair_shape.tessellation.adaptive.maxdepth = 20

@@ -59,7 +59,7 @@ void NativeThreadIntersectionDevice::SetDataSet(DataSet *newDataSet) {
 		if (accelType != ACCEL_AUTO)
 			accel = dataSet->GetAccelerator(accelType);
 		else
-			accel = dataSet->GetAccelerator(ACCEL_EMBREE);
+			accel = dataSet->GetAccelerator(ACCEL_MBVH);
 	}
 }
 

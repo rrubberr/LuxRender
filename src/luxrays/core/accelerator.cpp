@@ -29,8 +29,6 @@ string Accelerator::AcceleratorType2String(const AcceleratorType type) {
 			return "BVH";
 		case ACCEL_MBVH:
 			return "MBVH";
-		case ACCEL_EMBREE:
-			return "EMBREE";
 		default:
 			throw runtime_error("Unknown accelerator type in AcceleratorType2String(): " + ToString(type));
 	}
@@ -43,8 +41,6 @@ AcceleratorType Accelerator::String2AcceleratorType(const string &type) {
 		return ACCEL_BVH;
 	else if (type == "MBVH")
 		return ACCEL_MBVH;
-	else if (type == "EMBREE")
-		return ACCEL_EMBREE;
 	else
 		throw runtime_error("Unknown accelerator type in String2AcceleratorType(): " + type);
 }

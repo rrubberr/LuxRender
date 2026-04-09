@@ -28,8 +28,6 @@ getenv_path(LuxRays_DEPENDENCIES_DIR)
 # Find threading library
 find_package(Threads REQUIRED)
 
-find_package(OpenImageIO REQUIRED)
-include_directories(BEFORE SYSTEM ${OPENIMAGEIO_INCLUDE_DIR})
 find_package(OpenEXR REQUIRED)
 
 if(NOT APPLE)
@@ -113,14 +111,6 @@ find_package(OpenCL)
 
 if (OPENCL_FOUND)
 	include_directories(BEFORE SYSTEM ${OPENCL_INCLUDE_DIR} ${OPENCL_C_INCLUDE_DIR})
-endif ()
-
-# Intel Embree
-set(EMBREE_ROOT                "${EMBREE_SEARCH_PATH}")
-find_package(Embree)
-
-if (EMBREE_FOUND)
-	include_directories(BEFORE SYSTEM ${EMBREE_INCLUDE_PATH})
 endif ()
 
 # OpenMP

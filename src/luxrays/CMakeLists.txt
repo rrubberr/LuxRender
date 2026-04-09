@@ -137,12 +137,10 @@ PreprocessOCLKernels(${LuxRays_SOURCE_DIR}/src/luxrays/kernels luxrays ${LUXRAYS
 set(LUXRAYS_SRCS
 	${LuxRays_SOURCE_DIR}/src/luxrays/accelerators/bvhaccel.cpp
 	${LuxRays_SOURCE_DIR}/src/luxrays/accelerators/bvhaccelocl.cpp
-	${LuxRays_SOURCE_DIR}/src/luxrays/accelerators/embreeaccel.cpp
 	${LuxRays_SOURCE_DIR}/src/luxrays/accelerators/mbvhaccel.cpp
 	${LuxRays_SOURCE_DIR}/src/luxrays/accelerators/mbvhaccelocl.cpp
 	${LuxRays_SOURCE_DIR}/src/luxrays/core/bvh/bvhbuild.cpp
 	${LuxRays_SOURCE_DIR}/src/luxrays/core/bvh/bvhclassicbuild.cpp
-	${LuxRays_SOURCE_DIR}/src/luxrays/core/bvh/bvhembreebuild.cpp
 	${LuxRays_SOURCE_DIR}/src/luxrays/core/color/color.cpp
 	${LuxRays_SOURCE_DIR}/src/luxrays/core/color/spd.cpp
 	${LuxRays_SOURCE_DIR}/src/luxrays/core/color/spds/blackbodyspd.cpp
@@ -228,7 +226,6 @@ set(LUXRAYS_LIB_SRCS
 add_library(luxrays STATIC ${LUXRAYS_LIB_SRCS})
 
 TARGET_LINK_LIBRARIES(luxrays ${Boost_LIBRARIES})
-TARGET_LINK_LIBRARIES(luxrays ${OPENIMAGEIO_LIBRARIES})
 
 IF (NOT LUXRAYS_DISABLE_OPENCL)
 	TARGET_LINK_LIBRARIES(luxrays ${OPENGL_gl_LIBRARY})
