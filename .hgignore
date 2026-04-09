@@ -27,7 +27,6 @@
 ^luxconsole
 ^luxmerger
 ^luxrender
-^slg4
 pylux.so
 pyluxconsole.py
 syntax: glob
