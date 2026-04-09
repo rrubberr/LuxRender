@@ -2,7 +2,7 @@
 	path = LuxRays
 	url = https://github.com/rrubberr/Flatpak-LuxRays.git
 	branch = FeatureRemoval
-[submodule "Flatpak-Lux"]
-	path = Flatpak-Lux
+[submodule "Lux"]
+	path = Lux
 	url = https://github.com/rrubberr/Flatpak-Lux.git
 	branch = FeatureRemoval
