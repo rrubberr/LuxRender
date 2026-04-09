@@ -1,7 +1,0 @@
-diff --git a/config.sub b/config.sub
-index e9fb5ba..0e8bad2 100644
---- a/config.sub
-+++ b/config.sub
-@@ -174,1 +174,1 @@
--	vax-* | tahoe-* | i[3456]86-* | i860-* | m32r-* | m68k-* | m68000-* \
-+	vax-* | tahoe-* | i[3456]86-* | x86_64-* | i860-* | m32r-* | m68k-* | m68000-* \

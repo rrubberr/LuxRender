@@ -1,4 +1,8 @@
 [submodule "Lux"]
 	path = Lux
 	url = https://github.com/rrubberr/Flatpak-Lux.git
-	branch = for_v1.7_qt5
+	branch = FeatureRemoval
+[submodule "LuxRays"]
+	path = LuxRays
+	url = https://github.com/rrubberr/Flatpak-LuxRays/
+	branch = FeatureRemoval
