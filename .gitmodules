@@ -4,5 +4,5 @@
 	branch = FeatureRemoval
 [submodule "LuxRays"]
 	path = LuxRays
-	url = https://github.com/rrubberr/Flatpak-LuxRays/
+	url = https://github.com/rrubberr/Flatpak-LuxRays.git
 	branch = FeatureRemoval
