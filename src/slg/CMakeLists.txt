@@ -226,7 +226,6 @@ set(SLG_SRCS
 	${LuxRays_SOURCE_DIR}/src/slg/engines/rtbiaspathocl/rtbiaspathocl.cpp
 	${LuxRays_SOURCE_DIR}/src/slg/engines/rtbiaspathocl/rtbiaspathoclthread.cpp
 	${LuxRays_SOURCE_DIR}/src/slg/film/film.cpp
-	${LuxRays_SOURCE_DIR}/src/slg/film/filmocl.cpp
 	${LuxRays_SOURCE_DIR}/src/slg/film/filmoutput.cpp
 	${LuxRays_SOURCE_DIR}/src/slg/film/filmoutputs.cpp
 	${LuxRays_SOURCE_DIR}/src/slg/film/filmparse.cpp
