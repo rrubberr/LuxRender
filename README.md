@@ -43,7 +43,7 @@ flatpak remote-add --user --if-not-exists \
 Clone this GitHub repository.
 
 ```sh
-git clone --recursive https://github.com/rrubberr/Flatpak-LuxRender && cd Flatpak-LuxRender
+git clone --recursive https://github.com/rrubberr/Flatpak-LuxRender -b FeatureRemoval luxrender && cd luxrender
 ```
 
 Build the LuxRender package using Flatpak Builder.
