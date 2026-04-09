@@ -5,8 +5,7 @@ cp -v ../.build-dir/files/bin/luxrender ./
 cp -v ../.build-dir/files/bin/pylux.so ./
 cp -v ../.build-dir/files/bin/liblux.so ./
 cp -v ../.build-dir/files/lib/libpython3.so ./shared/
-cp -v ../.build-dir/files/lib/libpython3.4m.so.1.0 ./shared/
-cp -v ../.build-dir/files/lib/libglut.so.3.11.1 ./shared/libglut.so.3
+cp -v ../.build-dir/files/lib/libpython3.5m.so.1.0 ./shared/
 cp -v ../.build-dir/files/lib/libboost_thread.so.1.56.0 ./shared/
 cp -v ../.build-dir/files/lib/libboost_program_options.so.1.56.0 ./shared/
 cp -v ../.build-dir/files/lib/libboost_filesystem.so.1.56.0 ./shared/
@@ -19,11 +18,8 @@ cp -v ../.build-dir/files/lib/libboost_date_time.so.1.56.0 ./shared/
 cp -v ../.build-dir/files/lib/libboost_atomic.so.1.56.0 ./shared/
 cp -v ../.build-dir/files/lib/libboost_python3.so.1.56.0 ./shared/
 cp -v ../.build-dir/files/lib/libboost_python3.so.1.56.0 ./shared/libboost_python.so.1.56.0
-cp -v ../.build-dir/files/lib/libImath-3_1.so.29.8.0 ./shared/libImath-3_1.so
 cp -v ../.build-dir/files/lib/libIlmThread-2_2.so.12.0.0 ./shared/libIlmThread-2_2.so.12
 cp -v ../.build-dir/files/lib/libIex-2_2.so.12.0.0 ./shared/libIex-2_2.so.12
-cp -v ../.build-dir/files/lib/libdeflate.so.0 ./shared/
-cp -v ../.build-dir/files/lib/libGLU.so.1.3.1 ./shared/libGLU.so.1
 cp -v ../.build-dir/files/lib/libHalf.so.12.0.0 ./shared/libHalf.so.12
 cp -v ../.build-dir/files/lib/libIlmImf-2_2.so.22.0.0 ./shared/libIlmImf-2_2.so.22
 cp -v ~/.local/share/flatpak/runtime/org.kde.Platform/x86_64/5.15-22.08/active/files/lib/x86_64-linux-gnu/libjpeg.so.62.3.0 ./shared/libjpeg.so.62
