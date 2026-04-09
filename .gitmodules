@@ -1,8 +1,8 @@
-[submodule "Lux"]
-	path = Lux
-	url = https://github.com/rrubberr/Flatpak-Lux.git
-	branch = FeatureRemoval
 [submodule "LuxRays"]
 	path = LuxRays
 	url = https://github.com/rrubberr/Flatpak-LuxRays.git
+	branch = FeatureRemoval
+[submodule "Flatpak-Lux"]
+	path = Flatpak-Lux
+	url = https://github.com/rrubberr/Flatpak-Lux.git
 	branch = FeatureRemoval
