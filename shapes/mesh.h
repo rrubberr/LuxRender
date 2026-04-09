@@ -32,7 +32,7 @@ class Mesh : public Shape {
 public:
 	enum MeshTriangleType { TRI_WALD, TRI_BARY, TRI_MICRODISPLACEMENT, TRI_AUTO };
 	enum MeshQuadType { QUAD_QUADRILATERAL };
-	enum MeshAccelType { ACCEL_KDTREE, ACCEL_QBVH, ACCEL_SQBVH, ACCEL_BVH, ACCEL_NONE, ACCEL_BRUTEFORCE, ACCEL_AUTO };
+	enum MeshAccelType { ACCEL_KDTREE, ACCEL_QBVH, ACCEL_NONE, ACCEL_BRUTEFORCE, ACCEL_AUTO };
 	enum MeshSubdivType { SUBDIV_LOOP, SUBDIV_MICRODISPLACEMENT };
 
 	Mesh(const Transform &o2w, bool ro, const string &name,

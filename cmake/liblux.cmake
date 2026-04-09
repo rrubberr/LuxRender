@@ -178,11 +178,8 @@ SET(lux_core_all_src
 
 SET(lux_accelerators_src
 	accelerators/bruteforce.cpp
-#	accelerators/bvhaccel.cpp
 	accelerators/qbvhaccel.cpp
-#	accelerators/sqbvhaccel.cpp
 	accelerators/tabreckdtree.cpp
-#	accelerators/unsafekdtree.cpp
 	)
 SOURCE_GROUP("Source Files\\Accelerators" FILES ${lux_accelerators_src})
 
@@ -322,7 +319,6 @@ SET(lux_shapes_src
 	shapes/hairfile.cpp
 	shapes/heightfield.cpp
 	shapes/hyperboloid.cpp
-	shapes/lenscomponent.cpp
 	shapes/loopsubdiv.cpp
 	shapes/mesh.cpp
 	shapes/meshbarytriangle.cpp
@@ -335,7 +331,6 @@ SET(lux_shapes_src
 	shapes/paraboloid.cpp
 	shapes/plymesh.cpp
 	shapes/plymesh/rply.c
-	shapes/lenscomponent.cpp
 	shapes/sphere.cpp
 	shapes/stlmesh.cpp
 	shapes/torus.cpp
@@ -729,7 +724,6 @@ SET(lux_shapes_hdr
 	shapes/disk.h
 	shapes/heightfield.h
 	shapes/hyperboloid.h
-	shapes/lenscomponent.h
 	shapes/loopsubdiv.h
 	shapes/mesh.h
 	shapes/mikktspace/mikktspace.h

@@ -319,7 +319,6 @@ const char * ds_pylux_Context_shape =
 "- cylinder\n"
 "- disk\n"
 "- heightfield\n"
-"- lenscomponent\n"
 "- loopsubdiv\n"
 "- nurbs\n"
 "- paraboloid\n"
