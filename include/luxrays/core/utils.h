@@ -25,6 +25,7 @@
 #include <pthread.h>
 #endif
 
+#include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
 
 #if (defined(WIN32) && defined(_MSC_VER) && _MSC_VER < 1800)
