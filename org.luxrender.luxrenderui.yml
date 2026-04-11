@@ -1,6 +1,6 @@
 app-id: org.luxrender.luxrenderui
 runtime: org.kde.Platform
-runtime-version: 5.15-24.08
+runtime-version: 6.9
 sdk: org.kde.Sdk
 command: luxrender
 
@@ -98,19 +98,19 @@ modules:
 
 # Build a minimal Qt5 to support the updated GUI.
 
-  - name: Qt5
-    buildsystem: simple
-    build-options:
-      cxxflags: -w -std=c++14
-      ldflags: -Wl,-rpath,$ORIGIN
-      no-debuginfo: true
-      no-debuginfo-compression: true
-    build-commands:
-      - ./configure -prefix "/app" -release -opensource -nomake examples -nomake tests -no-icu
-      - make install -j "${FLATPAK_BUILDER_N_JOBS}"
-    sources:
-      - type: archive
-        path: deps/qtbase-everywhere-opensource-src-5.15.18.tar.xz
+  # - name: Qt5
+  #   buildsystem: simple
+  #   build-options:
+  #     cxxflags: -w -std=c++14
+  #     ldflags: -Wl,-rpath,$ORIGIN
+  #     no-debuginfo: true
+  #     no-debuginfo-compression: true
+  #   build-commands:
+  #     - ./configure -prefix "/app" -release -opensource -nomake examples -nomake tests -no-icu
+  #     - make install -j "${FLATPAK_BUILDER_N_JOBS}"
+  #   sources:
+  #     - type: archive
+  #       path: deps/qtbase-everywhere-opensource-src-5.15.18.tar.xz
 
 # The node editor preview leaks memory on 1.80 but not on 1.79.
 # The leak could be in asyncstream.cpp asyncstream.h renderfarm.cpp renderfarm.h 
@@ -126,14 +126,14 @@ modules:
       no-debuginfo-compression: true
     sources:
       - type: archive
-        path: deps/boost_1_79_0.tar.xz
+        path: deps/boost_1_90_0.tar.gz
 
 # Using the modified LuxRays is REQUIRED; https://github.com/LuxRender/LuxRays will NOT build.
 
   - name: LuxRays
     buildsystem: cmake
     build-options:
-      cxxflags: -w -O2 -march=nocona -mtune=haswell -std=c++14 -msse2 -mfpmath=sse -pipe -pthread -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DHAVE_PTHREAD_H -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0
+      cxxflags: -w -Wno-dev-O2 -march=nocona -mtune=haswell -std=c++14 -msse2 -mfpmath=sse -pipe -pthread -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DHAVE_PTHREAD_H -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0
       cflags: -L /app/lib -lpython3.5m -I /app/include/python3.5m -L /usr/lib/x86_64-linux-gnu -lpthread -lgobject-2.0 -lgtk-3 -lglib-2.0 -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0
       ldflags: -Wl,-rpath,$ORIGIN/shared
       no-debuginfo: true
@@ -162,7 +162,7 @@ modules:
   - name: LuxRender
     buildsystem: cmake
     build-options:
-      cxxflags: -w -O2 -march=nocona -mtune=haswell -std=c++14 -msse2 -mfpmath=sse -pipe -pthread -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DHAVE_PTHREAD_H -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/bin -I /app/lib -I /app/include/python3.5m -I /app/lib/cmake/ -L /usr/lib/x86_64-linux-gnu
+      cxxflags: -w -Wno-dev -O2 -march=nocona -mtune=haswell -std=c++14 -msse2 -mfpmath=sse -pipe -pthread -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DHAVE_PTHREAD_H -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/bin -I /app/lib -I /app/include/python3.5m -I /app/lib/cmake/ -L /usr/lib/x86_64-linux-gnu
       ldflags: -Wl,-rpath,$ORIGIN/shared
       no-debuginfo: true
       no-debuginfo-compression: true

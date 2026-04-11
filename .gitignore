@@ -8,3 +8,4 @@ extract-binaries/luxmerger
 extract-binaries/luxrender
 extract-binaries/pylux.so
 extract-binaries/pyluxcore.so
+deps/boost_1_90_0.tar.gz
