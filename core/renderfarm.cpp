@@ -784,7 +784,8 @@ void RenderFarm::flushImpl() {
 						serverInfoList[i].name << ":" << serverInfoList[i].port;
 
 				tcp::iostream stream(serverInfoList[i].name, serverInfoList[i].port);
-				stream.rdbuf()->set_option(tcp::no_delay(true));
+//				stream.rdbuf()->set_option(tcp::no_delay(true));
+				stream.socket().set_option(boost::asio::ip::tcp::no_delay(true));
 				//stream << commands << endl;
 				for (size_t j = 0; j < compiledCommands.size(); j++) {
 					// send command
@@ -889,10 +890,11 @@ void RenderFarm::updateFilm(Scene *scene) {
 			stream.connect(serverInfoList[i].name, serverInfoList[i].port);
 
 			// Enable keep alive option
-			stream.rdbuf()->set_option(boost::asio::socket_base::keep_alive(true));
+//			stream.rdbuf()->socket().set_option(boost::asio::socket_base::keep_alive(true));
+			stream.socket().set_option(boost::asio::socket_base::keep_alive(true));
 #if defined(__linux__) || defined(__MACOSX__)
 			// Set keep alive parameters on *nix platforms
-			const int nativeSocket = static_cast<int>(stream.rdbuf()->native());
+			const int nativeSocket = static_cast<int>(stream.rdbuf()->socket().native_handle());
 			int optval = 3; // Retry count
 			const socklen_t optlen = sizeof(optval);
 			setsockopt(nativeSocket, SOL_TCP, TCP_KEEPCNT, &optval, optlen);
@@ -976,7 +978,8 @@ void RenderFarm::updateLog() {
 
 			stream.connect(serverInfoList[i].name, serverInfoList[i].port);
 
-			LOG( LUX_DEBUG,LUX_NOERROR) << "Connected to: " << stream.rdbuf()->remote_endpoint();
+//			LOG( LUX_DEBUG,LUX_NOERROR) << "Connected to: " << stream.rdbuf()->remote_endpoint();
+			LOG( LUX_DEBUG, LUX_NOERROR) << "Connected to: " << stream.rdbuf()->socket().remote_endpoint();
 
 			// Send the command to get the log
 			stream << "luxGetLog" << std::endl;
@@ -1043,7 +1046,8 @@ void RenderFarm::updateServerNoiseAwareMap(ExtRenderingServerInfo &serverInfo, c
 
 		stream.connect(serverInfo.name, serverInfo.port);
 
-		LOG(LUX_DEBUG, LUX_NOERROR) << "Connected to: " << stream.rdbuf()->remote_endpoint();
+//		LOG(LUX_DEBUG, LUX_NOERROR) << "Connected to: " << stream.rdbuf()->remote_endpoint();
+		LOG(LUX_DEBUG, LUX_NOERROR) << "Connected to: " << stream.socket().remote_endpoint();
 
 		// Send the command to update the map
 		stream << "luxSetNoiseAwareMap" << endl;
@@ -1092,7 +1096,8 @@ void RenderFarm::updateServerUserSamplingMap(ExtRenderingServerInfo &serverInfo,
 
 		stream.connect(serverInfo.name, serverInfo.port);
 
-		LOG(LUX_DEBUG, LUX_NOERROR) << "Connected to: " << stream.rdbuf()->remote_endpoint();
+//		LOG(LUX_DEBUG, LUX_NOERROR) << "Connected to: " << stream.rdbuf()->remote_endpoint();
+		LOG(LUX_DEBUG, LUX_NOERROR) << "Connected to: " << stream.socket().remote_endpoint();
 
 		// Send the command to update the map
 		stream << "luxSetUserSamplingMap" << endl;

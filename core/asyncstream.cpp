@@ -23,6 +23,9 @@
 #include "asyncstream.h"
 #include <boost/bind.hpp>
 
+#include <boost/asio/deadline_timer.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
 using namespace lux;
 
 
@@ -65,9 +68,13 @@ std::streamsize socket_device::read(char* data, std::streamsize n)
 	if (!socket.is_open())
 		return -1;
 
-	socket.get_io_service().reset();
+//	socket.get_io_service().reset();
+	boost::asio::io_context& io_ctx =
+    	static_cast<boost::asio::io_context&>(socket.get_executor().context());
+	io_ctx.restart();
 
-	boost::asio::deadline_timer timer(socket.get_io_service());
+//	boost::asio::deadline_timer timer(socket.get_io_service());
+	boost::asio::deadline_timer timer(io_ctx);
 	if (duration_type() < timeout_duration) {
 		// non-zero timeout, set up timeout timer
 		timer.expires_from_now(timeout_duration);
@@ -91,7 +98,8 @@ std::streamsize socket_device::read(char* data, std::streamsize n)
 			boost::asio::placeholders::bytes_transferred )
 	);
  
-	while ( socket.get_io_service().run_one() ) {
+//	while ( socket.get_io_service().run_one() ) {
+	while ( io_ctx.run_one() ) {
 		// first check if we received any data			
 		if (read_result.bytes_transferred > 0) { 
 			// if so we return and ignore any errors
@@ -125,9 +133,13 @@ std::streamsize socket_device::write(const char* data, std::streamsize n)
 	if (!socket.is_open())
 		return -1;
 
-	socket.get_io_service().reset();
+//	socket.get_io_service().reset();
+	boost::asio::io_context& io_ctx =
+    	static_cast<boost::asio::io_context&>(socket.get_executor().context());
+	io_ctx.restart();
 
-	boost::asio::deadline_timer timer(socket.get_io_service());
+//	boost::asio::deadline_timer timer(socket.get_io_service());
+	boost::asio::deadline_timer timer(io_ctx);
 
 	if (duration_type() < timeout_duration) {
 		// non-zero timeout, set up timeout timer
@@ -152,7 +164,8 @@ std::streamsize socket_device::write(const char* data, std::streamsize n)
 			boost::asio::placeholders::bytes_transferred )
 	);
  
-	while ( socket.get_io_service().run_one() ) {
+//	while ( socket.get_io_service().run_one() ) {
+	while ( io_ctx.run_one() ) {
 		// first check if we wrote any data			
 		if (write_result.bytes_transferred > 0) { 
 			// if so we return and ignore any errors

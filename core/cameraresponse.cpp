@@ -30,7 +30,8 @@
 
 #include <boost/lexical_cast.hpp> // used to convert string to float
 #include <boost/regex.hpp>
-#include <boost/iterator.hpp>
+// #include <boost/iterator.hpp>
+#include <iterator>
 #include <iostream>
 #include <fstream>
 #include <sstream>

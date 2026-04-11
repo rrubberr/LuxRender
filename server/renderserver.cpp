@@ -1134,9 +1134,10 @@ void NetworkRenderServerThread::run(int ipversion, NetworkRenderServerThread *se
 	try {
 		const bool reuse_addr = true;
 
-		boost::asio::io_service io_service;
+		boost::asio::io_context io_context;
 		tcp::endpoint endpoint(ipversion == 4 ? tcp::v4() : tcp::v6(), listenPort);
-		tcp::acceptor acceptor(io_service);
+//		tcp::acceptor acceptor(io_service);
+		tcp::acceptor acceptor(io_context);
 
 		acceptor.open(endpoint.protocol());
 		if (reuse_addr)
@@ -1154,7 +1155,8 @@ void NetworkRenderServerThread::run(int ipversion, NetworkRenderServerThread *se
 		while (serverThread->signal == SIG_NONE) {
 			//tcp::iostream stream2;
 #ifdef USE_SOCKET_DEVICE
-			tcp::socket socket(io_service);
+//			tcp::socket socket(io_service);
+			tcp::socket socket(io_context);
 
 			acceptor.accept(socket);
 
@@ -1167,8 +1169,8 @@ void NetworkRenderServerThread::run(int ipversion, NetworkRenderServerThread *se
 			stream->get_socket().set_option(boost::asio::ip::tcp::no_delay(true));
 #else
 			tcp::iostream stream;
-			acceptor.accept(*stream.rdbuf());
-			stream.rdbuf()->set_option(boost::asio::ip::tcp::no_delay(true));
+			acceptor.accept(stream.socket());
+			stream.socket().set_option(boost::asio::ip::tcp::no_delay(true));
 #endif
 			stream.setf(ios::scientific, ios::floatfield);
 			stream.precision(16);
