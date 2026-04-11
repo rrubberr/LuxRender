@@ -16,8 +16,8 @@ diff --git a/Makefile.gnu b/Makefile.gnu
 -	CXXFLAGS += -fPIC
 -endif
 +ifeq ($(shell sh -c 'uname -m 2>/dev/null || echo not'),x86_64)
-+	CFLAGS += -fPIC -w
-+	CXXFLAGS += -fPIC -w -std=c++11
++	CFLAGS += -fPIC -w -std=c++11 -Wno-error=implicit-function-declaration
++	CXXFLAGS += -fPIC -w -std=c++11 -Wno-error=implicit-function-declaration
 +endif
 @@ -74,3 +74,2 @@
 -	install -m 644 -o root -g root $(HEADER) $(INCDIR)
