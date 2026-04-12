@@ -1,6 +1,6 @@
 # LuxRender Flatpak
 
-![LuxRender](org.luxrender.luxrenderui.png)
+![LuxRender](flathub/org.luxrender.luxrenderui.png)
 
 This repository provides the sources for building the LuxRender Flatpak package.
 
@@ -60,14 +60,14 @@ In order to use LuxRender, the compiled binaries must be collected.
 From the "luxrender" directory, run the following command:
 
 ```sh
-sh collect-binaries/collect-binaries.sh
+sh gather-binaries/gather-binaries.sh
 ```
 
-This will populate the collect-binaries folder with everything needed to use LuxRender. This folder can now be renamed or moved anywhere.
+This will populate the gather-binaries folder with everything needed to use LuxRender. This folder can now be renamed or moved anywhere.
 
 After installing [LuxBlend25](https://github.com/rrubberr/Flatpak-LuxBlend25), point the addon to this directory to enable Blender interoperability.
 
-![Binaries](images/luxblend25-setdir.png)
+![Binaries](flathub/images/luxblend25-setdir.png)
 
 
 ## Setting a Qt6 Theme
@@ -94,7 +94,7 @@ sudo pacman -S --needed qt6ct && yay -S adwaita-qt6-git
 
 Set the system Qt6 theme to "Adwaita" or "Adwaita Dark" as shown in the included screenshot. Adjust the typeface and size to your taste in the "Fonts" tab.
 
-![Theming](images/org.luxrender.luxrenderui_Qt5_Theming.png)
+![Theming](flathub/images/org.luxrender.luxrenderui_Qt5_Theming.png)
 
 
 ## New Features

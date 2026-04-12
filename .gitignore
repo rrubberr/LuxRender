@@ -2,9 +2,9 @@
 .build-dir/
 .vscode
 deps/boost_1_90_0.tar.gz
-collect-binaries/liblux.so
-collect-binaries/luxcomp
-collect-binaries/luxconsole
-collect-binaries/luxmerger
-collect-binaries/luxrender
-collect-binaries/pylux.so
+gather-binaries/liblux.so
+gather-binaries/luxcomp
+gather-binaries/luxconsole
+gather-binaries/luxmerger
+gather-binaries/luxrender
+gather-binaries/pylux.so

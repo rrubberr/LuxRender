@@ -22,44 +22,27 @@ cleanup:
 
 modules:
 
-# This script requires the zlib, bzip2, lzma, jpeg, openjpeg, tiff, tiff-compat, png, freetype, and fftw development packages to be installed at the system level.
-
-# Additionally, Qt6 Core, Gui, Widgets, and Imageformats are required for GUI functionality.
-
-# Old Python requires an older OpenSSL version.
-
-  - name: OpenSSL
-    buildsystem: simple
-    build-commands:
-      - ./config shared -fPIC -std=c++14
-      - make install INSTALL_PREFIX=/app INSTALLTOP=/
-    post-install:
-      - chmod --recursive 777 $FLATPAK_DEST/lib/*
-    build-options:
-      no-debuginfo: true
-      no-debuginfo-compression: true
-    sources:
-      - type: archive
-        path: deps/openssl-1.0.2.tar.xz
+# LuxRender requires Flatpak and Flatpak builder. To run the LuxRender UI, Qt6 core, dbus, gui, imageformats, and widgets are required.
 
   - name: IlmBase
     buildsystem: cmake
     build-options:
       cxxflags: -w -std=c++14
-      ldflags: -Wl,-rpath,$ORIGIN
       no-debuginfo: true
       no-debuginfo-compression: true
     subdir:
       IlmBase
     sources: &openexr_sources
       - type: archive
-        path: deps/openexr-2.2.0.tar.xz
+        url: https://github.com/AcademySoftwareFoundation/openexr/archive/refs/tags/v2.2.2.tar.gz
+        sha256: f99dab62c4275cd30dc48ab3cf27db892d7cd76b09e6606ffb90f7b05863566e
+      - type: patch
+        path: patches/openexr/openexr-limits.patch
 
   - name: OpenEXR
     buildsystem: cmake
     build-options:
       cxxflags: -w -std=c++14 -I /app/include/OpenEXR
-      ldflags: -Wl,-rpath,$ORIGIN
       no-debuginfo: true
       no-debuginfo-compression: true
     subdir:
@@ -77,10 +60,26 @@ modules:
       no-debuginfo-compression: true
     sources:
       - type: archive
-        path: deps/freeimage-3.18.0.tar.xz
+        url: http://downloads.sourceforge.net/freeimage/FreeImage3180.zip
+        sha256: f41379682f9ada94ea7b34fe86bf9ee00935a3147be41b6569c9605a53e438fd
       - type: patch
         path: patches/freeimage/freeimage-paths.patch
-  
+
+  # Old Python requires an older OpenSSL version.
+
+  - name: OpenSSL
+    buildsystem: simple
+    build-commands:
+      - ./config shared no-dsw no-hw -w -fPIC
+      - make install INSTALL_PREFIX=/app INSTALLTOP=/
+    build-options:
+      no-debuginfo: true
+      no-debuginfo-compression: true
+    sources:
+      - type: archive
+        url: https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2u/openssl-1.0.2u.tar.gz
+        sha256: ecd0c6ffb493dd06707d38b14bb4d8c2288bb7033735606569d8f90f89669d16
+
   - name: Python3
     buildsystem: simple
     build-commands:
@@ -94,7 +93,8 @@ modules:
       no-debuginfo-compression: true
     sources:
       - type: archive
-        path: deps/Python-3.5.10.tar.xz
+        url: https://www.python.org/ftp/python/3.5.10/Python-3.5.10.tar.xz
+        sha256: 0f0fa8685c1dc1f1dacb0b4e7779796b90aef99dc1fa4967a71b9da7b57d4a28
 
 # The node editor preview leaks memory on 1.80 but not on 1.79.
 # The leak could be in asyncstream.cpp asyncstream.h renderfarm.cpp renderfarm.h 
@@ -110,16 +110,15 @@ modules:
       no-debuginfo-compression: true
     sources:
       - type: archive
-        path: deps/boost_1_79_0.tar.xz
+        url: https://archives.boost.io/release/1.90.0/source/boost_1_90_0.tar.bz2
+        sha256: 49551aff3b22cbc5c5a9ed3dbc92f0e23ea50a0f7325b0d198b705e8ee3fc305
 
 # Using the modified LuxRays is REQUIRED; https://github.com/LuxRender/LuxRays will NOT build.
 
   - name: LuxRays
     buildsystem: cmake
     build-options:
-      cxxflags: -w -march=nocona -mtune=haswell -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0
-      cflags: -L /app/lib -lpython3.5m -I /app/include/python3.5m -L /usr/lib/x86_64-linux-gnu -lpthread -lgobject-2.0 -lgtk-3 -lglib-2.0 -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0
-      no-debuginfo: true
+      cxxflags: -w -march=nocona -mtune=haswell -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m
       no-debuginfo-compression: true
     config-opts:
       - -D PYTHON_INCLUDE_DIR=/app/include/python3.5m
@@ -145,7 +144,7 @@ modules:
   - name: LuxRender
     buildsystem: cmake
     build-options:
-      cxxflags:  -w -march=nocona -mtune=haswell -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=DEBUG -L /app/lib -I /app/bin -I /app/lib -I /app/include/python3.5m -I /app/lib/cmake/ -L /usr/lib/x86_64-linux-gnu
+      cxxflags:  -w -march=nocona -mtune=haswell -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/bin -I /app/lib -I /app/include/python3.5m -I /app/lib/cmake/
       no-debuginfo: true
       no-debuginfo-compression: true
     builddir: true
@@ -158,9 +157,8 @@ modules:
       - -D LUX_USE_FREEIMAGE=ON
       - -D FREEIMAGE_INCLUDE_DIR=/app/include/
       - -D OpenEXR_Imath_INCLUDE_DIR=/app/include/OpenEXR/
-      - -D OpenEXR_half_INCLUDE_DIR=/app/include/OpenEXR/
+
       - -D CMAKE_FIND_PACKAGE_PREFER_CONFIG=TRUE
-      - -D LUXRAYS_DISABLE_OPENCL=TRUE
       - -D BOOST_ROOT=/app/lib/
       - -D Boost_USE_STATIC_LIBS=ON
       - -D Boost_USE_STATIC_RUNTIME=ON
@@ -170,7 +168,7 @@ modules:
       - type: dir
         path: Lux/
 
-# Install the app. The extract-binaries.sh script can now be used to create a standalone LuxRender.
+# The gather-binaries.sh script can now be used to create a standalone LuxRender.
 
   - name: metadata
     buildsystem: simple
@@ -184,8 +182,8 @@ modules:
       no-debuginfo-compression: true
     sources:
       - type: file
-        path: org.luxrender.luxrenderui.metainfo.xml
+        path: flathub/org.luxrender.luxrenderui.metainfo.xml
       - type: file
-        path: org.luxrender.luxrenderui.desktop
+        path: flathub/org.luxrender.luxrenderui.desktop
       - type: file
-        path: org.luxrender.luxrenderui.png
+        path: flathub/org.luxrender.luxrenderui.png

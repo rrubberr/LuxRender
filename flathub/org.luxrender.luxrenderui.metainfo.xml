@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.luxrender.luxrenderui</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0</project_license>
+  <developer_name>LuxRender Contributors</developer_name>
+  <name>LuxRender</name>
+  <summary>LuxRender is a physically based and unbiased rendering engine.</summary>
+
+  <description>
+    <p>
+      LuxRender is a physically based and unbiased rendering engine.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">org.luxrender.luxrenderui.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <image type="source">https://raw.githubusercontent.com/rrubberr/Flatpak-LuxRender/main/images/org.luxrender.luxrenderui_screenshot.png</image>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/rrubberr/Flatpak-LuxRender/</url>
+  <url type="bugtracker">https://github.com/rrubberr/Flatpak-LuxRender/issues</url>
+  <url type="help">https://github.com/rrubberr/Flatpak-LuxRender/wiki</url>
+
+  <releases>
+    <release version="1.9" date="2026-4-11">
+      <description>
+        <p>
+          This version includes enhancements to the LuxRender build system and architecture.
+        </p>
+      </description>
+      <url>https://github.com/rrubberr/Flatpak-LuxRender/blob/main/README.md</url>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1">
+  </content_rating>
+
+  <provides>
+    <binary>luxrender</binary>
+  </provides>
+</component>

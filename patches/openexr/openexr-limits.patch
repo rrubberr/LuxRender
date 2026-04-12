@@ -1,0 +1,10 @@
+diff --git a/Makefile.gnu b/Makefile.gnu
+--- a/OpenEXR/IlmImf/ImfTiledMisc.cpp
++++ a/OpenEXR/IlmImf/ImfTiledMisc.cpp
+@@ -47,3 +47,3 @@
+-#include <algorithm>
+-
+-#include "ImfNamespace.h"
++#include <algorithm>
++#include <limits>
++#include "ImfNamespace.h"
