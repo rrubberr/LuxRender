@@ -1,11 +1,10 @@
 .flatpak-builder/
 .build-dir/
 .vscode
-extract-binaries/liblux.so
-extract-binaries/luxcomp
-extract-binaries/luxconsole
-extract-binaries/luxmerger
-extract-binaries/luxrender
-extract-binaries/pylux.so
-extract-binaries/pyluxcore.so
 deps/boost_1_90_0.tar.gz
+collect-binaries/liblux.so
+collect-binaries/luxcomp
+collect-binaries/luxconsole
+collect-binaries/luxmerger
+collect-binaries/luxrender
+collect-binaries/pylux.so
