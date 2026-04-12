@@ -70,7 +70,6 @@ modules:
   - name: FreeImage
     buildsystem: simple
     build-commands:
-      - patch --binary patches/freeimage/freeimage-external-libtiff.patch
       - make -j"${FLATPAK_BUILDER_N_JOBS}"
       - make INSTALLDIR=/app/lib install
     build-options:
