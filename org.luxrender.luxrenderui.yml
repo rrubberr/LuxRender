@@ -24,14 +24,14 @@ modules:
 
 # This script requires the zlib, bzip2, lzma, jpeg, openjpeg, tiff, tiff-compat, png, freetype, and fftw development packages to be installed at the system level.
 
-# Additionally, Qt5 Core, Gui, Widgets, and Imageformats are required for GUI functionality.
+# Additionally, Qt6 Core, Gui, Widgets, and Imageformats are required for GUI functionality.
 
 # Old Python requires an older OpenSSL version.
 
   - name: OpenSSL
     buildsystem: simple
     build-commands:
-      - ./config shared -fPIC -w -std=c++14
+      - ./config shared -fPIC -std=c++14
       - make install INSTALL_PREFIX=/app INSTALLTOP=/
     post-install:
       - chmod --recursive 777 $FLATPAK_DEST/lib/*
@@ -70,6 +70,7 @@ modules:
   - name: FreeImage
     buildsystem: simple
     build-commands:
+      - patch --binary patches/freeimage/freeimage-external-libtiff.patch
       - make -j"${FLATPAK_BUILDER_N_JOBS}"
       - make INSTALLDIR=/app/lib install
     build-options:
@@ -85,7 +86,7 @@ modules:
     buildsystem: simple
     build-commands:
       - ./configure --prefix=/app --with-openssl=/app/bin --enable-shared --with-ensurepip=no
-      - make install -j"${FLATPAK_BUILDER_N_JOBS}" LD_RUN_PATH=$ORIGIN cc=g++ cxx=g++ cxxflags="-O2 -w -fPIC -std=c++14 -I /app/bin -I /app/include/openssl -fpermissive"
+      - make install -j"${FLATPAK_BUILDER_N_JOBS}" LD_RUN_PATH=$ORIGIN cc=g++ cxx=g++ cxxflags="-w -fPIC -std=c++14 -I /app/bin -I /app/include/openssl -fpermissive"
     post-install:
       - chmod 644 $FLATPAK_DEST/lib/libpython3.5m.so.1.0
       - chmod 644 $FLATPAK_DEST/lib/libpython3.so
@@ -96,22 +97,6 @@ modules:
       - type: archive
         path: deps/Python-3.5.10.tar.xz
 
-# Build a minimal Qt5 to support the updated GUI.
-
-  # - name: Qt5
-  #   buildsystem: simple
-  #   build-options:
-  #     cxxflags: -w -std=c++14
-  #     ldflags: -Wl,-rpath,$ORIGIN
-  #     no-debuginfo: true
-  #     no-debuginfo-compression: true
-  #   build-commands:
-  #     - ./configure -prefix "/app" -release -opensource -nomake examples -nomake tests -no-icu
-  #     - make install -j "${FLATPAK_BUILDER_N_JOBS}"
-  #   sources:
-  #     - type: archive
-  #       path: deps/qtbase-everywhere-opensource-src-5.15.18.tar.xz
-
 # The node editor preview leaks memory on 1.80 but not on 1.79.
 # The leak could be in asyncstream.cpp asyncstream.h renderfarm.cpp renderfarm.h 
 # UNLIKELY to be renderserver.cpp
@@ -120,22 +105,21 @@ modules:
     buildsystem: simple
     build-commands:
       - ./bootstrap.sh --prefix=/app --with-python=/app/bin/python3 --with-python-root=/app
-      - ./b2 install --with-program_options --with-regex --with-filesystem --with-system --with-thread --with-serialization --with-iostreams --with-python --with-chrono hardcode-dll-paths=true dll-path="'\$ORIGIN'" variant=release link=static runtime-link=static threading=multi cflags="-fPIC" cxxflags="-fPIC -I /app/include/python3.5m" -j"${FLATPAK_BUILDER_N_JOBS}"
+      - ./b2 install --with-program_options --with-regex --with-filesystem --with-system --with-thread --with-serialization --with-iostreams --with-python --with-chrono hardcode-dll-paths=true dll-path="'\$ORIGIN'" variant=release link=static runtime-link=static threading=multi cflags="-w -fPIC" cxxflags="-w -fPIC -I /app/include/python3.5m" -j"${FLATPAK_BUILDER_N_JOBS}"
     build-options:
       no-debuginfo: true
       no-debuginfo-compression: true
     sources:
       - type: archive
-        path: deps/boost_1_90_0.tar.gz
+        path: deps/boost_1_79_0.tar.xz
 
 # Using the modified LuxRays is REQUIRED; https://github.com/LuxRender/LuxRays will NOT build.
 
   - name: LuxRays
     buildsystem: cmake
     build-options:
-      cxxflags: -w -Wno-dev-O2 -march=nocona -mtune=haswell -std=c++14 -msse2 -mfpmath=sse -pipe -pthread -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DHAVE_PTHREAD_H -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0
+      cxxflags: -w -march=nocona -mtune=haswell -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0
       cflags: -L /app/lib -lpython3.5m -I /app/include/python3.5m -L /usr/lib/x86_64-linux-gnu -lpthread -lgobject-2.0 -lgtk-3 -lglib-2.0 -I /usr/include/gtk-3.0 -I /usr/include/gtk-3.0/gtk -I /usr/include/glib-2.0 -I /usr/lib/x86_64-linux-gnu/glib-2.0/include/ -I /usr/include/pango-1.0/ -I /usr/include/harfbuzz -I /usr/include/cairo -I /usr/include/gdk-pixbuf-2.0 -I /usr/include/atk-1.0
-      ldflags: -Wl,-rpath,$ORIGIN/shared
       no-debuginfo: true
       no-debuginfo-compression: true
     config-opts:
@@ -162,8 +146,7 @@ modules:
   - name: LuxRender
     buildsystem: cmake
     build-options:
-      cxxflags: -w -Wno-dev -O2 -march=nocona -mtune=haswell -std=c++14 -msse2 -mfpmath=sse -pipe -pthread -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DHAVE_PTHREAD_H -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/bin -I /app/lib -I /app/include/python3.5m -I /app/lib/cmake/ -L /usr/lib/x86_64-linux-gnu
-      ldflags: -Wl,-rpath,$ORIGIN/shared
+      cxxflags:  -w -march=nocona -mtune=haswell -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=DEBUG -L /app/lib -I /app/bin -I /app/lib -I /app/include/python3.5m -I /app/lib/cmake/ -L /usr/lib/x86_64-linux-gnu
       no-debuginfo: true
       no-debuginfo-compression: true
     builddir: true
