@@ -1,8 +1,8 @@
-# LuxRender Flatpak
+# LuxRender
 
 ![LuxRender](flathub/org.luxrender.luxrenderui.png)
 
-This repository provides the sources for building the LuxRender Flatpak package.
+This repository provides the sources for building LuxRender.
 
 
 # Getting Started
@@ -16,23 +16,20 @@ Download and try a [test scene](https://github.com/rrubberr/Flatpak-LuxRender-Sc
 
 ## Dependencies
 
-Building LuxRender requires Flatpak and Flatpak builder. To run the LuxRender UI, Qt6 core, dbus, gui, imageformats, and widgets are required.
+Building LuxRender requires Flatpak builder. To run the LuxRender UI, Qt6 core, dbus, gui, imageformats, and widgets are required.
 
 Other libraries linked include fftw3, freetype, and png.
 
 On a Debian based distribution:
-
 ```sh
 sudo apt install flatpak flatpak-builder qt6-base-dev qt6-image-formats-plugins libfftw3-3 libfreetype6 libpng16-16
 ```
 
 On a Fedora based distribution:
-
 ```sh
 sudo dnf install flatpak flatpak-builder qt6-qtbase qt6-qtimageformats fftw freetype libpng
 ```
 On an Arch based distribution:
-
 ```sh
  sudo pacman -S --needed flatpak flatpak-builder qt6-base qt6-imageformats fftw freetype2 libpng
 ```
@@ -41,13 +38,11 @@ On an Arch based distribution:
 ## Building the Flatpak
 
 Clone this GitHub repository.
-
 ```sh
 git clone --recursive https://github.com/rrubberr/Flatpak-LuxRender -b FeatureRemoval luxrender && cd luxrender
 ```
 
 Build the LuxRender package using Flatpak Builder.
-
 ```sh
 flatpak-builder --install-deps-from=flathub --force-clean .build-dir org.luxrender.luxrenderui.yml
 ```
@@ -55,10 +50,11 @@ flatpak-builder --install-deps-from=flathub --force-clean .build-dir org.luxrend
 
 ## Collecting Binaries
 
-In order to use LuxRender, the compiled binaries must be collected.
+Despite using the containerized Flatpak build system, the produced binaries are completely portable.
+
+In order to use LuxRender, the compiled binaries must be gathered into one folder.
 
 From the "luxrender" directory, run the following command:
-
 ```sh
 sh gather-binaries/gather-binaries.sh
 ```
@@ -75,19 +71,16 @@ After installing [LuxBlend25](https://github.com/rrubberr/Flatpak-LuxBlend25), p
 Your system will likely apply an incorrect theme to LuxRender. To remedy this, install the Qt6 Configuration Tool and adwaita-qt.
 
 On a Debian based distribution:
-
 ```sh
 sudo apt install qt6ct adwaita-qt
 ```
 
 On a Fedora based distribution:
-
 ```sh
 sudo dnf install qt6ct adwaita-qt6
 ```
 
 On an Arch based distribution:
-
 ```sh
 sudo pacman -S --needed qt6ct && yay -S adwaita-qt6-git
 ```
@@ -97,24 +90,42 @@ Set the system Qt6 theme to "Adwaita" or "Adwaita Dark" as shown in the included
 ![Theming](flathub/images/org.luxrender.luxrenderui_Qt5_Theming.png)
 
 
-## New Features
+# Features vs. LuxRender 1.6
 
-### LuxRays
+## LuxRays
 
-* New FlatPak build system with GCC 15 support.
+* Builds have been migrated from GCC 7 to GCC 15 (current).
+* Dependencies on Embree, GLUT, OpenCL, OpenImageIO, and Threaded Building Blocks (TBB) have been removed.
 
-### LuxRender
+### Removed Features
 
-* New FlatPak build system with GCC 15 support.
-* New QT6 based GUI with theming support.
-* Added the ability to select more than 32 threads in the GUI.
-* Added a fifth decimal place to certain post-process effects for finer tuning.
 * Removed support for LuxCoreRender and OpenCL.
 * If these features are desired, consult the [LuxCoreRender project page](https://github.com/LuxCoreRender).
 
-### LuxBlend
+## LuxRender
 
+* Builds have been migrated from GCC 7 to GCC 15 (current).
+* QT has been updated from QT4 to QT6 (current).
+* Boost has been updated from 1.44 to 1.90 (current).
+* Dependencies on Embree, GLUT, OpenCL, OpenImageIO, and Threaded Building Blocks (TBB) have been removed.
+
+### New Features
+
+* Added the ability to select more than 32 threads (up to 512) in the LuxRender GUI.
+* Added a fifth decimal place to certain post-process effects for finer tuning.
+* Restored TIFF export (broken since 1.5).
+
+### Removed Features
+
+* Removed support for LuxCoreRender and OpenCL.
+* If these features are desired, consult the [LuxCoreRender project page](https://github.com/LuxCoreRender).
+
+## LuxBlend
+
+### New Features
 * Added the ability to set the mesh accelerator (QBVH, KDTree, etc.) per-mesh in the Blender mesh data panel.
+
+### Removed Features
 * Removed support for LuxCoreRender rendering engines.
 * If these features are desired, consult the [BlendLuxCore project page](https://github.com/luxcorerender/blendluxcore).
 
@@ -122,6 +133,6 @@ Set the system Qt6 theme to "Adwaita" or "Adwaita Dark" as shown in the included
 
 The LuxRender Flatpak is intended for use with modern Linux systems, and has been confirmed to build on a wide variety of current distributions from Debian and Ubuntu, to Fedora and RHEL, and is developed on Gentoo.
 
-Support for Windows and MacOS is not planned, although there is no reason the system could not still be compiled for those systems.
+Support for Windows and MacOS is not planned, although none of these changes prevent compilation on those systems.
 
-Users of older Linux systems, Mac OSX, and Windows, should use the legacy [LuxRender 1.6 binaries](https://wiki.luxcorerender.org/Previous_Version).
+Users of extremely old Linux systems (i.e. Ubuntu 18.04), Mac OSX, and Windows, should use the legacy [LuxRender 1.6 binaries](https://wiki.luxcorerender.org/Previous_Version).
