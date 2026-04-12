@@ -11,30 +11,30 @@ Once you have compiled the system, check the [Wiki page](https://github.com/rrub
 
 Install the updated version of [LuxBlend25](https://github.com/rrubberr/Flatpak-LuxBlend25) for Blender 2.79 integration.
 
-Download and try a [test scene.](https://github.com/rrubberr/Flatpak-LuxRender-Scenes)
+Download and try a [test scene](https://github.com/rrubberr/Flatpak-LuxRender-Scenes).
 
 
 ## Dependencies
 
-Building LuxRender requires the Flatpak, Flatpak builder, bzip2, lzma, jpeg, tiff, png, freetype, fftw, and Qt5 core, gui, widgets, and image formats packages.
+Building LuxRender requires Flatpak and Flatpak builder. To run the LuxRender UI, Qt6 core, dbus, gui, imageformats, and widgets are required.
+
+Other libraries linked include fftw3, freetype, and png.
 
 On a Debian based distribution:
 
 ```sh
-sudo apt install flatpak flatpak-builder bzip2 lzma libjpeg-dev libopenjp2-dev libtiff-dev libpng-dev libfreetype-dev libfftw3-dev libqt5core5 libqt5gui5 libqt5widgets5 qt5-image-formats-plugins
+sudo apt install flatpak flatpak-builder qt6-base-dev qt6-image-formats-plugins libfftw3-3 libfreetype6 libpng16-16
 ```
 
 On a Fedora based distribution:
 
 ```sh
-sudo dnf install flatpak flatpak-builder bzip2 lzma libjpeg-devel openjpeg-devel libtiff-devel libpng-devel freetype-devel fftw-devel qt5-qtbase-devel qt5-qtimageformats
+sudo dnf install flatpak flatpak-builder qt6-qtbase qt6-qtimageformats fftw freetype libpng
 ```
-
-Add the Flathub repository to enable retrieval of Flatpak dependencies.
+On an Arch based distribution:
 
 ```sh
-flatpak remote-add --user --if-not-exists \
-	flathub https://flathub.org/repo/flathub.flatpakrepo
+ sudo pacman -S --needed flatpak flatpak-builder qt6-base qt6-imageformats fftw freetype2 libpng
 ```
 
 
@@ -49,54 +49,50 @@ git clone --recursive https://github.com/rrubberr/Flatpak-LuxRender -b FeatureRe
 Build the LuxRender package using Flatpak Builder.
 
 ```sh
-flatpak-builder --install --install-deps-from=flathub --user --force-clean .build-dir org.luxrender.luxrenderui.yml
+flatpak-builder --install-deps-from=flathub --force-clean .build-dir org.luxrender.luxrenderui.yml
 ```
 
 
-## Running the Flatpak
+## Collecting Binaries
 
-After the package has been compiled, LuxRender can be launched using the following command.
+In order to use LuxRender, the compiled binaries must be collected.
+
+From the "luxrender" directory, run the following command:
 
 ```sh
-flatpak run org.luxrender.luxrenderui
-```
-![LuxRender](images/org.luxrender.luxrenderui_screenshot.png)
-
-
-## Creating Binaries for Blender
-
-In order to use LuxRender with Blender and [LuxBlend25](https://github.com/rrubberr/Flatpak-LuxBlend25), the compiled binaries and shared libraries must be extracted from the Flatpak installation.
-
-From the Flatpak-LuxRender directory, run the following command.
-
-```sh
-sh extract-binaries/extract-binaries.sh
+sh collect-binaries/collect-binaries.sh
 ```
 
-This will populate the extract-binaries folder with everything needed to run LuxRender outside of Flatpak. The user can now move this folder anywhere he desires.
+This will populate the collect-binaries folder with everything needed to use LuxRender. This folder can now be renamed or moved anywhere.
 
-After installing [LuxBlend25](https://github.com/rrubberr/Flatpak-LuxBlend25), point the addon to the previously created directory in order to enable Blender interoperability.
+After installing [LuxBlend25](https://github.com/rrubberr/Flatpak-LuxBlend25), point the addon to this directory to enable Blender interoperability.
 
 ![Binaries](images/luxblend25-setdir.png)
 
 
-## Setting a Qt5 Theme
+## Setting a Qt6 Theme
 
-Your system will likely apply an incorrect theme to LuxRender. To remedy this, install the Qt5 Configuration Tool and adwaita-qt.
+Your system will likely apply an incorrect theme to LuxRender. To remedy this, install the Qt6 Configuration Tool and adwaita-qt.
 
 On a Debian based distribution:
 
 ```sh
-sudo apt install qt5ct adwaita-qt
+sudo apt install qt6ct adwaita-qt
 ```
 
 On a Fedora based distribution:
 
 ```sh
-sudo dnf install qt5ct adwaita-qt5
+sudo dnf install qt6ct adwaita-qt6
 ```
 
-Set the system Qt5 theme to "Adwaita-Dark" as shown in the included screenshot. Adjust the typeface and size to your taste in the "Fonts" tab.
+On an Arch based distribution:
+
+```sh
+sudo pacman -S --needed qt6ct && yay -S adwaita-qt6-git
+```
+
+Set the system Qt6 theme to "Adwaita" or "Adwaita Dark" as shown in the included screenshot. Adjust the typeface and size to your taste in the "Fonts" tab.
 
 ![Theming](images/org.luxrender.luxrenderui_Qt5_Theming.png)
 
@@ -105,30 +101,27 @@ Set the system Qt5 theme to "Adwaita-Dark" as shown in the included screenshot. 
 
 ### LuxRays
 
-* New FlatPak build system with GCC 12 support.
+* New FlatPak build system with GCC 15 support.
 
 ### LuxRender
 
-* New FlatPak build system with GCC 12 support.
-* New QT5 based GUI with dark mode and theme support.
+* New FlatPak build system with GCC 15 support.
+* New QT6 based GUI with theming support.
 * Added the ability to select more than 32 threads in the GUI.
 * Added a fifth decimal place to certain post-process effects for finer tuning.
-* Removed support for LuxCoreRender rendering engines. If LuxCoreRender features are desired, such as pure OpenCL path tracing, users are reccomended to consult the [LuxCoreRender project page.](https://github.com/LuxCoreRender)
+* Removed support for LuxCoreRender and OpenCL.
+* If these features are desired, consult the [LuxCoreRender project page](https://github.com/LuxCoreRender).
 
 ### LuxBlend
 
 * Added the ability to set the mesh accelerator (QBVH, KDTree, etc.) per-mesh in the Blender mesh data panel.
-* Added the Hybrid Bidirectional integrator for OpenCL-accelerated bidirectional path tracing.
-* Added the IGI (Instant Global Illumination) accelerator.
-* Added the ERPT (Energy Redistribution Path Tracing) sampler and associated settings. This is experimental and often generates poor results.
-* Added the Mutation Range setting for the Metropolis Sampler.
-* Added additional accelerators including BVH/Octree and the ability to use no accelerator.
-* Removed support for LuxCoreRender rendering engines. If LuxCoreRender features are desired, such as pure OpenCL path tracing, users are reccomended to consult the [LuxCoreRender project page.](https://github.com/LuxCoreRender)
+* Removed support for LuxCoreRender rendering engines.
+* If these features are desired, consult the [BlendLuxCore project page](https://github.com/luxcorerender/blendluxcore).
 
 ## Known limitations
 
-The LuxRender Flatpak is intended for use with modern Linux systems, and has been confirmed to build on a wide variety of current distributions from Debian 12, to Fedora 39, to Clear Linux version 40000+.
+The LuxRender Flatpak is intended for use with modern Linux systems, and has been confirmed to build on a wide variety of current distributions from Debian and Ubuntu, to Fedora and RHEL, and is developed on Gentoo.
 
-Support for Windows and MacOS is not planned.
+Support for Windows and MacOS is not planned, although there is no reason the system could not still be compiled for those systems.
 
-On older Linux systems, Mac OSX, and Windows, users are reccomended to use [LuxRender 1.6 binaries.](https://wiki.luxcorerender.org/Previous_Version)
+Users of older Linux systems, Mac OSX, and Windows, should use the legacy [LuxRender 1.6 binaries](https://wiki.luxcorerender.org/Previous_Version).
