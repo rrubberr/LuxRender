@@ -53,7 +53,8 @@ namespace lux {
 boost::once_flag luxInitFlag = BOOST_ONCE_INIT;
 
 //The memory pool handles temporary allocations and is freed after each C API Call
-boost::pool<> memoryPool(sizeof(char));
+//boost::pool<> memoryPool(sizeof(char));
+boost::pool<> memoryPool(sizeof(float));
 
 //Here we transform a python list to lux C API parameter lists
 int getParametersFromPython(boost::python::list& pList, std::vector<LuxToken>& aTokens, std::vector<LuxPointer>& aValues )
@@ -504,7 +505,7 @@ public:
 
 		checkActiveContext();
 		context->ConcatTransform(pFloat);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void transform(boost::python::list tx)
@@ -527,7 +528,7 @@ public:
 
 		checkActiveContext();
 		context->Transform(pFloat);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void coordinateSystem(const char *name)
@@ -547,7 +548,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->Renderer(name,PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void pixelFilter(const char *name, boost::python::list params)
@@ -555,7 +556,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->PixelFilter(name,PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void film(const char *name, boost::python::list params)
@@ -563,7 +564,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->Film(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void sampler(const char *name, boost::python::list params)
@@ -571,7 +572,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->Sampler(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void accelerator(const char *name, boost::python::list params)
@@ -579,7 +580,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->Accelerator(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void surfaceIntegrator(const char *name, boost::python::list params)
@@ -587,7 +588,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->SurfaceIntegrator(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void volumeIntegrator(const char *name, boost::python::list params)
@@ -595,7 +596,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->VolumeIntegrator(name,PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void camera(const char *name, boost::python::list params)
@@ -603,7 +604,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->Camera(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void worldBegin()
@@ -656,7 +657,7 @@ public:
 
 		checkActiveContext();
 		context->MotionBegin(static_cast<u_int>(listSize), pFloat);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void motionEnd()
@@ -670,7 +671,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->Texture(name, type, texname, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void material(const char *name, boost::python::list params)
@@ -678,7 +679,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->Material(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void makeNamedMaterial(const char *name, boost::python::list params)
@@ -686,7 +687,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->MakeNamedMaterial(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void namedMaterial(const char *name)
@@ -700,7 +701,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->LightGroup(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void lightSource(const char *name, boost::python::list params)
@@ -708,7 +709,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->LightSource(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void areaLightSource(const char *name, boost::python::list params)
@@ -716,7 +717,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->AreaLightSource(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void portalShape(const char *name, boost::python::list params)
@@ -724,7 +725,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->PortalShape(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void shape(const char *name, boost::python::list params)
@@ -732,7 +733,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->Shape(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void reverseOrientation()
@@ -746,7 +747,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->MakeNamedVolume(id, name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void volume(const char *name, boost::python::list params)
@@ -754,7 +755,7 @@ public:
 		EXTRACT_PARAMETERS(params);
 		checkActiveContext();
 		context->Volume(name, PASS_PARAMSET);
-		memoryPool.purge_memory();
+		memoryPool.release_memory();
 	}
 
 	void exterior(const char *name)
