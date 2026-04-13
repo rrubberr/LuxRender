@@ -96,10 +96,6 @@ modules:
         url: https://www.python.org/ftp/python/3.5.10/Python-3.5.10.tar.xz
         sha256: 0f0fa8685c1dc1f1dacb0b4e7779796b90aef99dc1fa4967a71b9da7b57d4a28
 
-# The node editor preview leaks memory on 1.80 but not on 1.79.
-# The leak could be in asyncstream.cpp asyncstream.h renderfarm.cpp renderfarm.h 
-# UNLIKELY to be renderserver.cpp
-
   - name: Boost
     buildsystem: simple
     build-commands:
