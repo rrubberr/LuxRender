@@ -41,21 +41,6 @@ ELSE (LUXRAYS_INCLUDE_DIRS AND LUXRAYS_LIBRARY)
 	MESSAGE(FATAL_ERROR "LuxRays not found.")
 ENDIF (LUXRAYS_INCLUDE_DIRS AND LUXRAYS_LIBRARY)
 
-#############################################################################
-#############################################################################
-###########################      Find OpenGL       ##########################
-#############################################################################
-#############################################################################
-
-FIND_PACKAGE(OpenGL)
-IF (OPENGL_FOUND)
-	MESSAGE(STATUS "OpenGL include directory: " "${OPENGL_INCLUDE_DIRS}")
-	MESSAGE(STATUS "OpenGL library: " "${OPENGL_LIBRARY}")
-	INCLUDE_DIRECTORIES(SYSTEM ${OPENGL_INCLUDE_DIRS})
-ELSE (OPENGL_FOUND)
-	MESSAGE(FATAL_ERROR "OpenGL not found.")
-ENDIF (OPENGL_FOUND)
-
 
 #############################################################################
 #############################################################################

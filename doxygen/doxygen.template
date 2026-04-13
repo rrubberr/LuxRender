@@ -1271,8 +1271,7 @@ INCLUDE_FILE_PATTERNS  =
 # undefined via #undef or recursively expanded use the := operator
 # instead of the = operator.
 
-PREDEFINED             = LUX_USE_OPENGL \
-                         HAVE_PTHREAD_H \
+PREDEFINED             = HAVE_PTHREAD_H \
                          BOOST_DISABLE_ASSERTS
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then
