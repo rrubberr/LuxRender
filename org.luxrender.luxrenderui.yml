@@ -114,7 +114,7 @@ modules:
   - name: LuxRays
     buildsystem: cmake
     build-options:
-      cxxflags: -w -march=nocona -mtune=haswell -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m
+      cxxflags: -w -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/include/python3.5m
       no-debuginfo-compression: true
     config-opts:
       - -D PYTHON_INCLUDE_DIR=/app/include/python3.5m
@@ -140,7 +140,7 @@ modules:
   - name: LuxRender
     buildsystem: cmake
     build-options:
-      cxxflags:  -w -march=nocona -mtune=haswell -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/bin -I /app/lib -I /app/include/python3.5m -I /app/lib/cmake/
+      cxxflags:  -w -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS -DCMAKE_BUILD_TYPE=Release -L /app/lib -I /app/bin -I /app/lib -I /app/include/python3.5m -I /app/lib/cmake/
       no-debuginfo: true
       no-debuginfo-compression: true
     builddir: true
