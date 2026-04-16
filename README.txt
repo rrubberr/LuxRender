@@ -35,7 +35,6 @@ A special thanks goes to:
 - http://chronosphere.home.comcast.net/~chronosphere/radiosity.htm for Cornell Blender scene;
 - libPNG authors http://www.libpng.org;
 - zlib authors http://www.zlib.net/ (not used anymore);
-- OpenEXR authors http://www.openexr.com/ (not used anymore);
 - FreeImage open source image library. See http://freeimage.sourceforge.net for details;
 - Tomas Davidovic (http://www.davidovic.cz and http://www.smallvcm.com) for SmallVCM, an endless source of hints;
 - GLFW authors (http://www.glfw.org);

@@ -28,12 +28,9 @@ getenv_path(LuxRays_DEPENDENCIES_DIR)
 # Find threading library
 find_package(Threads REQUIRED)
 
-find_package(OpenEXR REQUIRED)
-
 if(NOT APPLE)
     # Apple has these available hardcoded and matched in macos repo, see Config_OSX.cmake
 
-    include_directories(BEFORE SYSTEM ${OPENEXR_INCLUDE_DIRS})
     find_package(TIFF REQUIRED)
     include_directories(BEFORE SYSTEM ${TIFF_INCLUDE_DIR})
     find_package(JPEG REQUIRED)
