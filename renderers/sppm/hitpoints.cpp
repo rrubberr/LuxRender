@@ -193,6 +193,9 @@ void HitPoints::SetHitPoints(scheduling::Range *range)
 
 	float invPixelPdf = dynamic_cast<HaltonEyeSampler*>(hitpoints->eyeSampler)->GetInvPixelPdf();
 
+	// Hit point counter for sample count adjustment.
+	unsigned int hitPointCount = 0;
+
 	for(unsigned i = range->begin();
 			i != range->end();
 			i = range->next()) {
@@ -214,9 +217,18 @@ void HitPoints::SetHitPoints(scheduling::Range *range)
 		// weighting the photon buffer
 		// eye buffer weighting is done per-pixel, so should work out
 		// to pre-remove the contribution weight
-		sample.contribBuffer->AddSampleCount(-1.f);
-		eyeSampler->AddSample(sample);
+		// sample.contribBuffer->AddSampleCount(-1.f);
+		// eyeSampler->AddSample(sample);
+
+		++hitPointCount;
+        
+        // Remove eyeSampler->AddSample() here. Instead, contributions accumulate in the vector.
 	}
+	
+	// Moved outside the loop. Single lock to flush all contributions.
+    // Adjust sample count for all hit points at once.
+    sample.contribBuffer->AddSampleCount(static_cast<float>(hitPointCount));
+    eyeSampler->AddSample(sample);
 }
 
 void HitPoints::TraceEyePath(HitPoint *hp, const Sample &sample, float const invPixelPdf)
@@ -374,6 +386,8 @@ void HitPoints::TraceEyePath(HitPoint *hp, const Sample &sample, float const inv
 
 			hpep->bsdf = bsdf;
 			hpep->single = sw.single;
+
+			// Commit arena to preserve BSDF memory until next pass
 			sample.arena.Commit();
 			break;
 		}
@@ -407,13 +421,18 @@ void HitPoints::TraceEyePath(HitPoint *hp, const Sample &sample, float const inv
 		ray.time = sample.realTime;
 		volume = bsdf->GetVolume(wi);
 	}
+
+    // Add contributions to sample.contributions vector.
+    // Contributions accumulate across all hit points and are flushed once.
 	for(unsigned int i = 0; i < lightGroupCount; ++i)
 	{
 		if (!L[i].Black())
 			V[i] /= L[i].Filter(sw);
-		sample.AddContribution(hp->imageX, hp->imageY,
-			XYZColor(sw, L[i]) * rayWeight, hp->eyePass.alpha, hp->eyePass.distance,
-			0, renderer->sppmi->bufferEyeId, i);
+		
+		// Use Sample::AddContribution which pushes to the contributions vector.
+        sample.AddContribution(hp->imageX, hp->imageY,
+        XYZColor(sw, L[i]) * rayWeight, hp->eyePass.alpha, hp->eyePass.distance,
+        0, renderer->sppmi->bufferEyeId, i);  // light group
 	}
 }
 
