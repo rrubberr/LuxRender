@@ -395,12 +395,11 @@ bool BidirIntegrator::GetDirectLight(const Scene &scene, const Sample &sample,
 u_int BidirIntegrator::Li(const Scene &scene, const Sample &sample) const
 {
 	u_int nrContribs = 0;
-	// If no eye vertex, return immediately
-	//FIXME: this is not necessary if light path can intersect the camera
-	// or if direct connection to the camera is implemented
-	if (maxEyeDepth <= 0)
-		return nrContribs;
-	vector<BidirVertex> eyePath(maxEyeDepth), lightPath(maxLightDepth);
+	// Allocate at least 1 eye vertex slot for the camera vertex so that
+	// light-to-camera connections work even in pure light-tracing mode
+	// (maxEyeDepth == 0).  The slot at index 0 is always the camera vertex;
+	// indices 1..maxEyeDepth-1 are surface intersections.
+	vector<BidirVertex> eyePath(max(maxEyeDepth, 1u)), lightPath(max(maxLightDepth, 1u));
 	const u_int nGroups = scene.lightGroups.size();
 	const u_int numberOfLights = scene.lights.size();
 	// If there are no lights, the scene is black
@@ -415,9 +414,9 @@ u_int BidirIntegrator::Li(const Scene &scene, const Sample &sample) const
 	// Sample eye subpath origin
 	const float posX = sample.camera->IsLensBased() ? sample.lensU : sample.imageX;
 	const float posY = sample.camera->IsLensBased() ? sample.lensV : sample.imageY;
-	//FIXME: Replace dummy .5f by a sampled value if needed
-	//FIXME: the return is not necessary if direct connection to the camera
-	// is implemented
+	// Sample the camera vertex — always needed for light-to-camera connections,
+	// regardless of maxEyeDepth.  Without a valid camera BSDF we cannot
+	// evaluate any contribution, so return if sampling fails.
 	if (!sample.camera->SampleW(sample.arena, sw, scene,
 		posX, posY, .5f, &eyePath[0].bsdf, &eyePath[0].dARWeight,
 		&eyePath[0].flux))
@@ -427,11 +426,17 @@ u_int BidirIntegrator::Li(const Scene &scene, const Sample &sample) const
 	eye0.p = eye0.bsdf->dgShading.p;
 	eye0.wo = Vector(eye0.bsdf->dgShading.nn);
 	eye0.coso = AbsDot(eye0.wo, eye0.bsdf->ng);
-	// Light path cannot intersect camera (FIXME)
+	// The camera has no prior vertex through which a light path could
+	// extend, so dARWeight is zero (prevents WeightPath from counting
+	// an impossible "camera pass-through" strategy).
 	eye0.dARWeight = 0.f;
 	eye0.single = sw.single;
 	u_int nEye = 1;
 
+	// Eye-path direct lighting — uses sampleDirectOffset which is only
+	// allocated for maxEyeDepth > 0 samples.  Skip entirely in light-
+	// tracing-only mode; the light loop below handles all contributions.
+	if (maxEyeDepth > 0) {
 	// Do eye vertex direct lighting
 	const float *directData0 = sample.sampler->GetLazyValues(sample,
 		sampleDirectOffset, 0);
@@ -470,20 +475,24 @@ u_int BidirIntegrator::Li(const Scene &scene, const Sample &sample) const
 			}
 		}
 	}
+	} // end if (maxEyeDepth > 0) direct lighting
+
+	// Track whether a first-bounce eye ray was successfully sampled.
+	// Only when this is true can we splat eye-buffer contributions and
+	// use eye0.wi / eye0.d2 without reading uninitialised data.
+	bool eyePathTraced = false;
+	float d = INFINITY;
 
 	// Sample eye subpath initial direction and finish vertex initialization
-	const float lensU = sample.camera->IsLensBased() ? sample.imageX :
-		sample.lensU;
-	const float lensV = sample.camera->IsLensBased() ? sample.imageY :
-		sample.lensV;
-	//Jeanphi - Replace dummy .5f by a sampled value if needed
+	const float lensU = sample.camera->IsLensBased() ? sample.imageX : sample.lensU;
+	const float lensV = sample.camera->IsLensBased() ? sample.imageY : sample.lensV;
+
+	// Eye-path tracing — only possible when maxEyeDepth > 1 (at least one
+	// surface vertex) AND sampleEyeOffset samples are allocated.
 	if (maxEyeDepth > 1) {
 		SWCSpectrum f0;
-		if (!eye0.bsdf->SampleF(sw,
-			eye0.wo, &eye0.wi, lensU, lensV, .5f,
-			&f0, &eye0.pdfR, BSDF_ALL, &eye0.flags,
-			&eye0.pdf, true))
-				return nrContribs;
+		if (eye0.bsdf->SampleF(sw, eye0.wo, &eye0.wi, lensU, lensV, .5f,
+			&f0, &eye0.pdfR, BSDF_ALL, &eye0.flags, &eye0.pdf, true)) {
 		eye0.cosi = AbsDot(eye0.wi, eye0.bsdf->ng);
 		eye0.rr = min(1.f, max(lightThreshold,
 			f0.Filter(sw) * eye0.coso / eye0.cosi));
@@ -680,8 +689,10 @@ u_int BidirIntegrator::Li(const Scene &scene, const Sample &sample) const
 			ray.time = sample.realTime;
 			volume = v.bsdf->GetVolume(ray.d);
 		}
-	}
-	const float d = sqrtf(eye0.d2);
+		eyePathTraced = true;
+		d = sqrtf(eye0.d2);
+		} // end if (SampleF succeeded)
+	} // end if (maxEyeDepth > 1)
 
 
 	// Choose light
@@ -943,7 +954,7 @@ u_int BidirIntegrator::Li(const Scene &scene, const Sample &sample) const
 		}
 	}
 
-	if (maxEyeDepth > 1) {
+	if (eyePathTraced) {
 		float xl, yl;
 		if (!sample.camera->GetSamplePosition(eyePath[0].p, eyePath[0].wi, d, &xl, &yl))
 			return nrContribs;
@@ -972,7 +983,9 @@ BidirPathState::BidirPathState(const Scene &scene, ContributionBuffer *contribBu
 	sample.camera = scene.camera()->Clone();
 	sample.realTime = 0.f;
 
-	eyePath = new BidirStateVertex[bidir->maxEyeDepth];
+	// Allocate at least 1 slot so that eyePath[0] (the camera vertex) is
+	// always a valid object, even in pure light-tracing mode (maxEyeDepth == 0).
+	eyePath = new BidirStateVertex[max(bidir->maxEyeDepth, 1u)];
 	eyePathLength = 0;
 
 	lightPath = new BidirStateVertex[bidir->maxLightDepth];
@@ -1200,6 +1213,17 @@ bool BidirPathState::Init(const Scene &scene) {
 		&eye0.throughput))
 		return result;
 
+	// Capture the pure camera importance (We / pdf_lens) before the
+	// first-bounce BSDF f0 is folded in below.  Light-to-camera connections
+	// connect an arbitrary light vertex to the camera and must not include
+	// f0, which is specific to the originally sampled eye direction.
+	cameraWe = eye0.throughput;
+
+	// Camera vertex is now fully initialised.  Record this immediately so
+	// that GenerateRays can set up light-to-camera connections even if the
+	// eye path itself is not traced (maxEyeDepth == 0 or SampleF fails).
+	eyePathLength = 1;
+
 	// Initialize eye vertex
 	eye0.wo = Vector(eye0.bsdf->dgShading.nn);
 
@@ -1221,7 +1245,8 @@ bool BidirPathState::Init(const Scene &scene) {
 	ray.time = sample.realTime;
 	sample.camera->ClampRay(ray);
 	Intersection isect;
-	++eyePathLength;
+	// eyePathLength is already 1 for the camera vertex; each successful
+	// surface intersection in the loop below increments it to 2, 3, ...
 
 	// Trace eye subpath
 	const Volume *volume = eye0.bsdf->GetVolume(ray.d);
@@ -1458,7 +1483,7 @@ float BidirPathState::EvalPathMISWeight_PathTracing(
 	}
 
 	// Account for: Eye path and light path connections
-	/*if (totalPathVertexCount >= 4) {
+	if (totalPathVertexCount >= 4) {
 		float pdf = 1.f;
 		for (u_int i = 1; i < eyePathVertexCount - 1; ++i) {
 			if (!(eyePath[i].flags & BSDF_SPECULAR) && !(eyePath[i + 1].flags & BSDF_SPECULAR)) {
@@ -1475,10 +1500,10 @@ float BidirPathState::EvalPathMISWeight_PathTracing(
 
 		// Power heuristic pdf^2
 		totalPdf += pdf * pdf;
-	}*/
+	}
 
 	// Account for: Light path to eye (i.e. eye[0]) connections
-	/*if ((totalPathVertexCount >= 3) && !(eyePath[1].flags & BSDF_SPECULAR)) {
+	if ((totalPathVertexCount >= 3) && !(eyePath[1].flags & BSDF_SPECULAR)) {
 		float pdf = lightDirectPdf; // ONE light strategy and light pdf
 		const BidirStateVertex *lightPath = &eyePath[eyePathVertexCount - 1];
 		for (u_int i = 0; i < eyePathVertexCount; ++i) {
@@ -1491,7 +1516,7 @@ float BidirPathState::EvalPathMISWeight_PathTracing(
 
 		// Power heuristic pdf^2
 		totalPdf += pdf * pdf;
-	}*/
+	}
 
 	if (totalPdf > 0)
 		return pathPdf / totalPdf;
@@ -1537,12 +1562,45 @@ float BidirPathState::EvalPathMISWeight_DirectLight(
 		// I have already this pdf^2
 		totalPdf += pathPdf;
 	}
-
+	
 	// Account for: Eye path and light path connections
-	// TODO
+	if (totalPathVertexCount >= 4) {
+		for (u_int t = 1; t < eyePathVertexCount - 1; ++t) {
+			// Skip specular chains (cannot be resampled)
+			if ((eyePath[t].flags & BSDF_SPECULAR) ||
+				(eyePath[t + 1].flags & BSDF_SPECULAR))
+				continue;
+
+			float pdf = 1.f;
+
+			// --- Eye subpath [0..t] sampled from camera ---
+			for (u_int i = 0; i <= t; ++i) {
+				pdf *= eyePath[i].pdfR;
+				if (i > rrStart)
+					pdf *= eyePath[i].rrR;
+			}
+
+			// --- Remaining path sampled from light (forward PDFs) ---
+			const BidirStateVertex *lightPath = &eyePath[eyePathVertexCount - 1];
+
+			for (u_int i = t + 1; i < eyePathVertexCount; ++i) {
+				pdf *= lightPath->pdf;
+				if ((eyePathVertexCount - 1 - i) > rrStart)
+					pdf *= lightPath->rr;
+
+				--lightPath;
+			}
+
+			// Include light sampling term
+			pdf *= lightDirectPdf;
+
+			// Power heuristic
+			totalPdf += pdf * pdf;
+		}
+	}
 
 	// Account for: Light path to eye (i.e. eye[0]) connections
-	/*if ((totalPathVertexCount >= 3) && !(eyePath[1].flags & BSDF_SPECULAR)) {
+	if ((totalPathVertexCount >= 3) && !(eyePath[1].flags & BSDF_SPECULAR)) {
 		float pdf = lightDirectPdf; // ONE light strategy and light pdf
 		const BidirStateVertex *lightPath = &eyePath[eyePathVertexCount - 1];
 		for (u_int i = 0; i < eyePathVertexCount; ++i) {
@@ -1555,7 +1613,7 @@ float BidirPathState::EvalPathMISWeight_DirectLight(
 
 		// Power heuristic pdf^2
 		totalPdf += pdf * pdf;
-	}*/
+	}
 
 	if (totalPdf > 0)
 		return pathPdf / totalPdf;
@@ -1564,11 +1622,22 @@ float BidirPathState::EvalPathMISWeight_DirectLight(
 }
 
 // This method is used for weight of the path when connecting light path
-// vertices directly to the eye
-/*float BidirPathState::EvalPathMISWeight_CameraConnection(
+// vertices directly to the eye (camera).
+//
+// lightPath[0]       = light source vertex
+// lightPath[1..s-1]  = intermediate light path vertices
+// lightPath[s]       = last light path vertex, connected to the camera
+// cameraPdf          = pdf of the camera sampling direction d (from eye0.bsdf->Pdf)
+// lightDirectPdf     = pdf of directly sampling lightPath[0]'s position using the
+//                      direct-lighting strategy (area pdf / nLights, same units as
+//                      lightPath[0].pdf set during light path initialisation)
+float BidirPathState::EvalPathMISWeight_CameraConnection(
 		const BidirStateVertex *lightPath,
 		const u_int lightPathVertexCount,
-		const float cameraPdf) {
+		const float cameraPdf,
+		const float lightDirectPdf) {
+	// pdf of the current (camera-connection) sampling strategy:
+	//   product of forward pdfs along the light path, power-heuristic squared.
 	float pathPdf = 1.f;
 	for (u_int i = 0; i < lightPathVertexCount; ++i) {
 		pathPdf *= lightPath[i].pdf;
@@ -1578,57 +1647,86 @@ float BidirPathState::EvalPathMISWeight_DirectLight(
 	// Power heuristic pdf^2
 	pathPdf *= pathPdf;
 
-	// The sum of all pdf for all possible ways to sample this path
+	// Sum of squared pdfs for all possible strategies that produce the same path.
 	const u_int totalPathVertexCount = lightPathVertexCount + 1;
 	float totalPdf = 0.f;
 
-	// Account for: Path tracing
+	// Account for: Camera-connection strategy (current one — already pathPdf^2)
+	totalPdf += pathPdf;
+
+	// Account for: Path tracing (eye path traces all the way to the light,
+	// walking the light subpath in reverse using reverse-sampling pdfs pdfR).
 	if (totalPathVertexCount >= 2) {
 		float pdf = cameraPdf;
-		const BidirStateVertex *eyePath = &lightPath[lightPathVertexCount - 1];
+		const BidirStateVertex *ep = &lightPath[lightPathVertexCount - 1];
 		for (u_int i = 0; i < lightPathVertexCount; ++i) {
-			pdf *= eyePath->pdfR;
+			pdf *= ep->pdfR;
 			if (i > rrStart)
-				pdf *= eyePath->rrR;
-
-			--eyePath;
+				pdf *= ep->rrR;
+			--ep;
 		}
-
-		// Power heuristic pdf^2
 		totalPdf += pdf * pdf;
 	}
 
-	// Account for: Direct light sampling
-	if ((totalPathVertexCount >= 3) &&
-			!(lightPath[1].flags & BSDF_SPECULAR)) {
+	// Account for: Direct light sampling (eye path reaches lightPath[1] via
+	// reverse sampling, then directly samples lightPath[0] as a light).
+	// The condition requires lightPath[1] to be non-specular so that the
+	// connection direction can be chosen by direct-light sampling.
+	if ((totalPathVertexCount >= 3) && !(lightPath[1].flags & BSDF_SPECULAR)) {
 		float pdf = cameraPdf;
-		const BidirStateVertex *eyePath = &lightPath[lightPathVertexCount - 1];
-		for (u_int i = 0; i < lightPathVertexCount; ++i) {
-			pdf *= eyePath->pdfR;
+		// Traverse all light vertices except index 0 (the light source itself)
+		// using reverse pdfs — same as path tracing but stopping one step early.
+		const BidirStateVertex *ep = &lightPath[lightPathVertexCount - 1];
+		for (u_int i = 0; i < lightPathVertexCount - 1; ++i) {
+			pdf *= ep->pdfR;
 			if (i > rrStart)
-				pdf *= eyePath->rrR;
-
-			--eyePath;
+				pdf *= ep->rrR;
+			--ep;
 		}
-
-		// Power heuristic pdf^2
+		// Replace the final reverse-pdf term (lightPath[0].pdfR — the emitted
+		// direction pdf) with the direct-light sampling pdf for lightPath[0].
+		pdf *= lightDirectPdf;
 		totalPdf += pdf * pdf;
 	}
 
-	// Account for: Eye path and light path connections
-	//TODO
+	// Account for: Eye path and light path connections (a mix of t eye vertices
+	// and s-t light vertices meeting in the middle).
+	if (totalPathVertexCount >= 4) {
+		for (u_int t = 1; t < lightPathVertexCount - 1; ++t) {
+			// Skip specular vertices — cannot resample those directions.
+			if ((lightPath[t].flags & BSDF_SPECULAR) ||
+				(lightPath[t + 1].flags & BSDF_SPECULAR))
+				continue;
 
-	// Account for: Light path to eye (i.e. eye[0]) connections
-	if ((totalPathVertexCount >= 3) && !(lightPath[lightPathVertexCount - 1].flags & BSDF_SPECULAR)) {
-		// I have already this pdf^2
-		totalPdf += pathPdf;
+			float pdf = 1.f;
+
+			// Light subpath [0..t] contributes forward pdfs.
+			for (u_int i = 0; i <= t; ++i) {
+				pdf *= lightPath[i].pdf;
+				if (i > rrStart)
+					pdf *= lightPath[i].rr;
+			}
+
+			// Remaining vertices [t+1..s] are "re-sampled" from the eye side
+			// using reverse pdfs, plus the camera direction pdf.
+			const BidirStateVertex *ep = &lightPath[lightPathVertexCount - 1];
+			for (u_int i = t + 1; i < lightPathVertexCount; ++i) {
+				pdf *= ep->pdfR;
+				if ((lightPathVertexCount - 1 - i) > rrStart)
+					pdf *= ep->rrR;
+				--ep;
+			}
+			pdf *= cameraPdf;
+
+			totalPdf += pdf * pdf;
+		}
 	}
 
 	if (totalPdf > 0)
 		return pathPdf / totalPdf;
 	else
 		return 0.f;
-}*/
+}
 
 //------------------------------------------------------------------------------
 // Evaluation of total path weight by averaging
@@ -1805,17 +1903,24 @@ void BidirPathState::Connect(const Scene &scene, luxrays::RayBuffer *rayBuffer,
 
 void BidirPathState::Terminate(const Scene &scene,
 		const u_int eyeBufferId, const u_int lightBufferId) {
-	// Add the eye buffer samples
-	float xi, yi;
-	if (sample.camera->GetSamplePosition(eyePath[0].bsdf->dgShading.p, eyePath[0].wi, distance, &xi, &yi)) {
-		const u_int lightGroupCount = scene.lightGroups.size();
-		for (u_int i = 0; i < lightGroupCount; ++i) {
-			if (!L[i].Black())
-				V[i] /= L[i].Filter(sample.swl);
+	// Add the eye buffer samples.
+	// eyePathLength > 1 means at least one surface intersection was recorded and
+	// eye0.wi (the primary ray direction) was set by SampleF.  When
+	// eyePathLength == 1 the camera vertex exists but no eye ray was traced
+	// (pure light-tracing mode or SampleF failure), so eye0.wi is
+	// uninitialised and must not be passed to GetSamplePosition.
+	if (eyePathLength > 1) {
+		float xi, yi;
+		if (sample.camera->GetSamplePosition(eyePath[0].bsdf->dgShading.p, eyePath[0].wi, distance, &xi, &yi)) {
+			const u_int lightGroupCount = scene.lightGroups.size();
+			for (u_int i = 0; i < lightGroupCount; ++i) {
+				if (!L[i].Black())
+					V[i] /= L[i].Filter(sample.swl);
 
-			sample.AddContribution(xi, yi,
-				XYZColor(sample.swl, L[i]), alpha, distance,
-				V[i], eyeBufferId, i);
+				sample.AddContribution(xi, yi,
+					XYZColor(sample.swl, L[i]), alpha, distance,
+					V[i], eyeBufferId, i);
+			}
 		}
 	}
 
@@ -2027,7 +2132,16 @@ bool BidirIntegrator::GenerateRays(const Scene &scene,
 			bidirState->LlightPath[s] = SWCSpectrum(0.f);
 	} else {
 		const Point &p = eye0.bsdf->dgShading.p;
-		//const float lightStrategyPdf = 1.f / nLights;
+
+		// Approximate direct-light pdf for camera-connection MIS: probability of
+		// sampling lightPath[0] (the light source) with the ONE_UNIFORM strategy.
+		// lightPath[0].pdf was already divided by nLights in Init(), so it is in
+		// the same normalization as the path-pdf accumulated by the MIS function.
+		// This approximation is exact for area lights sampled uniformly, and a
+		// conservative estimate otherwise.
+		const float lightDirectPdf = (lightPathLength >= 2)
+			? bidirState->lightPath[0].pdf
+			: 0.f;
 
 		// For each light path vertex
 		for (u_int s = 1; s < lightPathLength; ++s) {
@@ -2048,6 +2162,9 @@ bool BidirIntegrator::GenerateRays(const Scene &scene,
 				&bidirState->imageXYLightPath[2 * s], &bidirState->imageXYLightPath[2 * s + 1]))
 				continue;
 
+			// Record the camera-to-vertex distance for the Z-buffer in Terminate().
+			bidirState->distanceLightPath[s] = length;
+
 			const SWCSpectrum ef(eye0.bsdf->F(sw, d, eye0.wo, true, eye0.flags));
 			if (ef.Black())
 				continue;
@@ -2062,17 +2179,24 @@ bool BidirIntegrator::GenerateRays(const Scene &scene,
 			if (length * .5f <= shadowRayEpsilon)
 				continue;
 
-			// Store light's contribution
+			// Store light's contribution.
+			// Use bidirState->cameraWe (= We/pdf_lens before the first-bounce BSDF
+			// f0 was folded in) rather than eye0.throughput.  eye0.throughput
+			// contains We/pdf_lens * f0, and f0 is specific to the originally
+			// sampled eye direction — it must not appear in a connection to an
+			// arbitrary light vertex.
 			float pathWeight;
-			if (hybridUseMIS)
-				pathWeight = 0.f; /*BidirPathState::EvalPathMISWeight_CameraConnection(
+			if (hybridUseMIS) {
+				const float cameraPdf = eye0.bsdf->Pdf(sw, eye0.wo, d, eye0.flags);
+				pathWeight = BidirPathState::EvalPathMISWeight_CameraConnection(
 						bidirState->lightPath, s + 1,
-						eye0.bsdf->Pdf(sw, eye0.wo, d, eye0.flags));*/
-			else
+						cameraPdf,
+						lightDirectPdf);
+			} else
 				pathWeight = BidirPathState::EvalPathWeight(
 						eye0.bsdf->NumComponents(BSDF_SPECULAR) != 0, bidirState->lightPath, s + 1);
 
-			SWCSpectrum LlightPath = (eye0.throughput * ef * lf * lightPath.throughput * bidirState->Le * pathWeight) / d2;
+			SWCSpectrum LlightPath = (bidirState->cameraWe * ef * lf * lightPath.throughput * bidirState->Le * pathWeight) / d2;
 			if (LlightPath.Black())
 				continue;
 

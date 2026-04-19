@@ -75,10 +75,11 @@ private:
 		const u_int eyePathVertexCount,
 		const float lightBSDFPdf,
 		const float lightDirectPdf);
-	/*static float EvalPathMISWeight_CameraConnection(
+	static float EvalPathMISWeight_CameraConnection(
 		const BidirStateVertex *lightPath,
 		const u_int lightPathVertexCount,
-		const float cameraPdf);*/
+		const float cameraPdf,
+		const float lightDirectPdf);
 
 	// Evaluation of total path weight by averaging
 	static float EvalPathWeight(const BidirStateVertex *eyePath,
@@ -97,6 +98,12 @@ private:
 	// amount of memory required for hybrid rendering.
 
 	Sample sample;
+
+	// Pure camera importance (We/pdf) captured before the first-bounce BSDF
+	// is folded into eye0.throughput.  Light-to-camera connections must use
+	// this value; eye0.throughput also carries f0 (the initial lens BSDF sample)
+	// which must NOT appear when connecting an arbitrary light vertex to the camera.
+	SWCSpectrum cameraWe;
 
 	BidirStateVertex *eyePath;
 	u_int eyePathLength;
