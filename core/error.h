@@ -72,10 +72,33 @@ namespace lux
 
 namespace boost
 {
-	inline void assertion_failed(char const *expr, char const *function, char const *file, long line)
-	{
-		LOG(LUX_SEVERE,LUX_BUG)<< "Assertion '"<<expr<<"' failed in function '"<<function<<"' (file:"<<file<<" line:"<<line<<")";
-	}
+    inline void assertion_failed(
+        char const* expr,
+        char const* function,
+        char const* file,
+        long line)
+    {
+        LOG(LUX_SEVERE, LUX_BUG)
+            << "Assertion '" << expr
+            << "' failed in function '" << function
+            << "' (file:" << file
+            << " line:" << line << ")";
+    }
+
+    inline void assertion_failed_msg(
+        char const* expr,
+        char const* msg,
+        char const* function,
+        char const* file,
+        long line)
+    {
+        LOG(LUX_SEVERE, LUX_BUG)
+            << "Assertion '" << expr
+            << "' failed: " << msg
+            << " in function '" << function
+            << "' (file:" << file
+            << " line:" << line << ")";
+    }
 }
 
 #endif //LUX_ERROR_H
