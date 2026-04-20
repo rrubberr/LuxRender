@@ -28,5 +28,6 @@ ELSE(APPLE)
         Threads::Threads
 		Boost::program_options
 		Boost::filesystem
+        Boost::thread
     )
 endif()
