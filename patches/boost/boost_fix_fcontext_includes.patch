@@ -1,9 +1,0 @@
-    patch: boost/fix_boost_fcontext_includes.patch
-
-diff --git a/libs/context/src/fcontext.cpp b/libs/context/src/fcontext.cpp
---- a/libs/context/src/fcontext.cpp 
-+++ b/libs/context/src/fcontext.cpp 
-@@ -11,1 +11,2 @@ public:
--#include <cstddef>
-+#include <cstddef>
-+#include <cstdint>
