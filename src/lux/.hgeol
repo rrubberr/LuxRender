@@ -1,0 +1,19 @@
+[repository]
+native = LF
+
+[patterns]
+**.c = LF
+**.h = LF
+**.cpp = LF
+**.hpp = LF
+**.txt = LF
+**.ui = LF
+**.hxx = LF
+**.l = LF
+**.y = LF
+**.cmake = LF
+**.vcproj = CRLF
+**.sln = CRLF
+**.py = LF
+**.png = BIN
+** = native
