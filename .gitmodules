@@ -19,3 +19,6 @@
 [submodule "ext/libpng"]
 	path = ext/libpng
 	url = https://github.com/pnggroup/libpng.git
+[submodule "ext/OpenJPH"]
+	path = ext/OpenJPH
+	url = https://github.com/aous72/OpenJPH.git
