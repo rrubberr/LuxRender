@@ -31,3 +31,6 @@
 [submodule "ext/Imath"]
 	path = ext/Imath
 	url = https://github.com/AcademySoftwareFoundation/Imath.git
+[submodule "ext/openexr"]
+	path = ext/openexr
+	url = https://github.com/AcademySoftwareFoundation/openexr.git
