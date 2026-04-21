@@ -57,6 +57,7 @@ public:
 	u_int hitpointPerPass;
 	u_int photonPerPass;
 	u_int photonStartK;
+	u_int schedulerBlockSize;
 
 	u_int sampleOffset, bufferPhotonId, bufferEyeId;
 	bool includeEnvironment;

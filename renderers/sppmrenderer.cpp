@@ -100,7 +100,7 @@ SPPMRenderer::SPPMRenderer() : Renderer() {
 
 	rendererStatistics = new SPPMRStatistics(this);
 
-	scheduler = new scheduling::Scheduler(1000); // TODO: set blocksize as a parameter
+	scheduler = new scheduling::Scheduler(1000);
 }
 
 SPPMRenderer::~SPPMRenderer() {
@@ -165,6 +165,10 @@ void SPPMRenderer::Render(Scene *s) {
 			LOG(LUX_SEVERE,LUX_CONSISTENCY)<< "SPPM renderer requires the SPPM integrator.";
 			return;
 		}
+
+		// Recreate the scheduler with the user-specified block size now that sppmi is available
+		delete scheduler;
+		scheduler = new scheduling::Scheduler(sppmi->schedulerBlockSize);
 
 		if (scene->IsFilmOnly()) {
 			state = TERMINATE;
