@@ -484,11 +484,11 @@ include_directories(${Qt6_INCLUDE_DIRS})
 include_directories(${Qt6_INCLUDE_DIR})
 include_directories(${QT_INCLUDE_DIR})
 
-#set(CMCSD ${CMAKE_CURRENT_SOURCE_DIR})
-#set(BLD_DIR ${CMCSD}/../../bin/build)
-#set(BIN_DIR ${BLD_DIR}/bin)
-#set(LIB_DIR ${LIB_DIR})
-#set(INC_DIR ${BLD_DIR}/include)
+set(CMCSD ${CMAKE_CURRENT_SOURCE_DIR})
+set(BLD_DIR ${CMCSD}/../../bin/build)
+set(BIN_DIR ${BLD_DIR}/bin)
+set(LIB_DIR ${BLD_DIR}/lib)
+set(INC_DIR ${BLD_DIR}/include)
 
 include_directories(${INC_DIR}/luxrays)
 include_directories(${INC_DIR})
@@ -512,19 +512,19 @@ find_package(FFTW3 REQUIRED)
 
 set(
 	BOOST_LIBS
-	${LIB_DIR}/libboost_thread.a
-	${LIB_DIR}/libboost_filesystem.a
-	${LIB_DIR}/libboost_iostreams.a
-	${LIB_DIR}/libboost_serialization.a
-	${LIB_DIR}/libboost_python35.a
-	${LIB_DIR}/libboost_atomic.a
-	${LIB_DIR}/libboost_chrono.a
-	${LIB_DIR}/libboost_container.a
-	${LIB_DIR}/libboost_date_time.a
-	${LIB_DIR}/libboost_graph.a
-	${LIB_DIR}/libboost_program_options.a
-	${LIB_DIR}/libboost_random.a
-	${LIB_DIR}/libboost_wserialization.a
+	${BLD_DIR}/lib/libboost_thread.a
+	${BLD_DIR}/lib/libboost_filesystem.a
+	${BLD_DIR}/lib/libboost_iostreams.a
+	${BLD_DIR}/lib/libboost_serialization.a
+	${BLD_DIR}/lib/libboost_python35.a
+	${BLD_DIR}/lib/libboost_atomic.a
+	${BLD_DIR}/lib/libboost_chrono.a
+	${BLD_DIR}/lib/libboost_container.a
+	${BLD_DIR}/lib/libboost_date_time.a
+	${BLD_DIR}/lib/libboost_graph.a
+	${BLD_DIR}/lib/libboost_program_options.a
+	${BLD_DIR}/lib/libboost_random.a
+	${BLD_DIR}/lib/libboost_wserialization.a
 )
 
 set(
@@ -533,13 +533,13 @@ set(
 	${LIB_DIR}/libOpenImageIO.a
 	${LIB_DIR}/libOpenImageIO_Util.a
 
-	${LIB_DIR}/libOpenEXRUtil-3_4.a
-	${LIB_DIR}/libOpenEXRCore-3_4.a
-	${LIB_DIR}/libOpenEXR-3_4.a
-	${LIB_DIR}/libIex-3_4.a
-	${LIB_DIR}/libImath-3_2.a
-	${LIB_DIR}/libIlmThread-3_4.a
-	${LIB_DIR}/libopenjph.a
+	${BLD_DIR}/lib/libOpenEXRUtil-3_4.a
+	${BLD_DIR}/lib/libOpenEXRCore-3_4.a
+	${BLD_DIR}/lib/libOpenEXR-3_4.a
+	${BLD_DIR}/lib/libIex-3_4.a
+	${BLD_DIR}/lib/libImath-3_2.a
+	${BLD_DIR}/lib/libIlmThread-3_4.a
+	${BLD_DIR}/lib/libopenjph.a
 
 	${LIB_DIR}/libpng.a
 	${LIB_DIR}/libjpeg.a
@@ -684,16 +684,16 @@ QT_WRAP_CPP(
 	OPTIONS -DBOOST_TT_HAS_OPERATOR_HPP_INCLUDED -DBOOST_NO_TEMPLATE_PARTIAL_SPECIALIZATION
 )
 
-qt_add_executable(
+add_executable(
 	luxrender ${GUI_TYPE} ${LUXQTGUI_SRCS} ${LUXQTGUI_MOC_SRCS} ${LUXQTGUI_RC_SRCS} ${LUXQTGUI_UI_HDRS}
 )
 
 target_link_libraries(luxrender PRIVATE
+	lux
+	
 	Qt6::Core
 	Qt6::Gui
 	Qt6::Widgets
-
-	lux
 
 	${MISC_STATIC_LIBS}
 	${BOOST_LIBS}
