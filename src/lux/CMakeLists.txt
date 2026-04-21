@@ -492,7 +492,7 @@ include_directories(${QT_INCLUDE_DIR})
 
 include_directories(${INC_DIR}/luxrays)
 include_directories(${INC_DIR})
-include_directories(${CMCSD})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${BLD_DIR}/pfx/src/lux-build)
 include_directories(${INC_DIR}/Imath)
 include_directories(${INC_DIR}/OpenEXR)
