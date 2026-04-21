@@ -48,3 +48,4 @@ extract-binaries/shared/libzstd.so.1
 extract-binaries/shared/libembree.so.2
 extract-binaries/shared/libharfbuzz.so.0
 extract-binaries/pyluxcore.so
+/release

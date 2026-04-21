@@ -1,0 +1,132 @@
+# Materials File
+
+MakeNamedVolume "Glass" "clear"
+	"float fresnel" [1.519999980926514]
+	"color absorption" [0.01614268 0.00300774 0.03046782]
+
+MakeNamedMaterial "MNaht"
+	"color Kd" [0.77333319 0.77333319 0.61777776]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+Texture "TLeatherBumpsP" "float" "blender_clouds"
+	"float bright" [1.000000000000000]
+	"float contrast" [1.000000000000000]
+	"string noisetype" ["soft_noise"]
+	"string noisebasis" ["voronoi_crackle"]
+	"float noisesize" [0.250000000000000]
+	"integer noisedepth" [2]
+	"string coordinates" ["global"]
+	"vector translate" [0.000000000000000 0.000000000000000 0.000000000000000]
+	"vector rotate" [0.000000000000000 0.000000000000000 0.000000000000000]
+	"vector scale" [1.000000000000000 1.000000000000000 1.000000000000000]
+
+Texture "TLeatherBumpsP_scaled_1" "float" "scale"
+	"float tex1" [0.001000000047497]
+	"texture tex2" ["TLeatherBumpsP"]
+
+MakeNamedMaterial "MLeather"
+	"texture bumpmap" ["TLeatherBumpsP_scaled_1"]
+	"bool multibounce" ["false"]
+	"color Kd" [0.00474900 0.00483032 0.00489494]
+	"color Ks" [0.04954654 0.04954654 0.04954654]
+	"float index" [0.000000000000000]
+	"float uroughness" [0.050000000745058]
+	"float vroughness" [0.050000000745058]
+	"string type" ["glossy"]
+
+MakeNamedMaterial "MLichtformer"
+	"color Kd" [0.00489498 0.00489498 0.00489498]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "MGehause"
+	"float uroughness" [0.100000001490116]
+	"float vroughness" [0.100000001490116]
+	"string name" ["silver"]
+	"string type" ["metal"]
+
+MakeNamedMaterial "MSchrauben"
+	"float uroughness" [0.019999999552965]
+	"float vroughness" [0.019999999552965]
+	"string name" ["aluminium"]
+	"string type" ["metal"]
+
+MakeNamedMaterial "MZeiger"
+	"string name" ["blue"]
+	"string type" ["carpaint"]
+
+MakeNamedMaterial "MRing"
+	"float uroughness" [0.009999999776483]
+	"float vroughness" [0.009999999776483]
+	"string name" ["silver"]
+	"string type" ["metal"]
+
+Texture "TGround_color" "color" "imagemap"
+	"string filename" ["res/wood.jpeg"]
+	"float gamma" [2.200000000000000]
+	"string mapping" ["uv"]
+	"float udelta" [0.000000000000000]
+	"float uscale" [4.000000000000000]
+	"float vscale" [-4.000000000000000]
+	"float vdelta" [0.000000000000000]
+
+MakeNamedMaterial "MGround"
+	"bool multibounce" ["false"]
+	"texture Kd" ["TGround_color"]
+	"color Ks" [0.34237525 0.34237525 0.34237525]
+	"float index" [0.000000000000000]
+	"float uroughness" [0.250000000000000]
+	"float vroughness" [0.250000000000000]
+	"string type" ["glossy"]
+
+MakeNamedMaterial "MGlass"
+	"bool architectural" ["true"]
+	"bool dispersion" ["false"]
+	"string type" ["glass2"]
+
+Texture "ZB-Bumps_float" "float" "imagemap"
+	"string filename" ["res/zblatt-bumps.jpeg"]
+	"float gamma" [2.200000000000000]
+	"string mapping" ["uv"]
+	"float udelta" [0.000000000000000]
+	"float uscale" [1.000000000000000]
+	"float vscale" [-1.000000000000000]
+	"float vdelta" [0.000000000000000]
+
+Texture "ZB-Bumps_float_scaled_2" "float" "scale"
+	"float tex1" [-0.009999999776483]
+	"texture tex2" ["ZB-Bumps_float"]
+
+MakeNamedMaterial "MZBlatt"
+	"texture bumpmap" ["ZB-Bumps_float_scaled_2"]
+	"float uroughness" [0.200000002980232]
+	"float vroughness" [0.200000002980232]
+	"string name" ["silver"]
+	"string type" ["metal"]
+
+MakeNamedMaterial "MZBlattSchrift"
+	"color Kd" [0.00807496 0.00807496 0.00807496]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+Texture "TZBlattSchrift" "float" "imagemap"
+	"string filename" ["res/zblatt-beschr-i.png"]
+	"integer discardmipmaps" [0]
+	"string filtertype" ["bilinear"]
+	"float gain" [1.000000000000000]
+	"float gamma" [2.200000047683716]
+	"float maxanisotropy" [8.000000000000000]
+	"string wrap" ["repeat"]
+	"string channel" ["mean"]
+	"string mapping" ["uv"]
+	"float udelta" [0.000000000000000]
+	"float uscale" [1.000000000000000]
+	"float vscale" [-1.000000000000000]
+	"float vdelta" [0.000000000000000]
+
+MakeNamedMaterial "MZBlattMix"
+	"string namedmaterial1" ["MZBlatt"]
+	"string namedmaterial2" ["MZBlattSchrift"]
+	"texture amount" ["TZBlattSchrift"]
+	"string type" ["mix"]
