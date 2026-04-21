@@ -164,7 +164,7 @@ u_int ExPhotonIntegrator::Li(const Scene &scene, const Sample &sample) const
 {
 	Ray ray;
 	float xi, yi;
-	float rayWeight = sample.camera->GenerateRay(scene, sample, &ray, &xi, &yi);
+	float rayWeight = sample.camera->GenerateRay(scene, sample, &ray, xi, yi);
 
 	SWCSpectrum L(0.f);
 	float alpha = 1.f;

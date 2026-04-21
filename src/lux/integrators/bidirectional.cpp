@@ -47,7 +47,7 @@ public:
 		float alpha, float distance, float weight,
 		u_int bufferId, u_int groupId) const {
 		float x, y;
-		if (!sample.camera->GetSamplePosition(p, wi, distance, &x, &y))
+		if (!sample.camera->GetSamplePosition(p, wi, distance, x, y))
 			return false;
 		sample.AddContribution(x, y, color, alpha, distance, weight,
 			bufferId, groupId);
@@ -956,7 +956,7 @@ u_int BidirIntegrator::Li(const Scene &scene, const Sample &sample) const
 
 	if (eyePathTraced) {
 		float xl, yl;
-		if (!sample.camera->GetSamplePosition(eyePath[0].p, eyePath[0].wi, d, &xl, &yl))
+		if (!sample.camera->GetSamplePosition(eyePath[0].p, eyePath[0].wi, d, xl, yl))
 			return nrContribs;
 
 		partialContribution.Splat(sw, sample, xl, yl, d, alpha, eyeBufferId);
@@ -1911,7 +1911,9 @@ void BidirPathState::Terminate(const Scene &scene,
 	// uninitialised and must not be passed to GetSamplePosition.
 	if (eyePathLength > 1) {
 		float xi, yi;
-		if (sample.camera->GetSamplePosition(eyePath[0].bsdf->dgShading.p, eyePath[0].wi, distance, &xi, &yi)) {
+		if (sample.camera->GetSamplePosition(
+			eyePath[0].bsdf->dgShading.p, eyePath[0].wi, distance, xi, yi)
+		) {
 			const u_int lightGroupCount = scene.lightGroups.size();
 			for (u_int i = 0; i < lightGroupCount; ++i) {
 				if (!L[i].Black())
@@ -2159,7 +2161,7 @@ bool BidirIntegrator::GenerateRays(const Scene &scene,
 			d /= length;
 
 			if (!sample.camera->GetSamplePosition(p, d, length,
-				&bidirState->imageXYLightPath[2 * s], &bidirState->imageXYLightPath[2 * s + 1]))
+				bidirState->imageXYLightPath[2 * s], bidirState->imageXYLightPath[2 * s + 1]))
 				continue;
 
 			// Record the camera-to-vertex distance for the Z-buffer in Terminate().

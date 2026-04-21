@@ -180,9 +180,9 @@ u_int DirectLightingIntegrator::LiInternal(const Scene &scene,
 u_int DirectLightingIntegrator::Li(const Scene &scene,
 	const Sample &sample) const
 {
-        Ray ray;
+	Ray ray;
 	float xi, yi;
-        float rayWeight = sample.camera->GenerateRay(scene, sample, &ray, &xi, &yi);
+	float rayWeight = sample.camera->GenerateRay(scene, sample, &ray, xi, yi);
 
 	vector<SWCSpectrum> L(scene.lightGroups.size(), SWCSpectrum(0.f));
 	float alpha = 1.f;

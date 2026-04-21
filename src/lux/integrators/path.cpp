@@ -98,7 +98,7 @@ u_int PathIntegrator::Li(const Scene &scene, const Sample &sample) const
 	const SpectrumWavelengths &sw(sample.swl);
 	Ray ray;
 	float xi, yi;
-	float rayWeight = sample.camera->GenerateRay(scene, sample, &ray, &xi, &yi);
+	float rayWeight = sample.camera->GenerateRay(scene, sample, &ray, xi, yi);
 
 	const float nLights = scene.lights.size();
 	const u_int lightGroupCount = scene.lightGroups.size();
@@ -314,7 +314,7 @@ bool PathState::Init(const Scene &scene) {
 	// Mandatory initialization of mint and maxt
 	pathRay.mint = MachineEpsilon::E(1.f);
 	pathRay.maxt = INFINITY;
-	const float eyeRayWeight = sample.camera->GenerateRay(scene, sample, &pathRay, &xi, &yi);
+	const float eyeRayWeight = sample.camera->GenerateRay(scene, sample, &pathRay, xi, yi);
 	bouncePdf = 1.f;
 	lastBounce = pathRay.o;
 

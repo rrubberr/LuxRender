@@ -240,7 +240,7 @@ void HitPoints::TraceEyePath(HitPoint *hp, const Sample &sample, float const inv
 	// Declare common path integration variables
 	const SpectrumWavelengths &sw(sample.swl);
 	Ray ray;
-	const float rayWeight = sample.camera->GenerateRay(scene, sample, &ray, &(hp->imageX), &(hp->imageY));
+	const float rayWeight = sample.camera->GenerateRay(scene, sample, &ray, (hp->imageX), (hp->imageY));
 
 	const float nLights = scene.lights.size();
 	const u_int lightGroupCount = scene.lightGroups.size();
