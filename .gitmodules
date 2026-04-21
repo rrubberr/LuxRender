@@ -37,3 +37,6 @@
 [submodule "ext/OpenColorIO"]
 	path = ext/OpenColorIO
 	url = https://github.com/AcademySoftwareFoundation/OpenColorIO.git
+[submodule "ext/OpenImageIO"]
+	path = ext/OpenImageIO
+	url = https://github.com/AcademySoftwareFoundation/OpenImageIO.git
