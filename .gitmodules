@@ -34,3 +34,6 @@
 [submodule "ext/openexr"]
 	path = ext/openexr
 	url = https://github.com/AcademySoftwareFoundation/openexr.git
+[submodule "ext/OpenColorIO"]
+	path = ext/OpenColorIO
+	url = https://github.com/AcademySoftwareFoundation/OpenColorIO.git
