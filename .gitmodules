@@ -16,3 +16,6 @@
 [submodule "ext/minizip-ng"]
 	path = ext/minizip-ng
 	url = https://github.com/zlib-ng/minizip-ng.git
+[submodule "ext/libpng"]
+	path = ext/libpng
+	url = https://github.com/pnggroup/libpng.git
