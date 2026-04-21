@@ -22,3 +22,6 @@
 [submodule "ext/OpenJPH"]
 	path = ext/OpenJPH
 	url = https://github.com/aous72/OpenJPH.git
+[submodule "ext/libjpeg-turbo"]
+	path = ext/libjpeg-turbo
+	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
