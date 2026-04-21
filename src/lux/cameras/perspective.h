@@ -49,7 +49,7 @@ public:
 		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
 		float *pdfDirect, SWCSpectrum *We) const;
 	virtual bool GetSamplePosition(const Point &p, const Vector &wi,
-		float distance, float *x, float *y) const;
+		float distance, float &x, float &y) const;
 	virtual void ClampRay(Ray &ray) const;
 	virtual bool IsDelta() const { return LensRadius == 0.f; }
 	virtual bool IsLensBased() const { return true; }

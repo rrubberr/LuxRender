@@ -112,7 +112,9 @@ BBox EnvironmentCamera::Bounds() const
 	BBox bound;
 	for (int i = 1024; i >= 0; i--) {
 		// ugly hack, but last thing we do is to sample StartTime, so should be ok
-		const_cast<EnvironmentCamera*>(this)->SampleMotion(Lerp(static_cast<float>(i) / 1024.f, CameraMotion.StartTime(), CameraMotion.EndTime()));
+		const_cast<EnvironmentCamera*>(this)->SampleMotion(
+			Lerp(static_cast<float>(i) / 1024.f, CameraMotion.StartTime(), CameraMotion.EndTime())
+		);
 		bound = Union(bound, BBox(pos));
 	}
 
@@ -122,21 +124,21 @@ BBox EnvironmentCamera::Bounds() const
 }
 
 bool EnvironmentCamera::GetSamplePosition(const Point &p, const Vector &wi,
-	float distance, float *x, float *y) const
+	float distance, float &x, float &y) const
 {
 	if (!isinf(distance) && (distance < ClipHither || distance > ClipYon))
 		return false;
 	const Vector w(Inverse(CameraToWorld) * wi);
 	const float cosTheta = w.y;
 	const float theta = acosf(min(1.f, cosTheta));
-	*y = theta * film->yResolution * INV_PI;
+	y = theta * film->yResolution * INV_PI;
 	const float sinTheta = sqrtf(Clamp(1.f - cosTheta * cosTheta, 1e-5f, 1.f));
 	const float cosPhi = -w.z / sinTheta;
 	const float phi = acosf(Clamp(cosPhi, -1.f, 1.f));
 	if (w.x >= 0.f)
-		*x = (2.f * M_PI - phi) * film->xResolution * INV_TWOPI;
+		x = (2.f * M_PI - phi) * film->xResolution * INV_TWOPI;
 	else
-		*x = phi * film->xResolution * INV_TWOPI;
+		x = phi * film->xResolution * INV_TWOPI;
 
 	return true;
 }

@@ -125,15 +125,15 @@ bool OrthoCamera::SampleW(MemoryArena &arena, const SpectrumWavelengths &sw,
 }
 
 bool OrthoCamera::GetSamplePosition(const Point &p, const Vector &wi,
-	float distance, float *x, float *y) const
+	float distance, float &x, float &y) const
 {
 	if (Dot(wi, normal) < 1.f - MachineEpsilon::E(1.f) ||
 		(!isinf(distance) && (distance < ClipHither ||
 		distance > ClipYon)))
 		return false;
 	Point ps(Inverse(RasterToWorld) * p);
-	*x = ps.x;
-	*y = ps.y;
+	x = ps.x;
+	y = ps.y;
 	return true;
 }
 

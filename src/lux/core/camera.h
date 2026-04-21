@@ -81,8 +81,7 @@ public:
 	 * @param y The sampled y position on screen in pixels
 	 * @return he ray weighting
 	 */
-	float GenerateRay(const Scene &scene, const Sample &sample,
-		Ray *ray, float *x, float *y) const;
+	float GenerateRay(const Scene &scene, const Sample &sample, Ray *ray, float &x, float &y) const;
 	/**
 	 * Samples the origin of a ray.
 	 * Depending on the value returned by IsLensBased(), the expected values
@@ -165,7 +164,7 @@ public:
 	 * constraints (if applicable), false otherwise
 	 */
 	virtual bool GetSamplePosition(const Point &p, const Vector &wi,
-		float distance, float *x, float *y) const = 0;
+		float distance, float &x, float &y) const = 0;
 	/**
 	 * If applicable, modifies the ray mint and maxt members to honour
 	 * the hither and yon parameters.

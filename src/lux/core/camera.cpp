@@ -56,8 +56,7 @@ void Camera::AddAttributes(Queryable *q) const
 	AddFloatConstant(*q, "ClipYon", "Far clip plane", ClipYon);
 }
 
-float Camera::GenerateRay(const Scene &scene, const Sample &sample,
-	Ray *ray, float *x, float *y) const
+float Camera::GenerateRay(const Scene &scene, const Sample &sample, Ray *ray, float &x, float &y) const
 {
 	const SpectrumWavelengths &sw(sample.swl);
 	if (IsLensBased()) {

@@ -278,7 +278,9 @@ BBox PerspectiveCamera::Bounds() const
 	BBox bound;
 	for (int i = 1024; i >= 0; i--) {
 		// ugly hack, but last thing we do is to sample StartTime, so should be ok
-		const_cast<PerspectiveCamera*>(this)->SampleMotion(Lerp(static_cast<float>(i) / 1024.f, CameraMotion.StartTime(), CameraMotion.EndTime()));
+		const_cast<PerspectiveCamera*>(this)->SampleMotion(
+			Lerp(static_cast<float>(i) / 1024.f, CameraMotion.StartTime(), CameraMotion.EndTime())
+		);
 		bound = Union(bound, CameraToWorld * orig_bound);
 	}
 	bound.Expand(max(1.f, MachineEpsilon::E(bound)));
@@ -286,7 +288,7 @@ BBox PerspectiveCamera::Bounds() const
 }
 
 bool PerspectiveCamera::GetSamplePosition(const Point &p, const Vector &wi,
-	float distance, float *x, float *y) const
+	float distance, float &x, float &y) const
 {
 	const float cosi = Dot(wi, normal);
 	if (cosi <= 0.f || (!isinf(distance) && (distance * cosi < ClipHither ||
@@ -294,8 +296,8 @@ bool PerspectiveCamera::GetSamplePosition(const Point &p, const Vector &wi,
 		return false;
 	const Point pO(Inverse(RasterToWorld) * (p + (LensRadius > 0.f ?
 		wi * (FocalDistance / cosi) : wi)));
-	*x = pO.x;
-	*y = pO.y;
+	x = pO.x;
+	y = pO.y;
 	return true;
 }
 
