@@ -59,7 +59,7 @@ void HashGrid::RefreshMutex() {
 	// TODO: add a tunable parameter for hashgrid size
 	gridSize = hitPointsCount;
 	if (!grid) {
-		grid = new std::list<HitPoint *>*[gridSize];
+		grid = new std::vector<HitPoint *>*[gridSize];
 
 		for (unsigned int i = 0; i < gridSize; ++i)
 			grid[i] = NULL;
@@ -121,20 +121,20 @@ void HashGrid::RefreshMutex() {
 						int hv = Hash(ix, iy, iz);
 
 						if (grid[hv] == NULL)
-							grid[hv] = new std::list<HitPoint *>();
+							grid[hv] = new std::vector<HitPoint *>();
 
-						grid[hv]->push_front(hp);
+						grid[hv]->push_back(hp);
 						++entryCount;
 
 						/* Too slow:
 						if (grid[hv] == NULL) {
-							grid[hv] = new std::list<HitPoint *>();
+							grid[hv] = new std::vector<HitPoint *>();
 
-							grid[hv]->push_front(hp);
+							grid[hv]->push_back(hp);
 							++entryCount;
 						} else {
 							// Check if the hit point has been already inserted
-							std::list<HitPoint *>::iterator iter = grid[hv]->begin();
+							std::vector<HitPoint *>::iterator iter = grid[hv]->begin();
 							bool found = false;
 							while (iter != grid[hv]->end()) {
 								HitPoint *lhp = *iter++;
@@ -145,7 +145,7 @@ void HashGrid::RefreshMutex() {
 							if (found)
 								continue;
 
-							grid[hv]->push_front(hp);
+						grid[hv]->push_back(hp);
 							++entryCount;
 
 							// grid[hv]->size() is very slow to execute
@@ -185,13 +185,10 @@ void HashGrid::AddFlux(Sample &sample, const PhotonData &photon) {
 	const int iy = abs(int(hh.y));
 	const int iz = abs(int(hh.z));
 
-	std::list<HitPoint *> *hps = grid[Hash(ix, iy, iz)];
+	std::vector<HitPoint *> *hps = grid[Hash(ix, iy, iz)];
 
 	if (hps) {
-		std::list<HitPoint *>::iterator iter = hps->begin();
-		while (iter != hps->end()) {
-			HitPoint *hp = *iter++;
-
+		for (HitPoint *hp : *hps) {
 			AddFluxToHitPoint(sample, hp, photon);
 		}
 	}

@@ -227,9 +227,15 @@ PermutedHalton::PermutedHalton(u_int d, const RandomGenerator &rng) {
 	dims = d;
 	// Determine bases $b_i$ and their sum
 	b = new u_int[dims];
+	invB = new float[dims];
+	// ceil(2^32 / base): magic multiplier enabling fast integer division by multiply+shift.
+	// Replaces the hardware 'div' instruction (~20-90 cycles) with a 64-bit multiply (~3 cycles).
+	magicDiv = new u_int[dims];
 	u_int sumBases = 0;
 	for (u_int i = 0; i < dims; ++i) {
 		b[i] = primes[i];
+		invB[i] = 1.f / primes[i];
+		magicDiv[i] = (u_int)((((unsigned long long)1 << 32) + primes[i] - 1) / primes[i]);
 		sumBases += b[i];
 	}
 

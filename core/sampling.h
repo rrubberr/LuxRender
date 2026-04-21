@@ -274,14 +274,17 @@ inline void GeneratePermutation(u_int *buf, u_int b, const RandomGenerator &rng)
 }
 
 // Directly from PBRT2
-inline double PermutedRadicalInverse(u_int n, u_int base, const u_int *p) {
-	double val = 0;
-	double invBase = 1. / base, invBi = invBase;
-
+inline float PermutedRadicalInverse(u_int n, u_int base, u_int magic, float invBase, const u_int *p) {
+	float val = 0.f;
+	float invBi = invBase;
 	while (n > 0) {
-		u_int d_i = p[n % base];
-		val += d_i * invBi;
-		n *= invBase;
+		u_int q = (u_int)(((unsigned long long)n * magic) >> 32);
+		u_int r = n - q * base;
+		// Correct rare overshoot: ceiling magic can give q = floor(n/base)+1 for
+		// very large n (> ~10^8 for typical bases). In that case r underflows.
+		if (__builtin_expect(r >= base, 0)) { --q; r += base; }
+		val += p[r] * invBi;
+		n = q;
 		invBi *= invBase;
 	}
 	return val;
@@ -296,12 +299,14 @@ class PermutedHalton {
 		~PermutedHalton() {
 			delete[] b;
 			delete[] permute;
+			delete[] invB;
+			delete[] magicDiv;
 		}
 
 		void Sample(u_int n, float *out) const {
-			u_int *p = permute;
+			const u_int *p = permute;
 			for (u_int i = 0; i < dims; ++i) {
-				out[i] = min<float>(float(PermutedRadicalInverse(n, b[i], p)), OneMinusEpsilon);
+				out[i] = min<float>(PermutedRadicalInverse(n, b[i], magicDiv[i], invB[i], p), OneMinusEpsilon);
 				p += b[i];
 			}
 		}
@@ -309,7 +314,8 @@ class PermutedHalton {
 	private:
 		// PermutedHalton Private Data
 		u_int dims;
-		u_int *b, *permute;
+		u_int *b, *permute, *magicDiv;
+		float *invB;
 
 		PermutedHalton(const PermutedHalton &);
 		PermutedHalton & operator=(const PermutedHalton &);

@@ -72,9 +72,7 @@ void HitPointsLookUpAccel::AddFluxToHitPoint(Sample &sample, HitPoint *hp, const
 void HashCell::AddFlux(Sample& sample, HitPointsLookUpAccel *accel, const PhotonData &photon) {
 	switch (type) {
 		case HH_LIST: {
-			std::list<HitPoint *>::iterator iter = list->begin();
-			while (iter != list->end()) {
-				HitPoint *hp = *iter++;
+			for (HitPoint *hp : *list) {
 				accel->AddFluxToHitPoint(sample, hp, photon);
 			}
 			break;
@@ -91,14 +89,14 @@ void HashCell::AddFlux(Sample& sample, HitPointsLookUpAccel *accel, const Photon
 void HashCell::TransformToKdTree() {
 	assert (type == HH_LIST);
 
-	std::list<HitPoint *> *hplist = list;
+	std::vector<HitPoint *> *hplist = list;
 	kdtree = new HCKdTree(hplist, size);
 	delete hplist;
 	type = HH_KD_TREE;
 }
 
 HashCell::HCKdTree::HCKdTree(
-		std::list<HitPoint *> *hps, const unsigned int count) {
+		std::vector<HitPoint *> *hps, const unsigned int count) {
 	nNodes = count;
 	nextFreeNode = 1;
 
@@ -112,9 +110,8 @@ HashCell::HCKdTree::HCKdTree(
 	std::vector<HitPoint *> buildNodes;
 	buildNodes.reserve(nNodes);
 	maxDistSquared = 0.f;
-	std::list<HitPoint *>::iterator iter = hps->begin();
 	for (unsigned int i = 0; i < nNodes; ++i)  {
-		buildNodes.push_back(*iter++);
+		buildNodes.push_back((*hps)[i]);
 		maxDistSquared = max<float>(maxDistSquared, buildNodes[i]->accumPhotonRadius2);
 	}
 	//std::cerr << "kD-Tree search radius: " << sqrtf(maxDistSquared) << std::endl;

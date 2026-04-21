@@ -22,6 +22,7 @@
 #ifndef LUX_LOOKUPACCEL_H
 #define	LUX_LOOKUPACCEL_H
 
+#include <list>
 #include <vector>
 
 #include "osfunc.h"
@@ -97,7 +98,7 @@ private:
 
 	u_int gridSize;
 	float invCellSize;
-	std::list<HitPoint *> **grid;
+	std::vector<HitPoint *> **grid;
 };
 
 //------------------------------------------------------------------------------
@@ -202,7 +203,7 @@ public:
 	HashCell(const HashCellType t) {
 		type = HH_LIST;
 		size = 0;
-		list = new std::list<HitPoint *>();
+		list = new std::vector<HitPoint *>();
 	}
 	~HashCell() {
 		switch (type) {
@@ -222,7 +223,7 @@ public:
 
 		/* Too slow:
 		// Check if the hit point has been already inserted
-		std::list<HitPoint *>::iterator iter = list->begin();
+		std::vector<HitPoint *>::iterator iter = list->begin();
 		while (iter != list->end()) {
 			HitPoint *lhp = *iter++;
 
@@ -230,7 +231,7 @@ public:
 				return;
 		}*/
 
-		list->push_front(hp);
+		list->push_back(hp);
 		++size;
 	}
 
@@ -243,7 +244,7 @@ public:
 private:
 	class HCKdTree {
 	public:
-		HCKdTree( std::list<HitPoint *> *hps, const u_int count);
+		HCKdTree( std::vector<HitPoint *> *hps, const u_int count);
 		~HCKdTree();
 
 	void AddFlux(Sample &sample, HitPointsLookUpAccel *accel, const PhotonData &photon);
@@ -295,7 +296,7 @@ private:
 	HashCellType type;
 	u_int size;
 	union {
-		std::list<HitPoint *> *list;
+		std::vector<HitPoint *> *list;
 		HCKdTree *kdtree;
 	};
 };
