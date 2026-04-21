@@ -4,3 +4,6 @@
 [submodule "ext/robin-map"]
 	path = ext/robin-map
 	url = https://github.com/Tessil/robin-map.git
+[submodule "ext/yaml-cpp"]
+	path = ext/yaml-cpp
+	url = https://github.com/jbeder/yaml-cpp.git
