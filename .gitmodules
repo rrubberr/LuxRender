@@ -28,3 +28,6 @@
 [submodule "ext/libtiff"]
 	path = ext/libtiff
 	url = https://gitlab.com/libtiff/libtiff.git
+[submodule "ext/Imath"]
+	path = ext/Imath
+	url = https://github.com/AcademySoftwareFoundation/Imath.git
