@@ -25,8 +25,8 @@ MESSAGE(STATUS "CMAKE VERSION DETECTED " ${CMAKE_VERSION})
 #
 ################################################################################
 # Fresh start
-cmake_minimum_required(VERSION 4.0)
-cmake_policy(VERSION 4.0)
+cmake_minimum_required(VERSION 3.3)
+cmake_policy(VERSION 3.3)
 #Remove the following when the version check is at least 2.8.4
 SET(CMAKE_LEGACY_CYGWIN_WIN32 0)
 
