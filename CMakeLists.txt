@@ -29,7 +29,7 @@ set(
 ExternalProject_Add(
 	zlib-ng
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/zlib-ng
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/zlib-ng
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/zlib-ng
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -40,7 +40,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	robin-map
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/robin-map
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/robin-map
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/robin-map
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -50,7 +50,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	yaml-cpp
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/yaml-cpp
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/yaml-cpp
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/yaml-cpp
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -63,7 +63,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	pybind11
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/pybind11
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/pybind11
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/pybind11
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -73,7 +73,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	pystring
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/pystring
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/pystring
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/pystring
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -82,7 +82,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	minizip-ng
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/minizip-ng
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/minizip-ng
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/minizip-ng
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -95,7 +95,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	libpng
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/libpng
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/libpng
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/libpng
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -108,7 +108,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	OpenJPH
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/OpenJPH
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/OpenJPH
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/OpenJPH
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -119,7 +119,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	libjpeg-turbo
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/libjpeg-turbo
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/libjpeg-turbo
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/libjpeg-turbo
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -130,7 +130,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	libtiff
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/libtiff
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/libtiff
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/libtiff
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -154,7 +154,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	Imath
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/Imath
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/Imath
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/Imath
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -165,7 +165,7 @@ ExternalProject_Add(
 	DEPENDS
 		OpenJPH
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/openexr
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/openexr
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/openexr
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -181,7 +181,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	OpenColorIO
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/OpenColorIO
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/OpenColorIO
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/OpenColorIO
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -202,7 +202,7 @@ ExternalProject_Add(
 		OpenColorIO openexr Imath libtiff libjpeg-turbo OpenJPH libpng
 		minizip-ng pystring pybind11 yaml-cpp robin-map zlib-ng
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/OpenImageIO
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/OpenImageIO
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/OpenImageIO
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
@@ -241,7 +241,7 @@ ExternalProject_Add(
 ExternalProject_Add(
 	openssl
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/openssl
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/openssl
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/openssl
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CONFIGURE_COMMAND
 		sh ${CMAKE_CURRENT_SOURCE_DIR}/ext/openssl/config
@@ -255,13 +255,18 @@ ExternalProject_Add(
 	DEPENDS
 		openssl
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/cpython
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/cpython
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/cpython
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CONFIGURE_COMMAND
 		sh ${CMAKE_CURRENT_SOURCE_DIR}/ext/cpython/configure
 		--prefix=${CMAKE_CURRENT_BINARY_DIR}/build
 		--with-openssl=${BIN_DIR} --disable-shared --with-ensurepip=no
 		--enable-optimizations --disable-test-modules
+	PATCH_COMMAND
+		/bin/sh -c "(grep -q m_sinpi Modules/mathmodule.c || sed -i 's@sinpi@m_sinpi@g' Modules/mathmodule.c) && \
+					(grep -q is_pad Modules/_cursesmodule.c || sed -i 's@(self->win->_flags & _ISPAD)@(is_pad(self->win))@g' Modules/_cursesmodule.c) && \
+					(patch -p1 --dry-run -i ${CMAKE_CURRENT_SOURCE_DIR}/patches/python-disable-nis.patch && \
+					 patch -p1 -i ${CMAKE_CURRENT_SOURCE_DIR}/patches/python-disable-nis.patch || true)"
 	INSTALL_COMMAND
 		make install -j$(nproc) cc=g++ cxx=g++ LDFLAGS="-Wl,-rpath,'\$\$ORIGIN'"
 		cflags="-O2 -w -fPIC -I \"${BIN_DIR}\" -I $\"{INC_DIR}/openssl\""
@@ -278,7 +283,7 @@ ExternalProject_Add(
 	DEPENDS
 		cpython openssl
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/boost
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/boost
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/boost
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	LIST_SEPARATOR |
 	CMAKE_ARGS
@@ -297,8 +302,8 @@ ExternalProject_Add(
 		-DPython_FIND_STRATEGY=LOCATION
 )
 
-set(LXR_DST ${CMAKE_CURRENT_SOURCE_DIR}/bin/build/lib/libluxrays.a)
-set(LXR_SRC ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/luxrays/src/luxrays-build/lib/libluxrays.a)
+set(LXR_DST ${CMAKE_CURRENT_BINARY_DIR}/build/lib/libluxrays.a)
+set(LXR_SRC ${CMAKE_CURRENT_BINARY_DIR}/pfx/luxrays/src/luxrays-build/lib/libluxrays.a)
 set(LUXRAYS_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/luxrays/include)
 
 ExternalProject_Add(
@@ -306,7 +311,7 @@ ExternalProject_Add(
 	DEPENDS
 		boost cpython openssl OpenImageIO Imath OpenColorIO
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/luxrays
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/luxrays
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/luxrays
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	CMAKE_ARGS
 		-D_GLIBCXX_USE_CXX11_ABI=11
@@ -329,13 +334,13 @@ ExternalProject_Add(
 	INSTALL_COMMAND
 		COMMAND ${CMAKE_COMMAND} -E copy "${LXR_SRC}" "${LXR_DST}"
 		COMMAND ${CMAKE_COMMAND} -E copy_directory "${LUXRAYS_INC_DIR}" "${INC_DIR}"
-	BUILD_ALWAYS 1
+	BUILD_ALWAYS 0
 )
 
 
-set(LUX_PFX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/lux)
+set(LUX_PFX ${CMAKE_CURRENT_BINARY_DIR}/pfx/lux)
 set(LUX_BUILD ${LUX_PFX}/src/lux-build)
-set(OUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bin)
+set(OUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(LCC_DST ${OUT_DIR}/compile_commands.json)
 
 ExternalProject_Add(
@@ -343,7 +348,7 @@ ExternalProject_Add(
 	DEPENDS
 		luxrays boost cpython openssl OpenImageIO Imath OpenColorIO
 	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lux
-	PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/bin/pfx/lux
+	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/lux
 	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
 	INSTALL_COMMAND
 		COMMAND ${CMAKE_COMMAND} -E copy "${LUX_BUILD}/compile_commands.json" "${LCC_DST}"
