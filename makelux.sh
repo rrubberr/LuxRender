@@ -8,14 +8,15 @@
 cd "$PWD"
 MAKELUX_DIR=$PWD
 
-mkdir -p $MAKELUX_DIR/src
-mkdir -p $MAKELUX_DIR/src/build
-mkdir -p $MAKELUX_DIR/src/build/bin
-mkdir -p $MAKELUX_DIR/src/build/lib
-mkdir -p $MAKELUX_DIR/src/build/include
+mkdir -p $MAKELUX_DIR/ext
+mkdir -p $MAKELUX_DIR/ext/build
+mkdir -p $MAKELUX_DIR/ext/build/bin
+mkdir -p $MAKELUX_DIR/ext/build/lib
+mkdir -p $MAKELUX_DIR/ext/build/include
 
 SRC_DIR=$MAKELUX_DIR/src
-BLD_DIR=$SRC_DIR/build
+EXT_DIR=$MAKELUX_DIR/ext
+BLD_DIR=$EXT_DIR/build
 BIN_DIR=$BLD_DIR/bin
 LIB_DIR=$BLD_DIR/lib
 INC_DIR=$BLD_DIR/include
@@ -29,32 +30,32 @@ PATCH_DIR=$PWD/patches
 ######################################################################
 
 #For zlib-ng.
-ZLIB_DIR="$SRC_DIR/zlib-ng"
+ZLIB_DIR="$EXT_DIR/zlib-ng"
 ZLIB_URL="https://github.com/zlib-ng/zlib-ng.git"
 ZLIB_TAG="2.3.3"
 
 #For robin-map.
-ROBIN_DIR="$SRC_DIR/robin-map"
+ROBIN_DIR="$EXT_DIR/robin-map"
 ROBIN_URL="https://github.com/Tessil/robin-map.git"
 ROBIN_TAG="v1.4.1"
 
 #For yaml-cpp.
-YAML_DIR="$SRC_DIR/yaml-cpp"
+YAML_DIR="$EXT_DIR/yaml-cpp"
 YAML_URL="https://github.com/jbeder/yaml-cpp.git"
 YAML_TAG="yaml-cpp-0.9.0"
 
 #For pybind11.
-PYBIND_DIR="$SRC_DIR/pybind11"
+PYBIND_DIR="$EXT_DIR/pybind11"
 PYBIND_URL="https://github.com/pybind/pybind11.git"
 PYBIND_TAG="v3.0.3"
 
 #For pystring.
-PYSTRING_DIR="$SRC_DIR/pystring"
+PYSTRING_DIR="$EXT_DIR/pystring"
 PYSTRING_URL="https://github.com/imageworks/pystring.git"
 PYSTRING_TAG="v1.1.5"
 
 #For minizip.
-MINIZIP_DIR="$SRC_DIR/minizip-ng"
+MINIZIP_DIR="$EXT_DIR/minizip-ng"
 MINIZIP_URL="https://github.com/zlib-ng/minizip-ng.git"
 MINIZIP_TAG="4.1.0"
 
@@ -80,22 +81,22 @@ TIFF_URL="https://gitlab.com/libtiff/libtiff.git"
 TIFF_TAG="v4.7.1"
 
 #For Imath.
-IMATH_DIR="$SRC_DIR/Imath"
+IMATH_DIR="$EXT_DIR/Imath"
 IMATH_URL="https://github.com/AcademySoftwareFoundation/Imath.git"
 IMATH_TAG="v3.2.2"
 
 #For OpenEXR.
-EXR_DIR="$SRC_DIR/openexr"
+EXR_DIR="$EXT_DIR/openexr"
 EXR_URL="https://github.com/AcademySoftwareFoundation/openexr.git"
 EXR_TAG="v3.4.9"
 
 #For OpenColorIO.
-OCIO_DIR="$SRC_DIR/OpenColorIO"
+OCIO_DIR="$EXT_DIR/OpenColorIO"
 OCIO_URL="https://github.com/AcademySoftwareFoundation/OpenColorIO.git"
 OCIO_TAG="v2.5.1"
 
 #For OpenImageIO.
-OIIO_DIR="$SRC_DIR/OpenImageIO"
+OIIO_DIR="$EXT_DIR/OpenImageIO"
 OIIO_URL="https://github.com/AcademySoftwareFoundation/OpenImageIO.git"
 OIIO_TAG="v3.1.12.0"
 
@@ -110,7 +111,7 @@ OIIO_DEP_TAGS="$ZLIB_TAG $ROBIN_TAG $YAML_TAG $PYBIND_TAG $PYSTRING_TAG $MINIZIP
 ######################################################################
 ######################################################################
 
-cd $SRC_DIR
+cd $EXT_DIR
 
 #Turn strings into arrays.
 read -r -a URLS <<< "$OIIO_DEP_URLS"
@@ -127,7 +128,7 @@ for i in "${!URLS[@]}"; do
 
 #Clone if missing.
 
-    cd $SRC_DIR
+    cd $EXT_DIR
 
     if [ ! -d "$DIR" ]; then
         echo "$NAME sources not found, cloning..."
@@ -201,7 +202,7 @@ for i in "${!URLS[@]}"; do
 
     if [ "$NAME" = "libtiff" ] && [ ! -f "$LIB_DIR/libtiff.a" ]; then
 
-        cd $SRC_DIR
+        cd $EXT_DIR
 
         rm -rf $TIFF_DIR
         git clone --recursive -b "$TAG" "$URL" "$DIR"
@@ -236,7 +237,7 @@ for i in "${!URLS[@]}"; do
 
     if [ "$NAME" = "OpenJPH" ] && [ ! -f "$LIB_DIR/libopenjph.a" ]; then
 
-        cd $SRC_DIR
+        cd $EXT_DIR
 
         rm -rf $JPH_DIR
         git clone --recursive -b "$TAG" "$URL" "$DIR"
@@ -275,14 +276,14 @@ done
 #For OpenSSL.
 OPENSSL_HASH="ecd0c6ffb493dd06707d38b14bb4d8c2288bb7033735606569d8f90f89669d16"
 OPENSSL_FILENAME="openssl-1.0.2u.tar.gz"
-OPENSSL_DIR="$SRC_DIR/openssl-1.0.2u"
+OPENSSL_DIR="$EXT_DIR/openssl-1.0.2u"
 OPENSSL_URL="https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2u/openssl-1.0.2u.tar.gz"
 OPENSSL_INC_DIR="$INC_DIR/openssl"
 
 #For Python.
 PYTHON_HASH="0f0fa8685c1dc1f1dacb0b4e7779796b90aef99dc1fa4967a71b9da7b57d4a28"
 PYTHON_FILENAME="Python-3.5.10.tar.xz"
-PYTHON_DIR="$SRC_DIR/Python-3.5.10"
+PYTHON_DIR="$EXT_DIR/Python-3.5.10"
 PYTHON_URL="https://www.python.org/ftp/python/3.5.10/Python-3.5.10.tar.xz"
 PYTHON_PATCH="$PATCH_DIR/python/python-disable-nis.patch"
 PYTHON_INC_DIR="$INC_DIR/python3.5m"
@@ -290,15 +291,15 @@ PYTHON_INC_DIR="$INC_DIR/python3.5m"
 #For Boost.
 BOOST_HASH="5e93d582aff26868d581a52ae78c7d8edf3f3064742c6e77901a1f18a437eea9"
 BOOST_FILENAME="boost_1_90_0.tar.bz2"
-BOOST_DIR="$SRC_DIR/boost_1_90_0"
+BOOST_DIR="$EXT_DIR/boost_1_90_0"
 BOOST_URL="https://archives.boost.io/release/1.90.0/source/boost_1_90_0.tar.gz"
 BOOST_INC_DIR="$INC_DIR/boost"
 
 #Compile into strings.
-SRC_URLS="$OPENSSL_URL $PYTHON_URL $BOOST_URL"
-SRC_FILENAMES="$OPENSSL_FILENAME $PYTHON_FILENAME $BOOST_FILENAME"
-SRC_HASHES="$OPENSSL_HASH $PYTHON_HASH $BOOST_HASH"
-SRC_DIRS="$OPENSSL_DIR $PYTHON_DIR $BOOST_DIR"
+EXT_URLS="$OPENSSL_URL $PYTHON_URL $BOOST_URL"
+EXT_FILENAMES="$OPENSSL_FILENAME $PYTHON_FILENAME $BOOST_FILENAME"
+EXT_HASHES="$OPENSSL_HASH $PYTHON_HASH $BOOST_HASH"
+EXT_DIRS="$OPENSSL_DIR $PYTHON_DIR $BOOST_DIR"
 
 ######################################################################
 ######################################################################
@@ -306,14 +307,14 @@ SRC_DIRS="$OPENSSL_DIR $PYTHON_DIR $BOOST_DIR"
 ######################################################################
 ######################################################################
 
-cd $SRC_DIR
+cd $EXT_DIR
 
 MAX_RETRIES=3
 
 #Turn strings into arrays.
-read -r -a URLS <<< "$SRC_URLS"
-read -r -a FILENAMES <<< "$SRC_FILENAMES"
-read -r -a HASHES <<< "$SRC_HASHES"
+read -r -a URLS <<< "$EXT_URLS"
+read -r -a FILENAMES <<< "$EXT_FILENAMES"
+read -r -a HASHES <<< "$EXT_HASHES"
 
 echo "URLs: ${#URLS[@]}"
 echo "FILENAMES: ${#FILENAMES[@]}"
@@ -361,11 +362,11 @@ done
 ######################################################################
 ######################################################################
 
-cd $SRC_DIR
+cd $EXT_DIR
 
 #Turn strings into arrays.
-read -r -a FILENAMES <<< "$SRC_FILENAMES"
-read -r -a DIRS <<< "$SRC_DIRS"
+read -r -a FILENAMES <<< "$EXT_FILENAMES"
+read -r -a DIRS <<< "$EXT_DIRS"
 
 #Sanity check string lengths.
 if [ ${#FILENAMES[@]} -ne ${#DIRS[@]} ]; then
@@ -490,12 +491,7 @@ fi
 ######################################################################
 ######################################################################
 
-cd $MAKELUX_DIR
-
-    #Clone if we haven't already.
-    if [ ! -d "$MAKELUX_DIR/luxrays" ]; then
-        git clone --recursive https://github.com/rrubberr/Flatpak-LuxRays/ -b FeatureRemoval luxrays
-    fi
+cd $SRC_DIR
 
 #Build LuxRays.
 LUXRAYS_LIB=$LIB_DIR/libluxrays.a
@@ -503,12 +499,12 @@ LUXRAYS_LIB=$LIB_DIR/libluxrays.a
     if [ ! -f "$LUXRAYS_LIB" ]; then
         echo "LuxRays not found. Building..."
 
-    if [ -d "$MAKELUX_DIR/luxrays/build" ]; then
-        rm -rf $MAKELUX_DIR/luxrays/build
+    if [ -d "$SRC_DIR/luxrays/build" ]; then
+        rm -rf $SRC_DIR/luxrays/build
     fi
 
-    mkdir $MAKELUX_DIR/luxrays/build
-    cd $MAKELUX_DIR/luxrays/build
+    mkdir $SRC_DIR/luxrays/build
+    cd $SRC_DIR/luxrays/build
 
     #Configure.
     cmake .. -DCMAKE_CXX_FLAGS="-w -fPIC -std=c++14 -I $INC_DIR -DBOOST_BIND_GLOBAL_PLACEHOLDERS" \
@@ -529,7 +525,7 @@ LUXRAYS_LIB=$LIB_DIR/libluxrays.a
 
     #Install libraries.
     cp -av lib/. $LIB_DIR/.
-    cp -av $MAKELUX_DIR/luxrays/include/luxrays $INC_DIR/
+    cp -av $SRC_DIR/luxrays/include/luxrays $INC_DIR/
 
 fi
 
@@ -539,19 +535,14 @@ fi
 ######################################################################
 ######################################################################
 
-cd $MAKELUX_DIR
+cd $SRC_DIR
 
-    #Clone if we haven't already.
-    if [ ! -d "$MAKELUX_DIR/lux" ]; then
-        git clone --recursive https://github.com/rrubberr/Flatpak-Lux/ -b FeatureRemoval lux
+    if [ -d "$SRC_DIR/lux/build" ]; then
+        rm -rf $SRC_DIR/lux/build
     fi
 
-    if [ -d "$MAKELUX_DIR/lux/build" ]; then
-        rm -rf $MAKELUX_DIR/lux/build
-    fi
-
-    mkdir $MAKELUX_DIR/lux/build
-    cd $MAKELUX_DIR/lux/build
+    mkdir $SRC_DIR/lux/build
+    cd $SRC_DIR/lux/build
 
 #Configure.
 cmake .. -DCMAKE_CXX_FLAGS="-w -fPIC -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS" \
@@ -590,7 +581,7 @@ make -j$(nproc)
 ######################################################################
 ######################################################################
 
-cd $MAKELUX_DIR/lux/build
+cd $SRC_DIR/lux/build
 
 mkdir -p $MAKELUX_DIR/release
 
