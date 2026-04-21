@@ -329,7 +329,6 @@ ExternalProject_Add(
 	INSTALL_COMMAND
 		COMMAND ${CMAKE_COMMAND} -E copy "${LXR_SRC}" "${LXR_DST}"
 		COMMAND ${CMAKE_COMMAND} -E copy_directory "${LUXRAYS_INC_DIR}" "${INC_DIR}"
-	BUILD_ALWAYS 1
 )
 
 
@@ -350,5 +349,4 @@ ExternalProject_Add(
 		COMMAND ${CMAKE_COMMAND} -E copy "${LUX_BUILD}/luxrender" "${OUT_DIR}/luxrender"
 		COMMAND ${CMAKE_COMMAND} -E copy "${LUX_BUILD}/liblux.so" "${OUT_DIR}/liblux.so"
 		COMMAND ${CMAKE_COMMAND} -E copy "${LUX_BUILD}/luxconsole" "${OUT_DIR}/luxconsole"
-	BUILD_ALWAYS 1
 )
