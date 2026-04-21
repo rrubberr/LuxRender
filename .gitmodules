@@ -25,3 +25,6 @@
 [submodule "ext/libjpeg-turbo"]
 	path = ext/libjpeg-turbo
 	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
+[submodule "ext/libtiff"]
+	path = ext/libtiff
+	url = https://gitlab.com/libtiff/libtiff.git
