@@ -337,7 +337,7 @@ public:
 	};
 	const double *numberOfSamples_;
 
-	ScaleUpdateInterface *scaleUpdate;
+	ScaleUpdateInterface *scaleUpdate = nullptr;
 private:
 	mutable float scale;
 };
@@ -420,7 +420,7 @@ public:
 private:
 	void CheckBucketNr();
 	u_int m_bucketNr, m_newBucketNr;
-	float *m_buckets;
+	float *m_buckets = nullptr;
 	u_int m_zones[11];
 	float m_lowRange, m_highRange, m_bucketSize;
 	float m_displayGamma;
@@ -766,7 +766,7 @@ public:
 	double numberOfLocalSamples;
 	double numberOfResumedSamples;
 
-	ContributionPool *contribPool;
+	ContributionPool *contribPool = nullptr;
 
 protected: // Put it here for better data alignment
 	// Dade - (xResolution + filter->xWidth) * (yResolution + filter->yWidth)
