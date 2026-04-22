@@ -40,3 +40,6 @@
 [submodule "ext/OpenImageIO"]
 	path = ext/OpenImageIO
 	url = https://github.com/AcademySoftwareFoundation/OpenImageIO.git
+[submodule "ext/openssl"]
+	path = ext/openssl
+	url = https://github.com/openssl/openssl.git
