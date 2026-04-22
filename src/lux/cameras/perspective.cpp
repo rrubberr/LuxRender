@@ -46,11 +46,14 @@ public:
 		const PerspectiveCamera &cam, bool lens, const Point &pL) :
 		BSDF(dgs, ngeom, exterior, interior), camera(cam),
 		hasLens(lens), p(pL) { }
+	
 	virtual inline u_int NumComponents() const { return 1; }
+
 	virtual inline u_int NumComponents(BxDFType flags) const {
 		return (flags & (BSDF_REFLECTION | BSDF_DIFFUSE)) ==
 			(BSDF_REFLECTION | BSDF_DIFFUSE) ? 1U : 0U;
 	}
+
 	virtual bool SampleF(const SpectrumWavelengths &sw, const Vector &woW,
 		Vector *wiW, float u1, float u2, float u3,
 		SWCSpectrum *const f_, float *pdf, BxDFType flags = BSDF_ALL,
@@ -76,6 +79,7 @@ public:
 			*sampledType = BxDFType(BSDF_REFLECTION | BSDF_DIFFUSE);
 		return true;
 	}
+
 	virtual float Pdf(const SpectrumWavelengths &sw, const Vector &woW,
 		const Vector &wiW, BxDFType flags = BSDF_ALL) const {
 		const Vector wi(Inverse(camera.CameraToWorld) * wiW);
@@ -92,6 +96,7 @@ public:
 		}
 		return 0.f;
 	}
+
 	virtual SWCSpectrum F(const SpectrumWavelengths &sw, const Vector &woW,
 		const Vector &wiW, bool reverse, BxDFType flags = BSDF_ALL) const {
 		const Vector wo(Inverse(camera.CameraToWorld) * woW);
@@ -108,8 +113,10 @@ public:
 		}
 		return SWCSpectrum(0.f);
 	}
+
 	virtual SWCSpectrum rho(const SpectrumWavelengths &sw,
 		BxDFType flags = BSDF_ALL) const { return SWCSpectrum(1.f); }
+
 	virtual SWCSpectrum rho(const SpectrumWavelengths &sw,
 		const Vector &woW, BxDFType flags = BSDF_ALL) const {
 		return SWCSpectrum(1.f);
@@ -117,7 +124,8 @@ public:
 
 protected:
 	// PerspectiveBSDF Private Methods
-	virtual ~PerspectiveBSDF() { }
+	virtual ~PerspectiveBSDF() {};
+
 	const PerspectiveCamera &camera;
 	bool hasLens;
 	Point p;
