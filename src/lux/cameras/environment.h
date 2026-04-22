@@ -32,6 +32,7 @@ public:
 	// EnvironmentCamera Public Methods
 	EnvironmentCamera(const MotionSystem &world2cam,
 		float hither, float yon, float sopen, float sclose, int sdist, Film *film);
+	
 	virtual ~EnvironmentCamera() { }
 
 	virtual void SampleMotion(float time) override;
