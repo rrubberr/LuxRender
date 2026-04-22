@@ -56,7 +56,6 @@ find_package(Boost REQUIRED COMPONENTS
     regex
     python
 )
-endif ()
 
 # OpenMP
 if(NOT APPLE)
