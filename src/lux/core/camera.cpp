@@ -88,16 +88,16 @@ bool Camera::GenerateRay(MemoryArena &arena, const SpectrumWavelengths &sw,
 	const Scene &scene, float o1, float o2, float d1, float d2, Ray *ray) const
 {
 	SWCSpectrum We;
-	BSDF *bsdf;
-	float pdf;
+	BSDF *bsdf = nullptr;
+	float pdf = 0.0f;
 	// Sample ray origin
 	//FIXME: Replace dummy .5f by a sampled value if needed
-	if (!SampleW(arena, sw, scene, o1, o2, .5f, &bsdf, &pdf, &We))
+	if (!SampleW(arena, sw, scene, o1, o2, .5f, &bsdf, pdf, &We))
 		return false;
 
 	// Sample ray direction
 	//FIXME: Replace dummy .5f by a sampled value if needed
-	Vector w;
+	Vector w = {0,0,0};
 	if (!bsdf->SampleF(sw, Vector(bsdf->dgShading.nn), &w, d1, d2, .5f,
 		&We, &pdf, BSDF_ALL, NULL, NULL, true))
 		return false;
@@ -190,6 +190,6 @@ SceneCamera::SceneCamera(Camera *cam) : Queryable("camera"), camera(cam)
 
 SceneCamera::~SceneCamera()
 {
-	delete camera->film;
-	delete camera;
+	delete camera->film; camera->film = nullptr;
+	delete camera; camera = nullptr;
 }

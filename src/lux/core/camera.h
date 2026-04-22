@@ -51,7 +51,9 @@ public:
 	 */
 	Camera(const MotionSystem &w2c, float hither, float yon, 
 		float sopen, float sclose, int sdist, Film *film);
+	
 	virtual ~Camera() { }
+
 	virtual void AddAttributes(Queryable *q) const;
 	/**
 	 * Returns the volume the camera is in.
@@ -110,7 +112,7 @@ public:
 	 */
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, float u1, float u2, float u3, BSDF **bsdf,
-		float *pdf, SWCSpectrum *We) const = 0;
+		float &pdf, SWCSpectrum *We) const = 0;
 	/**
 	 * Samples the origin of a ray So that a given point can be seen if not
 	 * otherwise occluded. That's next event estimation for the light path
@@ -146,8 +148,8 @@ public:
 	 */
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, const Point &p, const Normal &n,
-		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		float *pdfDirect, SWCSpectrum *We) const = 0;
+		float u1, float u2, float u3, BSDF **bsdf, float &pdf,
+		float &pdfDirect, SWCSpectrum *We) const = 0;
 	/**
 	 * Checks the on screen position of a point.
 	 * This method will be used to connect a light path vertex to an already
@@ -231,13 +233,15 @@ protected:
 	bool GenerateRay(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, float o1, float o2, float d1, float d2,
 		Ray *ray) const;
+
 	// Camera Protected Data
 	MotionSystem CameraMotion;
 	float ClipHither, ClipYon;
 	float ShutterOpen, ShutterClose;
-	int ShutterDistribution;
-	boost::shared_ptr<Volume> volume;
+	int ShutterDistribution = 0;
+	boost::shared_ptr<Volume> volume = nullptr;
 };
+
 class  ProjectiveCamera : public Camera {
 public:
 	// ProjectiveCamera Public Methods
@@ -246,21 +250,24 @@ public:
 		float hither, float yon,
 		float sopen, float sclose, int sdist,
 		float lensr, float focald, Film *film);
-	virtual ~ProjectiveCamera() { }
-	virtual void AddAttributes(Queryable *q) const;
 
-	virtual void SampleMotion(float time);
+	virtual ~ProjectiveCamera() { }
+
+	virtual void AddAttributes(Queryable *q) const override;
+
+	virtual void SampleMotion(float time) override;
 
 protected:
 	// ProjectiveCamera Protected Data
 	Transform ScreenToCamera, ScreenToWorld;
 	Transform RasterToScreen, RasterToWorld;
 
-	float ScreenWindow[4];
+	float ScreenWindow[4] = {0,0,0,0};
 
 public:
 	Transform RasterToCamera;
-	float LensRadius, FocalDistance;
+	float LensRadius = 0.0f;
+	float FocalDistance = 0.0f;
 };
 
 class SceneCamera : public Queryable {
@@ -270,7 +277,7 @@ public:
 	Camera *operator()() const { return camera; }
 
 private:
-	Camera *camera;
+	Camera *camera = nullptr;
 };
 
 }//namespace lux
