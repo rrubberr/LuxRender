@@ -57,6 +57,8 @@ find_package(Boost REQUIRED COMPONENTS
     python
 )
 
+include_directories(${Boost_INCLUDE_DIRS})
+
 # OpenMP
 if(NOT APPLE)
 	find_package(OpenMP)
