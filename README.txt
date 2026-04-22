@@ -53,7 +53,18 @@ Compiling from source:
  - You will also need fftw3, freetype, and common compression libraries
    like lzma and bzip2. These are likely present on your system already.
 
- - Then, run "sh makelux.sh" in the same folder as this README.
+ - On Debian or Ubuntu run:
+    sudo apt install git cmake build-essential python3-dev qt6-base-dev qt6-image-formats-plugins
+
+ - On Fedora or RHEL run:
+    sudo dnf groupinstall "C Development Tools and Libraries"
+    sudo dnf install git cmake python3-devel qt6-qtbase-devel qt6-qtimageformats
+
+ - Then do the standard cmake dance from the main folder:
+    mkdir build
+    cd build
+    cmake ..
+    make -j
 
 Demo scenes:
 -----------
