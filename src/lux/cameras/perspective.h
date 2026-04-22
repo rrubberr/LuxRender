@@ -36,28 +36,38 @@ public:
 		float lensr, float focald, bool autofocus, float fov,
 		int distribution, int shape, int power,
 		Film *film);
-	virtual ~PerspectiveCamera() { }
-	virtual void AddAttributes(Queryable *q) const;
 
-	virtual void SampleMotion(float time);
+	virtual ~PerspectiveCamera() { }
+
+	virtual void AddAttributes(Queryable *q) const override;
+
+	virtual void SampleMotion(float time) override;
 
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, float u1, float u2, float u3,
-		BSDF **bsdf, float &pdf, SWCSpectrum *We) const;
+		BSDF **bsdf, float &pdf, SWCSpectrum *We) const override;
+
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, const Point &p, const Normal &n,
 		float u1, float u2, float u3, BSDF **bsdf, float &pdf,
-		float &pdfDirect, SWCSpectrum *We) const;
+		float &pdfDirect, SWCSpectrum *We) const override;
+
 	virtual bool GetSamplePosition(const Point &p, const Vector &wi,
-		float distance, float &x, float &y) const;
-	virtual void ClampRay(Ray &ray) const;
-	virtual bool IsDelta() const { return LensRadius == 0.f; }
-	virtual bool IsLensBased() const { return true; }
-	virtual BBox Bounds() const;
-	virtual void AutoFocus(const Scene &scene);
+		float distance, float &x, float &y) const override;
+
+	virtual void ClampRay(Ray &ray) const override;
+
+	virtual bool IsDelta() const override { return LensRadius == 0.f; }
+
+	virtual bool IsLensBased() const override { return true; }
+
+	virtual BBox Bounds() const override;
+
+	virtual void AutoFocus(const Scene &scene) override;
+
 	void SampleLens(float u1, float u2, float *dx, float *dy) const;
 
-	virtual PerspectiveCamera* Clone() const {
+	virtual PerspectiveCamera* Clone() const override {
 		return new PerspectiveCamera(*this);
 	}
 
