@@ -167,7 +167,7 @@ public:
 	virtual u_int GetSamplingLimit(const Scene &scene) const { return 1; }
 
 protected:
-	luxrays::Distribution1D *lightDistribution;
+	luxrays::Distribution1D *lightDistribution = nullptr;
 };
 
 class LSSOnePowerImportance : public LSSOneImportance {
@@ -210,7 +210,7 @@ public:
 	}
 
 private:
-	LightsSamplingStrategy *strategy;
+	LightsSamplingStrategy *strategy = nullptr;
 };
 
 class LSSOneLogPowerImportance : public LSSOnePowerImportance {
@@ -316,7 +316,7 @@ public:
 private:
 	// Light Strategies
 	u_int shadowRayCount, nLights;
-	LightsSamplingStrategy *lsStrategy;
+	LightsSamplingStrategy *lsStrategy = nullptr;
 	u_int lightSampleOffset;
 };
 

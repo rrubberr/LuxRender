@@ -130,7 +130,7 @@ public:
 	}
 
 	// public for thread local data access
-	Thread *thread;
+	Thread *thread = nullptr;
 
 friend class Thread;
 
@@ -156,7 +156,7 @@ private:
 	unsigned current;
 	unsigned max;
 
-	Scheduler *scheduler;
+	Scheduler *scheduler = nullptr;
 };
 
 }

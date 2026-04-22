@@ -147,10 +147,10 @@ public:
 	vector<boost::shared_ptr<Light> > lights;
 	vector<string> lightGroups;
 	SceneCamera camera;
-	Region *volumeRegion;
-	SurfaceIntegrator *surfaceIntegrator;
-	VolumeIntegrator *volumeIntegrator;
-	Sampler *sampler;
+	Region *volumeRegion = nullptr;
+	SurfaceIntegrator *surfaceIntegrator = nullptr;
+	VolumeIntegrator *volumeIntegrator = nullptr;
+	Sampler *sampler = nullptr;
 	BBox bound;
 	u_long seedBase;
 	bool terminated; // rendering is terminated
@@ -159,7 +159,7 @@ public:
 	// The list of original primitives. It is required by LuxRays to build the DataSet.
 	vector<boost::shared_ptr<Primitive> > primitives;
 	vector<const Primitive *> tessellatedPrimitives;
-	luxrays::DataSet *dataSet;
+	luxrays::DataSet *dataSet = nullptr;
 
 private:
 	bool filmOnly; // whether this scene has entire scene (incl. geometry, ..) or only a film
