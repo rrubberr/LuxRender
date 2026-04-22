@@ -22,7 +22,7 @@
 MESSAGE(STATUS "CMAKE VERSION DETECTED " ${CMAKE_VERSION})
 	cmake_minimum_required(VERSION 3.10)
 
-project(LuxRender-Deps)
+project(LuxRenderDeps)
 
 include(ExternalProject)
 
@@ -109,6 +109,7 @@ ExternalProject_Add(
 
 ExternalProject_Add(
 	zlib-ng
+    DEPENDS cpython
 	SOURCE_DIR ${EXT_DIR}/zlib-ng
 	PREFIX ${DEPS_PFX_DIR}/zlib-ng
 	INSTALL_DIR ${DEPS_BUILD_DIR}
@@ -116,6 +117,7 @@ ExternalProject_Add(
 		${COMMON_EXT_PROJECT_ARGS}
 		-DZLIB_COMPAT=TRUE
 		-DBUILD_TESTING=FALSE
+        -DBUILD_SHARED_LIBS=FALSE
 )
 
 ###################
@@ -124,6 +126,7 @@ ExternalProject_Add(
 
 ExternalProject_Add(
 	robin-map
+    DEPENDS cpython
 	SOURCE_DIR ${EXT_DIR}/robin-map
 	PREFIX ${DEPS_PFX_DIR}/robin-map
 	INSTALL_DIR ${DEPS_BUILD_DIR}
@@ -138,6 +141,7 @@ ExternalProject_Add(
 
 ExternalProject_Add(
 	yaml-cpp
+    DEPENDS cpython
 	SOURCE_DIR ${EXT_DIR}/yaml-cpp
 	PREFIX ${DEPS_PFX_DIR}/yaml-cpp
 	INSTALL_DIR ${DEPS_BUILD_DIR}
@@ -145,7 +149,6 @@ ExternalProject_Add(
 		${COMMON_EXT_PROJECT_ARGS}
 		-DYAML_CPP_BUILD_CONTRIB=FALSE
 		-DYAML_CPP_BUILD_TOOLS=FALSE
-		-DYAML_BUILD_SHARED_LIBS=FALSE
 		-DYAML_BUILD_SHARED_LIBS=FALSE
 )
 
@@ -155,6 +158,7 @@ ExternalProject_Add(
 
 ExternalProject_Add(
 	pybind11
+    DEPENDS cpython
 	SOURCE_DIR ${EXT_DIR}/pybind11
 	PREFIX ${DEPS_PFX_DIR}/pybind11
 	INSTALL_DIR ${DEPS_BUILD_DIR}
@@ -169,11 +173,14 @@ ExternalProject_Add(
 
 ExternalProject_Add(
 	pystring
+    DEPENDS cpython
 	SOURCE_DIR ${EXT_DIR}/pystring
 	PREFIX ${DEPS_PFX_DIR}/pystring
 	INSTALL_DIR ${DEPS_BUILD_DIR}
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
+        -DBUILD_SHARED_LIBS=FALSE
+
 )
 
 ####################
@@ -199,6 +206,7 @@ ExternalProject_Add(
         -DMZ_ZSTD=FALSE
         -DMZ_LIBBSD=FALSE
         -DMZ_ICONV=TRUE
+        -DBUILD_SHARED_LIBS=FALSE
 )
 
 ################
@@ -301,8 +309,7 @@ ExternalProject_Add(
 
 ExternalProject_Add(
 	openexr
-	DEPENDS
-		Imath
+	DEPENDS Imath
 	SOURCE_DIR ${EXT_DIR}/openexr
 	PREFIX ${DEPS_PFX_DIR}/openexr
 	INSTALL_DIR ${DEPS_BUILD_DIR}
@@ -318,10 +325,13 @@ ExternalProject_Add(
         -DBUILD_SHARED_LIBS=FALSE
 )
 
+#####################
+# Build OpenColorIO #
+#####################
+
 ExternalProject_Add(
 	OpenColorIO
-    DEPENDS
-        openexr
+    DEPENDS openexr
 	SOURCE_DIR ${EXT_DIR}/OpenColorIO
 	PREFIX ${DEPS_PFX_DIR}/OpenColorIO
 	INSTALL_DIR ${DEPS_BUILD_DIR}
@@ -333,16 +343,16 @@ ExternalProject_Add(
 		-DOCIO_BUILD_PYTHON=FALSE
 		-DOCIO_BUILD_GPU_TESTS=FALSE
         -DBUILD_SHARED_LIBS=FALSE
+        -DOCIO_INSTALL_EXT_PACKAGES=NONE
 )
 
 #####################
-# Build openimageio #
+# Build OpenImageIO #
 #####################
 
 ExternalProject_Add(
 	OpenImageIO
-	DEPENDS
-		OpenColorIO
+	DEPENDS OpenColorIO
 	SOURCE_DIR ${EXT_DIR}/OpenImageIO
 	PREFIX ${DEPS_PFX_DIR}/OpenImageIO
 	INSTALL_DIR ${DEPS_BUILD_DIR}
@@ -388,8 +398,7 @@ set(
 
 ExternalProject_Add(
 	boost
-	DEPENDS
-		cpython
+	DEPENDS cpython OpenImageIO
 	SOURCE_DIR ${EXT_DIR}/boost
 	PREFIX ${DEPS_PFX_DIR}/boost
 	INSTALL_DIR ${DEPS_BUILD_DIR}
