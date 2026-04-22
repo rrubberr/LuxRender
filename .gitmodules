@@ -43,3 +43,6 @@
 [submodule "ext/openssl"]
 	path = ext/openssl
 	url = https://github.com/openssl/openssl.git
+[submodule "ext/cpython"]
+	path = ext/cpython
+	url = https://github.com/python/cpython.git
