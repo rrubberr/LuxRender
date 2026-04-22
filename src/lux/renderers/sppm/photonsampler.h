@@ -63,19 +63,12 @@ public:
 		AddFluxToHitPoint(sample, lightGroup, hp, flux);
 	}
 
-	virtual void TracePhotons(
-		Sample *sample,
-		luxrays::Distribution1D *lightCDF,
-		scheduling::Range *range
-		);
+	virtual void TracePhotons(Sample *sample, luxrays::Distribution1D *lightCDF, scheduling::Range *range);
 
-	void TracePhoton(
-		Sample *sample,
-		luxrays::Distribution1D *lightCDF
-		);
+	void TracePhoton(Sample *sample, luxrays::Distribution1D *lightCDF);
 
 protected:
-	SPPMRenderer *renderer;
+	SPPMRenderer *renderer = nullptr;
 };
 
 //------------------------------------------------------------------------------
@@ -126,14 +119,14 @@ public:
 			}
 		}
 		~HaltonPhotonSamplerData() {
-			delete[] values[0];
+			delete[] values[0]; //TODO: this might be a leak
 			delete[] values;
 		}
 		PermutedHalton halton;
 		u_int size;
 		float haltonOffset;
 		u_int pathCount;
-		float **values;
+		float **values = nullptr;
 	};
 	HaltonPhotonSampler(SPPMRenderer *renderer) : PhotonSampler(renderer) { }
 	virtual ~HaltonPhotonSampler() { }
@@ -235,10 +228,10 @@ public:
 		}
 
 		~UniformPhotonSamplerData() {
-			delete[] values[0];
+			delete[] values[0]; //TODO: this might be a leak
 			delete[] values;
 		}
-		float **values;
+		float **values = nullptr;
 		u_int n;
 	};
 	UniformPhotonSampler(SPPMRenderer *renderer) : PhotonSampler(renderer) {}
@@ -290,102 +283,98 @@ public:
 class AMCMCPhotonSampler : public UniformPhotonSampler
 {
 	public:
-		class AMCMCPhotonSamplerData : public UniformPhotonSamplerData {
-			public:
-				AMCMCPhotonSamplerData(const Sampler &sampler): UniformPhotonSamplerData(sampler) {}
+	class AMCMCPhotonSamplerData : public UniformPhotonSamplerData {
+		public:
+			AMCMCPhotonSamplerData(const Sampler &sampler): UniformPhotonSamplerData(sampler) {}
 
-				void Mutate(const RandomGenerator * const rng, AMCMCPhotonSamplerData &source, const float mutationSize) const;
+			void Mutate(const RandomGenerator * const rng, AMCMCPhotonSamplerData &source, const float mutationSize) const;
 
-				static float MutateSingle(const RandomGenerator *rng, const float u, const float mutationSize);
-		};
+			static float MutateSingle(const RandomGenerator *rng, const float u, const float mutationSize);
+	};
 
-		struct SplatNode {
-			SplatNode(const u_int lg, const XYZColor f, HitPoint * const hp) {
-				lightGroup = lg;
-				flux = f;
-				hitPoint = hp;
-			}
+	struct SplatNode {
+		SplatNode(const u_int lg, const XYZColor f, HitPoint * const hp) {
+			lightGroup = lg;
+			flux = f;
+			hitPoint = hp;
+		}
 
-			u_int lightGroup;
-			XYZColor flux;
-			HitPoint *hitPoint;
-		};
+		u_int lightGroup;
+		XYZColor flux;
+		HitPoint *hitPoint = nullptr;
+	};
 
-		struct AMCMCPath : public std::vector <SplatNode> {
-			AMCMCPhotonSamplerData* data;
+	struct AMCMCPath : public std::vector <SplatNode> {
+		AMCMCPhotonSamplerData* data;
 
-			bool isVisible() const
-			{
-				return size() > 0;
-			}
-
-			// TODO: experiment and add a splatCount like Dade previously did
-			void Splat(const Sample *sample, PhotonSampler *sampler) const
-			{
-				for (AMCMCPath::const_iterator iter = begin(); iter != end(); ++iter)
-					sampler->AddFluxToHitPoint(sample, iter->lightGroup, iter->hitPoint, iter->flux);
-			}
-		};
-
-		AMCMCPhotonSampler(SPPMRenderer *renderer) : UniformPhotonSampler(renderer)
+		bool isVisible() const
 		{
-			mutationSize = 1.f;
-			accepted = 1;
-			mutated = 0;
-		}
-		virtual ~AMCMCPhotonSampler() { }
-
-		virtual void InitSample(Sample *sample) const {
-			sample->sampler = const_cast<AMCMCPhotonSampler *>(this);
-
-			for(u_int i = 0; i < 2; ++i)
-				paths[i].data = new AMCMCPhotonSamplerData(*this);
-
-			pathCandidate = paths + 1;
-			pathCurrent = paths;
-		}
-		virtual void FreeSample(Sample *sample) const {
-			for(u_int i = 0; i < 2; ++i)
-				delete paths[i].data;
+			return size() > 0;
 		}
 
-		void GetNextSample(Sample *sample, bool uniform)
+		// TODO: experiment and add a splatCount like Dade previously did
+		void Splat(const Sample *sample, PhotonSampler *sampler) const
 		{
-			sample->samplerData = pathCandidate->data;
-			pathCandidate->clear();
-
-			if(uniform)
-				pathCandidate->data->UniformSample(*sample);
-			else
-				pathCandidate->data->Mutate(sample->rng, *pathCurrent->data, mutationSize);
+			for (AMCMCPath::const_iterator iter = begin(); iter != end(); ++iter)
+				sampler->AddFluxToHitPoint(sample, iter->lightGroup, iter->hitPoint, iter->flux);
 		}
+	};
 
-		void swap()
-		{
-			std::swap(pathCurrent, pathCandidate);
-		}
+	AMCMCPhotonSampler(SPPMRenderer *renderer) : UniformPhotonSampler(renderer)
+	{
+		mutationSize = 1.f;
+		accepted = 1;
+		mutated = 0;
+	}
+	virtual ~AMCMCPhotonSampler() { }
 
-		virtual void AddSample(const Sample *sample, const u_int lightGroup, HitPoint * const hp, const XYZColor flux)
-		{
-			pathCandidate->push_back(SplatNode(lightGroup, flux, hp));
-		}
+	virtual void InitSample(Sample *sample) const {
+		sample->sampler = const_cast<AMCMCPhotonSampler *>(this);
 
-	virtual void TracePhotons(
-		Sample *sample,
-		luxrays::Distribution1D *lightCDF,
-		scheduling::Range *range
-		);
+		for(u_int i = 0; i < 2; ++i)
+			paths[i].data = new AMCMCPhotonSamplerData(*this);
+
+		pathCandidate = paths + 1;
+		pathCurrent = paths;
+	}
+	virtual void FreeSample(Sample *sample) const {
+		for(u_int i = 0; i < 2; ++i)
+			delete paths[i].data;
+	}
+
+	void GetNextSample(Sample *sample, bool uniform)
+	{
+		sample->samplerData = pathCandidate->data;
+		pathCandidate->clear();
+
+		if(uniform)
+			pathCandidate->data->UniformSample(*sample);
+		else
+			pathCandidate->data->Mutate(sample->rng, *pathCurrent->data, mutationSize);
+	}
+
+	void swap()
+	{
+		std::swap(pathCurrent, pathCandidate);
+	}
+
+	virtual void AddSample(const Sample *sample, const u_int lightGroup, HitPoint * const hp, const XYZColor flux)
+	{
+		pathCandidate->push_back(SplatNode(lightGroup, flux, hp));
+	}
+
+	virtual void TracePhotons(Sample *sample, luxrays::Distribution1D *lightCDF, scheduling::Range *range);
 
 	private:
-		// TODO: try to moves thoses attributes in the sample, hence keeping
-		// only one sampler per thread
-		// AMC data
-		float mutationSize;
-		u_int accepted;
-		u_int mutated;
+	// TODO: try to moves thoses attributes in the sample, hence keeping
+	// only one sampler per thread
+	// AMC data
+	float mutationSize;
+	u_int accepted;
+	u_int mutated;
 
-		mutable AMCMCPath *pathCurrent, *pathCandidate;
-		mutable AMCMCPath paths[2];
+	mutable AMCMCPath *pathCurrent = nullptr, *pathCandidate = nullptr;
+	mutable AMCMCPath paths[2];
 };
 
 }//namespace lux

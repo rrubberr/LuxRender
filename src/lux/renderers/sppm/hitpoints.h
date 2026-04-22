@@ -53,7 +53,7 @@ public:
 	// Eye path data
 	SWCSpectrum pathThroughput; // Used only for SURFACE type
 
-	BSDF *bsdf;
+	BSDF *bsdf = nullptr;
 
 	float alpha;
 	float distance;
@@ -280,7 +280,7 @@ public:
 		return ((float) pixelSampler->GetTotalPixels()) / nPixels;
 	}
 //	virtual void AddSample(const Sample &sample);
-	PixelSampler *pixelSampler;
+	PixelSampler *pixelSampler = nullptr;
 private:
 	u_int nPixels;
 	mutable u_int curIndex;
@@ -346,9 +346,9 @@ public:
 private:
 	void TraceEyePath(HitPoint *hp, const Sample &sample, float const invPixelPdf);
 
-	SPPMRenderer *renderer;
+	SPPMRenderer *renderer = nullptr;
 public:
-	Sampler *eyeSampler;
+	Sampler *eyeSampler = nullptr;
 
 	BxDFType store_component, bounce_component;
 
@@ -358,8 +358,8 @@ private:
 
 	BBox hitPointBBox;
 	float maxHitPointRadius2;
-	std::vector<HitPoint> *hitPoints;
-	HitPointsLookUpAccel *lookUpAccel;
+	std::vector<HitPoint> *hitPoints = nullptr;
+	HitPointsLookUpAccel *lookUpAccel = nullptr;
 
 	u_int currentPass;
 

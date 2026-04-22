@@ -65,7 +65,7 @@ private:
 		host(h), name(n) { }
 	~SPPMRDeviceDescription() { }
 
-	SPPMRHostDescription *host;
+	SPPMRHostDescription *host = nullptr;
 	string name;
 };
 
@@ -86,7 +86,7 @@ private:
 	SPPMRHostDescription(SPPMRenderer *r, const string &n);
 	~SPPMRHostDescription();
 
-	SPPMRenderer *renderer;
+	SPPMRenderer *renderer = nullptr;
 	string name;
 	vector<RendererDeviceDescription *> devs;
 };
@@ -141,21 +141,22 @@ private:
 	class ScaleUpdaterSPPM : public PerScreenNormalizedBufferScaled::ScaleUpdateInterface
 	{
 		public:
-			ScaleUpdaterSPPM(SPPMRenderer *renderer_): renderer(renderer_) {}
+		ScaleUpdaterSPPM(SPPMRenderer *renderer_): renderer(renderer_) {}
 
-			virtual float GetScaleFactor(double const scale)
-			{
-				return renderer->GetScaleFactor(scale);
-			}
+		virtual float GetScaleFactor(double const scale)
+		{
+			return renderer->GetScaleFactor(scale);
+		}
 
-			SPPMRenderer *renderer;
+		SPPMRenderer *renderer = nullptr;
 	};
 	//--------------------------------------------------------------------------
 	// Render threads
 	//--------------------------------------------------------------------------
 
-	class RenderThread : public boost::noncopyable, public scheduling::Thread {
-	public:
+	class RenderThread : public boost::noncopyable, public scheduling::Thread
+	{
+		public:
 		RenderThread(SPPMRenderer *renderer);
 		~RenderThread();
 
@@ -168,11 +169,11 @@ private:
 		void Init();
 		void End();
 
-		SPPMRenderer *renderer;
+		SPPMRenderer *renderer = nullptr;
 
-		RandomGenerator *threadRng;
-		luxrays::Distribution1D *lightCDF;
-		PhotonSampler* sampler;
+		RandomGenerator *threadRng = nullptr;
+		luxrays::Distribution1D *lightCDF = nullptr;
+		PhotonSampler* sampler = nullptr;
 
 		Sample sample, eyeSample;
 	};
@@ -185,9 +186,9 @@ private:
 	RendererState state;
 	vector<RendererHostDescription *> hosts;
 
-	Scene *scene;
-	SPPMIntegrator *sppmi;
-	HitPoints *hitPoints;
+	Scene *scene = nullptr;
+	SPPMIntegrator *sppmi = nullptr;
+	HitPoints *hitPoints = nullptr;
 
 	// Statistics
 	double photonHitEfficiency;
@@ -201,8 +202,8 @@ private:
 	bool preprocessDone;
 	bool suspendThreadsWhenDone;
 
-	scheduling::Scheduler *scheduler;
-	RandomGenerator* rng;
+	scheduling::Scheduler *scheduler = nullptr;
+	RandomGenerator* rng = nullptr;
 };
 
 }//namespace lux

@@ -58,7 +58,7 @@ public:
 protected:
 	void AddFluxToHitPoint(Sample &sample, HitPoint *hp, const PhotonData &photon);
 
-	HitPoints *hitPoints;
+	HitPoints *hitPoints = nullptr;
 };
 
 
@@ -98,7 +98,7 @@ private:
 
 	u_int gridSize;
 	float invCellSize;
-	std::vector<HitPoint *> **grid;
+	std::vector<HitPoint *> **grid = nullptr;
 };
 
 //------------------------------------------------------------------------------
@@ -125,8 +125,8 @@ private:
 	void JumpInsert(unsigned int hv, unsigned int i);
 
 	float invCellSize;
-	unsigned int *grid;
-	unsigned int *jump_list;
+	unsigned int *grid = nullptr;
+	unsigned int *jump_list = nullptr;
 	unsigned int gridSize, jumpSize;
 };
 
@@ -184,8 +184,8 @@ private:
 		const u_int nodeNum, const u_int start,
 		const u_int end, std::vector<HitPoint *> &buildNodes);
 
-	KdNode *nodes;
-	HitPoint **nodeData;
+	KdNode *nodes = nullptr;
+	HitPoint **nodeData = nullptr;
 	u_int nNodes, nextFreeNode, maxNNodes;
 	float maxDistSquared;
 };
@@ -247,7 +247,7 @@ private:
 		HCKdTree( std::vector<HitPoint *> *hps, const u_int count);
 		~HCKdTree();
 
-	void AddFlux(Sample &sample, HitPointsLookUpAccel *accel, const PhotonData &photon);
+		void AddFlux(Sample &sample, HitPointsLookUpAccel *accel, const PhotonData &photon);
 
 	private:
 		struct KdNode {
@@ -287,8 +287,8 @@ private:
 				const u_int nodeNum, const u_int start,
 				const u_int end, std::vector<HitPoint *> &buildNodes);
 
-		KdNode *nodes;
-		HitPoint **nodeData;
+		KdNode *nodes = nullptr;
+		HitPoint **nodeData = nullptr;
 		u_int nNodes, nextFreeNode;
 		float maxDistSquared;
 	};
@@ -305,7 +305,8 @@ private:
 // HybridHashGrid accelerator
 //------------------------------------------------------------------------------
 
-class HybridHashGrid : public HitPointsLookUpAccel {
+class HybridHashGrid : public HitPointsLookUpAccel
+{
 public:
 	HybridHashGrid(HitPoints *hps);
 
@@ -327,7 +328,7 @@ private:
 	u_int gridSize;
 	float invCellSize;
 	int maxHashIndexX, maxHashIndexY, maxHashIndexZ;
-	HashCell **grid;
+	HashCell **grid = nullptr;
 };
 
 }//namespace lux

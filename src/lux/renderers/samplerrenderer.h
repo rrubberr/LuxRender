@@ -60,7 +60,7 @@ private:
 		host(h), name(n) { }
 	~SRDeviceDescription() { }
 
-	SRHostDescription *host;
+	SRHostDescription *host = nullptr;
 	string name;
 };
 
@@ -81,7 +81,7 @@ private:
 	SRHostDescription(SamplerRenderer *r, const string &n);
 	~SRHostDescription();
 
-	SamplerRenderer *renderer;
+	SamplerRenderer *renderer = nullptr;
 	string name;
 	vector<RendererDeviceDescription *> devs;
 };
@@ -143,7 +143,7 @@ private:
 	RendererState state;
 	vector<RendererHostDescription *> hosts;
 	vector<RenderThread *> renderThreads;
-	Scene *scene;
+	Scene *scene = nullptr;
 
 	fast_mutex sampPosMutex;
 	u_int sampPos;

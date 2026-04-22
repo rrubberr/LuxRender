@@ -77,7 +77,7 @@ public:
 private:
 	// LDSampler Private Data
 	u_int pixelSamples, totalPixels;
-	PixelSampler* pixelSampler;
+	PixelSampler* pixelSampler = nullptr;
 
 	fast_mutex sampPixelPosMutex;
 	u_int sampPixelPos;

@@ -90,7 +90,7 @@ public:
 	u_int maxRejects;
 	float pLarge, range;
 	u_int cooldownTime;
-	float *rngSamples;
+	float *rngSamples = nullptr;
 	bool useVariance;
 };
 

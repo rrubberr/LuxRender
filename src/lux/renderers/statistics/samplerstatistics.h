@@ -36,12 +36,13 @@ public:
 	SRStatistics(SamplerRenderer* renderer);
 	~SRStatistics();
 
-	class FormattedLong : public RendererStatistics::FormattedLong {
-	public:
+	class FormattedLong : public RendererStatistics::FormattedLong
+	{
+		public:
 		FormattedLong(SRStatistics* rs);
 
-	private:
-		SRStatistics* rs;
+		private:
+		SRStatistics* rs = nullptr;
 
 		virtual std::string getRecommendedStringTemplate();
 		virtual std::string getProgress() { return getTotalAverageSamplesPerPixel(); }
@@ -71,12 +72,13 @@ public:
 		friend class SRStatistics::FormattedShort;
 	};
 
-	class FormattedShort : public RendererStatistics::FormattedShort {
-	public:
+	class FormattedShort : public RendererStatistics::FormattedShort
+	{
+		public:
 		FormattedShort(SRStatistics* rs);
 
-	private:
-		SRStatistics* rs;
+		private:
+		SRStatistics* rs = nullptr;
 
 		virtual std::string getRecommendedStringTemplate();
 		virtual std::string getProgress();
@@ -86,7 +88,7 @@ public:
 	};
 
 private:
-	SamplerRenderer* renderer;
+	SamplerRenderer* renderer = nullptr;
 
 	double windowSampleCount;
 	double exponentialMovingAverage;

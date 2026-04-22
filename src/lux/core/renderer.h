@@ -141,7 +141,7 @@ public:
 	 */
 	virtual void Terminate() = 0;
 
-	RendererStatistics* rendererStatistics;
+	RendererStatistics* rendererStatistics = nullptr;
 };
 
 }//namespace lux

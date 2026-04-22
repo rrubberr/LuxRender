@@ -79,7 +79,7 @@ public:
 	};
 
 private:
-	SPPMRenderer* renderer;
+	SPPMRenderer* renderer = nullptr;
 
 	double windowPassCount;
 	double windowPhotonCount;

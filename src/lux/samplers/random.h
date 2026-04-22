@@ -72,7 +72,7 @@ private:
 	// RandomSampler Private Data
 	u_int pixelSamples;
 	u_int totalPixels;
-	PixelSampler* pixelSampler;
+	PixelSampler* pixelSampler = nullptr;
 
 	fast_mutex sampPixelPosMutex;
 	u_int sampPixelPos;

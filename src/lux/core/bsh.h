@@ -151,7 +151,7 @@ public:
 
 	NodeType *Right() const { return child[1]; }
 
-	NodeType *parent;
+	NodeType *parent = nullptr;
 	NodeType *child[MaxChilds];
 	int childCount;
 	float radius, radius2;
@@ -293,7 +293,7 @@ protected:
 		}
 	}
 
-	NodeType *root;
+	NodeType *root = nullptr;
 	int count;
 	int visited;
 };
@@ -334,7 +334,7 @@ public:
 		maxDist = points[0].distance;
 	}
 
-	ClosePoint<DataType> *points;
+	ClosePoint<DataType> *points = nullptr;
 	u_int nLookup;
 	mutable u_int foundPoints;
 };
