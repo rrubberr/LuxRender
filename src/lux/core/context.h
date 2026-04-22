@@ -338,26 +338,26 @@ private:
 	static Context *activeContext;
 	string name;
 	u_int shapeNo; // used to identify anonymous shapes
-	lux::Renderer *luxCurrentRenderer;
-	Scene *luxCurrentScene;
+	lux::Renderer *luxCurrentRenderer = nullptr;
+	Scene *luxCurrentScene = nullptr;
 	lux::MotionTransform curTransform;
 	bool inMotionBlock;
 	vector<float> motionBlockTimes; // holds time values for current motion block
 	vector<lux::Transform> motionBlockTransforms; // holds transform for current motion block
 	map<string, lux::MotionTransform> namedCoordinateSystems;
-	RenderOptions *renderOptions;
-	GraphicsState *graphicsState;
+	RenderOptions *renderOptions = nullptr;
+	GraphicsState *graphicsState = nullptr;
 	vector<GraphicsState> pushedGraphicsStates;
 	vector<lux::MotionTransform> pushedTransforms;
-	RenderFarm *renderFarm;
+	RenderFarm *renderFarm = nullptr;
 
-	ParamSet *filmOverrideParams;
+	ParamSet *filmOverrideParams = nullptr;
 	
 	// Dade - mutex used to wait the end of the rendering
 	mutable boost::mutex renderingMutex;
 	bool startRenderingAfterParse;
-	bool terminated;
-	bool aborted; // abort rendering
+	bool terminated = false;
+	bool aborted = false; // abort rendering
 };
 
 }

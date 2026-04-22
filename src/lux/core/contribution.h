@@ -175,7 +175,7 @@ private:
 	vector<u_int> splattingTile;
 	u_int splattingMisses;
 
-	Film *film;
+	Film *film = nullptr;
 	fast_mutex poolMutex;
 	boost::ptr_vector<tile_mutex> tileSplattingMutexes;
 	boost::mutex mainSplattingMutex;
