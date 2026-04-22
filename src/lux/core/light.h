@@ -42,35 +42,54 @@ public:
 	// Light Interface
 	Light(const string &name, const Transform &l2w, u_int ns = 1U)
 		: Queryable(name), nSamples(max(1U, ns)), nrPortalShapes(0),
-		PortalArea(0.f), group(0), LightToWorld(l2w),
-		havePortalShape(false) {
+		PortalArea(0.f), group(0), LightToWorld(l2w), havePortalShape(false)
+	{
 		if (LightToWorld.HasScale())
-			LOG(LUX_DEBUG,LUX_UNIMPLEMENT)<< "Scaling detected in light-to-world transformation! Some lights might not support it yet.";
+			LOG(LUX_DEBUG,LUX_UNIMPLEMENT)<< "Scaling detected in light-to-world transformation!\
+			Some lights might not support it yet.";
 
 		AddIntAttribute(*this, "group", "Light group", &Light::group);
-	}
+	};
+	
 	virtual ~Light() { }
-	const Volume *GetVolume() const { return volume.get(); }
-	void SetVolume(boost::shared_ptr<Volume> &v) {
+	
+	const Volume *GetVolume() const
+	{
+		return volume.get();
+	};
+	
+	void SetVolume(boost::shared_ptr<Volume> &v)
+	{
 		// Create a temporary to increase shared count
 		// The assignment is just a swap
 		boost::shared_ptr<Volume> vol(v);
 		volume = vol;
-	}
+	};
+	
 	virtual float Power(const Scene &scene) const = 0;
+	
 	virtual bool IsDeltaLight() const = 0;
+	
 	virtual bool IsEnvironmental() const = 0;
+	
 	virtual bool Le(const Scene &scene, const Sample &sample, const Ray &r,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *L) const { return false; }
+		SWCSpectrum *L) const
+	{
+		return false;
+	};
+	
 	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const = 0;
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
 		SWCSpectrum *L) const = 0;
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		const Point &p, float u1, float u2, float u3,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
 		SWCSpectrum *L) const = 0;
+	
 	const LightRenderingHints *GetRenderingHints() const { return &hints; }
 
 	void AddPortalShape(boost::shared_ptr<Primitive> &shape);
@@ -97,15 +116,26 @@ class AreaLight : public Light {
 public:
 	// AreaLight Interface
 	AreaLight(const string &name, const Transform &l2w, u_int ns) :
-		Light(name, l2w, ns) { }
-	virtual ~AreaLight() { }
+		Light(name, l2w, ns) { };
+	
+	virtual ~AreaLight() { };
+	
 	virtual bool L(const Sample &sample, const Ray &ray,
 		const DifferentialGeometry &dg, BSDF **bsdf, float *pdf,
 		float *pdfDirect, SWCSpectrum *Le) const = 0;
-	virtual bool IsDeltaLight() const { return false; }
-	virtual bool IsEnvironmental() const { return false; }
+	
+	virtual bool IsDeltaLight() const override
+	{
+		return false;
+	};
+	
+	virtual bool IsEnvironmental() const override
+	{
+		return false;
+	};
 
 	virtual Texture<SWCSpectrum> *GetTexture() = 0;
+	
 	virtual const SampleableSphericalFunction *GetFunc() const = 0;
 
 protected:
@@ -119,22 +149,35 @@ public:
 		boost::shared_ptr<Texture<SWCSpectrum> > &Le, float g,
 		float pow, float e, SampleableSphericalFunction *ssf,
 		u_int ns, const boost::shared_ptr<Primitive> &prim);
+	
 	virtual ~AreaLightImpl();
+	
 	virtual bool L(const Sample &sample, const Ray &ray,
 		const DifferentialGeometry &dg, BSDF **bsdf, float *pdf,
-		float *pdfDirect, SWCSpectrum *Le) const;
-	virtual float Power(const Scene &scene) const;
-	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const;
+		float *pdfDirect, SWCSpectrum *Le) const override;
+	
+	virtual float Power(const Scene &scene) const override;
+	
+	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const override;
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		SWCSpectrum *Le) const;
+		SWCSpectrum *Le) const override;
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		const Point &p, float u1, float u2, float u3,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *Le) const;
+		SWCSpectrum *Le) const override;
 
-	virtual Texture<SWCSpectrum> *GetTexture() { return Le.get(); }
-	virtual const SampleableSphericalFunction *GetFunc() const { return func; }
+	virtual Texture<SWCSpectrum> *GetTexture() override
+	{
+		return Le.get();
+	};
+	
+	virtual const SampleableSphericalFunction *GetFunc() const override
+	{
+		return func;
+	};
 
 	static AreaLight *CreateAreaLight(const Transform &light2world,
 		const ParamSet &paramSet,
@@ -145,7 +188,7 @@ protected:
 	boost::shared_ptr<Texture<SWCSpectrum> > Le;
 	boost::shared_ptr<Primitive> prim;
 	float paramGain, gain, power, efficacy, area;
-	SampleableSphericalFunction *func;
+	SampleableSphericalFunction *func = nullptr;
 };
 
 class  InstanceLight : public Light {
@@ -153,31 +196,47 @@ public:
 	// Light Interface
 	InstanceLight(const Transform &l2w, boost::shared_ptr<Light> &l)
 		: Light("InstanceLight-" + boost::lexical_cast<string>(this),
-		l2w, l->nSamples), light(l) { group = light->group; }
-	virtual ~InstanceLight() { }
-	virtual float Power(const Scene &scene) const {
+		l2w, l->nSamples), light(l)
+	{
+		group = light->group;
+	};
+	
+	virtual ~InstanceLight() { };
+	
+	virtual float Power(const Scene &scene) const override
+	{
 		return light->Power(scene);
-	}
-	virtual bool IsDeltaLight() const { return light->IsDeltaLight(); }
-	virtual bool IsEnvironmental() const {
+	};
+	
+	virtual bool IsDeltaLight() const override
+	{
+		return light->IsDeltaLight();
+	};
+	
+	virtual bool IsEnvironmental() const override
+	{
 		return light->IsEnvironmental();
-	}
+	};
+	
 	virtual bool Le(const Scene &scene, const Sample &sample, const Ray &r,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *L) const;
-	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const {
-		const PartialDifferentialGeometry dgi(Inverse(LightToWorld) *
-			dg);
+		SWCSpectrum *L) const override;
+	
+	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const override
+	{
+		const PartialDifferentialGeometry dgi(Inverse(LightToWorld) * dg);
 		const float factor = dgi.Volume() / dg.Volume();
 		return light->Pdf(Inverse(LightToWorld) * p, dgi) * factor;
-	}
+	};
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		const Point &p, float u1, float u2, float u3,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
 
 protected:
 	boost::shared_ptr<Light> light;
@@ -188,32 +247,48 @@ public:
 	// Light Interface
 	MotionLight(const MotionSystem &mp, boost::shared_ptr<Light> &l)
 		: Light("MotionLight-" + boost::lexical_cast<string>(this),
-		Transform(), l->nSamples), light(l), motionPath(mp) { group = light->group; }
-	virtual ~MotionLight() { }
-	virtual float Power(const Scene &scene) const {
+		Transform(), l->nSamples), light(l), motionPath(mp)
+	{
+		group = light->group;
+	};
+	
+	virtual ~MotionLight() { };
+	
+	virtual float Power(const Scene &scene) const override
+	{
 		return light->Power(scene);
-	}
-	virtual bool IsDeltaLight() const { return light->IsDeltaLight(); }
-	virtual bool IsEnvironmental() const {
+	};
+	
+	virtual bool IsDeltaLight() const override
+	{
+		return light->IsDeltaLight();
+	};
+	
+	virtual bool IsEnvironmental() const override
+	{
 		return light->IsEnvironmental();
-	}
+	};
+	
 	virtual bool Le(const Scene &scene, const Sample &sample, const Ray &r,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *L) const;
-	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const {
+		SWCSpectrum *L) const override;
+	
+	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const override
+	{
 		const Transform LightToWorld(motionPath.Sample(dg.time));
-		const PartialDifferentialGeometry dgi(Inverse(LightToWorld) *
-			dg);
+		const PartialDifferentialGeometry dgi(Inverse(LightToWorld) * dg);
 		const float factor = dgi.Volume() / dg.Volume();
 		return light->Pdf(Inverse(LightToWorld) * p, dgi) * factor;
-	}
+	};
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		const Point &p, float u1, float u2, float u3,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
 
 protected:
 	boost::shared_ptr<Light> light;
@@ -225,41 +300,62 @@ public:
 	// Light Interface
 	InstanceAreaLight(const Transform &l2w, boost::shared_ptr<AreaLight> &l) :
 		AreaLight("InstanceAreaLight-" + boost::lexical_cast<string>(this),
-		l2w, l->nSamples), light(l) { group = light->group; }
-	virtual ~InstanceAreaLight() { }
-	virtual float Power(const Scene &scene) const {
+		l2w, l->nSamples), light(l)
+	{
+		group = light->group;
+	};
+	
+	virtual ~InstanceAreaLight() { };
+	
+	virtual float Power(const Scene &scene) const override
+	{
 		return light->Power(scene);
-	}
-	virtual bool IsDeltaLight() const { return light->IsDeltaLight(); }
-	virtual bool IsEnvironmental() const {
+	};
+	
+	virtual bool IsDeltaLight() const override
+	{
+		return light->IsDeltaLight();
+	};
+	
+	virtual bool IsEnvironmental() const override
+	{
 		return light->IsEnvironmental();
-	}
+	};
+	
 	virtual bool Le(const Scene &scene, const Sample &sample, const Ray &r,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
+	
 	virtual bool L(const Sample &sample, const Ray &ray,
 		const DifferentialGeometry &dg, BSDF **bsdf, float *pdf,
-		float *pdfDirect, SWCSpectrum *Le) const;
-	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const {
+		float *pdfDirect, SWCSpectrum *Le) const override;
+	
+	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const override
+	{
 		const PartialDifferentialGeometry dgi(Inverse(LightToWorld) *
 			dg);
 		const float factor = dgi.Volume() / dg.Volume();
 		return light->Pdf(Inverse(LightToWorld) * p, dgi) * factor;
-	}
+	};
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		const Point &p, float u1, float u2, float u3,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
 
-	virtual Texture<SWCSpectrum> *GetTexture() {
+	virtual Texture<SWCSpectrum> *GetTexture() override
+	{
 		return light->GetTexture();
-	}	
-	virtual const SampleableSphericalFunction *GetFunc() const {
+	};
+	
+	virtual const SampleableSphericalFunction *GetFunc() const override
+	{
 		return light->GetFunc();
-	}
+	};
 
 protected:
 	boost::shared_ptr<AreaLight> light;
@@ -270,42 +366,62 @@ public:
 	// Light Interface
 	MotionAreaLight(const MotionSystem &mp, boost::shared_ptr<AreaLight> &l) :
 		AreaLight("MotionAreaLight-" + boost::lexical_cast<string>(this),
-		Transform(), l->nSamples), light(l), motionPath(mp) { group = light->group; }
-	virtual ~MotionAreaLight() { }
-	virtual float Power(const Scene &scene) const {
+		Transform(), l->nSamples), light(l), motionPath(mp)
+	{
+		group = light->group;
+	};
+	
+	virtual ~MotionAreaLight() { };
+	
+	virtual float Power(const Scene &scene) const override
+	{
 		return light->Power(scene);
-	}
-	virtual bool IsDeltaLight() const { return light->IsDeltaLight(); }
-	virtual bool IsEnvironmental() const {
+	};
+	
+	virtual bool IsDeltaLight() const override
+	{
+		return light->IsDeltaLight();
+	};
+	
+	virtual bool IsEnvironmental() const override
+	{
 		return light->IsEnvironmental();
-	}
+	};
+	
 	virtual bool Le(const Scene &scene, const Sample &sample, const Ray &r,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
+	
 	virtual bool L(const Sample &sample, const Ray &ray,
 		const DifferentialGeometry &dg, BSDF **bsdf, float *pdf,
-		float *pdfDirect, SWCSpectrum *Le) const;
-	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const {
+		float *pdfDirect, SWCSpectrum *Le) const override;
+	
+	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const override
+	{
 		const Transform LightToWorld(motionPath.Sample(dg.time));
-		const PartialDifferentialGeometry dgi(Inverse(LightToWorld) *
-			dg);
+		const PartialDifferentialGeometry dgi(Inverse(LightToWorld) * dg);
 		const float factor = dgi.Volume() / dg.Volume();
 		return light->Pdf(Inverse(LightToWorld) * p, dgi) * factor;
-	}
+	};
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
+	
 	virtual bool SampleL(const Scene &scene, const Sample &sample,
 		const Point &p, float u1, float u2, float u3,
 		BSDF **bsdf, float *pdf, float *pdfDirect,
-		SWCSpectrum *L) const;
+		SWCSpectrum *L) const override;
 
-	virtual Texture<SWCSpectrum> *GetTexture() {
+	virtual Texture<SWCSpectrum> *GetTexture() override
+	{
 		return light->GetTexture();
-	}
-	virtual const SampleableSphericalFunction *GetFunc() const {
+	};
+
+	virtual const SampleableSphericalFunction *GetFunc() const override
+	{
 		return light->GetFunc();
-	}
+	};
 
 protected:
 	boost::shared_ptr<AreaLight> light;
