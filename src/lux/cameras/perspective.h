@@ -76,17 +76,24 @@ public:
 	static Camera *CreateCamera(const MotionSystem &world2cam,
 		const ParamSet &params, Film *film);
 
-	Point pos;
-	float Apixel, xStart, xEnd, yStart, yEnd;
+	Point pos = {0,0,0};
+	float Apixel = 0.0f;
+	float xStart = 0.0f;
+	float xEnd   = 0.0f;
+	float yStart = 0.0f;
+	float yEnd   = 0.0f;
 
 private:
-	Normal normal, up;
-	float fov;
-	float posPdf;
-	int distribution, shape, power;
+	Normal normal = {0,0,0};
+	Normal up = {0,0,0};
+	float fov = 0.0f;
+	float posPdf = 0.0f;
+	int distribution = 0;
+	int shape = 0;
+	int power = 0;
 
 	// Dade - field used for autofocus feature
-	bool autoFocus;
+	bool autoFocus = false;
 };
 
 }//namespace lux

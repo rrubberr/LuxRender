@@ -66,7 +66,7 @@ public:
 		const ParamSet &params, Film *film);
 
 private:
-	Point pos;
+	Point pos = {0,0,0};
 };
 
 }//namespace lux

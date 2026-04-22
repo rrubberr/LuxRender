@@ -67,10 +67,11 @@ public:
 
 private:
 	// Dade - field used for autofocus feature
-	bool autoFocus;
-
-	float screenDx,screenDy, posPdf;
-	Normal normal;
+	bool autoFocus = false;
+	float screenDx = 0.0f;
+	float screenDy = 0.0f;
+	float posPdf = 0.0f;
+	Normal normal = {0,0,0};
 };
 
 }//namespace lux
