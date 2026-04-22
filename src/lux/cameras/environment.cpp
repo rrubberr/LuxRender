@@ -69,7 +69,7 @@ void EnvironmentCamera::SampleMotion(float time)
 
 bool EnvironmentCamera::SampleW(MemoryArena &arena,
 	const SpectrumWavelengths &sw, const Scene &scene,
-	float u1, float u2, float u3, BSDF **bsdf, float *pdf,
+	float u1, float u2, float u3, BSDF **bsdf, float &pdf,
 	SWCSpectrum *We) const
 {
 	const float theta = M_PI * u2 / film->yResolution;
@@ -83,14 +83,15 @@ bool EnvironmentCamera::SampleW(MemoryArena &arena,
 	const Volume *v = GetVolume();
 	*bsdf = ARENA_ALLOC(arena, SingleBSDF)(dg, ns,
 		ARENA_ALLOC(arena, EnvironmentBxDF)(), v, v);
-	*pdf = 1.f / (2.f * M_PI * M_PI * sinf(theta));
+	pdf = 1.f / (2.f * M_PI * M_PI * sinf(theta));
 	*We = SWCSpectrum(1.f);
 	return true;
 }
+
 bool EnvironmentCamera::SampleW(MemoryArena &arena,
 	const SpectrumWavelengths &sw, const Scene &scene,
 	const Point &p, const Normal &n, float u1, float u2, float u3,
-	BSDF **bsdf, float *pdf, float *pdfDirect, SWCSpectrum *We) const
+	BSDF **bsdf, float &pdf, float &pdfDirect, SWCSpectrum *We) const
 {
 	const Vector w(p - pos);
 	Normal ns(Normalize(w));
@@ -100,8 +101,8 @@ bool EnvironmentCamera::SampleW(MemoryArena &arena,
 	const Volume *v = GetVolume();
 	*bsdf = ARENA_ALLOC(arena, SingleBSDF)(dg, ns,
 		ARENA_ALLOC(arena, EnvironmentBxDF)(), v, v);
-	*pdf = 1.f / (2.f * M_PI * M_PI * sqrtf(max(0.f, 1.f - ns.y * ns.y)));
-	*pdfDirect = 1.f;
+	pdf = 1.f / (2.f * M_PI * M_PI * sqrtf(max(0.f, 1.f - ns.y * ns.y)));
+	pdfDirect = 1.f;
 	*We = SWCSpectrum(1.f);
 	return true;
 }

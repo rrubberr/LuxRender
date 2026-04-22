@@ -43,11 +43,11 @@ public:
 
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, float u1, float u2, float u3,
-		BSDF **bsdf, float *pdf, SWCSpectrum *We) const;
+		BSDF **bsdf, float &pdf, SWCSpectrum *We) const;
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, const Point &p, const Normal &n,
-		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		float *pdfDirect, SWCSpectrum *We) const;
+		float u1, float u2, float u3, BSDF **bsdf, float &pdf,
+		float &pdfDirect, SWCSpectrum *We) const;
 	virtual bool GetSamplePosition(const Point &p, const Vector &wi,
 		float distance, float &x, float &y) const;
 	virtual void ClampRay(Ray &ray) const;

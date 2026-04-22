@@ -36,24 +36,31 @@ public:
 		float lensr, float focald, bool autofocus, Film *film);
 	virtual ~OrthoCamera() { }
 
-	virtual void SampleMotion(float time);
+	virtual void SampleMotion(float time) override;
 
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, float u1, float u2, float u3,
-		BSDF **bsdf, float *pdf, SWCSpectrum *We) const;
+		BSDF **bsdf, float &pdf, SWCSpectrum *We) const override;
+	
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, const Point &p, const Normal &n,
-		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		float *pdfDirect, SWCSpectrum *We) const;
+		float u1, float u2, float u3, BSDF **bsdf, float &pdf,
+		float &pdfDirect, SWCSpectrum *We) const override;
+	
 	virtual bool GetSamplePosition(const Point &p, const Vector &wi,
-		float distance, float &x, float &y) const;
-	virtual void ClampRay(Ray &ray) const;
-	virtual bool IsDelta() const { return false; }
-	virtual bool IsLensBased() const { return false; }
-	virtual BBox Bounds() const;
-	virtual void AutoFocus(const Scene &scene);
+		float distance, float &x, float &y) const override;
+	
+	virtual void ClampRay(Ray &ray) const override;
+	
+	virtual bool IsDelta() const override { return false; }
+	
+	virtual bool IsLensBased() const override { return false; }
+	
+	virtual BBox Bounds() const override;
+	
+	virtual void AutoFocus(const Scene &scene) override;
 
-	virtual OrthoCamera* Clone() const { return new OrthoCamera(*this); }
+	virtual OrthoCamera* Clone() const override { return new OrthoCamera(*this); }
 
 	static Camera *CreateCamera(const MotionSystem &world2cam,
 		const ParamSet &params, Film *film);

@@ -418,7 +418,7 @@ u_int BidirIntegrator::Li(const Scene &scene, const Sample &sample) const
 	// regardless of maxEyeDepth.  Without a valid camera BSDF we cannot
 	// evaluate any contribution, so return if sampling fails.
 	if (!sample.camera->SampleW(sample.arena, sw, scene,
-		posX, posY, .5f, &eyePath[0].bsdf, &eyePath[0].dARWeight,
+		posX, posY, .5f, &eyePath[0].bsdf, eyePath[0].dARWeight,
 		&eyePath[0].flux))
 		return nrContribs;
 	BidirVertex &eye0(eyePath[0]);
@@ -1209,7 +1209,7 @@ bool BidirPathState::Init(const Scene &scene) {
 	// is implemented
 	BidirStateVertex &eye0(eyePath[0]);
 	if (!sample.camera->SampleW(sample.arena, sw, scene,
-		posX, posY, .5f, &eye0.bsdf, &pdf,
+		posX, posY, .5f, &eye0.bsdf, pdf,
 		&eye0.throughput))
 		return result;
 

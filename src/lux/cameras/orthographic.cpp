@@ -97,9 +97,10 @@ void OrthoCamera::AutoFocus(const Scene &scene)
 	}
 }
 
-bool OrthoCamera::SampleW(MemoryArena &arena, const SpectrumWavelengths &sw,
-	const Scene &scene, float u1, float u2, float u3, BSDF **bsdf,
-	float *pdf, SWCSpectrum *We) const
+bool OrthoCamera::SampleW(MemoryArena &arena,
+	const SpectrumWavelengths &sw, const Scene &scene,
+	float u1, float u2, float u3, BSDF **bsdf, float &pdf,
+	SWCSpectrum *We) const
 {
 	Point psC(RasterToCamera * Point(u1, u2, 0.f));
 	psC.z = 0.f;
@@ -111,18 +112,18 @@ bool OrthoCamera::SampleW(MemoryArena &arena, const SpectrumWavelengths &sw,
 	*bsdf = ARENA_ALLOC(arena, SingleBSDF)(dg, normal,
 		ARENA_ALLOC(arena, SpecularReflection)(SWCSpectrum(1.f),
 		ARENA_ALLOC(arena, FresnelNoOp)(), 0.f, 0.f), v, v);
-	*pdf = posPdf;
+	pdf = posPdf;
 	*We = SWCSpectrum(1.f);
 	return true;
-}
+};
 
-bool OrthoCamera::SampleW(MemoryArena &arena, const SpectrumWavelengths &sw,
-	const Scene &scene, const Point &p, const Normal &n,
-	float u1, float u2, float u3,
-	BSDF **bsdf, float *pdf, float *pdfDirect, SWCSpectrum *We) const
+bool OrthoCamera::SampleW(MemoryArena &arena,
+	const SpectrumWavelengths &sw, const Scene &scene,
+	const Point &p, const Normal &n, float u1, float u2, float u3,
+	BSDF **bsdf, float &pdf, float &pdfDirect, SWCSpectrum *We) const
 {
 	return false;
-}
+};
 
 bool OrthoCamera::GetSamplePosition(const Point &p, const Vector &wi,
 	float distance, float &x, float &y) const
@@ -150,7 +151,9 @@ BBox OrthoCamera::Bounds() const
 	BBox bound;
 	for (int i = 1024; i >= 0; i--) {
 		// ugly hack, but last thing we do is to sample StartTime, so should be ok
-		const_cast<OrthoCamera*>(this)->SampleMotion(Lerp(static_cast<float>(i) / 1024.f, CameraMotion.StartTime(), CameraMotion.EndTime()));
+		const_cast<OrthoCamera*>(this)->SampleMotion(
+			Lerp(static_cast<float>(i) / 1024.f, CameraMotion.StartTime(), CameraMotion.EndTime())
+		);
 		bound = Union(bound, ScreenToWorld * orig_bound);
 	}
 	bound.Expand(max(1.f, MachineEpsilon::E(bound)));

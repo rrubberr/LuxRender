@@ -34,23 +34,30 @@ public:
 		float hither, float yon, float sopen, float sclose, int sdist, Film *film);
 	virtual ~EnvironmentCamera() { }
 
-	virtual void SampleMotion(float time);
+	virtual void SampleMotion(float time) override;
 
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, float u1, float u2, float u3,
-		BSDF **bsdf, float *pdf, SWCSpectrum *We) const;
+		BSDF **bsdf, float &pdf, SWCSpectrum *We) const override;
+	
 	virtual bool SampleW(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
 		const Scene &scene, const Point &p, const Normal &n,
-		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		float *pdfDirect, SWCSpectrum *We) const;
+		float u1, float u2, float u3, BSDF **bsdf, float &pdf,
+		float &pdfDirect, SWCSpectrum *We) const override;
+	
 	virtual bool GetSamplePosition(const Point &p, const Vector &wi,
-		float distance, float &x, float &y) const;
-	virtual void ClampRay(Ray &ray) const;
-	virtual bool IsDelta() const { return true; }
-	virtual bool IsLensBased() const { return false; }
-	virtual BBox Bounds() const;
+		float distance, float &x, float &y) const override;
+	
+	virtual void ClampRay(Ray &ray) const override;
+	
+	virtual bool IsDelta() const override{ return true; }
+	
+	virtual bool IsLensBased() const override { return false; }
+	
+	virtual BBox Bounds() const override;
 
-	virtual EnvironmentCamera* Clone() const {
+	virtual EnvironmentCamera* Clone() const override
+	{
 		return new EnvironmentCamera(*this);
 	}
 

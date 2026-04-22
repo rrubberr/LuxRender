@@ -225,7 +225,7 @@ void PerspectiveCamera::AutoFocus(const Scene &scene)
 
 bool PerspectiveCamera::SampleW(MemoryArena &arena,
 	const SpectrumWavelengths &sw, const Scene &scene,
-	float u1, float u2, float u3, BSDF **bsdf, float *pdf,
+	float u1, float u2, float u3, BSDF **bsdf, float &pdf,
 	SWCSpectrum *We) const
 {
 	Point psC(0.f);
@@ -241,14 +241,15 @@ bool PerspectiveCamera::SampleW(MemoryArena &arena,
 	const Volume *v = GetVolume();
 	*bsdf = ARENA_ALLOC(arena, PerspectiveBSDF)(dg, normal,
 		v, v, *this, LensRadius > 0.f, psC);
-	*pdf = posPdf;
+	pdf = posPdf;
 	*We = SWCSpectrum(1.f);
 	return true;
-}
+};
+
 bool PerspectiveCamera::SampleW(MemoryArena &arena,
 	const SpectrumWavelengths &sw, const Scene &scene,
 	const Point &p, const Normal &n, float u1, float u2, float u3,
-	BSDF **bsdf, float *pdf, float *pdfDirect, SWCSpectrum *We) const
+	BSDF **bsdf, float &pdf, float &pdfDirect, SWCSpectrum *We) const
 {
 	Point psC(0.f);
 	if (LensRadius > 0.f) {
@@ -263,11 +264,11 @@ bool PerspectiveCamera::SampleW(MemoryArena &arena,
 	const Volume *v = GetVolume();
 	*bsdf = ARENA_ALLOC(arena, PerspectiveBSDF)(dg, normal,
 		v, v, *this, LensRadius > 0.f, psC);
-	*pdf = posPdf;
-	*pdfDirect = posPdf;
+	pdf = posPdf;
+	pdfDirect = posPdf;
 	*We = SWCSpectrum(1.f);
 	return true;
-}
+};
 
 BBox PerspectiveCamera::Bounds() const
 {
