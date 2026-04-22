@@ -59,9 +59,9 @@ public:
 private:
     static void updateFilm(FilmUpdaterThread *filmUpdaterThread);
 
-    RenderFarm *renderFarm;
-    Scene *scene;
-    boost::thread *thread; // keep pointer to delete the thread object
+    RenderFarm *renderFarm = nullptr;
+    Scene *scene = nullptr;
+    boost::thread *thread = nullptr; // keep pointer to delete the thread object
 	Timer timer;
 };
 
@@ -263,17 +263,17 @@ private:
 	void updateServerUserSamplingMap(ExtRenderingServerInfo &serverInfo, const u_int size, const float *map);
 
 	// The context, this render farm, is associated with
-	Context *ctx;
+	Context *ctx = nullptr;
 
 	// Any operation on servers must be synchronized via this mutex
 	mutable boost::mutex serverListMutex;
 	std::vector<ExtRenderingServerInfo> serverInfoList;
 
 	// Dade - film update information
-	FilmUpdaterThread *filmUpdateThread;
+	FilmUpdaterThread *filmUpdateThread = nullptr;
 
 	// for async flushing
-	boost::thread *flushThread;
+	boost::thread *flushThread = nullptr;
 
 	CompiledCommands compiledCommands;
 	CompiledFiles compiledFiles;
