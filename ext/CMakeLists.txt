@@ -393,7 +393,7 @@ ExternalProject_Add(
 
 set(
 	BOOST_MODULES
-	"filesystem|system|program_options|regex|system|thread|serialization|iostreams|python|chrono|array|assert|locale|format|atomic|interprocess|ptr_container|asio"
+	"filesystem|system|program_options|regex|system|thread|serialization|iostreams|python|chrono|array|assert|locale|format|atomic|interprocess|ptr_container|asio|uuid"
 )
 
 ExternalProject_Add(
