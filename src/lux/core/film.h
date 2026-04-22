@@ -776,9 +776,9 @@ protected: // Put it here for better data alignment
 
 	float cropWindow[4];
 
-	Filter *filter;
-	float *filterTable;
-	FilterLUTs *filterLUTs;
+	Filter *filter = nullptr;
+	float *filterTable = nullptr;
+	FilterLUTs *filterLUTs = nullptr;
 
 	string filename;
 
@@ -793,10 +793,10 @@ protected: // Put it here for better data alignment
 	boost::mutex write_mutex; // WriteImage/ConvergenceTest (i.e. image pipeline) synchronization
 
 	// Enabled by haltthreshold
-	slg::ConvergenceTest *convTest;
+	slg::ConvergenceTest *convTest = nullptr;
 
 	// May be enabled by the sampler
-	VarianceBuffer *varianceBuffer; // Used to build the noise map
+	VarianceBuffer *varianceBuffer = nullptr; // Used to build the noise map
 	// Using boost::shared_array in order to have a garbage collector-like
 	// behavior (i.e. the map is really de-allocated only when all reference are
 	// gone)
@@ -844,7 +844,7 @@ public:
 	float haltThreshold;
 	float haltThresholdComplete;
 
-	Histogram *histogram;
+	Histogram *histogram = nullptr;
 	bool enoughSamplesPerPixel; // At the end to get better data alignment
 
 private:
