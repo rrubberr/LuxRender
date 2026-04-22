@@ -20,13 +20,13 @@
 ###########################################################################
 
 MESSAGE(STATUS "CMAKE VERSION DETECTED " ${CMAKE_VERSION})
-IF(MSVC)
-ELSE(MSVC)
-	cmake_minimum_required(VERSION 3.3)
-ENDIF(MSVC)    
+	cmake_minimum_required(VERSION 3.10)
 
 IF(COMMAND cmake_policy)
 	cmake_policy(SET CMP0003 NEW)
+    cmake_policy(SET CMP0074 NEW)
+	cmake_policy(SET CMP0111 OLD)
+    cmake_policy(SET CMP0144 OLD)
 	cmake_policy(SET CMP0148 OLD)
 	cmake_policy(SET CMP0167 OLD)
 ENDIF(COMMAND cmake_policy)
@@ -46,36 +46,28 @@ option(LUX_DOCUMENTATION "Generate project documentation" OFF)
 # Don't overconfigure
 SET(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "limit configs" FORCE)
 
-# When using single configuration generators like make
-# CMake does need to know which of the possible configurations
-# to generate
+# CMake needs to know which configuration to generate by default.
 IF (NOT CMAKE_BUILD_TYPE)
 	SET(CMAKE_BUILD_TYPE Release)
 ENDIF(NOT CMAKE_BUILD_TYPE)
+
 MESSAGE(STATUS "Building mode: " ${CMAKE_BUILD_TYPE})
 SET(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "assure config" FORCE) # makes sure type is shown in cmake gui
 
+# Export symbols on Linux.
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-	set(CMAKE_EXE_LINKER_FLAGS -Wl,-rpath,$ORIGIN/shared,--version-script='${CMAKE_SOURCE_DIR}/cmake/exportmaps/linux_symbol_exports.map')
-	set(CMAKE_SHARED_LINKER_FLAGS -Wl,-rpath,$ORIGIN/shared,--version-script='${CMAKE_SOURCE_DIR}/cmake/exportmaps/linux_symbol_exports.map')
-	set(CMAKE_MODULE_LINKER_FLAGS -Wl,-rpath,$ORIGIN/shared,--version-script='${CMAKE_SOURCE_DIR}/cmake/exportmaps/linux_symbol_exports.map')
+	set(CMAKE_EXE_LINKER_FLAGS -Wl,-rpath,$ORIGIN,--version-script='${CMAKE_SOURCE_DIR}/cmake/exportmaps/linux_symbol_exports.map')
+	set(CMAKE_SHARED_LINKER_FLAGS -Wl,-rpath,$ORIGIN,--version-script='${CMAKE_SOURCE_DIR}/cmake/exportmaps/linux_symbol_exports.map')
 ENDIF()
 
 #############################################################################
-#############################################################################
 ######################    FIND PROJECT DEPENDENCIES    ######################
 #############################################################################
-#############################################################################
+
 INCLUDE(Dependencies)
 
 #############################################################################
-#All dependencies OK !
-#############################################################################
-
-#############################################################################
-#############################################################################
 ############################    DOCUMENTATION    ############################
-#############################################################################
 #############################################################################
 
 IF(LUX_DOCUMENTATION)
@@ -87,46 +79,37 @@ CONFIGURE_FILE(${CMAKE_SOURCE_DIR}/config.h.cmake ${CMAKE_BINARY_DIR}/config.h)
 ADD_DEFINITIONS(-DLUX_USE_CONFIG_H)
 
 #############################################################################
-#############################################################################
 #########################      COMPILER FLAGS     ###########################
 #############################################################################
-#############################################################################
 
-IF(APPLE)
-	ELSE(APPLE)
-	# Dade - default compiler options
-	# Removed "-O3" from definitions in order to have CMake Release/Debug options to work
-	ADD_DEFINITIONS(-ftree-vectorize -funroll-loops -Wall -fPIC -DHAVE_PTHREAD_H)
+# Dade - default compiler options
+# Removed "-O3" from definitions in order to have CMake Release/Debug options to work
+ADD_DEFINITIONS(-ftree-vectorize -funroll-loops -Wall -fPIC -DHAVE_PTHREAD_H)
 
-	FIND_PACKAGE(AVX 2.0 EXACT)
+FIND_PACKAGE(AVX 2.0 EXACT)
 	
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
-		IF(AVX_FOUND)
-			MESSAGE(STATUS "AVX2 detected. Adding compiler definitions.")
-			ADD_DEFINITIONS(-mavx2 -march=haswell)
-		ELSE()
-			MESSAGE(STATUS "No AVX2 support. Reverting to SSE2")
-			ADD_DEFINITIONS(-msse2 -mfpmath=sse -march=nocona)
-		ENDIF()
-	# The QBVH accelerator needs to be compiled with much reduced optimizations
-	# otherwise gcc produces incorrect code and ruins the render on 64bits machines
-	SET_SOURCE_FILES_PROPERTIES(accelerators/qbvhaccel.cpp COMPILE_FLAGS "-O1")
-ENDIF(APPLE)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
+	IF(AVX_FOUND)
+		MESSAGE(STATUS "AVX2 detected. Adding compiler definitions.")
+		ADD_DEFINITIONS(-mavx2 -march=haswell)
+	ELSE()
+		MESSAGE(STATUS "No AVX2 support. Reverting to SSE2")
+		ADD_DEFINITIONS(-msse2 -mfpmath=sse -march=nocona)
+	ENDIF()
+# The QBVH accelerator needs to be compiled with much reduced optimizations
+# otherwise gcc produces incorrect code and ruins the render on 64bits machines
+SET_SOURCE_FILES_PROPERTIES(accelerators/qbvhaccel.cpp COMPILE_FLAGS "-O1")
 
-#############################################################################
 #############################################################################
 #####################            LINKER INFO           ######################
 #############################################################################
-#############################################################################
 
 LINK_DIRECTORIES(${LINK_DIRECTORIES} ${Boost_LIBRARY_DIRS} )
-IF (APPLE)
-ELSE(APPLE)
-	SET(LUX_LIBRARY luxShared)
-	ADD_DEFINITIONS(-DLUX_DLL) # for controlling visibility
-	SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-	SET(CMAKE_INSTALL_RPATH "$ORIGIN")
-ENDIF(APPLE)
+
+SET(LUX_LIBRARY luxShared)
+ADD_DEFINITIONS(-DLUX_DLL) # for controlling visibility
+SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+SET(CMAKE_INSTALL_RPATH "$ORIGIN")
 
 set(LUX_DEPS
 	OpenImageIO::OpenImageIO
@@ -147,24 +130,21 @@ set(LUX_DEPS
 )
 
 #############################################################################
-#############################################################################
 #########################      LIBRARY BUILD      ###########################
 #############################################################################
-#############################################################################
+
 INCLUDE(liblux)
 
 #############################################################################
-#############################################################################
 ############################   PYTHON LIBRARY    ############################
 #############################################################################
-#############################################################################
+
 INCLUDE(pylux)
 
 #############################################################################
-#############################################################################
 #############################    Binaries       #############################
 #############################################################################
-#############################################################################
+
 INCLUDE(luxconsole)
 INCLUDE(luxmerger)
 INCLUDE(luxcomp)

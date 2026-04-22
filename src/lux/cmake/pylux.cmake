@@ -50,6 +50,7 @@ IF(Python3_FOUND)
     		Threads::Threads
     		Boost::python
 			Boost::thread
+			pystring::pystring
 		)
 		
 		SET_TARGET_PROPERTIES(pylux PROPERTIES
