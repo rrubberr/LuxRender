@@ -36,7 +36,8 @@ public:
 		FLOAT_TYPE
 	};
 
-	ImageData(u_int width, u_int height, PixelDataType type, u_int noChannels, void *data) {
+	ImageData(u_int width, u_int height, PixelDataType type, u_int noChannels, void *data)
+	{
 		width_ = width;
 		height_ = height;
 		pixel_type_ = type;
@@ -44,8 +45,7 @@ public:
 		// NOTE - Ratow - Not using auto_ptr here because of undefined behavior when deleting array data
 		data_ = data;
 		isExrImage_ = false;
-
-	}
+	};
 
 	~ImageData();
 
@@ -68,19 +68,19 @@ public:
 		float gain = 1.0f, float gamma = 1.0f);
 
 private:
-	u_int width_;
-	u_int height_;
-	u_int noChannels_;
-	void *data_;
-	PixelDataType pixel_type_;
-	bool isExrImage_;
+	u_int width_ = 0;
+	u_int height_ = 0;
+	u_int noChannels_ = 0;
+	void *data_ = nullptr;
+	PixelDataType pixel_type_ = UNSIGNED_CHAR_TYPE;
+	bool isExrImage_ = false;
 };
 
 class ImageReader {
 public:
 
-	virtual ~ImageReader() {
-	}
+	virtual ~ImageReader() {};
+
 	virtual ImageData* read(const string &name) = 0;
 };
 
