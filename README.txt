@@ -57,7 +57,7 @@ Compiling from source:
  - On Fedora or RHEL run:
     sudo dnf group install "c-development"
     sudo dnf install git cmake pkgconf-pkg-config bison flex fftw-devel \
-    python3-devel qt6-qtbase-devel qt6-qtimageformats
+    python3-devel qt6-qtbase-devel qt6-qtimageformats expat-devel
  
  - On Arch & friends run:
     sudo pacman -S base-devel git cmake pkgconf bison flex fftw python \
