@@ -40,7 +40,7 @@ class MultiMixTexture : public Texture<T> {
 public:
 	// MultiMixTexture Public Methods
 	MultiMixTexture(u_int n, const float *w,
-			vector<boost::shared_ptr<Texture<T> > > &t) :
+			vector<std::shared_ptr<Texture<T> > > &t) :
 			Texture<T>("MultiMixTexture-" + boost::lexical_cast<string>(this)),
 			weights(w, w + n),
 			tex(t) { }
@@ -116,7 +116,7 @@ public:
 	static Texture<FresnelGeneral> * CreateFresnelTexture(const Transform &tex2world, const ParamSet &tp);
 private:
 	vector<float> weights;
-	vector<boost::shared_ptr<Texture<T> > > tex;
+	vector<std::shared_ptr<Texture<T> > > tex;
 };
 
 // MultiMixTexture Method Definitions
@@ -126,7 +126,7 @@ template <class T> Texture<float> * MultiMixTexture<T>::CreateFloatTexture(const
 	u_int n;
 	const float *w = tp.FindFloat("weights", &n);
 
-	vector<boost::shared_ptr<Texture<float> > > tex;
+	vector<std::shared_ptr<Texture<float> > > tex;
 
 	tex.reserve(n);
 	for (u_int i = 0; i < n; ++i) {
@@ -144,7 +144,7 @@ template <class T> Texture<SWCSpectrum> * MultiMixTexture<T>::CreateSWCSpectrumT
 	u_int n;
 	const float *w = tp.FindFloat("weights", &n);
 
-	vector<boost::shared_ptr<Texture<SWCSpectrum> > > tex;
+	vector<std::shared_ptr<Texture<SWCSpectrum> > > tex;
 
 	tex.reserve(n);
 	for (u_int i = 0; i < n; ++i) {
@@ -162,7 +162,7 @@ template <class T> Texture<FresnelGeneral> * MultiMixTexture<T>::CreateFresnelTe
 	u_int n;
 	const float *w = tp.FindFloat("weights", &n);
 
-	vector<boost::shared_ptr<Texture<FresnelGeneral> > > tex;
+	vector<std::shared_ptr<Texture<FresnelGeneral> > > tex;
 
 	tex.reserve(n);
 	for (u_int i = 0; i < n; ++i) {

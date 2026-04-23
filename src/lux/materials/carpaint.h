@@ -33,18 +33,18 @@ namespace lux
 class CarPaint : public Material {
 public:
 	// CarPaint Public Methods
-	CarPaint(boost::shared_ptr<Texture<SWCSpectrum> > &kd,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ka,
-		boost::shared_ptr<Texture<float> > &d,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ks1,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ks2,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ks3,
-		boost::shared_ptr<Texture<float> > &r1,
-		boost::shared_ptr<Texture<float> > &r2,
-		boost::shared_ptr<Texture<float> > &r3,
-		boost::shared_ptr<Texture<float> > &m1,
-		boost::shared_ptr<Texture<float> > &m2,
-		boost::shared_ptr<Texture<float> > &m3,
+	CarPaint(std::shared_ptr<Texture<SWCSpectrum> > &kd,
+		std::shared_ptr<Texture<SWCSpectrum> > &ka,
+		std::shared_ptr<Texture<float> > &d,
+		std::shared_ptr<Texture<SWCSpectrum> > &ks1,
+		std::shared_ptr<Texture<SWCSpectrum> > &ks2,
+		std::shared_ptr<Texture<SWCSpectrum> > &ks3,
+		std::shared_ptr<Texture<float> > &r1,
+		std::shared_ptr<Texture<float> > &r2,
+		std::shared_ptr<Texture<float> > &r3,
+		std::shared_ptr<Texture<float> > &m1,
+		std::shared_ptr<Texture<float> > &m2,
+		std::shared_ptr<Texture<float> > &m3,
 		const ParamSet &mp);
 	virtual ~CarPaint() { }
 
@@ -69,8 +69,8 @@ public:
 		const ParamSet &mp);
 private:
 	// CarPaint Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd, Ka, Ks1, Ks2, Ks3;
-	boost::shared_ptr<Texture<float> > depth, R1, R2, R3, M1, M2, M3;
+	std::shared_ptr<Texture<SWCSpectrum> > Kd, Ka, Ks1, Ks2, Ks3;
+	std::shared_ptr<Texture<float> > depth, R1, R2, R3, M1, M2, M3;
 };
 
 struct CarPaintData {

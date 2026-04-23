@@ -39,7 +39,7 @@ MipMapSphericalFunction::MipMapSphericalFunction()
 {
 }
 
-MipMapSphericalFunction::MipMapSphericalFunction(boost::shared_ptr<const MIPMap> &aMipMap, bool flipZ )
+MipMapSphericalFunction::MipMapSphericalFunction(std::shared_ptr<const MIPMap> &aMipMap, bool flipZ )
 {
 	SetMipMap(aMipMap);
 }
@@ -52,7 +52,7 @@ SWCSpectrum MipMapSphericalFunction::f(const SpectrumWavelengths &sw,
 
 // SampleableSphericalFunction
 SampleableSphericalFunction::SampleableSphericalFunction(
-	boost::shared_ptr<const SphericalFunction> &aFunc,
+	std::shared_ptr<const SphericalFunction> &aFunc,
 	u_int xRes, u_int yRes) : func(aFunc)
 {
 	// Compute scalar-valued image
@@ -128,7 +128,7 @@ SphericalFunction *CreateSphericalFunction(const ParamSet &paramSet)
 	if (texname.length() > 0) {
 		std::auto_ptr<ImageData> imgdata(ReadImage(texname));
 		if (imgdata.get() != NULL) {
-			boost::shared_ptr<const MIPMap> mm(imgdata->createMIPMap());
+			std::shared_ptr<const MIPMap> mm(imgdata->createMIPMap());
 			mipmapFunc = new MipMapSphericalFunction(mm, flipZ);
 		}
 	}
@@ -147,9 +147,9 @@ SphericalFunction *CreateSphericalFunction(const ParamSet &paramSet)
 	if (iesFunc && mipmapFunc) {
 		CompositeSphericalFunction *compositeFunc =
 			new CompositeSphericalFunction();
-		boost::shared_ptr<const SphericalFunction> mipmap(mipmapFunc);
+		std::shared_ptr<const SphericalFunction> mipmap(mipmapFunc);
 		compositeFunc->Add(mipmap);
-		boost::shared_ptr<const SphericalFunction> ies(iesFunc);
+		std::shared_ptr<const SphericalFunction> ies(iesFunc);
 		compositeFunc->Add(ies);
 		return compositeFunc;
 	} else if (mipmapFunc)

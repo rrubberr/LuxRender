@@ -233,7 +233,7 @@ Texture<float> *NormalMapTexture::CreateFloatTexture(const Transform &tex2world,
 	return tex;
 }
 
-map<TexInfo, boost::shared_ptr<MIPMap> > ImageTexture::textures;
+map<TexInfo, std::shared_ptr<MIPMap> > ImageTexture::textures;
 
 static DynamicLoader::RegisterFloatTexture<ImageFloatTexture> r1("imagemap");
 static DynamicLoader::RegisterSWCSpectrumTexture<ImageSpectrumTexture> r2("imagemap");

@@ -32,10 +32,10 @@ Volume * HomogeneousVolume::CreateVolume(const Transform &volume2world,
 	const ParamSet &params)
 {
 	// Initialize common volume region parameters
-	boost::shared_ptr<Texture<FresnelGeneral> > fr(params.GetFresnelTexture("fresnel", 1.5f));
-	boost::shared_ptr<Texture<SWCSpectrum> > sigma_a(params.GetSWCSpectrumTexture("sigma_a", RGBColor(0.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > sigma_s(params.GetSWCSpectrumTexture("sigma_s", RGBColor(0.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > g(params.GetSWCSpectrumTexture("g", RGBColor(0.f)));
+	std::shared_ptr<Texture<FresnelGeneral> > fr(params.GetFresnelTexture("fresnel", 1.5f));
+	std::shared_ptr<Texture<SWCSpectrum> > sigma_a(params.GetSWCSpectrumTexture("sigma_a", RGBColor(0.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > sigma_s(params.GetSWCSpectrumTexture("sigma_s", RGBColor(0.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > g(params.GetSWCSpectrumTexture("g", RGBColor(0.f)));
 //	RGBColor Le = params.FindOneRGBColor("Le", RGBColor(0.f));
 
 	return new HomogeneousVolume(fr, sigma_a, sigma_s, g);

@@ -34,9 +34,9 @@
 using namespace luxrays;
 using namespace lux;
 
-Metal2::Metal2(boost::shared_ptr<Texture<FresnelGeneral> > &fr, 
-	boost::shared_ptr<Texture<float> > &u,
-	boost::shared_ptr<Texture<float> > &v,
+Metal2::Metal2(std::shared_ptr<Texture<FresnelGeneral> > &fr, 
+	std::shared_ptr<Texture<float> > &u,
+	std::shared_ptr<Texture<float> > &v,
 	const ParamSet &mp) : Material("Metal2-" + boost::lexical_cast<string>(this), mp),
 	fresnel(fr), nu(u), nv(v)
 {
@@ -68,10 +68,10 @@ BSDF *Metal2::GetBSDF(MemoryArena &arena, const SpectrumWavelengths &sw,
 
 Material *Metal2::CreateMaterial(const Transform &xform, const ParamSet &tp)
 {
-	boost::shared_ptr<Texture<FresnelGeneral> > fr(tp.GetFresnelTexture("fresnel", 5.f));
+	std::shared_ptr<Texture<FresnelGeneral> > fr(tp.GetFresnelTexture("fresnel", 5.f));
 
-	boost::shared_ptr<Texture<float> > uroughness(tp.GetFloatTexture("uroughness", .1f));
-	boost::shared_ptr<Texture<float> > vroughness(tp.GetFloatTexture("vroughness", .1f));
+	std::shared_ptr<Texture<float> > uroughness(tp.GetFloatTexture("uroughness", .1f));
+	std::shared_ptr<Texture<float> > vroughness(tp.GetFloatTexture("vroughness", .1f));
 
 	return new Metal2(fr, uroughness, vroughness, tp);
 }

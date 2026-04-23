@@ -40,18 +40,18 @@
 using namespace luxrays;
 using namespace lux;
 
-CarPaint::CarPaint(boost::shared_ptr<Texture<SWCSpectrum> > &kd,
-	boost::shared_ptr<Texture<SWCSpectrum> > &ka,
-	boost::shared_ptr<Texture<float> > &d,
-	boost::shared_ptr<Texture<SWCSpectrum> > &ks1,
-	boost::shared_ptr<Texture<SWCSpectrum> > &ks2,
-	boost::shared_ptr<Texture<SWCSpectrum> > &ks3,
-	boost::shared_ptr<Texture<float> > &r1,
-	boost::shared_ptr<Texture<float> > &r2,
-	boost::shared_ptr<Texture<float> > &r3,
-	boost::shared_ptr<Texture<float> > &m1,
-	boost::shared_ptr<Texture<float> > &m2,
-	boost::shared_ptr<Texture<float> > &m3,
+CarPaint::CarPaint(std::shared_ptr<Texture<SWCSpectrum> > &kd,
+	std::shared_ptr<Texture<SWCSpectrum> > &ka,
+	std::shared_ptr<Texture<float> > &d,
+	std::shared_ptr<Texture<SWCSpectrum> > &ks1,
+	std::shared_ptr<Texture<SWCSpectrum> > &ks2,
+	std::shared_ptr<Texture<SWCSpectrum> > &ks3,
+	std::shared_ptr<Texture<float> > &r1,
+	std::shared_ptr<Texture<float> > &r2,
+	std::shared_ptr<Texture<float> > &r3,
+	std::shared_ptr<Texture<float> > &m1,
+	std::shared_ptr<Texture<float> > &m2,
+	std::shared_ptr<Texture<float> > &m3,
 	const ParamSet &mp) : Material("CarPaint-" + boost::lexical_cast<string>(this), mp),
 	Kd(kd), Ka(ka), Ks1(ks1), Ks2(ks2), Ks3(ks3), depth(d), R1(r1), R2(r2),
 	R3(r3), M1(m1), M2(m2), M3(m3)
@@ -115,16 +115,16 @@ BSDF *CarPaint::GetBSDF(MemoryArena &arena, const SpectrumWavelengths &sw,
 }
 
 void DataFromName(const string name,
-	boost::shared_ptr<Texture<SWCSpectrum> > *Kd,
-	boost::shared_ptr<Texture<SWCSpectrum> > *Ks1,
-	boost::shared_ptr<Texture<SWCSpectrum> > *Ks2,
-	boost::shared_ptr<Texture<SWCSpectrum> > *Ks3,
-	boost::shared_ptr<Texture<float> > *R1,
-	boost::shared_ptr<Texture<float> > *R2,
-	boost::shared_ptr<Texture<float> > *R3,
-	boost::shared_ptr<Texture<float> > *M1,
-	boost::shared_ptr<Texture<float> > *M2,
-	boost::shared_ptr<Texture<float> > *M3)
+	std::shared_ptr<Texture<SWCSpectrum> > *Kd,
+	std::shared_ptr<Texture<SWCSpectrum> > *Ks1,
+	std::shared_ptr<Texture<SWCSpectrum> > *Ks2,
+	std::shared_ptr<Texture<SWCSpectrum> > *Ks3,
+	std::shared_ptr<Texture<float> > *R1,
+	std::shared_ptr<Texture<float> > *R2,
+	std::shared_ptr<Texture<float> > *R3,
+	std::shared_ptr<Texture<float> > *M1,
+	std::shared_ptr<Texture<float> > *M2,
+	std::shared_ptr<Texture<float> > *M3)
 {
 	int numPaints = sizeof(carpaintdata) / sizeof(CarPaintData);
 
@@ -137,16 +137,16 @@ void DataFromName(const string name,
 			break;
 	}
 
-	boost::shared_ptr<Texture<SWCSpectrum> > kd (new ConstantRGBColorTexture(carpaintdata[i].kd));
-	boost::shared_ptr<Texture<SWCSpectrum> > ks1 (new ConstantRGBColorTexture(carpaintdata[i].ks1));
-	boost::shared_ptr<Texture<SWCSpectrum> > ks2 (new ConstantRGBColorTexture(carpaintdata[i].ks2));
-	boost::shared_ptr<Texture<SWCSpectrum> > ks3 (new ConstantRGBColorTexture(carpaintdata[i].ks3));
-	boost::shared_ptr<Texture<float> > r1 (new ConstantFloatTexture(carpaintdata[i].r1));
-	boost::shared_ptr<Texture<float> > r2 (new ConstantFloatTexture(carpaintdata[i].r2));
-	boost::shared_ptr<Texture<float> > r3 (new ConstantFloatTexture(carpaintdata[i].r3));
-	boost::shared_ptr<Texture<float> > m1 (new ConstantFloatTexture(carpaintdata[i].m1));
-	boost::shared_ptr<Texture<float> > m2 (new ConstantFloatTexture(carpaintdata[i].m2));
-	boost::shared_ptr<Texture<float> > m3 (new ConstantFloatTexture(carpaintdata[i].m3));
+	std::shared_ptr<Texture<SWCSpectrum> > kd (new ConstantRGBColorTexture(carpaintdata[i].kd));
+	std::shared_ptr<Texture<SWCSpectrum> > ks1 (new ConstantRGBColorTexture(carpaintdata[i].ks1));
+	std::shared_ptr<Texture<SWCSpectrum> > ks2 (new ConstantRGBColorTexture(carpaintdata[i].ks2));
+	std::shared_ptr<Texture<SWCSpectrum> > ks3 (new ConstantRGBColorTexture(carpaintdata[i].ks3));
+	std::shared_ptr<Texture<float> > r1 (new ConstantFloatTexture(carpaintdata[i].r1));
+	std::shared_ptr<Texture<float> > r2 (new ConstantFloatTexture(carpaintdata[i].r2));
+	std::shared_ptr<Texture<float> > r3 (new ConstantFloatTexture(carpaintdata[i].r3));
+	std::shared_ptr<Texture<float> > m1 (new ConstantFloatTexture(carpaintdata[i].m1));
+	std::shared_ptr<Texture<float> > m2 (new ConstantFloatTexture(carpaintdata[i].m2));
+	std::shared_ptr<Texture<float> > m3 (new ConstantFloatTexture(carpaintdata[i].m3));
 
 	*Kd = kd;
 	*Ks1 = ks1;
@@ -183,35 +183,35 @@ Material* CarPaint::CreateMaterial(const Transform &xform, const ParamSet &mp)
 
 	string paintname = mp.FindOneString("name", "");
 
-	boost::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(0.f)));
-	boost::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", 0.f));
+	std::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(0.f)));
+	std::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", 0.f));
 
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd;
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks1;
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks2;
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks3;
+	std::shared_ptr<Texture<SWCSpectrum> > Kd;
+	std::shared_ptr<Texture<SWCSpectrum> > Ks1;
+	std::shared_ptr<Texture<SWCSpectrum> > Ks2;
+	std::shared_ptr<Texture<SWCSpectrum> > Ks3;
 
-	boost::shared_ptr<Texture<float> > R1;
-	boost::shared_ptr<Texture<float> > R2;
-	boost::shared_ptr<Texture<float> > R3;
+	std::shared_ptr<Texture<float> > R1;
+	std::shared_ptr<Texture<float> > R2;
+	std::shared_ptr<Texture<float> > R3;
 
-	boost::shared_ptr<Texture<float> > M1;
-	boost::shared_ptr<Texture<float> > M2;
-	boost::shared_ptr<Texture<float> > M3;
+	std::shared_ptr<Texture<float> > M1;
+	std::shared_ptr<Texture<float> > M2;
+	std::shared_ptr<Texture<float> > M3;
 	if (paintname == "") {
 		// we got no name, so try to read material properties directly
-		boost::shared_ptr<Texture<SWCSpectrum> > kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(def_kd)));
-		boost::shared_ptr<Texture<SWCSpectrum> > ks1(mp.GetSWCSpectrumTexture("Ks1", RGBColor(def_ks1)));
-		boost::shared_ptr<Texture<SWCSpectrum> > ks2(mp.GetSWCSpectrumTexture("Ks2", RGBColor(def_ks2)));
-		boost::shared_ptr<Texture<SWCSpectrum> > ks3(mp.GetSWCSpectrumTexture("Ks3", RGBColor(def_ks3)));
+		std::shared_ptr<Texture<SWCSpectrum> > kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(def_kd)));
+		std::shared_ptr<Texture<SWCSpectrum> > ks1(mp.GetSWCSpectrumTexture("Ks1", RGBColor(def_ks1)));
+		std::shared_ptr<Texture<SWCSpectrum> > ks2(mp.GetSWCSpectrumTexture("Ks2", RGBColor(def_ks2)));
+		std::shared_ptr<Texture<SWCSpectrum> > ks3(mp.GetSWCSpectrumTexture("Ks3", RGBColor(def_ks3)));
 
-		boost::shared_ptr<Texture<float> > r1(mp.GetFloatTexture("R1", def_r[0]));
-		boost::shared_ptr<Texture<float> > r2(mp.GetFloatTexture("R2", def_r[1]));
-		boost::shared_ptr<Texture<float> > r3(mp.GetFloatTexture("R3", def_r[2]));
+		std::shared_ptr<Texture<float> > r1(mp.GetFloatTexture("R1", def_r[0]));
+		std::shared_ptr<Texture<float> > r2(mp.GetFloatTexture("R2", def_r[1]));
+		std::shared_ptr<Texture<float> > r3(mp.GetFloatTexture("R3", def_r[2]));
 
-		boost::shared_ptr<Texture<float> > m1(mp.GetFloatTexture("M1", def_m[0]));
-		boost::shared_ptr<Texture<float> > m2(mp.GetFloatTexture("M2", def_m[1]));
-		boost::shared_ptr<Texture<float> > m3(mp.GetFloatTexture("M3", def_m[2]));
+		std::shared_ptr<Texture<float> > m1(mp.GetFloatTexture("M1", def_m[0]));
+		std::shared_ptr<Texture<float> > m2(mp.GetFloatTexture("M2", def_m[1]));
+		std::shared_ptr<Texture<float> > m3(mp.GetFloatTexture("M3", def_m[2]));
 
 		Kd = kd;
 		Ks1 = ks1;

@@ -157,9 +157,9 @@ protected:
 
 // AreaLight Method Definitions
 AreaLightImpl::AreaLightImpl(const Transform &light2world,
-	boost::shared_ptr<Texture<SWCSpectrum> > &le, float g, float pow,
+	std::shared_ptr<Texture<SWCSpectrum> > &le, float g, float pow,
 	float e, SampleableSphericalFunction *ssf, u_int ns,
-	const boost::shared_ptr<Primitive> &p) :
+	const std::shared_ptr<Primitive> &p) :
 	AreaLight("AreaLight-" + boost::lexical_cast<string>(this),
 	light2world, ns), Le(le), paramGain(g), gain(g), power(pow),
 	efficacy(e), func(ssf)
@@ -167,17 +167,17 @@ AreaLightImpl::AreaLightImpl(const Transform &light2world,
 	if (p->CanIntersect() && p->CanSample()) {
 		// Create a temporary to increase shared count
 		// The assignment is just a swap
-		boost::shared_ptr<Primitive> pr(p);
+		std::shared_ptr<Primitive> pr(p);
 		prim = pr;
 	} else {
 		// Create _PrimitiveSet_ for _Primitive_
-		vector<boost::shared_ptr<Primitive> > refinedPrims;
+		vector<std::shared_ptr<Primitive> > refinedPrims;
 		PrimitiveRefinementHints refineHints(true);
 		p->Refine(refinedPrims, refineHints, p);
 		if (refinedPrims.size() == 1)
 			prim = refinedPrims[0];
 		else
-			prim = boost::shared_ptr<Primitive>(new PrimitiveSet(refinedPrims));
+			prim = std::shared_ptr<Primitive>(new PrimitiveSet(refinedPrims));
 	}
 	area = prim->Area();
 	Le->SetIlluminant(); // Illuminant must be set before calling Le->Y()
@@ -272,16 +272,16 @@ bool AreaLightImpl::L(const Sample &sample, const Ray &ray,
 }
 
 AreaLight* AreaLightImpl::CreateAreaLight(const Transform &light2world,
-	const ParamSet &paramSet, const boost::shared_ptr<Primitive> &prim)
+	const ParamSet &paramSet, const std::shared_ptr<Primitive> &prim)
 {
-	boost::shared_ptr<Texture<SWCSpectrum> > L(
+	std::shared_ptr<Texture<SWCSpectrum> > L(
 		paramSet.GetSWCSpectrumTexture("L", RGBColor(1.f)));
 
 	float g = paramSet.FindOneFloat("gain", 1.f);
 	float p = paramSet.FindOneFloat("power", 100.f);		// Power/Lm in Watts
 	float e = paramSet.FindOneFloat("efficacy", 17.f);		// Efficacy Lm per Watt
 
-	boost::shared_ptr<const SphericalFunction> sf(CreateSphericalFunction(paramSet));
+	std::shared_ptr<const SphericalFunction> sf(CreateSphericalFunction(paramSet));
 	SampleableSphericalFunction *ssf = NULL;
 	if (sf)
 		ssf = new SampleableSphericalFunction(sf);

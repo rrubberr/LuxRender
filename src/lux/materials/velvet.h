@@ -31,11 +31,11 @@ namespace lux
 class Velvet : public Material {
 public:
 	// Velvet Public Methods
-	Velvet(boost::shared_ptr<Texture<SWCSpectrum> > &kd,
-		boost::shared_ptr<Texture<float> > &p1,
-		boost::shared_ptr<Texture<float> > &p2,
-		boost::shared_ptr<Texture<float> > &p3,
-		boost::shared_ptr<Texture<float> > &thickness,
+	Velvet(std::shared_ptr<Texture<SWCSpectrum> > &kd,
+		std::shared_ptr<Texture<float> > &p1,
+		std::shared_ptr<Texture<float> > &p2,
+		std::shared_ptr<Texture<float> > &p3,
+		std::shared_ptr<Texture<float> > &thickness,
 		const ParamSet &mp) : Material("Velvet-" + boost::lexical_cast<string>(this), mp),
 		Kd(kd), P1(p1), P2(p2), P3(p3), Thickness(thickness) { }
 	virtual ~Velvet() { }
@@ -53,8 +53,8 @@ public:
 		const ParamSet &mp);
 private:
 	// Velvet Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd;
-	boost::shared_ptr<Texture<float> > P1, P2, P3, Thickness;
+	std::shared_ptr<Texture<SWCSpectrum> > Kd;
+	std::shared_ptr<Texture<float> > P1, P2, P3, Thickness;
 };
 
 }//namespace lux

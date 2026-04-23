@@ -37,9 +37,9 @@ typedef enum { FLEMISH, RUNNING, ENGLISH, HERRINGBONE, BASKET, KETTING } Masonry
 template <class T> class BrickTexture3D : public Texture<T> {
 public:
 	// BrickTexture3D Public Methods
-	BrickTexture3D(boost::shared_ptr<Texture<T> > &c1,
-		boost::shared_ptr<Texture<T> > &c2,
-		boost::shared_ptr<Texture<T> > &c3,
+	BrickTexture3D(std::shared_ptr<Texture<T> > &c1,
+		std::shared_ptr<Texture<T> > &c2,
+		std::shared_ptr<Texture<T> > &c3,
 		float brickw, float brickh, float brickd, float mortar,
 		float r, float bev, const string &b,
 		TextureMapping3D *map) :
@@ -321,7 +321,7 @@ private:
 	float bevelwidth, bevelheight, beveldepth;
 	bool usebevel;
 	TextureMapping3D *mapping;
-	boost::shared_ptr<Texture<T> > tex1, tex2, tex3;
+	std::shared_ptr<Texture<T> > tex1, tex2, tex3;
 
 	// brickwidth, brickheight, brickdepth are modified by HERRINGBONE
 	// and BASKET brick types. I need to save the initial values here.
@@ -333,9 +333,9 @@ template <class T> Texture<float> *BrickTexture3D<T>::CreateFloatTexture(
 	// Read mapping coordinates
 	TextureMapping3D *imap = TextureMapping3D::Create(tex2world, tp);
 
-	boost::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("bricktex", 1.f));
-	boost::shared_ptr<Texture<float> > tex2(tp.GetFloatTexture("mortartex", 0.2f));
-	boost::shared_ptr<Texture<float> > tex3(tp.GetFloatTexture("brickmodtex", 1.f));
+	std::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("bricktex", 1.f));
+	std::shared_ptr<Texture<float> > tex2(tp.GetFloatTexture("mortartex", 0.2f));
+	std::shared_ptr<Texture<float> > tex3(tp.GetFloatTexture("brickmodtex", 1.f));
 
 	float bw = tp.FindOneFloat("brickwidth", 0.3f);
 	float bh = tp.FindOneFloat("brickheight", 0.1f);
@@ -354,9 +354,9 @@ template <class T> Texture<SWCSpectrum> *BrickTexture3D<T>::CreateSWCSpectrumTex
 	// Read mapping coordinates
 	TextureMapping3D *imap = TextureMapping3D::Create(tex2world, tp);
 
-	boost::shared_ptr<Texture<SWCSpectrum> > tex1(tp.GetSWCSpectrumTexture("bricktex", RGBColor(1.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > tex2(tp.GetSWCSpectrumTexture("mortartex", RGBColor(0.2f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > tex3(tp.GetSWCSpectrumTexture("brickmodtex", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > tex1(tp.GetSWCSpectrumTexture("bricktex", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > tex2(tp.GetSWCSpectrumTexture("mortartex", RGBColor(0.2f)));
+	std::shared_ptr<Texture<SWCSpectrum> > tex3(tp.GetSWCSpectrumTexture("brickmodtex", RGBColor(1.f)));
 	
 	float bw = tp.FindOneFloat("brickwidth", 0.3f);
 	float bh = tp.FindOneFloat("brickheight", 0.1f);

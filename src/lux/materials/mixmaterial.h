@@ -31,9 +31,9 @@ namespace lux
 class MixMaterial : public Material {
 public:
 	// MixMaterial Public Methods
-	MixMaterial(boost::shared_ptr<Texture<float> > &a,
-		boost::shared_ptr<Material> &m1,
-		boost::shared_ptr<Material> &m2,
+	MixMaterial(std::shared_ptr<Texture<float> > &a,
+		std::shared_ptr<Material> &m1,
+		std::shared_ptr<Material> &m2,
 		const ParamSet &mp) : Material("MixMaterial-" + boost::lexical_cast<string>(this), mp, false),
 		amount(a), mat1(m1), mat2(m2) { }
 	virtual ~MixMaterial() { }
@@ -49,8 +49,8 @@ public:
 		const ParamSet &mp);
 private:
 	// MixMaterial Private Data
-	boost::shared_ptr<Texture<float> > amount;
-	boost::shared_ptr<Material> mat1, mat2;
+	std::shared_ptr<Texture<float> > amount;
+	std::shared_ptr<Material> mat1, mat2;
 };
 
 }//namespace lux

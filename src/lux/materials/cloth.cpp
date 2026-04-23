@@ -60,8 +60,8 @@
 using namespace luxrays;
 using namespace lux;
 
-boost::shared_ptr<WeavePattern> DenimPattern(const float repeat_u, const float repeat_v) {
-	boost::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Cotton denmim", 3, 6, 0.01f,4.0f, 0.0f, 0.5f, 5.0f, 1.0f, 3.0f, repeat_u,repeat_v, 0.0f,0.0f,0.0f,0.0f, 0.0f));
+std::shared_ptr<WeavePattern> DenimPattern(const float repeat_u, const float repeat_v) {
+	std::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Cotton denmim", 3, 6, 0.01f,4.0f, 0.0f, 0.5f, 5.0f, 1.0f, 3.0f, repeat_u,repeat_v, 0.0f,0.0f,0.0f,0.0f, 0.0f));
 
 	int patterns[] = {
 		1, 3, 8,
@@ -87,8 +87,8 @@ boost::shared_ptr<WeavePattern> DenimPattern(const float repeat_u, const float r
 	return pattern;
 }
 
-boost::shared_ptr<WeavePattern> SilkCharmeusePattern(const float repeat_u, const float repeat_v) {
-	boost::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Silk charmeuse", 5, 10, 0.02f,7.3f, 0.5f, 0.5f, 9.0f, 1.0f, 3.0f, repeat_u,repeat_v, 0.0f,0.0f,0.0f,0.0f, 0.0f));
+std::shared_ptr<WeavePattern> SilkCharmeusePattern(const float repeat_u, const float repeat_v) {
+	std::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Silk charmeuse", 5, 10, 0.02f,7.3f, 0.5f, 0.5f, 9.0f, 1.0f, 3.0f, repeat_u,repeat_v, 0.0f,0.0f,0.0f,0.0f, 0.0f));
 
 	int patterns[] = {
 		10, 2,  4,  6,  8,
@@ -124,8 +124,8 @@ boost::shared_ptr<WeavePattern> SilkCharmeusePattern(const float repeat_u, const
 	return pattern;
 }
 
-boost::shared_ptr<WeavePattern> CottonTwillPattern(const float repeat_u, const float repeat_v) {
-	boost::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Cotton twill", 4, 8, 0.01f,4.0f, 0.0f, 0.5f, 6.0f, 2.0f, 4.0f, repeat_u,repeat_v, 0.0f,0.0f,0.0f,0.0f, 0.0f));
+std::shared_ptr<WeavePattern> CottonTwillPattern(const float repeat_u, const float repeat_v) {
+	std::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Cotton twill", 4, 8, 0.01f,4.0f, 0.0f, 0.5f, 6.0f, 2.0f, 4.0f, repeat_u,repeat_v, 0.0f,0.0f,0.0f,0.0f, 0.0f));
 
 	int patterns[] = {
 		7, 2, 4, 6,
@@ -155,8 +155,8 @@ boost::shared_ptr<WeavePattern> CottonTwillPattern(const float repeat_u, const f
 	return pattern;
 }
 
-boost::shared_ptr<WeavePattern> WoolGabardinePattern(const float repeat_u, const float repeat_v) {
-	boost::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Wool gabardine", 6, 9, 0.01f,4.0f, 0.0f, 0.5f, 12.0f, 6.0f, 0.0f, repeat_u,repeat_v, 0.0f,0.0f,0.0f,0.0f, 0.0f));
+std::shared_ptr<WeavePattern> WoolGabardinePattern(const float repeat_u, const float repeat_v) {
+	std::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Wool gabardine", 6, 9, 0.01f,4.0f, 0.0f, 0.5f, 12.0f, 6.0f, 0.0f, repeat_u,repeat_v, 0.0f,0.0f,0.0f,0.0f, 0.0f));
 
 	int patterns[] = {
 		1, 1, 2, 2, 7, 7,
@@ -184,8 +184,8 @@ boost::shared_ptr<WeavePattern> WoolGabardinePattern(const float repeat_u, const
 	return pattern;
 }
 
-boost::shared_ptr<WeavePattern> PolyesterLiningClothPattern(const float repeat_u, const float repeat_v) {
-	boost::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Polyester lining cloth", 2, 2, 0.015f,4.0f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, repeat_u,repeat_v, 8.0f,8.0f,6.0f,6.0f, 50.0f));
+std::shared_ptr<WeavePattern> PolyesterLiningClothPattern(const float repeat_u, const float repeat_v) {
+	std::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Polyester lining cloth", 2, 2, 0.015f,4.0f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, repeat_u,repeat_v, 8.0f,8.0f,6.0f,6.0f, 50.0f));
 
 	int patterns[] = {
 		3, 2,
@@ -203,8 +203,8 @@ boost::shared_ptr<WeavePattern> PolyesterLiningClothPattern(const float repeat_u
 	return pattern;
 }
 
-boost::shared_ptr<WeavePattern> SilkShantungPattern(const float repeat_u, const float repeat_v) {
-	boost::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Silk Shantung", 6, 8, 0.02f,1.5f, 0.5f, 0.5f, 8.0f, 16.0f, 0.0f, repeat_u,repeat_v, 20.0f,20.0f,10.0f,10.0f, 500.0f));
+std::shared_ptr<WeavePattern> SilkShantungPattern(const float repeat_u, const float repeat_v) {
+	std::shared_ptr<WeavePattern> pattern(new WeavePattern((std::string)"Silk Shantung", 6, 8, 0.02f,1.5f, 0.5f, 0.5f, 8.0f, 16.0f, 0.0f, repeat_u,repeat_v, 20.0f,20.0f,10.0f,10.0f, 500.0f));
 
 	int patterns[] = {
 		3, 3, 3, 3, 2, 2,
@@ -229,11 +229,11 @@ boost::shared_ptr<WeavePattern> SilkShantungPattern(const float repeat_u, const 
 	return pattern;
 }
 
-Cloth::Cloth(boost::shared_ptr<Texture<SWCSpectrum> > &warp_kd,
-			boost::shared_ptr<Texture<SWCSpectrum> > &warp_ks,
-			boost::shared_ptr<Texture<SWCSpectrum> > &weft_kd,
-			boost::shared_ptr<Texture<SWCSpectrum> > &weft_ks,
-			boost::shared_ptr<WeavePattern> &pattern,
+Cloth::Cloth(std::shared_ptr<Texture<SWCSpectrum> > &warp_kd,
+			std::shared_ptr<Texture<SWCSpectrum> > &warp_ks,
+			std::shared_ptr<Texture<SWCSpectrum> > &weft_kd,
+			std::shared_ptr<Texture<SWCSpectrum> > &weft_ks,
+			std::shared_ptr<WeavePattern> &pattern,
 			const ParamSet &mp, string presetname) : Material("Cloth-" + boost::lexical_cast<string>(this), mp), Pattern(pattern), presetName(presetname)
 {
 	// Store warp and weft textures
@@ -298,14 +298,14 @@ Material* Cloth::CreateMaterial(const Transform &xform, const ParamSet &mp)
 {
 	string presetname = mp.FindOneString("presetname", "denim");
 
-	boost::shared_ptr<Texture<SWCSpectrum> > warp_kd(mp.GetSWCSpectrumTexture("warp_Kd", RGBColor(0.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > warp_ks(mp.GetSWCSpectrumTexture("warp_Ks", RGBColor(0.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > weft_kd(mp.GetSWCSpectrumTexture("weft_Kd", RGBColor(0.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > weft_ks(mp.GetSWCSpectrumTexture("weft_Ks", RGBColor(0.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > warp_kd(mp.GetSWCSpectrumTexture("warp_Kd", RGBColor(0.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > warp_ks(mp.GetSWCSpectrumTexture("warp_Ks", RGBColor(0.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > weft_kd(mp.GetSWCSpectrumTexture("weft_Kd", RGBColor(0.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > weft_ks(mp.GetSWCSpectrumTexture("weft_Ks", RGBColor(0.f)));
 	float repeat_u = mp.FindOneFloat("repeat_u", 100.f);
 	float repeat_v = mp.FindOneFloat("repeat_v", 100.f);
 
-	boost::shared_ptr<WeavePattern> pattern;
+	std::shared_ptr<WeavePattern> pattern;
 	if (presetname == "silk_charmeuse")
 		pattern = SilkCharmeusePattern(repeat_u, repeat_v);
 	else if (presetname == "denim")

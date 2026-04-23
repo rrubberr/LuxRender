@@ -31,12 +31,12 @@ namespace lux
 class RoughGlass : public Material {
 public:
 	// RoughGlass Public Methods
-	RoughGlass(boost::shared_ptr<Texture<SWCSpectrum> > &r,
-		boost::shared_ptr<Texture<SWCSpectrum> > &t, 
-		boost::shared_ptr<Texture<float> > &urough,
-		boost::shared_ptr<Texture<float> > &vrough,
-		boost::shared_ptr<Texture<float> > &i,
-		boost::shared_ptr<Texture<float> > &cbf,
+	RoughGlass(std::shared_ptr<Texture<SWCSpectrum> > &r,
+		std::shared_ptr<Texture<SWCSpectrum> > &t, 
+		std::shared_ptr<Texture<float> > &urough,
+		std::shared_ptr<Texture<float> > &vrough,
+		std::shared_ptr<Texture<float> > &i,
+		std::shared_ptr<Texture<float> > &cbf,
 		bool disp,
 		const ParamSet &mp) : Material("RoughGlass-" + boost::lexical_cast<string>(this), mp),
 		Kr(r), Kt(t), index(i),
@@ -57,11 +57,11 @@ public:
 		const ParamSet &mp);
 private:
 	// RoughGlass Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kr, Kt;
-	boost::shared_ptr<Texture<float> > index;
-	boost::shared_ptr<Texture<float> > cauchyb;
-	boost::shared_ptr<Texture<float> > uroughness;
-	boost::shared_ptr<Texture<float> > vroughness;
+	std::shared_ptr<Texture<SWCSpectrum> > Kr, Kt;
+	std::shared_ptr<Texture<float> > index;
+	std::shared_ptr<Texture<float> > cauchyb;
+	std::shared_ptr<Texture<float> > uroughness;
+	std::shared_ptr<Texture<float> > vroughness;
 	bool dispersion;
 };
 

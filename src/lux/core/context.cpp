@@ -80,7 +80,7 @@ if (inMotionBlock) { \
 	return; \
 }
 
-boost::shared_ptr<lux::Texture<float> > lux::Context::GetFloatTexture(const string &n) const
+std::shared_ptr<lux::Texture<float> > lux::Context::GetFloatTexture(const string &n) const
 {
 	if (n != "") {
 		if (graphicsState->floatTextures.find(n) !=
@@ -88,9 +88,9 @@ boost::shared_ptr<lux::Texture<float> > lux::Context::GetFloatTexture(const stri
 			return graphicsState->floatTextures[n];
 		LOG(LUX_ERROR,LUX_BADTOKEN) << "Couldn't find float texture named '" << n << "'";
 	}
-	return boost::shared_ptr<lux::Texture<float> >();
+	return std::shared_ptr<lux::Texture<float> >();
 }
-boost::shared_ptr<lux::Texture<SWCSpectrum> > lux::Context::GetColorTexture(const string &n) const
+std::shared_ptr<lux::Texture<SWCSpectrum> > lux::Context::GetColorTexture(const string &n) const
 {
 	if (n != "") {
 		if (graphicsState->colorTextures.find(n) !=
@@ -98,9 +98,9 @@ boost::shared_ptr<lux::Texture<SWCSpectrum> > lux::Context::GetColorTexture(cons
 			return graphicsState->colorTextures[n];
 		LOG(LUX_ERROR,LUX_BADTOKEN) << "Couldn't find color texture named '" << n << "'";
 	}
-	return boost::shared_ptr<lux::Texture<SWCSpectrum> >();
+	return std::shared_ptr<lux::Texture<SWCSpectrum> >();
 }
-boost::shared_ptr<lux::Texture<FresnelGeneral> > lux::Context::GetFresnelTexture(const string &n) const
+std::shared_ptr<lux::Texture<FresnelGeneral> > lux::Context::GetFresnelTexture(const string &n) const
 {
 	if (n != "") {
 		if (graphicsState->fresnelTextures.find(n) !=
@@ -108,9 +108,9 @@ boost::shared_ptr<lux::Texture<FresnelGeneral> > lux::Context::GetFresnelTexture
 			return graphicsState->fresnelTextures[n];
 		LOG(LUX_ERROR,LUX_BADTOKEN) << "Couldn't find fresnel texture named '" << n << "'";
 	}
-	return boost::shared_ptr<lux::Texture<FresnelGeneral> >();
+	return std::shared_ptr<lux::Texture<FresnelGeneral> >();
 }
-boost::shared_ptr<lux::Material > lux::Context::GetMaterial(const string &n) const
+std::shared_ptr<lux::Material > lux::Context::GetMaterial(const string &n) const
 {
 	if (n != "") {
 		if (graphicsState->namedMaterials.find(n) !=
@@ -118,7 +118,7 @@ boost::shared_ptr<lux::Material > lux::Context::GetMaterial(const string &n) con
 			return graphicsState->namedMaterials[n];
 		LOG(LUX_ERROR,LUX_BADTOKEN) << "Couldn't find material named '" << n << "'";
 	}
-	return boost::shared_ptr<lux::Material>();
+	return std::shared_ptr<lux::Material>();
 }
 
 void lux::Context::Init() {
@@ -486,7 +486,7 @@ void lux::Context::Texture(const string &n, const string &type,
 			graphicsState->floatTextures.end()) {
 			LOG(LUX_WARNING,LUX_SYNTAX) << "Float texture '" << n << "' being redefined.";
 		}
-		boost::shared_ptr<lux::Texture<float> > ft(
+		std::shared_ptr<lux::Texture<float> > ft(
 			MakeFloatTexture(texname, curTransform.StaticTransform(), params));
 		if (ft)
 			graphicsState->floatTextures[n] = ft;
@@ -496,7 +496,7 @@ void lux::Context::Texture(const string &n, const string &type,
 			graphicsState->colorTextures.end()) {
 			LOG(LUX_WARNING,LUX_SYNTAX) << "Color texture '" << n << "' being redefined.";
 		}
-		boost::shared_ptr<lux::Texture<SWCSpectrum> > st(
+		std::shared_ptr<lux::Texture<SWCSpectrum> > st(
 			MakeSWCSpectrumTexture(texname, curTransform.StaticTransform(), params));
 		if (st)
 			graphicsState->colorTextures[n] = st;
@@ -506,7 +506,7 @@ void lux::Context::Texture(const string &n, const string &type,
 			graphicsState->fresnelTextures.end()) {
 			LOG(LUX_WARNING,LUX_SYNTAX) << "Fresnel texture '" << n << "' being redefined.";
 		}
-		boost::shared_ptr<lux::Texture<FresnelGeneral> > fr(
+		std::shared_ptr<lux::Texture<FresnelGeneral> > fr(
 			MakeFresnelTexture(texname, curTransform.StaticTransform(), params));
 		if (fr)
 			graphicsState->fresnelTextures[n] = fr;
@@ -555,7 +555,7 @@ void lux::Context::NamedMaterial(const string &n) {
 		graphicsState->namedMaterials.end()) {
 		// Create a temporary to increase share count
 		// The copy operator is just a swap
-		boost::shared_ptr<lux::Material> m(graphicsState->namedMaterials[n]);
+		std::shared_ptr<lux::Material> m(graphicsState->namedMaterials[n]);
 		graphicsState->material = m;
 	} else {
 		LOG(LUX_ERROR,LUX_SYNTAX) << "Named material '" << n << "' unknown";
@@ -598,7 +598,7 @@ void lux::Context::LightSource(const string &n, const ParamSet &params) {
 		sunparams.EraseFloat("dconst");
 		sunparams.EraseFloat("econst");
 
-		boost::shared_ptr<Light> lt_sun(MakeLight("sun", curTransform.StaticTransform(), sunparams));
+		std::shared_ptr<Light> lt_sun(MakeLight("sun", curTransform.StaticTransform(), sunparams));
 		if (!lt_sun) {
 			LOG(LUX_ERROR,LUX_SYNTAX)<< "luxLightSource: light type sun unknown.";
 			graphicsState->currentLightPtr0.reset();
@@ -606,7 +606,7 @@ void lux::Context::LightSource(const string &n, const ParamSet &params) {
 			lt_sun->group = lg;
 			lt_sun->SetVolume(graphicsState->exterior);
 			if (renderOptions->currentLightInstance)
-				renderOptions->currentLightInstance->push_back(boost::shared_ptr<Light>(lt_sun));
+				renderOptions->currentLightInstance->push_back(std::shared_ptr<Light>(lt_sun));
 			else
 				renderOptions->lights.push_back(lt_sun);
 			graphicsState->currentLight = n;
@@ -617,7 +617,7 @@ void lux::Context::LightSource(const string &n, const ParamSet &params) {
 		ParamSet skyparams(params);
 		skyparams.EraseFloat("relsize");
 
-		boost::shared_ptr<Light> lt_sky(MakeLight("sky", curTransform.StaticTransform(), skyparams));
+		std::shared_ptr<Light> lt_sky(MakeLight("sky", curTransform.StaticTransform(), skyparams));
 		if (!lt_sky) {
 			LOG(LUX_ERROR,LUX_SYNTAX)<< "luxLightSource: light type sky unknown.";
 			graphicsState->currentLightPtr1.reset();
@@ -625,7 +625,7 @@ void lux::Context::LightSource(const string &n, const ParamSet &params) {
 			lt_sky->group = lg;
 			lt_sky->SetVolume(graphicsState->exterior);
 			if (renderOptions->currentLightInstance)
-				renderOptions->currentLightInstance->push_back(boost::shared_ptr<Light>(lt_sky));
+				renderOptions->currentLightInstance->push_back(std::shared_ptr<Light>(lt_sky));
 			else
 				renderOptions->lights.push_back(lt_sky);
 			graphicsState->currentLight = n;
@@ -636,7 +636,7 @@ void lux::Context::LightSource(const string &n, const ParamSet &params) {
 
 		ParamSet sunparams(params);
 
-		boost::shared_ptr<Light> lt_sun(MakeLight("sun", curTransform.StaticTransform(), sunparams));
+		std::shared_ptr<Light> lt_sun(MakeLight("sun", curTransform.StaticTransform(), sunparams));
 		if (!lt_sun) {
 			LOG(LUX_ERROR,LUX_SYNTAX)<< "luxLightSource: light type sun unknown.";
 			graphicsState->currentLightPtr0.reset();
@@ -644,7 +644,7 @@ void lux::Context::LightSource(const string &n, const ParamSet &params) {
 			lt_sun->group = lg;
 			lt_sun->SetVolume(graphicsState->exterior);
 			if (renderOptions->currentLightInstance)
-				renderOptions->currentLightInstance->push_back(boost::shared_ptr<Light>(lt_sun));
+				renderOptions->currentLightInstance->push_back(std::shared_ptr<Light>(lt_sun));
 			else
 				renderOptions->lights.push_back(lt_sun);
 			graphicsState->currentLight = n;
@@ -655,7 +655,7 @@ void lux::Context::LightSource(const string &n, const ParamSet &params) {
 		ParamSet skyparams(params);
 		skyparams.EraseFloat("relsize");
 
-		boost::shared_ptr<Light> lt_sky(MakeLight("sky2", curTransform.StaticTransform(), skyparams));
+		std::shared_ptr<Light> lt_sky(MakeLight("sky2", curTransform.StaticTransform(), skyparams));
 		if (!lt_sky) {
 			LOG(LUX_ERROR,LUX_SYNTAX)<< "luxLightSource: light type sky2 unknown.";
 			graphicsState->currentLightPtr1.reset();
@@ -663,7 +663,7 @@ void lux::Context::LightSource(const string &n, const ParamSet &params) {
 			lt_sky->group = lg;
 			lt_sky->SetVolume(graphicsState->exterior);
 			if (renderOptions->currentLightInstance)
-				renderOptions->currentLightInstance->push_back(boost::shared_ptr<Light>(lt_sky));
+				renderOptions->currentLightInstance->push_back(std::shared_ptr<Light>(lt_sky));
 			else
 				renderOptions->lights.push_back(lt_sky);
 			graphicsState->currentLight = n;
@@ -671,14 +671,14 @@ void lux::Context::LightSource(const string &n, const ParamSet &params) {
 		}
 	} else {
 		// other lightsource type
-		boost::shared_ptr<Light> lt(MakeLight(n, curTransform.StaticTransform(), params));
+		std::shared_ptr<Light> lt(MakeLight(n, curTransform.StaticTransform(), params));
 		if (!lt) {
 			LOG(LUX_ERROR,LUX_SYNTAX) << "luxLightSource: light type '" << n << "' unknown";
 		} else {
 			lt->group = lg;
 			lt->SetVolume(graphicsState->exterior);
 			if (renderOptions->currentLightInstance)
-				renderOptions->currentLightInstance->push_back(boost::shared_ptr<Light>(lt));
+				renderOptions->currentLightInstance->push_back(std::shared_ptr<Light>(lt));
 			else
 				renderOptions->lights.push_back(lt);
 			graphicsState->currentLight = n;
@@ -698,7 +698,7 @@ void lux::Context::AreaLightSource(const string &n, const ParamSet &params) {
 void lux::Context::PortalShape(const string &n, const ParamSet &params) {
 	VERIFY_WORLD("PortalShape");
 	renderFarm->send("luxPortalShape", n, params);
-	boost::shared_ptr<Primitive> sh(MakeShape(n, curTransform.StaticTransform(),
+	std::shared_ptr<Primitive> sh(MakeShape(n, curTransform.StaticTransform(),
 		graphicsState->reverseOrientation, params));
 	if (!sh)
 		return;
@@ -729,7 +729,7 @@ void lux::Context::Shape(const string &n, const ParamSet &params) {
 		const string sname = "'" + *sn + "'";
 		const_cast<ParamSet &>(params).AddString("name", &sname);
 	}
-	boost::shared_ptr<lux::Shape> sh(MakeShape(n, curTransform.StaticTransform(),
+	std::shared_ptr<lux::Shape> sh(MakeShape(n, curTransform.StaticTransform(),
 		graphicsState->reverseOrientation, params));
 	if (!sh)
 		return;
@@ -739,7 +739,7 @@ void lux::Context::Shape(const string &n, const ParamSet &params) {
 	if (graphicsState->material)
 		sh->SetMaterial(graphicsState->material);
 	else {
-		boost::shared_ptr<lux::Material> m(MakeMaterial("matte",
+		std::shared_ptr<lux::Material> m(MakeMaterial("matte",
 			curTransform.StaticTransform(), ParamSet()));
 		sh->SetMaterial(m);
 	}
@@ -750,7 +750,7 @@ void lux::Context::Shape(const string &n, const ParamSet &params) {
 	if (renderOptions->currentInstanceRefined) {
 		if (graphicsState->areaLight != "") {
 			u_int lg = GetLightGroup();
-			boost::shared_ptr<AreaLight> area(MakeAreaLight(graphicsState->areaLight,
+			std::shared_ptr<AreaLight> area(MakeAreaLight(graphicsState->areaLight,
 				curTransform.StaticTransform(),
 				graphicsState->areaLightParams, sh));
 			if (area) {
@@ -758,19 +758,19 @@ void lux::Context::Shape(const string &n, const ParamSet &params) {
 				area->SetVolume(graphicsState->exterior); //unused
 			}
 			// Lotus - add a decorator to set the arealight field
-			boost::shared_ptr<Primitive> pr(sh);
-			boost::shared_ptr<AreaLightPrimitive> prim(new AreaLightPrimitive(pr, area));
-			vector<boost::shared_ptr<AreaLightPrimitive> > aList;
+			std::shared_ptr<Primitive> pr(sh);
+			std::shared_ptr<AreaLightPrimitive> prim(new AreaLightPrimitive(pr, area));
+			vector<std::shared_ptr<AreaLightPrimitive> > aList;
 			if (!prim->CanIntersect()) {
 				// When refining the primitive, there's no way
 				// To tell that all refined primitives will be
 				// AreaLightPrimitive, so do some pointer tricks
 				// to add the refined primitives.
-				vector<boost::shared_ptr<Primitive> > tmp;
+				vector<std::shared_ptr<Primitive> > tmp;
 				prim->Refine(tmp,
 					PrimitiveRefinementHints(true), prim);
 				for (u_int i = 0; i < tmp.size(); ++i)
-					aList.push_back(*((boost::shared_ptr<AreaLightPrimitive> *)(&(tmp[i]))));
+					aList.push_back(*((std::shared_ptr<AreaLightPrimitive> *)(&(tmp[i]))));
 			} else
 				aList.push_back(prim);
 			renderOptions->currentAreaLightInstance->push_back(aList);
@@ -784,7 +784,7 @@ void lux::Context::Shape(const string &n, const ParamSet &params) {
 		}
 	} else if (graphicsState->areaLight != "") {
 		u_int lg = GetLightGroup();
-		boost::shared_ptr<AreaLight> area(MakeAreaLight(graphicsState->areaLight,
+		std::shared_ptr<AreaLight> area(MakeAreaLight(graphicsState->areaLight,
 			curTransform.StaticTransform(),
 			graphicsState->areaLightParams, sh));
 		if (area) {
@@ -792,8 +792,8 @@ void lux::Context::Shape(const string &n, const ParamSet &params) {
 			area->SetVolume(graphicsState->exterior); //unused
 		}
 		// Lotus - add a decorator to set the arealight field
-		boost::shared_ptr<Primitive> pr(sh);
-		boost::shared_ptr<Primitive> prim(new AreaLightPrimitive(pr,
+		std::shared_ptr<Primitive> pr(sh);
+		std::shared_ptr<Primitive> prim(new AreaLightPrimitive(pr,
 			area));
 		renderOptions->primitives.push_back(prim);
 		// Add area light for primitive to light vector
@@ -823,12 +823,12 @@ void lux::Context::Exterior(const string &n) {
 	VERIFY_WORLD("Exterior");
 	renderFarm->send("luxExterior", n);
 	if (n == "")
-		graphicsState->exterior = boost::shared_ptr<lux::Volume>();
+		graphicsState->exterior = std::shared_ptr<lux::Volume>();
 	else if (graphicsState->namedVolumes.find(n) !=
 		graphicsState->namedVolumes.end()) {
 		// Create a temporary to increase share count
 		// The copy operator is just a swap
-		boost::shared_ptr<lux::Volume> v(graphicsState->namedVolumes[n]);
+		std::shared_ptr<lux::Volume> v(graphicsState->namedVolumes[n]);
 		graphicsState->exterior = v;
 	} else {
 		LOG(LUX_ERROR, LUX_SYNTAX) << "Exterior named volume '" << n <<
@@ -839,12 +839,12 @@ void lux::Context::Interior(const string &n) {
 	VERIFY_WORLD("Interior");
 	renderFarm->send("luxInterior", n);
 	if (n == "")
-		graphicsState->interior = boost::shared_ptr<lux::Volume>();
+		graphicsState->interior = std::shared_ptr<lux::Volume>();
 	else if (graphicsState->namedVolumes.find(n) !=
 		graphicsState->namedVolumes.end()) {
 		// Create a temporary to increase share count
 		// The copy operator is just a swap
-		boost::shared_ptr<lux::Volume> v(graphicsState->namedVolumes[n]);
+		std::shared_ptr<lux::Volume> v(graphicsState->namedVolumes[n]);
 		graphicsState->interior = v;
 	} else {
 		LOG(LUX_ERROR, LUX_SYNTAX) << "Interior named volume '" << n <<
@@ -860,13 +860,13 @@ void lux::Context::ObjectBegin(const string &n) {
 			"ObjectBegin called inside of instance definition";
 		return;
 	}
-	renderOptions->instancesSource[n] = vector<boost::shared_ptr<Primitive> >();
-	renderOptions->instancesRefined[n] = vector<boost::shared_ptr<Primitive> >();
+	renderOptions->instancesSource[n] = vector<std::shared_ptr<Primitive> >();
+	renderOptions->instancesRefined[n] = vector<std::shared_ptr<Primitive> >();
 	renderOptions->currentInstanceSource = &renderOptions->instancesSource[n];
 	renderOptions->currentInstanceRefined = &renderOptions->instancesRefined[n];
-	renderOptions->lightInstances[n] = vector<boost::shared_ptr<Light> >();
+	renderOptions->lightInstances[n] = vector<std::shared_ptr<Light> >();
 	renderOptions->currentLightInstance = &renderOptions->lightInstances[n];
-	renderOptions->areaLightInstances[n] = vector<vector<boost::shared_ptr<AreaLightPrimitive> > >();
+	renderOptions->areaLightInstances[n] = vector<vector<std::shared_ptr<AreaLightPrimitive> > >();
 	renderOptions->currentAreaLightInstance = &renderOptions->areaLightInstances[n];
 }
 void lux::Context::ObjectEnd() {
@@ -892,8 +892,8 @@ void lux::Context::ObjectInstance(const string &n) {
 		return;
 	}
 
-	vector<boost::shared_ptr<Primitive> > &inSource = renderOptions->instancesSource[n];
-	vector<boost::shared_ptr<Primitive> > &in = renderOptions->instancesRefined[n];
+	vector<std::shared_ptr<Primitive> > &inSource = renderOptions->instancesSource[n];
+	vector<std::shared_ptr<Primitive> > &in = renderOptions->instancesRefined[n];
 	if (renderOptions->currentInstanceRefined == &in) {
 		LOG(LUX_ERROR,LUX_NESTING) << "ObjectInstance '" << n << "' self reference";
 		return;
@@ -901,8 +901,8 @@ void lux::Context::ObjectInstance(const string &n) {
 	for (u_int i = 0; i < renderOptions->areaLightInstances[n].size(); ++i) {
 		if (renderOptions->areaLightInstances[n][i].size() == 0)
 			continue;
-		boost::shared_ptr<AreaLight> li(renderOptions->areaLightInstances[n][i][0]->GetAreaLight());
-		boost::shared_ptr<AreaLight> l;
+		std::shared_ptr<AreaLight> li(renderOptions->areaLightInstances[n][i][0]->GetAreaLight());
+		std::shared_ptr<AreaLight> l;
 		if (curTransform.IsStatic())
 			l.reset(new InstanceAreaLight(curTransform.StaticTransform(), li));
 		else
@@ -912,21 +912,21 @@ void lux::Context::ObjectInstance(const string &n) {
 			renderOptions->lights.push_back(l);
 		// Add the instanced primitives
 		if (renderOptions->currentAreaLightInstance)
-			renderOptions->currentAreaLightInstance->push_back(vector<boost::shared_ptr<AreaLightPrimitive> >());
+			renderOptions->currentAreaLightInstance->push_back(vector<std::shared_ptr<AreaLightPrimitive> >());
 		for (u_int j = 0; j < renderOptions->areaLightInstances[n][i].size(); ++j) {
-			boost::shared_ptr<Primitive> pi(renderOptions->areaLightInstances[n][i][j]->GetPrimitive());
+			std::shared_ptr<Primitive> pi(renderOptions->areaLightInstances[n][i][j]->GetPrimitive());
 			AreaLightPrimitive *ap;
-			vector<boost::shared_ptr<Primitive> > source;
+			vector<std::shared_ptr<Primitive> > source;
 			source.push_back(pi);
 			if (curTransform.IsStatic()) {
-				boost::shared_ptr<Primitive> p(new InstancePrimitive(source,
+				std::shared_ptr<Primitive> p(new InstancePrimitive(source,
 					pi, curTransform.StaticTransform(),
 					graphicsState->material,
 					graphicsState->exterior,
 					graphicsState->interior));
 				ap = new AreaLightPrimitive(p, l);
 			} else {
-				boost::shared_ptr<Primitive> p(new MotionPrimitive(source,
+				std::shared_ptr<Primitive> p(new MotionPrimitive(source,
 					pi, curTransform.GetMotionSystem(),
 					graphicsState->material,
 					graphicsState->exterior,
@@ -934,10 +934,10 @@ void lux::Context::ObjectInstance(const string &n) {
 				ap = new AreaLightPrimitive(p, l);
 			}
 			if (renderOptions->currentAreaLightInstance)
-				renderOptions->currentAreaLightInstance->back().push_back(boost::shared_ptr<AreaLightPrimitive>(ap));
+				renderOptions->currentAreaLightInstance->back().push_back(std::shared_ptr<AreaLightPrimitive>(ap));
 			else {
 				// Area lights are already fully refined
-				boost::shared_ptr<Primitive> sap(ap);
+				std::shared_ptr<Primitive> sap(ap);
 				inSource.push_back(sap);
 				renderOptions->primitives.push_back(sap);
 			}
@@ -946,7 +946,7 @@ void lux::Context::ObjectInstance(const string &n) {
 	if (in.size() != 0) {
 		if (in.size() > 1 || !in[0]->CanIntersect()) {
 			// Refine instance _Primitive_s and create aggregate
-			boost::shared_ptr<Primitive> accel(
+			std::shared_ptr<Primitive> accel(
 				MakeAccelerator(renderOptions->acceleratorName,
 				in, renderOptions->acceleratorParams));
 			if (!accel)
@@ -959,15 +959,15 @@ void lux::Context::ObjectInstance(const string &n) {
 			in.push_back(accel);
 		}
 
-		boost::shared_ptr<Primitive> o;
+		std::shared_ptr<Primitive> o;
 		if (curTransform.IsStatic()) {
-			o = boost::shared_ptr<Primitive>(new InstancePrimitive(inSource, in[0],
+			o = std::shared_ptr<Primitive>(new InstancePrimitive(inSource, in[0],
 				curTransform.StaticTransform(),
 				graphicsState->material,
 				graphicsState->exterior,
 				graphicsState->interior));
 		} else {
-			o = boost::shared_ptr<Primitive>(new MotionPrimitive(inSource, in[0],
+			o = std::shared_ptr<Primitive>(new MotionPrimitive(inSource, in[0],
 				curTransform.GetMotionSystem(),
 				graphicsState->material,
 				graphicsState->exterior,
@@ -979,9 +979,9 @@ void lux::Context::ObjectInstance(const string &n) {
 		} else
 			renderOptions->primitives.push_back(o);
 	}
-	vector<boost::shared_ptr<Light> > &li = renderOptions->lightInstances[n];
+	vector<std::shared_ptr<Light> > &li = renderOptions->lightInstances[n];
 	for (u_int i = 0; i < li.size(); ++i) {
-		boost::shared_ptr<Light> l;
+		std::shared_ptr<Light> l;
 		if (curTransform.IsStatic())
 			l.reset(new InstanceLight(curTransform.StaticTransform(),
 				li[i]));
@@ -989,7 +989,7 @@ void lux::Context::ObjectInstance(const string &n) {
 			l.reset(new MotionLight(curTransform.GetMotionSystem(),
 				li[i]));
 		if (renderOptions->currentLightInstance)
-			renderOptions->currentLightInstance->push_back(boost::shared_ptr<Light>(l));
+			renderOptions->currentLightInstance->push_back(std::shared_ptr<Light>(l));
 		else
 			renderOptions->lights.push_back(l);
 	}
@@ -1002,7 +1002,7 @@ void lux::Context::PortalInstance(const string &n) {
 		LOG(LUX_ERROR,LUX_BADTOKEN) << "Unable to find instance named '" << n << "'";
 		return;
 	}
-	vector<boost::shared_ptr<Primitive> > &in = renderOptions->instancesRefined[n];
+	vector<std::shared_ptr<Primitive> > &in = renderOptions->instancesRefined[n];
 	if (renderOptions->currentInstanceRefined == &in) {
 		LOG(LUX_ERROR,LUX_NESTING) << "PortalInstance '" << n << "' self reference";
 		return;
@@ -1028,8 +1028,8 @@ void lux::Context::MotionInstance(const string &n, float startTime, float endTim
 		LOG(LUX_ERROR,LUX_BADTOKEN) << "Unable to find instance named '" << n << "'";
 		return;
 	}
-	vector<boost::shared_ptr<Primitive> > &inSource = renderOptions->instancesSource[n];
-	vector<boost::shared_ptr<Primitive> > &in = renderOptions->instancesRefined[n];
+	vector<std::shared_ptr<Primitive> > &inSource = renderOptions->instancesSource[n];
+	vector<std::shared_ptr<Primitive> > &in = renderOptions->instancesRefined[n];
 	if (renderOptions->currentInstanceRefined == &in) {
 		LOG(LUX_ERROR,LUX_NESTING) << "MotionInstance '" << n << "' self reference";
 		return;
@@ -1038,7 +1038,7 @@ void lux::Context::MotionInstance(const string &n, float startTime, float endTim
 		return;
 	if (in.size() > 1 || !in[0]->CanIntersect()) {
 		// Refine instance _Primitive_s and create aggregate
-		boost::shared_ptr<Primitive> accel(
+		std::shared_ptr<Primitive> accel(
 			MakeAccelerator(renderOptions->acceleratorName, in,
 			renderOptions->acceleratorParams));
 		if (!accel)
@@ -1067,7 +1067,7 @@ void lux::Context::MotionInstance(const string &n, float startTime, float endTim
 
 	MotionSystem ms(times, transforms);
 
-	boost::shared_ptr<Primitive> o(new MotionPrimitive(inSource, in[0], ms, graphicsState->material,
+	std::shared_ptr<Primitive> o(new MotionPrimitive(inSource, in[0], ms, graphicsState->material,
 		graphicsState->exterior, graphicsState->interior));
 	renderOptions->primitives.push_back(o);
 }
@@ -1146,7 +1146,7 @@ Scene *lux::Context::RenderOptions::MakeScene() const {
 		surfIntegratorName, surfIntegratorParams);
 	lux::VolumeIntegrator *volumeIntegrator = MakeVolumeIntegrator(
 		volIntegratorName, volIntegratorParams);
-	boost::shared_ptr<Primitive> accelerator(MakeAccelerator(acceleratorName,
+	std::shared_ptr<Primitive> accelerator(MakeAccelerator(acceleratorName,
 		primitives, acceleratorParams));
 	if (!accelerator) {
 		ParamSet ps;

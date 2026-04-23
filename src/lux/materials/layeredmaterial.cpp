@@ -37,8 +37,8 @@
 using namespace lux;
 
 void LayeredMaterial::addMat(MemoryArena &arena, const SpectrumWavelengths &sw, const Intersection &isect, 
-							 const DifferentialGeometry &dgShading, boost::shared_ptr<Material> mat,
-							 LayeredBSDF *lbsdf, boost::shared_ptr<Texture<float> > opacity) const{
+							 const DifferentialGeometry &dgShading, std::shared_ptr<Material> mat,
+							 LayeredBSDF *lbsdf, std::shared_ptr<Texture<float> > opacity) const{
 
 	DifferentialGeometry dgS = dgShading;
 	mat->GetShadingGeometry(sw, isect.dg.nn, &dgS);
@@ -104,20 +104,20 @@ Material* LayeredMaterial::CreateMaterial(const Transform &xform,
 	
 	LOG(LUX_WARNING,LUX_UNIMPLEMENT) << "The LayeredMaterial is still in development and may be unstable. USE IT AT YOUR OWN RISK.";
 	
-	boost::shared_ptr<Material> mat1(mp.GetMaterial("namedmaterial1"));
-	boost::shared_ptr<Material> mat2(mp.GetMaterial("namedmaterial2"));
-	boost::shared_ptr<Material> mat3(mp.GetMaterial("namedmaterial3"));
-	boost::shared_ptr<Material> mat4(mp.GetMaterial("namedmaterial4"));
+	std::shared_ptr<Material> mat1(mp.GetMaterial("namedmaterial1"));
+	std::shared_ptr<Material> mat2(mp.GetMaterial("namedmaterial2"));
+	std::shared_ptr<Material> mat3(mp.GetMaterial("namedmaterial3"));
+	std::shared_ptr<Material> mat4(mp.GetMaterial("namedmaterial4"));
 	
-	boost::shared_ptr<Texture<float> > opacity1(mp.GetFloatTexture("opacity1",1.0f));
-	boost::shared_ptr<Texture<float> > opacity2(mp.GetFloatTexture("opacity2",1.0f));
-	boost::shared_ptr<Texture<float> > opacity3(mp.GetFloatTexture("opacity3",1.0f));
-	boost::shared_ptr<Texture<float> > opacity4(mp.GetFloatTexture("opacity4",1.0f));
+	std::shared_ptr<Texture<float> > opacity1(mp.GetFloatTexture("opacity1",1.0f));
+	std::shared_ptr<Texture<float> > opacity2(mp.GetFloatTexture("opacity2",1.0f));
+	std::shared_ptr<Texture<float> > opacity3(mp.GetFloatTexture("opacity3",1.0f));
+	std::shared_ptr<Texture<float> > opacity4(mp.GetFloatTexture("opacity4",1.0f));
 	
 	return new LayeredMaterial(mp,mat1,mat2,mat3,mat4,opacity1,opacity2,opacity3,opacity4);
 }
 /*
-void LayeredMaterial::setMaterial(int slot, boost::shared_ptr<Material> &mat){
+void LayeredMaterial::setMaterial(int slot, std::shared_ptr<Material> &mat){
 	if (slot==0) { mat1=mat; numset=1;}
 	if (slot==1) { mat2=mat; numset=2;}
 	if (slot==2) { mat3=mat; numset=3;}

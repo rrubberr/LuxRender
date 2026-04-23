@@ -43,7 +43,7 @@ template <class T1, class T2>
 class SubtractTexture : public Texture<T2> {
 public:
 	// SubtractTexture Public Methods
-	SubtractTexture(boost::shared_ptr<Texture<T1> > &t1, boost::shared_ptr<Texture<T2> > &t2) :
+	SubtractTexture(std::shared_ptr<Texture<T1> > &t1, std::shared_ptr<Texture<T2> > &t2) :
 		Texture<T2>("SubtractTexture-" + boost::lexical_cast<string>(this)), tex1(t1), tex2(t2) { 
 		// Nothing
 	}
@@ -100,8 +100,8 @@ public:
 	static Texture<SWCSpectrum> * CreateSWCSpectrumTexture(const Transform &tex2world, const ParamSet &tp);
 
 private:
-	boost::shared_ptr<Texture<T1> > tex1;
-	boost::shared_ptr<Texture<T2> > tex2;
+	std::shared_ptr<Texture<T1> > tex1;
+	std::shared_ptr<Texture<T2> > tex2;
 
 };
 
@@ -109,7 +109,7 @@ private:
 template <class T, class U> inline Texture<float> * SubtractTexture<T,U>::CreateFloatTexture(const Transform &tex2world,
 	const ParamSet &tp)
 {
-	boost::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("tex1", 1.f)),
+	std::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("tex1", 1.f)),
 		tex2(tp.GetFloatTexture("tex2", 1.f));
 	return new SubtractTexture<float, float>(tex1,tex2);
 }
@@ -117,7 +117,7 @@ template <class T, class U> inline Texture<float> * SubtractTexture<T,U>::Create
 template <class T,class U> inline Texture<SWCSpectrum> * SubtractTexture<T,U>::CreateSWCSpectrumTexture(const Transform &tex2world,
 	const ParamSet &tp)
 {
-	boost::shared_ptr<Texture<SWCSpectrum> > tex1(tp.GetSWCSpectrumTexture("tex1", RGBColor(1.f))),
+	std::shared_ptr<Texture<SWCSpectrum> > tex1(tp.GetSWCSpectrumTexture("tex1", RGBColor(1.f))),
 		tex2(tp.GetSWCSpectrumTexture("tex2", RGBColor(1.f)));
 	return new SubtractTexture<SWCSpectrum, SWCSpectrum>(tex1, tex2);
 }

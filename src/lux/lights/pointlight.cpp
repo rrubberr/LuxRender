@@ -138,7 +138,7 @@ protected:
 
 // PointLight Method Definitions
 PointLight::PointLight(const Transform &light2world,
-	const boost::shared_ptr< Texture<SWCSpectrum> > &L,
+	const std::shared_ptr< Texture<SWCSpectrum> > &L,
 	float g, float power, float efficacy,
 	SampleableSphericalFunction *ssf) :
 	Light("PointLight-" + boost::lexical_cast<string>(this), light2world),
@@ -210,12 +210,12 @@ bool PointLight::SampleL(const Scene &scene, const Sample &sample,
 }
 Light* PointLight::CreateLight(const Transform &light2world,
 		const ParamSet &paramSet) {
-	boost::shared_ptr<Texture<SWCSpectrum> > L(paramSet.GetSWCSpectrumTexture("L", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > L(paramSet.GetSWCSpectrumTexture("L", RGBColor(1.f)));
 	float g = paramSet.FindOneFloat("gain", 1.f);
 	float p = paramSet.FindOneFloat("power", 0.f);		// Power/Lm in Watts
 	float e = paramSet.FindOneFloat("efficacy", 0.f);	// Efficacy Lm per Watt
 
-	boost::shared_ptr<const SphericalFunction> sf(CreateSphericalFunction(paramSet));
+	std::shared_ptr<const SphericalFunction> sf(CreateSphericalFunction(paramSet));
 	SampleableSphericalFunction *ssf = NULL;
 	if(sf)
 		ssf = new SampleableSphericalFunction(sf);

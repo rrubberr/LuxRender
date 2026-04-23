@@ -60,7 +60,7 @@ public:
 			Bump(sw, nGeom, dgBump);
 	}
 
-	boost::shared_ptr<Texture<float> > bumpMap;
+	std::shared_ptr<Texture<float> > bumpMap;
 	float bumpmapSampleDistance;
 	CompositingParams compParams;
 };

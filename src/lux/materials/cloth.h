@@ -56,11 +56,11 @@ namespace lux
 class Cloth : public Material {
 public:
 	// Cloth Public Methods
-	Cloth(boost::shared_ptr<Texture<SWCSpectrum> > &warp_kd,
-		  boost::shared_ptr<Texture<SWCSpectrum> > &warp_ks,
-		  boost::shared_ptr<Texture<SWCSpectrum> > &weft_kd,
-		  boost::shared_ptr<Texture<SWCSpectrum> > &weft_ks,
-		  boost::shared_ptr<WeavePattern> &pattern,
+	Cloth(std::shared_ptr<Texture<SWCSpectrum> > &warp_kd,
+		  std::shared_ptr<Texture<SWCSpectrum> > &warp_ks,
+		  std::shared_ptr<Texture<SWCSpectrum> > &weft_kd,
+		  std::shared_ptr<Texture<SWCSpectrum> > &weft_ks,
+		  std::shared_ptr<WeavePattern> &pattern,
 		  const ParamSet &mp, string presetname);
 	virtual ~Cloth() { }
 
@@ -68,10 +68,10 @@ public:
 		const Intersection &isect,
 		const DifferentialGeometry &dgShading) const;
 
-	Texture<SWCSpectrum> *GetWarpKdTexture() { return ((boost::shared_ptr<Texture<SWCSpectrum> >)Kds[0]).get(); }
-	Texture<SWCSpectrum> *GetWarpKsTexture() { return ((boost::shared_ptr<Texture<SWCSpectrum> >)Kss[0]).get(); }
-	Texture<SWCSpectrum> *GetWeftKdTexture() { return ((boost::shared_ptr<Texture<SWCSpectrum> >)Kds[1]).get(); }
-	Texture<SWCSpectrum> *GetWeftKsTexture() { return ((boost::shared_ptr<Texture<SWCSpectrum> >)Kss[1]).get(); }
+	Texture<SWCSpectrum> *GetWarpKdTexture() { return ((std::shared_ptr<Texture<SWCSpectrum> >)Kds[0]).get(); }
+	Texture<SWCSpectrum> *GetWarpKsTexture() { return ((std::shared_ptr<Texture<SWCSpectrum> >)Kss[0]).get(); }
+	Texture<SWCSpectrum> *GetWeftKdTexture() { return ((std::shared_ptr<Texture<SWCSpectrum> >)Kds[1]).get(); }
+	Texture<SWCSpectrum> *GetWeftKsTexture() { return ((std::shared_ptr<Texture<SWCSpectrum> >)Kss[1]).get(); }
 	std::string GetPresetName() { return presetName; }
 	float GetRepeatU() { return Pattern->repeat_u; }
 	float GetRepeatV() { return Pattern->repeat_v; }
@@ -79,8 +79,8 @@ public:
 	static Material * CreateMaterial(const Transform &xform, const ParamSet &mp);
 private:
 	// Cloth Private Data
-	vector<boost::shared_ptr<Texture<SWCSpectrum> > >Kds, Kss;
-	boost::shared_ptr<WeavePattern> Pattern;
+	vector<std::shared_ptr<Texture<SWCSpectrum> > >Kds, Kss;
+	std::shared_ptr<WeavePattern> Pattern;
 	string presetName;
 	float specularNormalization;
 };

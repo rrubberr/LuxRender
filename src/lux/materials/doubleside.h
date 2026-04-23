@@ -31,8 +31,8 @@ class DoubleSideMaterial : public Material {
 public:
 	// DoubleSideMaterial Public Methods
 	DoubleSideMaterial(
-		boost::shared_ptr<Material> &frontm,
-		boost::shared_ptr<Material> &backm,
+		std::shared_ptr<Material> &frontm,
+		std::shared_ptr<Material> &backm,
 		const bool ufront, const bool uback,
 		const ParamSet &mp) : Material("DoubleSideMaterial-" + boost::lexical_cast<string>(this), mp, false),
 		frontMat(frontm), backMat(backm), useFrontForFrontMat(ufront), useFrontForBackMat(uback) { }
@@ -49,7 +49,7 @@ public:
 
 private:
 	// DoubleSideMaterial Private Data
-	boost::shared_ptr<Material> frontMat, backMat;
+	std::shared_ptr<Material> frontMat, backMat;
 	bool useFrontForFrontMat, useFrontForBackMat;
 };
 

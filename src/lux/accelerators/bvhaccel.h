@@ -43,8 +43,8 @@ namespace lux
 struct BVHAccelTreeNode {
     BBox bbox;
     Primitive *primitive;
-    boost::shared_ptr<BVHAccelTreeNode> leftChild;
-    boost::shared_ptr<BVHAccelTreeNode> rightSibling;
+    std::shared_ptr<BVHAccelTreeNode> leftChild;
+    std::shared_ptr<BVHAccelTreeNode> rightSibling;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ struct WBVHNode : public luxrays::Aligned32 {
 // ─────────────────────────────────────────────────────────────────────────────
 class BVHAccel : public Aggregate {
 public:
-    BVHAccel(const vector<boost::shared_ptr<Primitive> > &p, u_int treetype,
+    BVHAccel(const vector<std::shared_ptr<Primitive> > &p, u_int treetype,
              int csamples, int icost, int tcost, float ebonus);
     virtual ~BVHAccel();
 
@@ -90,29 +90,29 @@ public:
     virtual bool Intersect(const Ray &ray, Intersection *isect) const;
     virtual bool IntersectP(const Ray &ray) const;
     virtual Transform GetLocalToWorld(float /*time*/) const { return Transform(); }
-    virtual void GetPrimitives(vector<boost::shared_ptr<Primitive> > &prims) const;
+    virtual void GetPrimitives(vector<std::shared_ptr<Primitive> > &prims) const;
 
     static Aggregate *CreateAccelerator(
-        const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps);
+        const vector<std::shared_ptr<Primitive> > &prims, const ParamSet &ps);
 
 private:
     // ── build helpers (unchanged from original) ───────────────────────────
-    boost::shared_ptr<BVHAccelTreeNode> BuildHierarchy(
-        vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
+    std::shared_ptr<BVHAccelTreeNode> BuildHierarchy(
+        vector<std::shared_ptr<BVHAccelTreeNode> > &list,
         u_int begin, u_int end, u_int axis);
     void FindBestSplit(
-        vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
+        vector<std::shared_ptr<BVHAccelTreeNode> > &list,
         u_int begin, u_int end, float *splitValue, u_int *bestAxis);
 
     // ── SAH-based collapsing (Wald et al. 2008, Section 4.2) ─────────────
     // Pulls inner-node grandchildren into the parent when profitable and
     // within the 8-child capacity, top-down, then recurses into children.
-    void CollapseNode(boost::shared_ptr<BVHAccelTreeNode> node);
+    void CollapseNode(std::shared_ptr<BVHAccelTreeNode> node);
 
     // ── WBVHNode array construction ───────────────────────────────────────
     // Converts the collapsed linked tree to a flat WBVHNode array.
     // Returns the next free node index after this subtree.
-    u_int BuildWideArray(boost::shared_ptr<BVHAccelTreeNode> node,
+    u_int BuildWideArray(std::shared_ptr<BVHAccelTreeNode> node,
                          u_int nodeIdx,
                          vector<Primitive *> &leafPrimsVec);
 
@@ -124,7 +124,7 @@ private:
 
     // ── primitives (kept for GetPrimitives) ───────────────────────────────
     u_int nPrims;
-    boost::shared_ptr<Primitive> *prims;
+    std::shared_ptr<Primitive> *prims;
 
     // ── wide BVH runtime data ─────────────────────────────────────────────
     u_int     nWBVHNodes;

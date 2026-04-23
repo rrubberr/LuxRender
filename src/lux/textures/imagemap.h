@@ -81,7 +81,7 @@ public:
 		// If the map isn't used anymore, remove it from the cache
 		// The last user still has 2 references:
 		// 1 from the texture and 1 from the dictionary
-		for (map<TexInfo, boost::shared_ptr<MIPMap> >::iterator t = textures.begin(); t != textures.end(); ++t) {
+		for (map<TexInfo, std::shared_ptr<MIPMap> >::iterator t = textures.begin(); t != textures.end(); ++t) {
 			if ((*t).second.get() == mipmap.get() &&
 				(*t).second.use_count() == 2) {
 				textures.erase(t);
@@ -96,14 +96,14 @@ public:
 	const TexInfo &GetInfo() const { return info; }
 
 private:
-	static map<TexInfo, boost::shared_ptr<MIPMap> > textures;
+	static map<TexInfo, std::shared_ptr<MIPMap> > textures;
 
 	// ImageTexture Private Methods
-	static boost::shared_ptr<MIPMap> GetTexture(const TexInfo &texInfo);
+	static std::shared_ptr<MIPMap> GetTexture(const TexInfo &texInfo);
 
 protected:
 	// ImageTexture Protected Data
-	boost::shared_ptr<MIPMap> mipmap;
+	std::shared_ptr<MIPMap> mipmap;
 	TextureMapping2D *mapping;
 	TexInfo info;
 };
@@ -231,7 +231,7 @@ private:
 };
 
 // ImageTexture Method Definitions
-inline boost::shared_ptr<MIPMap> ImageTexture::GetTexture(const TexInfo &texInfo) {
+inline std::shared_ptr<MIPMap> ImageTexture::GetTexture(const TexInfo &texInfo) {
 	// Look for texture in texture cache
 	if (textures.find(texInfo) != textures.end()) {
 		LOG(LUX_INFO, LUX_NOERROR) << "Reusing data for imagemap '" <<
@@ -239,15 +239,15 @@ inline boost::shared_ptr<MIPMap> ImageTexture::GetTexture(const TexInfo &texInfo
 		return textures[texInfo];
 	}
 	std::auto_ptr<ImageData> imgdata(ReadImage(texInfo.filename));
-	boost::shared_ptr<MIPMap> ret;
+	std::shared_ptr<MIPMap> ret;
 	if (imgdata.get() != NULL) {
-		ret = boost::shared_ptr<MIPMap>(imgdata->createMIPMap(
+		ret = std::shared_ptr<MIPMap>(imgdata->createMIPMap(
 				texInfo.filterType, texInfo.maxAniso, texInfo.wrapMode, texInfo.gain, texInfo.gamma));
 	} else {
 		// Create one-valued _MIPMap_
 		TextureColor<float, 1> oneVal(1.f);
 
-		ret = boost::shared_ptr<MIPMap>(new MIPMapFastImpl<TextureColor<float, 1> >(
+		ret = std::shared_ptr<MIPMap>(new MIPMapFastImpl<TextureColor<float, 1> >(
 				texInfo.filterType, 1, 1, &oneVal));
 	}
 	if (ret) {
@@ -269,7 +269,7 @@ inline boost::shared_ptr<MIPMap> ImageTexture::GetTexture(const TexInfo &texInfo
 	LOG(LUX_ERROR, LUX_SYSTEM) << "Creation of imagemap '" << texInfo.filename <<
 		"' failed";
 
-	return boost::shared_ptr<MIPMap>();
+	return std::shared_ptr<MIPMap>();
 }
 
 }//namespace lux

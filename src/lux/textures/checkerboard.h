@@ -40,8 +40,8 @@ class Checkerboard2D : public Texture<float> {
 public:
 	// Checkerboard2D Public Methods
 	Checkerboard2D(TextureMapping2D *m,
-		boost::shared_ptr<Texture<float> > &c1,
-		boost::shared_ptr<Texture<float> > &c2, const string &aa) :
+		std::shared_ptr<Texture<float> > &c1,
+		std::shared_ptr<Texture<float> > &c2, const string &aa) :
 		Texture("Checkerboard2D-" + boost::lexical_cast<string>(this)),
 		tex1(c1), tex2(c2), mapping(m) {
 		// Select anti-aliasing method for _Checkerboard2D_
@@ -216,7 +216,7 @@ private:
 	typedef enum { NONE, SUPERSAMPLE, CLOSEDFORM } MethodType;
 
 	// Checkerboard2D Private Data
-	boost::shared_ptr<Texture<float> > tex1, tex2;
+	std::shared_ptr<Texture<float> > tex1, tex2;
 	TextureMapping2D *mapping;
 	MethodType aaMethod;
 };
@@ -224,8 +224,8 @@ class Checkerboard3D : public Texture<float> {
 public:
 	// Checkerboard3D Public Methods
 	Checkerboard3D(TextureMapping3D *m,
-		boost::shared_ptr<Texture<float> > &c1,
-		boost::shared_ptr<Texture<float> > &c2) :
+		std::shared_ptr<Texture<float> > &c1,
+		std::shared_ptr<Texture<float> > &c2) :
 		Texture("Checkerboard3D-" + boost::lexical_cast<string>(this)),
 		tex1(c1), tex2(c2), mapping(m) { }
 	virtual ~Checkerboard3D() { delete mapping; }
@@ -374,7 +374,7 @@ public:
 
 private:
 	// Checkerboard3D Private Data
-	boost::shared_ptr<Texture<float> > tex1, tex2;
+	std::shared_ptr<Texture<float> > tex1, tex2;
 	TextureMapping3D *mapping;
 };
 

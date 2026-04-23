@@ -59,8 +59,8 @@ BSDF *Matte::GetBSDF(MemoryArena &arena, const SpectrumWavelengths &sw,
 }
 Material* Matte::CreateMaterial(const Transform &xform,
 		const ParamSet &mp) {
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(.9f)));
-	boost::shared_ptr<Texture<float> > sigma(mp.GetFloatTexture("sigma", 0.f));
+	std::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(.9f)));
+	std::shared_ptr<Texture<float> > sigma(mp.GetFloatTexture("sigma", 0.f));
 	return new Matte(Kd, sigma, mp);
 }
 

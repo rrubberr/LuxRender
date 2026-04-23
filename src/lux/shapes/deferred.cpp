@@ -61,7 +61,7 @@ void DeferredLoadShape::LoadShape() const {
 
 			// Check if I have to refine the shape
 			if (!shape->CanIntersect()) {
-				vector<boost::shared_ptr<Primitive> > refined;
+				vector<std::shared_ptr<Primitive> > refined;
 				shape->Refine(refined, PrimitiveRefinementHints(false), shape);
 				accelerator = MakeAccelerator("qbvh", refined, ParamSet());
 				prim = accelerator.get();

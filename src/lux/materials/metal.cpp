@@ -45,9 +45,9 @@ using namespace luxrays;
 using namespace lux;
 
 Metal::Metal(const std::string &metalName,
-	boost::shared_ptr<SPD > &n, boost::shared_ptr<SPD > &k, 
-	boost::shared_ptr<Texture<float> > &u,
-	boost::shared_ptr<Texture<float> > &v,
+	std::shared_ptr<SPD > &n, std::shared_ptr<SPD > &k, 
+	std::shared_ptr<Texture<float> > &u,
+	std::shared_ptr<Texture<float> > &v,
 	const ParamSet &mp) : Material("Metal-" + boost::lexical_cast<string>(this), mp),
 	N(n), K(k), nu(u), nv(v) {
 	AddStringConstant(*this, "metalName", " Name of the metal", metalName);
@@ -388,11 +388,11 @@ Material *Metal::CreateMaterial(const Transform &xform, const ParamSet &tp) {
 		break;
 	}
 
-	boost::shared_ptr<SPD > n (new IrregularSPD(&s_wl[0], &s_n[0], s_wl.size()) );
-	boost::shared_ptr<SPD > k (new IrregularSPD(&s_wl[0], &s_k[0], s_wl.size()) );
+	std::shared_ptr<SPD > n (new IrregularSPD(&s_wl[0], &s_n[0], s_wl.size()) );
+	std::shared_ptr<SPD > k (new IrregularSPD(&s_wl[0], &s_k[0], s_wl.size()) );
 
-	boost::shared_ptr<Texture<float> > uroughness(tp.GetFloatTexture("uroughness", .1f));
-	boost::shared_ptr<Texture<float> > vroughness(tp.GetFloatTexture("vroughness", .1f));
+	std::shared_ptr<Texture<float> > uroughness(tp.GetFloatTexture("uroughness", .1f));
+	std::shared_ptr<Texture<float> > vroughness(tp.GetFloatTexture("vroughness", .1f));
 
 	return new Metal(metalname, n, k, uroughness, vroughness, tp);
 }

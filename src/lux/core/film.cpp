@@ -3339,7 +3339,7 @@ void Film::GenerateNoiseAwareMap() {
 }
 
 const bool Film::GetNoiseAwareMap(u_int &version, boost::shared_array<float> &map,
-		boost::shared_ptr<Distribution2D> &distrib) {
+		std::shared_ptr<Distribution2D> &distrib) {
 	fast_mutex::scoped_lock lock(samplingMapMutex);
 
 	if (noiseAwareMapVersion > version) {
@@ -3381,7 +3381,7 @@ void Film::SetNoiseAwareMap(const float *map) {
 }
 
 const bool Film::GetUserSamplingMap(u_int &version, boost::shared_array<float> &map,
-		boost::shared_ptr<Distribution2D> &distrib) {
+		std::shared_ptr<Distribution2D> &distrib) {
 	fast_mutex::scoped_lock lock(samplingMapMutex);
 
 	if (userSamplingMapVersion > version) {
@@ -3453,7 +3453,7 @@ void Film::UpdateSamplingMap() {
 }
 
 const bool Film::GetSamplingMap(u_int &naMapVersion, u_int &usMapVersion,
-		boost::shared_array<float> &map, boost::shared_ptr<Distribution2D> &distrib) {
+		boost::shared_array<float> &map, std::shared_ptr<Distribution2D> &distrib) {
 	fast_mutex::scoped_lock lock(samplingMapMutex);
 
 	if ((noiseAwareMapVersion > naMapVersion) || (userSamplingMapVersion > usMapVersion)) {

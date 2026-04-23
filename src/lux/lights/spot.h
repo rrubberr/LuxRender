@@ -33,7 +33,7 @@ class SpotLight : public Light {
 public:
 	// SpotLight Public Methods
 	SpotLight(const Transform &light2world,
-		const boost::shared_ptr< Texture<SWCSpectrum> > &L, 
+		const std::shared_ptr< Texture<SWCSpectrum> > &L, 
 		float gain, float power, float efficacy,
 		float width, float fall);
 	virtual ~SpotLight();
@@ -59,7 +59,7 @@ private:
 	// SpotLight Private Data
 	float coneAngle, coneDeltaAngle, cosTotalWidth, cosFalloffStart;
 	Point lightPos;
-	boost::shared_ptr<Texture<SWCSpectrum> > Lbase;
+	std::shared_ptr<Texture<SWCSpectrum> > Lbase;
 	float gain;
 };
 

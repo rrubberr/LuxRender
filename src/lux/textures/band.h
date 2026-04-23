@@ -41,8 +41,8 @@ class BandTexture : public Texture<T> {
 public:
 	// MixTexture Public Methods
 	BandTexture(u_int n, const float *o,
-		vector<boost::shared_ptr<Texture<T> > > &t,
-		boost::shared_ptr<Texture<float> > &a) :
+		vector<std::shared_ptr<Texture<T> > > &t,
+		std::shared_ptr<Texture<float> > &a) :
 		Texture<T>("BandTexture-" + boost::lexical_cast<string>(this)),
 		offsets(o, o + n),
 		tex(t), amount(a) { }
@@ -113,15 +113,15 @@ public:
 
 	const Texture<float> *GetAmountTex() const { return amount.get(); }
 	const vector<float> &GetOffsets() const { return offsets; }
-	const vector<boost::shared_ptr<Texture<T> > > &GetTextures() const { return tex; }
+	const vector<std::shared_ptr<Texture<T> > > &GetTextures() const { return tex; }
 
 	static Texture<float> * CreateFloatTexture(const Transform &tex2world, const ParamSet &tp);
 	static Texture<SWCSpectrum> * CreateSWCSpectrumTexture(const Transform &tex2world, const ParamSet &tp);
 	static Texture<FresnelGeneral> * CreateFresnelTexture(const Transform &tex2world, const ParamSet &tp);
 private:
 	vector<float> offsets;
-	vector<boost::shared_ptr<Texture<T> > > tex;
-	boost::shared_ptr<Texture<float> > amount;
+	vector<std::shared_ptr<Texture<T> > > tex;
+	std::shared_ptr<Texture<float> > amount;
 };
 
 // MixTexture Method Definitions
@@ -132,14 +132,14 @@ template <class T> Texture<float> * BandTexture<T>::CreateFloatTexture(const Tra
 	for (u_int i = 0; i < n - 1; ++i)
 		if (o[i] > o[i + 1])
 			LOG(LUX_ERROR, LUX_LIMIT) << "Offsets in 'band' texture are not in ascending order";
-	vector<boost::shared_ptr<Texture<float> > > tex;
+	vector<std::shared_ptr<Texture<float> > > tex;
 	tex.reserve(n);
 	for (u_int i = 0; i < n; ++i) {
 		stringstream ss;
 		ss << "tex" << (i + 1);
 		tex.push_back(tp.GetFloatTexture(ss.str(), 0.f));
 	}
-	boost::shared_ptr<Texture<float> > a(tp.GetFloatTexture("amount", 0.f));
+	std::shared_ptr<Texture<float> > a(tp.GetFloatTexture("amount", 0.f));
 	return new BandTexture<float>(n, o, tex, a);
 }
 
@@ -150,14 +150,14 @@ template <class T> Texture<SWCSpectrum> * BandTexture<T>::CreateSWCSpectrumTextu
 	for (u_int i = 0; i < n - 1; ++i)
 		if (o[i] > o[i + 1])
 			LOG(LUX_ERROR, LUX_LIMIT) << "Offsets in 'band' texture are not in ascending order";
-	vector<boost::shared_ptr<Texture<SWCSpectrum> > > tex;
+	vector<std::shared_ptr<Texture<SWCSpectrum> > > tex;
 	tex.reserve(n);
 	for (u_int i = 0; i < n; ++i) {
 		stringstream ss;
 		ss << "tex" << (i + 1);
 		tex.push_back(tp.GetSWCSpectrumTexture(ss.str(), 0.f));
 	}
-	boost::shared_ptr<Texture<float> > a(tp.GetFloatTexture("amount", 0.f));
+	std::shared_ptr<Texture<float> > a(tp.GetFloatTexture("amount", 0.f));
 	return new BandTexture<SWCSpectrum>(n, o, tex, a);
 }
 
@@ -168,14 +168,14 @@ template <class T> Texture<FresnelGeneral> * BandTexture<T>::CreateFresnelTextur
 	for (u_int i = 0; i < n - 1; ++i)
 		if (o[i] > o[i + 1])
 			LOG(LUX_ERROR, LUX_LIMIT) << "Offsets in 'band' texture are not in ascending order";
-	vector<boost::shared_ptr<Texture<FresnelGeneral> > > tex;
+	vector<std::shared_ptr<Texture<FresnelGeneral> > > tex;
 	tex.reserve(n);
 	for (u_int i = 0; i < n; ++i) {
 		stringstream ss;
 		ss << "tex" << (i + 1);
 		tex.push_back(tp.GetFresnelTexture(ss.str(), 0.f));
 	}
-	boost::shared_ptr<Texture<float> > a(tp.GetFloatTexture("amount", 0.f));
+	std::shared_ptr<Texture<float> > a(tp.GetFloatTexture("amount", 0.f));
 	return new BandTexture<FresnelGeneral>(n, o, tex, a);
 }
 

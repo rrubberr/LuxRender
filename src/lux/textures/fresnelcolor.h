@@ -33,7 +33,7 @@ namespace lux
 class FresnelColorTexture : public Texture<FresnelGeneral> {
 public:
 	// FresnelColorTexture Public Methods
-	FresnelColorTexture(const boost::shared_ptr<Texture<SWCSpectrum> > &c) :
+	FresnelColorTexture(const std::shared_ptr<Texture<SWCSpectrum> > &c) :
 		Texture("FresnelColorTexture-" + boost::lexical_cast<string>(this)),
 		color(c) { }
 	virtual ~FresnelColorTexture() { }
@@ -54,7 +54,7 @@ public:
 
 	static Texture<FresnelGeneral> *CreateFresnelTexture(const Transform &tex2world, const ParamSet &tp);
 private:
-	const boost::shared_ptr<Texture<SWCSpectrum> > color;
+	const std::shared_ptr<Texture<SWCSpectrum> > color;
 };
 
 }//namespace lux

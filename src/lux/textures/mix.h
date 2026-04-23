@@ -36,9 +36,9 @@ template <class T>
 class MixTexture : public Texture<T> {
 public:
 	// MixTexture Public Methods
-	MixTexture(boost::shared_ptr<Texture<T> > &t1,
-		boost::shared_ptr<Texture<T> > &t2,
-		boost::shared_ptr<Texture<float> > &amt) :
+	MixTexture(std::shared_ptr<Texture<T> > &t1,
+		std::shared_ptr<Texture<T> > &t2,
+		std::shared_ptr<Texture<float> > &amt) :
 		Texture<T>("MixTexture-" + boost::lexical_cast<string>(this)),
 		tex1(t1), tex2(t2),	amount(amt) { }
 	virtual ~MixTexture() { }
@@ -89,32 +89,32 @@ public:
 	static Texture<FresnelGeneral> * CreateFresnelTexture(const Transform &tex2world, const ParamSet &tp);
 
 private:
-	boost::shared_ptr<Texture<T> > tex1, tex2;
-	boost::shared_ptr<Texture<float> > amount;
+	std::shared_ptr<Texture<T> > tex1, tex2;
+	std::shared_ptr<Texture<float> > amount;
 };
 
 // MixTexture Method Definitions
 template <class T> Texture<float> * MixTexture<T>::CreateFloatTexture(const Transform &tex2world,
 	const ParamSet &tp) {
-	boost::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("tex1", 0.f)),
+	std::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("tex1", 0.f)),
 		tex2(tp.GetFloatTexture("tex2", 1.f));
-	boost::shared_ptr<Texture<float> > amount(tp.GetFloatTexture("amount", .5f));
+	std::shared_ptr<Texture<float> > amount(tp.GetFloatTexture("amount", .5f));
 	return new MixTexture<float>(tex1, tex2, amount);
 }
 
 template <class T> Texture<SWCSpectrum> * MixTexture<T>::CreateSWCSpectrumTexture(const Transform &tex2world,
 	const ParamSet &tp) {
-	boost::shared_ptr<Texture<SWCSpectrum> > tex1(tp.GetSWCSpectrumTexture("tex1", RGBColor(0.f))),
+	std::shared_ptr<Texture<SWCSpectrum> > tex1(tp.GetSWCSpectrumTexture("tex1", RGBColor(0.f))),
 		tex2(tp.GetSWCSpectrumTexture("tex2", RGBColor(1.f)));
-	boost::shared_ptr<Texture<float> > amount(tp.GetFloatTexture("amount", .5f));
+	std::shared_ptr<Texture<float> > amount(tp.GetFloatTexture("amount", .5f));
 	return new MixTexture<SWCSpectrum>(tex1, tex2, amount);
 }
 
 template <class T> Texture<FresnelGeneral> * MixTexture<T>::CreateFresnelTexture(const Transform &tex2world,
 	const ParamSet &tp) {
-	boost::shared_ptr<Texture<FresnelGeneral> > tex1(tp.GetFresnelTexture("tex1", 1.f)),
+	std::shared_ptr<Texture<FresnelGeneral> > tex1(tp.GetFresnelTexture("tex1", 1.f)),
 		tex2(tp.GetFresnelTexture("tex2", 1.5f));
-	boost::shared_ptr<Texture<float> > amount(tp.GetFloatTexture("amount", .5f));
+	std::shared_ptr<Texture<float> > amount(tp.GetFloatTexture("amount", .5f));
 	return new MixTexture<FresnelGeneral>(tex1, tex2, amount);
 }
 

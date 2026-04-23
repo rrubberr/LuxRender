@@ -58,11 +58,11 @@ public:
 		return volume.get();
 	};
 	
-	void SetVolume(boost::shared_ptr<Volume> &v)
+	void SetVolume(std::shared_ptr<Volume> &v)
 	{
 		// Create a temporary to increase shared count
 		// The assignment is just a swap
-		boost::shared_ptr<Volume> vol(v);
+		std::shared_ptr<Volume> vol(v);
 		volume = vol;
 	};
 	
@@ -92,14 +92,14 @@ public:
 	
 	const LightRenderingHints *GetRenderingHints() const { return &hints; }
 
-	void AddPortalShape(boost::shared_ptr<Primitive> &shape);
+	void AddPortalShape(std::shared_ptr<Primitive> &shape);
 
 	const Transform &GetTransform() const { return LightToWorld; }
 	
 	// Light Public Data
 	const u_int nSamples;
 	u_int nrPortalShapes;
-	vector<boost::shared_ptr<Primitive> > PortalShapes;
+	vector<std::shared_ptr<Primitive> > PortalShapes;
 	float PortalArea;
 	u_int group;
 protected:
@@ -109,7 +109,7 @@ protected:
 public: // Put last for better data alignment
 	bool havePortalShape;
 protected:
-	boost::shared_ptr<Volume> volume;
+	std::shared_ptr<Volume> volume;
 };
 
 class AreaLight : public Light {
@@ -146,9 +146,9 @@ class AreaLightImpl : public AreaLight {
 public:
 	// AreaLight Interface
 	AreaLightImpl(const Transform &light2world,
-		boost::shared_ptr<Texture<SWCSpectrum> > &Le, float g,
+		std::shared_ptr<Texture<SWCSpectrum> > &Le, float g,
 		float pow, float e, SampleableSphericalFunction *ssf,
-		u_int ns, const boost::shared_ptr<Primitive> &prim);
+		u_int ns, const std::shared_ptr<Primitive> &prim);
 	
 	virtual ~AreaLightImpl();
 	
@@ -181,12 +181,12 @@ public:
 
 	static AreaLight *CreateAreaLight(const Transform &light2world,
 		const ParamSet &paramSet,
-		const boost::shared_ptr<Primitive> &prim);
+		const std::shared_ptr<Primitive> &prim);
 
 protected:
 	// AreaLight Protected Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Le;
-	boost::shared_ptr<Primitive> prim;
+	std::shared_ptr<Texture<SWCSpectrum> > Le;
+	std::shared_ptr<Primitive> prim;
 	float paramGain, gain, power, efficacy, area;
 	SampleableSphericalFunction *func = nullptr;
 };
@@ -194,7 +194,7 @@ protected:
 class  InstanceLight : public Light {
 public:
 	// Light Interface
-	InstanceLight(const Transform &l2w, boost::shared_ptr<Light> &l)
+	InstanceLight(const Transform &l2w, std::shared_ptr<Light> &l)
 		: Light("InstanceLight-" + boost::lexical_cast<string>(this),
 		l2w, l->nSamples), light(l)
 	{
@@ -239,13 +239,13 @@ public:
 		SWCSpectrum *L) const override;
 
 protected:
-	boost::shared_ptr<Light> light;
+	std::shared_ptr<Light> light;
 };
 
 class  MotionLight : public Light {
 public:
 	// Light Interface
-	MotionLight(const MotionSystem &mp, boost::shared_ptr<Light> &l)
+	MotionLight(const MotionSystem &mp, std::shared_ptr<Light> &l)
 		: Light("MotionLight-" + boost::lexical_cast<string>(this),
 		Transform(), l->nSamples), light(l), motionPath(mp)
 	{
@@ -291,14 +291,14 @@ public:
 		SWCSpectrum *L) const override;
 
 protected:
-	boost::shared_ptr<Light> light;
+	std::shared_ptr<Light> light;
 	MotionSystem motionPath;
 };
 
 class  InstanceAreaLight : public AreaLight {
 public:
 	// Light Interface
-	InstanceAreaLight(const Transform &l2w, boost::shared_ptr<AreaLight> &l) :
+	InstanceAreaLight(const Transform &l2w, std::shared_ptr<AreaLight> &l) :
 		AreaLight("InstanceAreaLight-" + boost::lexical_cast<string>(this),
 		l2w, l->nSamples), light(l)
 	{
@@ -358,13 +358,13 @@ public:
 	};
 
 protected:
-	boost::shared_ptr<AreaLight> light;
+	std::shared_ptr<AreaLight> light;
 };
 
 class  MotionAreaLight : public AreaLight {
 public:
 	// Light Interface
-	MotionAreaLight(const MotionSystem &mp, boost::shared_ptr<AreaLight> &l) :
+	MotionAreaLight(const MotionSystem &mp, std::shared_ptr<AreaLight> &l) :
 		AreaLight("MotionAreaLight-" + boost::lexical_cast<string>(this),
 		Transform(), l->nSamples), light(l), motionPath(mp)
 	{
@@ -424,7 +424,7 @@ public:
 	};
 
 protected:
-	boost::shared_ptr<AreaLight> light;
+	std::shared_ptr<AreaLight> light;
 	MotionSystem motionPath;
 };
 

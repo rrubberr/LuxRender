@@ -73,13 +73,13 @@ BSDF *DoubleSideMaterial::GetBSDF(MemoryArena &arena, const SpectrumWavelengths 
 
 Material *DoubleSideMaterial::CreateMaterial(const Transform &xform,
 		const ParamSet &mp) {
-	boost::shared_ptr<Material> mat1(mp.GetMaterial("frontnamedmaterial"));
+	std::shared_ptr<Material> mat1(mp.GetMaterial("frontnamedmaterial"));
 	if (!mat1) {
 		LOG( LUX_ERROR,LUX_BADTOKEN)<<"Front side material of the doubleside is incorrect";
 		return NULL;
 	}
 
-	boost::shared_ptr<Material> mat2(mp.GetMaterial("backnamedmaterial"));
+	std::shared_ptr<Material> mat2(mp.GetMaterial("backnamedmaterial"));
 	if (!mat2) {
 		LOG( LUX_ERROR,LUX_BADTOKEN)<<"Back side material of the doubleside is incorrect";
 		return NULL;

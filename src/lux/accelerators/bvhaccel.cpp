@@ -45,19 +45,19 @@ using namespace lux;
 // ─────────────────────────────────────────────────────────────────────────────
 // Centroid comparators for partition() in BuildHierarchy — unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
-static bool bvh_ltf_x(boost::shared_ptr<BVHAccelTreeNode> n, float v)
+static bool bvh_ltf_x(std::shared_ptr<BVHAccelTreeNode> n, float v)
     { return n->bbox.pMax.x + n->bbox.pMin.x < v; }
-static bool bvh_ltf_y(boost::shared_ptr<BVHAccelTreeNode> n, float v)
+static bool bvh_ltf_y(std::shared_ptr<BVHAccelTreeNode> n, float v)
     { return n->bbox.pMax.y + n->bbox.pMin.y < v; }
-static bool bvh_ltf_z(boost::shared_ptr<BVHAccelTreeNode> n, float v)
+static bool bvh_ltf_z(std::shared_ptr<BVHAccelTreeNode> n, float v)
     { return n->bbox.pMax.z + n->bbox.pMin.z < v; }
-static bool (* const bvh_ltf[3])(boost::shared_ptr<BVHAccelTreeNode>, float) =
+static bool (* const bvh_ltf[3])(std::shared_ptr<BVHAccelTreeNode>, float) =
     { bvh_ltf_x, bvh_ltf_y, bvh_ltf_z };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constructor
 // ─────────────────────────────────────────────────────────────────────────────
-BVHAccel::BVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
+BVHAccel::BVHAccel(const vector<std::shared_ptr<Primitive> > &p,
                    u_int treetype, int csamples, int icost, int tcost,
                    float ebonus)
     : costSamples(csamples), isectCost(icost), traversalCost(tcost),
@@ -66,7 +66,7 @@ BVHAccel::BVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
       nWBVHNodes(0), wbvhTree(NULL), nLeafPrims(0), leafPrims(NULL)
 {
     // Refine all primitives.
-    vector<boost::shared_ptr<Primitive> > vPrims;
+    vector<std::shared_ptr<Primitive> > vPrims;
     const PrimitiveRefinementHints refineHints(false);
     for (u_int i = 0; i < p.size(); ++i) {
         if (p[i]->CanIntersect()) vPrims.push_back(p[i]);
@@ -78,9 +78,9 @@ BVHAccel::BVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
     (void)treetype; // user param ignored: we always build 8-wide
 
     nPrims = vPrims.size();
-    prims  = AllocAligned<boost::shared_ptr<Primitive> >(nPrims > 0 ? nPrims : 1);
+    prims  = AllocAligned<std::shared_ptr<Primitive> >(nPrims > 0 ? nPrims : 1);
     for (u_int i = 0; i < nPrims; ++i)
-        new (&prims[i]) boost::shared_ptr<Primitive>(vPrims[i]);
+        new (&prims[i]) std::shared_ptr<Primitive>(vPrims[i]);
 
     if (nPrims == 0) {
         wbvhTree  = AllocAligned<WBVHNode>(1);
@@ -93,10 +93,10 @@ BVHAccel::BVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
     }
 
     // Build the initial linked tree (octree split, treeType=8).
-    vector<boost::shared_ptr<BVHAccelTreeNode> > bvList;
+    vector<std::shared_ptr<BVHAccelTreeNode> > bvList;
     bvList.reserve(nPrims);
     for (u_int i = 0; i < nPrims; ++i) {
-        boost::shared_ptr<BVHAccelTreeNode> node(new BVHAccelTreeNode());
+        std::shared_ptr<BVHAccelTreeNode> node(new BVHAccelTreeNode());
         node->bbox = prims[i]->WorldBound();
         node->bbox.Expand(MachineEpsilon::E(node->bbox));
         node->primitive = prims[i].get();
@@ -105,7 +105,7 @@ BVHAccel::BVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 
     LOG(LUX_INFO, LUX_NOERROR) << "Building 8-wide BVH, primitives: " << nPrims;
     nBuildNodes = 0;
-    boost::shared_ptr<BVHAccelTreeNode> root = BuildHierarchy(bvList, 0, bvList.size(), 2);
+    std::shared_ptr<BVHAccelTreeNode> root = BuildHierarchy(bvList, 0, bvList.size(), 2);
 
     LOG(LUX_INFO, LUX_NOERROR) << "Collapsing 8-wide BVH (SAH-based), "
         << "initial nodes: " << nBuildNodes;
@@ -147,8 +147,8 @@ BVHAccel::~BVHAccel() {
 // ─────────────────────────────────────────────────────────────────────────────
 // BuildHierarchy  —  recursive octree split; unchanged from the original.
 // ─────────────────────────────────────────────────────────────────────────────
-boost::shared_ptr<BVHAccelTreeNode> BVHAccel::BuildHierarchy(
-    vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
+std::shared_ptr<BVHAccelTreeNode> BVHAccel::BuildHierarchy(
+    vector<std::shared_ptr<BVHAccelTreeNode> > &list,
     u_int begin, u_int end, u_int axis)
 {
     u_int splitAxis = axis;
@@ -158,7 +158,7 @@ boost::shared_ptr<BVHAccelTreeNode> BVHAccel::BuildHierarchy(
     if (end - begin == 1)
         return list[begin]; // single primitive — return leaf directly
 
-    boost::shared_ptr<BVHAccelTreeNode> parent(new BVHAccelTreeNode());
+    std::shared_ptr<BVHAccelTreeNode> parent(new BVHAccelTreeNode());
     parent->primitive = NULL;
     if (end == begin)
         return parent; // empty subtree
@@ -179,7 +179,7 @@ boost::shared_ptr<BVHAccelTreeNode> BVHAccel::BuildHierarchy(
             }
             FindBestSplit(list, splits[j], splits[j + 1],
                           &splitValue, &splitAxis);
-            vector<boost::shared_ptr<BVHAccelTreeNode> >::iterator it =
+            vector<std::shared_ptr<BVHAccelTreeNode> >::iterator it =
                 partition(list.begin() + splits[j],
                           list.begin() + splits[j + 1],
                           bind2nd(ptr_fun(bvh_ltf[splitAxis]), splitValue));
@@ -190,11 +190,11 @@ boost::shared_ptr<BVHAccelTreeNode> BVHAccel::BuildHierarchy(
     }
 
     // Build child subtrees for each interval.
-    boost::shared_ptr<BVHAccelTreeNode> child =
+    std::shared_ptr<BVHAccelTreeNode> child =
         BuildHierarchy(list, splits[0], splits[1], splitAxis);
     parent->leftChild = child;
     parent->bbox = Union(parent->bbox, child->bbox);
-    boost::shared_ptr<BVHAccelTreeNode> last = child;
+    std::shared_ptr<BVHAccelTreeNode> last = child;
 
     for (u_int i = 1; i < splits.size() - 1; ++i) {
         child = BuildHierarchy(list, splits[i], splits[i + 1], splitAxis);
@@ -209,7 +209,7 @@ boost::shared_ptr<BVHAccelTreeNode> BVHAccel::BuildHierarchy(
 // ─────────────────────────────────────────────────────────────────────────────
 // FindBestSplit  —  unchanged from the original.
 // ─────────────────────────────────────────────────────────────────────────────
-void BVHAccel::FindBestSplit(vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
+void BVHAccel::FindBestSplit(vector<std::shared_ptr<BVHAccelTreeNode> > &list,
     u_int begin, u_int end, float *splitValue, u_int *bestAxis)
 {
     if (end - begin == 2) {
@@ -283,12 +283,12 @@ void BVHAccel::FindBestSplit(vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
 // for the current node's children, which makes insertions/deletions O(n)
 // (n ≤ 8 always) and avoids complicated pointer-surgery on the linked list.
 // ─────────────────────────────────────────────────────────────────────────────
-void BVHAccel::CollapseNode(boost::shared_ptr<BVHAccelTreeNode> node) {
+void BVHAccel::CollapseNode(std::shared_ptr<BVHAccelTreeNode> node) {
     if (!node || node->primitive)
         return; // null or leaf — nothing to collapse
 
     // Collect the current children into a vector.
-    vector<boost::shared_ptr<BVHAccelTreeNode> > children;
+    vector<std::shared_ptr<BVHAccelTreeNode> > children;
     {
         auto c = node->leftChild;
         while (c) { children.push_back(c); c = c->rightSibling; }
@@ -314,7 +314,7 @@ void BVHAccel::CollapseNode(boost::shared_ptr<BVHAccelTreeNode> node) {
             if (n - 1 + grandCount > 8) continue;
 
             // Perform absorption: collect grandchildren, splice into children[].
-            vector<boost::shared_ptr<BVHAccelTreeNode> > grandchildren;
+            vector<std::shared_ptr<BVHAccelTreeNode> > grandchildren;
             grandchildren.reserve(grandCount);
             for (auto gc = ci->leftChild; gc; gc = gc->rightSibling)
                 grandchildren.push_back(gc);
@@ -353,7 +353,7 @@ void BVHAccel::CollapseNode(boost::shared_ptr<BVHAccelTreeNode> node) {
 // (all negative values) and their Primitive* is appended to leafPrimsVec.
 // Unused child slots retain children[i] == EMPTY_CHILD.
 // ─────────────────────────────────────────────────────────────────────────────
-u_int BVHAccel::BuildWideArray(boost::shared_ptr<BVHAccelTreeNode> node,
+u_int BVHAccel::BuildWideArray(std::shared_ptr<BVHAccelTreeNode> node,
                                u_int nodeIdx,
                                vector<Primitive *> &leafPrimsVec)
 {
@@ -586,7 +586,7 @@ bool BVHAccel::IntersectP(const Ray &ray) const {
 // GetPrimitives / CreateAccelerator
 // ─────────────────────────────────────────────────────────────────────────────
 void BVHAccel::GetPrimitives(
-    vector<boost::shared_ptr<Primitive> > &primitives) const
+    vector<std::shared_ptr<Primitive> > &primitives) const
 {
     primitives.reserve(primitives.size() + nPrims);
     for (u_int i = 0; i < nPrims; ++i)
@@ -594,7 +594,7 @@ void BVHAccel::GetPrimitives(
 }
 
 Aggregate *BVHAccel::CreateAccelerator(
-    const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps)
+    const vector<std::shared_ptr<Primitive> > &prims, const ParamSet &ps)
 {
     // treetype is accepted for backward compatibility but internally always 8.
     int treeType    = ps.FindOneInt("treetype", 8);

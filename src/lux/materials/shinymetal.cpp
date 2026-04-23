@@ -73,12 +73,12 @@ BSDF *ShinyMetal::GetBSDF(MemoryArena &arena, const SpectrumWavelengths &sw,
 }
 Material* ShinyMetal::CreateMaterial(const Transform &xform,
 		const ParamSet &mp) {
-	boost::shared_ptr<Texture<SWCSpectrum> > Kr(mp.GetSWCSpectrumTexture("Kr", RGBColor(1.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
-	boost::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", .1f));
-	boost::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", .1f));
-	boost::shared_ptr<Texture<float> > film(mp.GetFloatTexture("film", 0.f));				// Thin film thickness in nanometers
-	boost::shared_ptr<Texture<float> > filmindex(mp.GetFloatTexture("filmindex", 1.5f));				// Thin film index of refraction
+	std::shared_ptr<Texture<SWCSpectrum> > Kr(mp.GetSWCSpectrumTexture("Kr", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
+	std::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", .1f));
+	std::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", .1f));
+	std::shared_ptr<Texture<float> > film(mp.GetFloatTexture("film", 0.f));				// Thin film thickness in nanometers
+	std::shared_ptr<Texture<float> > filmindex(mp.GetFloatTexture("filmindex", 1.5f));				// Thin film index of refraction
 
 	return new ShinyMetal(Ks, uroughness, vroughness, film, filmindex, Kr, mp);
 }

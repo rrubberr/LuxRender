@@ -31,7 +31,7 @@
 using namespace lux;
 
 // BruteForceAccel Method Definitions
-BruteForceAccel::BruteForceAccel(const vector<boost::shared_ptr<Primitive> > &p) {
+BruteForceAccel::BruteForceAccel(const vector<std::shared_ptr<Primitive> > &p) {
 	PrimitiveRefinementHints refineHints(false);
 	for (u_int i = 0; i < p.size(); ++i) {
 		if(p[i]->CanIntersect())
@@ -76,14 +76,14 @@ bool BruteForceAccel::IntersectP(const Ray &ray) const {
 	return false;
 }
 
-void BruteForceAccel::GetPrimitives(vector<boost::shared_ptr<Primitive> > &primitives) const {
+void BruteForceAccel::GetPrimitives(vector<std::shared_ptr<Primitive> > &primitives) const {
 	primitives.reserve(prims.size());
 	for(u_int i=0; i < prims.size(); i++) {
 		primitives.push_back(prims[i]);
 	}
 }
 
-Aggregate* BruteForceAccel::CreateAccelerator(const vector<boost::shared_ptr<Primitive> > &prims,
+Aggregate* BruteForceAccel::CreateAccelerator(const vector<std::shared_ptr<Primitive> > &prims,
 		const ParamSet &ps) {
 	return new BruteForceAccel(prims);
 }

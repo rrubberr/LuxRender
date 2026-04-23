@@ -1090,7 +1090,7 @@ vector<RGBColor>& FlexImageFilm::ApplyPipeline(const ColorSystem &colorSpace, ve
 
 	// use local shared_ptr to keep reference to current cameraResponse
 	// so we can pass a regular pointer to ApplyImagingPipeline
-	boost::shared_ptr<CameraResponse> crf;
+	std::shared_ptr<CameraResponse> crf;
 	if (m_CameraResponseFile == "")
 		cameraResponse.reset();
 

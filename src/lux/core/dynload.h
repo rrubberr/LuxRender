@@ -35,32 +35,32 @@ namespace lux
 {
 
 // Runtime Loading Declarations
-boost::shared_ptr<Shape> MakeShape(const string &name,
+std::shared_ptr<Shape> MakeShape(const string &name,
 	const Transform &object2world, bool reverseOrientation,
 	const ParamSet &paramSet);
-boost::shared_ptr<Material> MakeMaterial(const string &name,
+std::shared_ptr<Material> MakeMaterial(const string &name,
 	const Transform &mtl2world, const ParamSet &mp);
-boost::shared_ptr<Texture<float> > MakeFloatTexture(const string &name,
+std::shared_ptr<Texture<float> > MakeFloatTexture(const string &name,
 	const Transform &tex2world, const ParamSet &tp);
-boost::shared_ptr<Texture<SWCSpectrum> > MakeSWCSpectrumTexture(const string &name,
+std::shared_ptr<Texture<SWCSpectrum> > MakeSWCSpectrumTexture(const string &name,
 	const Transform &tex2world, const ParamSet &tp);
-boost::shared_ptr<Texture<FresnelGeneral> > MakeFresnelTexture(const string &name,
+std::shared_ptr<Texture<FresnelGeneral> > MakeFresnelTexture(const string &name,
 	const Transform &tex2world, const ParamSet &tp);
 Light *MakeLight(const string &name, const Transform &light2world,
 	const ParamSet &paramSet);
 AreaLight *MakeAreaLight(const string &name,
 	const Transform &light2world, const ParamSet &paramSet,
-	const boost::shared_ptr<Primitive> &prim);
+	const std::shared_ptr<Primitive> &prim);
 Region *MakeVolumeRegion(const string &name,
 	const Transform &light2world, const ParamSet &paramSet);
-boost::shared_ptr<Volume> MakeVolume(const string &name,
+std::shared_ptr<Volume> MakeVolume(const string &name,
 	const Transform &light2world, const ParamSet &paramSet);
 SurfaceIntegrator *MakeSurfaceIntegrator(const string &name,
 	const ParamSet &paramSet);
 VolumeIntegrator *MakeVolumeIntegrator(const string &name,
 	const ParamSet &paramSet);
-boost::shared_ptr<Aggregate> MakeAccelerator(const string &name,
-	const vector<boost::shared_ptr<Primitive> > &prims,
+std::shared_ptr<Aggregate> MakeAccelerator(const string &name,
+	const vector<std::shared_ptr<Primitive> > &prims,
 	const ParamSet &paramSet);
 Camera *MakeCamera(const string &name, const MotionSystem &world2cam, 
 	const ParamSet &paramSet, Film *film);
@@ -141,7 +141,7 @@ public:
 	};
 
 	typedef AreaLight *(*CreateAreaLight)(const Transform&, const ParamSet&,
-		const boost::shared_ptr<Primitive>&);
+		const std::shared_ptr<Primitive>&);
 	LUX_EXPORT static map<string, CreateAreaLight> &registeredAreaLights();
 	template <class T> class RegisterAreaLight : public RegisterLoader<CreateAreaLight> {
 	public:
@@ -188,7 +188,7 @@ public:
 		virtual ~RegisterVolumeIntegrator<T>() {}
 	};
 
-	typedef Aggregate *(*CreateAccelerator)(const vector<boost::shared_ptr<Primitive> >&,
+	typedef Aggregate *(*CreateAccelerator)(const vector<std::shared_ptr<Primitive> >&,
 		const ParamSet&);
 	LUX_EXPORT static map<string, CreateAccelerator> &registeredAccelerators();
 	template <class T> class RegisterAccelerator : public RegisterLoader<CreateAccelerator> {

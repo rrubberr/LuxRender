@@ -31,13 +31,13 @@ namespace lux
 class Glossy : public Material {
 public:
 	// Glossy Public Methods
-	Glossy(boost::shared_ptr<Texture<SWCSpectrum> > &kd,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ks,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ka,
-		boost::shared_ptr<Texture<float> > &i,
-		boost::shared_ptr<Texture<float> > &d,
-		boost::shared_ptr<Texture<float> > &u,
-		boost::shared_ptr<Texture<float> > &v,
+	Glossy(std::shared_ptr<Texture<SWCSpectrum> > &kd,
+		std::shared_ptr<Texture<SWCSpectrum> > &ks,
+		std::shared_ptr<Texture<SWCSpectrum> > &ka,
+		std::shared_ptr<Texture<float> > &i,
+		std::shared_ptr<Texture<float> > &d,
+		std::shared_ptr<Texture<float> > &u,
+		std::shared_ptr<Texture<float> > &v,
 		const ParamSet &mp) : Material("Glossy-" + boost::lexical_cast<string>(this), mp),
 		Kd(kd), Ks(ks), Ka(ka),
 		depth(d), index(i), nu(u), nv(v) { }
@@ -50,9 +50,9 @@ public:
 		const ParamSet &mp);
 private:
 	// Glossy Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd, Ks, Ka;
-	boost::shared_ptr<Texture<float> > depth, index;
-	boost::shared_ptr<Texture<float> > nu, nv;
+	std::shared_ptr<Texture<SWCSpectrum> > Kd, Ks, Ka;
+	std::shared_ptr<Texture<float> > depth, index;
+	std::shared_ptr<Texture<float> > nu, nv;
 };
 
 }//namespace lux

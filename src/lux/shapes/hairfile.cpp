@@ -293,7 +293,7 @@ HairFile::HairFile(const Transform &o2w, bool ro, const string &name, const Poin
 		const string &aType,  const TessellationType tType, const u_int aMaxDepth,
 		const float aError, const u_int sSideCount,
 		const bool sCapBottom, const bool sCapTop, const float gamma,
-		boost::shared_ptr<cyHairFile> &hair) : Shape(o2w, ro, name) {
+		std::shared_ptr<cyHairFile> &hair) : Shape(o2w, ro, name) {
 	hasCameraPosition = (cameraPos != NULL);
 	if (hasCameraPosition) {
 		// Transform the camera position in local coordinate
@@ -659,7 +659,7 @@ void HairFile::TessellateSolid(const vector<Point> &hairPoints,
 	}
 }
 
-void HairFile::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
+void HairFile::Refine(vector<std::shared_ptr<Shape> > &refined) const {
 	const cyHairFileHeader &header = hairFile->GetHeader();
 	if (header.hair_count == 0)
 		return;
@@ -796,7 +796,7 @@ void HairFile::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
 			paramSet.AddFloat("A", &meshTransps[0], meshTransps.size());
 		}
 
-		boost::shared_ptr<Shape> shape = MakeShape("trianglemesh",
+		std::shared_ptr<Shape> shape = MakeShape("trianglemesh",
 				ObjectToWorld, reverseOrientation, paramSet);
 
 		refined.reserve(refined.size() + meshTris.size() / 3);	
@@ -811,7 +811,7 @@ void HairFile::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
 			const Vector vert(points[index], points[index + 1], points[index + 2]);
 			const float radius = ((thickness) ? thickness[i] : header.d_thickness) * .5f;
 
-			boost::shared_ptr<Shape> shape(new Sphere(ObjectToWorld * Translate(vert), reverseOrientation, name, radius, -radius, radius, 360.f));
+			std::shared_ptr<Shape> shape(new Sphere(ObjectToWorld * Translate(vert), reverseOrientation, name, radius, -radius, radius, 360.f));
 			refined.push_back(shape);
 		}
 	}
@@ -823,7 +823,7 @@ void HairFile::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
 void HairFile::Tessellate(vector<luxrays::TriangleMesh *> *meshList,
 		vector<const Primitive *> *primitiveList) const {
 	// Refine the primitive
-	vector<boost::shared_ptr<Shape> > refined;
+	vector<std::shared_ptr<Shape> > refined;
 	Refine(refined);
 
 	// Tessellate all generated primitives
@@ -834,7 +834,7 @@ void HairFile::Tessellate(vector<luxrays::TriangleMesh *> *meshList,
 void HairFile::ExtTessellate(vector<luxrays::ExtTriangleMesh *> *meshList,
 		vector<const Primitive *> *primitiveList) const {
 	// Refine the primitive
-	vector<boost::shared_ptr<Shape> > refined;
+	vector<std::shared_ptr<Shape> > refined;
 	Refine(refined);
 
 	// Tessellate all generated primitives
@@ -872,7 +872,7 @@ Shape *HairFile::CreateShape(const Transform &o2w, bool reverseOrientation, cons
 	
 	
 
-	boost::shared_ptr<cyHairFile> hairFile(new cyHairFile());
+	std::shared_ptr<cyHairFile> hairFile(new cyHairFile());
 	int hairCount = hairFile->LoadFromFile(filename.c_str());
 	if (hairCount <= 0) {
 		SHAPE_LOG("hairfile", LUX_ERROR, LUX_SYSTEM) << "Unable to read hair file '" << filename << "'";

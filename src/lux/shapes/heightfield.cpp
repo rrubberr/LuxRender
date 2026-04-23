@@ -50,7 +50,7 @@ BBox Heightfield::ObjectBound() const {
 bool Heightfield::CanIntersect() const {
 	return false;
 }
-void Heightfield::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
+void Heightfield::Refine(vector<std::shared_ptr<Shape> > &refined) const {
 	const u_int nVerts = nx * ny;
 	Point *P = new Point[nVerts];
 	float *uvs = new float[2 * nVerts];

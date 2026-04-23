@@ -32,7 +32,7 @@ using namespace lux;
 
 // Light Method Definitions
 
-void Light::AddPortalShape(boost::shared_ptr<Primitive> &s)
+void Light::AddPortalShape(std::shared_ptr<Primitive> &s)
 {
 	if (s->CanIntersect() && s->CanSample()) {
 		PortalArea += s->Area();
@@ -40,7 +40,7 @@ void Light::AddPortalShape(boost::shared_ptr<Primitive> &s)
 		++nrPortalShapes;
 	} else {
 		// Create _ShapeSet_ for _Shape_
-		vector<boost::shared_ptr<Primitive> > done;
+		vector<std::shared_ptr<Primitive> > done;
 		PrimitiveRefinementHints refineHints(true);
 		s->Refine(done, refineHints, s);
 		for (u_int i = 0; i < done.size(); ++i) {

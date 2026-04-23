@@ -61,23 +61,23 @@ public:
 		activeContext = c;
 	}
 
-	static map<string, boost::shared_ptr<lux::Texture<float> > > *GetActiveFloatTextures() {
+	static map<string, std::shared_ptr<lux::Texture<float> > > *GetActiveFloatTextures() {
 		return &(activeContext->graphicsState->floatTextures);
 	}
-	static map<string, boost::shared_ptr<lux::Texture<SWCSpectrum> > > *GetActiveColorTextures() {
+	static map<string, std::shared_ptr<lux::Texture<SWCSpectrum> > > *GetActiveColorTextures() {
 		return &(activeContext->graphicsState->colorTextures);
 	}
-	static map<string, boost::shared_ptr<lux::Texture<FresnelGeneral> > > *GetActiveFresnelTextures() {
+	static map<string, std::shared_ptr<lux::Texture<FresnelGeneral> > > *GetActiveFresnelTextures() {
 		return &(activeContext->graphicsState->fresnelTextures);
 	}
 	static u_int GetActiveLightGroup() {
 		return activeContext->GetLightGroup();
 	}
 
-	boost::shared_ptr<lux::Texture<float> > GetFloatTexture(const string &n) const;
-	boost::shared_ptr<lux::Texture<SWCSpectrum> > GetColorTexture(const string &n) const;
-	boost::shared_ptr<lux::Texture<FresnelGeneral> > GetFresnelTexture(const string &n) const;
-	boost::shared_ptr<lux::Material > GetMaterial(const string &n) const;
+	std::shared_ptr<lux::Texture<float> > GetFloatTexture(const string &n) const;
+	std::shared_ptr<lux::Texture<SWCSpectrum> > GetColorTexture(const string &n) const;
+	std::shared_ptr<lux::Texture<FresnelGeneral> > GetFresnelTexture(const string &n) const;
+	std::shared_ptr<lux::Material > GetMaterial(const string &n) const;
 
 	void Init();
 	void Cleanup();
@@ -278,14 +278,14 @@ private:
 		string rendererName;
 		ParamSet rendererParams;
 		MotionTransform worldToCamera;
-		mutable vector<boost::shared_ptr<Light> > lights;
-		mutable vector<boost::shared_ptr<Primitive> > primitives;
+		mutable vector<std::shared_ptr<Light> > lights;
+		mutable vector<std::shared_ptr<Primitive> > primitives;
 		mutable vector<Region *> volumeRegions;
 		// Unrefined primitives
-		mutable map<string, vector<boost::shared_ptr<Primitive> > > instancesSource;
+		mutable map<string, vector<std::shared_ptr<Primitive> > > instancesSource;
 		// Refined primitives
-		mutable map<string, vector<boost::shared_ptr<Primitive> > > instancesRefined;
-		mutable map<string, vector<boost::shared_ptr<Light> > > lightInstances;
+		mutable map<string, vector<std::shared_ptr<Primitive> > > instancesRefined;
+		mutable map<string, vector<std::shared_ptr<Light> > > lightInstances;
 		// Area light instances
 		// Use a vector of vector to hold the list of refined primitives
 		// for each light source
@@ -293,14 +293,14 @@ private:
 		// and only one light source will get added when instancing
 		// And all primitives are already refined
 		// and can be instanced right away
-		mutable map<string, vector<vector<boost::shared_ptr<AreaLightPrimitive> > > > areaLightInstances;
+		mutable map<string, vector<vector<std::shared_ptr<AreaLightPrimitive> > > > areaLightInstances;
 		mutable vector<string> lightGroups;
 		// Refined primitives
-		mutable vector<boost::shared_ptr<Primitive> > *currentInstanceSource;
+		mutable vector<std::shared_ptr<Primitive> > *currentInstanceSource;
 		// Unrefined primitives
-		mutable vector<boost::shared_ptr<Primitive> > *currentInstanceRefined;
-		mutable vector<boost::shared_ptr<Light> > *currentLightInstance;
-		mutable vector<vector<boost::shared_ptr<AreaLightPrimitive> > > *currentAreaLightInstance;
+		mutable vector<std::shared_ptr<Primitive> > *currentInstanceRefined;
+		mutable vector<std::shared_ptr<Light> > *currentLightInstance;
+		mutable vector<vector<std::shared_ptr<AreaLightPrimitive> > > *currentAreaLightInstance;
 		bool gotSearchPath;
 		bool debugMode;
 		bool randomMode;
@@ -315,14 +315,14 @@ private:
 			reverseOrientation = false;
 		}
 		// Graphics State
-		map<string, boost::shared_ptr<lux::Texture<float> > > floatTextures;
-		map<string, boost::shared_ptr<lux::Texture<SWCSpectrum> > > colorTextures;
-		map<string, boost::shared_ptr<lux::Texture<FresnelGeneral> > > fresnelTextures;
-		map<string, boost::shared_ptr<lux::Material> > namedMaterials;
-		map<string, boost::shared_ptr<lux::Volume> > namedVolumes;
-		boost::shared_ptr<lux::Volume> exterior;
-		boost::shared_ptr<lux::Volume> interior;
-		boost::shared_ptr<lux::Material> material;
+		map<string, std::shared_ptr<lux::Texture<float> > > floatTextures;
+		map<string, std::shared_ptr<lux::Texture<SWCSpectrum> > > colorTextures;
+		map<string, std::shared_ptr<lux::Texture<FresnelGeneral> > > fresnelTextures;
+		map<string, std::shared_ptr<lux::Material> > namedMaterials;
+		map<string, std::shared_ptr<lux::Volume> > namedVolumes;
+		std::shared_ptr<lux::Volume> exterior;
+		std::shared_ptr<lux::Volume> interior;
+		std::shared_ptr<lux::Material> material;
 		ParamSet areaLightParams;
 		string areaLight;
 		string currentLight;
@@ -330,8 +330,8 @@ private:
 		// Dade - some light source like skysun is composed by 2 lights. So
 		// we can have 2 current light sources (i.e. Portal have to be applied
 		// to both sources, see bug #297)
-		boost::shared_ptr<Light> currentLightPtr0;
-		boost::shared_ptr<Light> currentLightPtr1;
+		std::shared_ptr<Light> currentLightPtr0;
+		std::shared_ptr<Light> currentLightPtr1;
 		bool reverseOrientation;
 	};
 

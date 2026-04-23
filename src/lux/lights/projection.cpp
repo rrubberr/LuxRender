@@ -101,7 +101,7 @@ private:
 
 // ProjectionLight Method Definitions
 ProjectionLight::ProjectionLight(const Transform &light2world,
-		const boost::shared_ptr< Texture<SWCSpectrum> > &L, 
+		const std::shared_ptr< Texture<SWCSpectrum> > &L, 
 		float g, const string &texname,
 		float foview)
 	: Light("ProjectionLight-" + boost::lexical_cast<string>(this), light2world),
@@ -196,7 +196,7 @@ bool ProjectionLight::SampleL(const Scene &scene, const Sample &sample,
 
 Light* ProjectionLight::CreateLight(const Transform &light2world,
 		const ParamSet &paramSet) {
-	boost::shared_ptr<Texture<SWCSpectrum> > L(paramSet.GetSWCSpectrumTexture("L", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > L(paramSet.GetSWCSpectrumTexture("L", RGBColor(1.f)));
 	float g = paramSet.FindOneFloat("gain", 1.f);
 	float fov = paramSet.FindOneFloat("fov", 45.);
 	string texname = paramSet.FindOneString("mapname", "");

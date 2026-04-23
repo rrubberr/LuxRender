@@ -102,7 +102,7 @@ protected:
 	static short GetNoiseShape(const string &name);
 	// BlenderBlendTexture3D Private Data
 	TextureMapping3D *mapping;
-	boost::shared_ptr<Texture<float> > tex1, tex2;
+	std::shared_ptr<Texture<float> > tex1, tex2;
 	blender::Tex tex;
 };
 

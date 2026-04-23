@@ -83,11 +83,11 @@ public:
 	Queryable(std::string _name);
 	virtual ~Queryable();
 
-	void AddAttribute(boost::shared_ptr<QueryableAttribute> attr)
+	void AddAttribute(std::shared_ptr<QueryableAttribute> attr)
 	{
 		// replace any existing attribute with same name
 		attributes.erase(attr->name);
-		attributes.insert ( std::pair<std::string,boost::shared_ptr<QueryableAttribute> >(attr->name,attr) );
+		attributes.insert ( std::pair<std::string,std::shared_ptr<QueryableAttribute> >(attr->name,attr) );
 	}
 
 	//Access by iterators : we are simply redirecting the calls to the map
@@ -98,8 +98,8 @@ public:
 	 * (*it).second;            // the mapped value (of type T)
 	 *  (*it);                   // the "element value" (of type pair<const Key,T>)
 	 */
-	typedef std::map<std::string, boost::shared_ptr<QueryableAttribute> >::iterator iterator;
-	typedef std::map<std::string, boost::shared_ptr<QueryableAttribute> >::const_iterator const_iterator;
+	typedef std::map<std::string, std::shared_ptr<QueryableAttribute> >::iterator iterator;
+	typedef std::map<std::string, std::shared_ptr<QueryableAttribute> >::const_iterator const_iterator;
 	iterator begin() { return attributes.begin(); }
 	const_iterator begin() const { return attributes.begin(); }
     iterator end() { return attributes.end(); }
@@ -299,7 +299,7 @@ protected:
 		const std::string &name, const std::string &description,
 		const D &value) {
 
-		boost::shared_ptr<QA> attribute(
+		std::shared_ptr<QA> attribute(
 			new QA(name, description));
 
 		attribute->getFunc = boost::bind(lux::queryable::getvalue<D>, value);
@@ -309,7 +309,7 @@ protected:
 		const std::string &name, const std::string &description,
 		E T::*field, AttributeAccess access) {
 
-		boost::shared_ptr<QA> attribute(
+		std::shared_ptr<QA> attribute(
 			new QA(name, description));
 
 		if (access == ReadWriteAccess)
@@ -322,7 +322,7 @@ protected:
 		const std::string &name, const std::string &description,
 		D T::*field, AttributeAccess access) {
 
-		boost::shared_ptr<QA> attribute(
+		std::shared_ptr<QA> attribute(
 			new QA(name, description));
 
 		if (access == ReadWriteAccess)
@@ -335,7 +335,7 @@ protected:
 		const std::string &name, const std::string &description,
 		D defaultValue, D T::*field, AttributeAccess access) {
 
-		boost::shared_ptr<QA> attribute(
+		std::shared_ptr<QA> attribute(
 			new QA(name, description, defaultValue));
 
 		if (access == ReadWriteAccess)
@@ -348,7 +348,7 @@ protected:
 		const std::string &name, const std::string &description,
 		D (T::*get)(), void (T::*set)(D)) {
 
-		boost::shared_ptr<QA> attribute(
+		std::shared_ptr<QA> attribute(
 			new QA(name, description));
 
 		if (set)
@@ -361,7 +361,7 @@ protected:
 		const std::string &name, const std::string &description,
 		const boost::function<D (void)> &get, const boost::function<void (D)> &set) {
 
-		boost::shared_ptr<QA> attribute(
+		std::shared_ptr<QA> attribute(
 			new QA(name, description));
 
 		if (set)
@@ -371,7 +371,7 @@ protected:
 		object.AddAttribute(attribute);
 	}
 private:
-	std::map<std::string, boost::shared_ptr<QueryableAttribute> > attributes;
+	std::map<std::string, std::shared_ptr<QueryableAttribute> > attributes;
 	std::string name;
 	NullAttribute nullAttribute;
 };

@@ -241,7 +241,7 @@ Shape* StlMesh::CreateShape(const Transform &o2w,
 		Faces[i*3 + 2] = i*3 + 2;
 	}
 
-	boost::shared_ptr<Texture<float> > displacementMap;
+	std::shared_ptr<Texture<float> > displacementMap;
 
 	return new Mesh(o2w, reverseOrientation, name, Mesh::ACCEL_AUTO,
 					Vertices.size(), &Vertices[0], NULL, NULL, NULL, NULL, 1.f,

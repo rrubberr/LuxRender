@@ -38,27 +38,27 @@ class Shape : public Primitive {
 public:
 	Shape(const Transform &o2w, bool ro, const string &name);
 	Shape(const Transform &o2w, bool ro,
-		boost::shared_ptr<Material> &material,
-		boost::shared_ptr<Volume> &ex,
-		boost::shared_ptr<Volume> &in, const string &name);
+		std::shared_ptr<Material> &material,
+		std::shared_ptr<Volume> &ex,
+		std::shared_ptr<Volume> &in, const string &name);
 	virtual ~Shape() { }
 
-	void SetMaterial(const boost::shared_ptr<Material> &mat) {
+	void SetMaterial(const std::shared_ptr<Material> &mat) {
 		// Create a temporary to increase shared count
 		// The assignment is just a swap
-		boost::shared_ptr<Material> m(mat);
+		std::shared_ptr<Material> m(mat);
 		material = mat;
 	}
-	void SetExterior(const boost::shared_ptr<Volume> &vol) {
+	void SetExterior(const std::shared_ptr<Volume> &vol) {
 		// Create a temporary to increase shared count
 		// The assignment is just a swap
-		boost::shared_ptr<Volume> v(vol);
+		std::shared_ptr<Volume> v(vol);
 		exterior = v;
 	}
-	void SetInterior(const boost::shared_ptr<Volume> &vol) {
+	void SetInterior(const std::shared_ptr<Volume> &vol) {
 		// Create a temporary to increase shared count
 		// The assignment is just a swap
-		boost::shared_ptr<Volume> v(vol);
+		std::shared_ptr<Volume> v(vol);
 		interior = v;
 	}
 	Material *GetMaterial() const { return material.get(); }
@@ -66,13 +66,13 @@ public:
 	virtual const Volume *GetInterior() const { return interior.get(); }
 
 	virtual BBox WorldBound() const { return ObjectToWorld * ObjectBound(); }
-	virtual void Refine(vector<boost::shared_ptr<Primitive> > &refined,
+	virtual void Refine(vector<std::shared_ptr<Primitive> > &refined,
 		const PrimitiveRefinementHints& refineHints,
-		const boost::shared_ptr<Primitive> &thisPtr) {
-		vector<boost::shared_ptr<Shape> > todo;
+		const std::shared_ptr<Primitive> &thisPtr) {
+		vector<std::shared_ptr<Shape> > todo;
 		Refine(todo); // Use shape refine method
 		for (u_int i = 0; i < todo.size(); ++i) {
-			boost::shared_ptr<Shape> &shape(todo[i]);
+			std::shared_ptr<Shape> &shape(todo[i]);
 			shape->SetMaterial(material);
 			shape->SetExterior(exterior);
 			shape->SetInterior(interior);
@@ -129,7 +129,7 @@ public:
 		LOG( LUX_SEVERE,LUX_BUG)<<"Unimplemented Shape::ObjectBound method called!";
 		return BBox();
 	}
-	virtual void Refine(vector<boost::shared_ptr<Shape> > &refined) const {
+	virtual void Refine(vector<std::shared_ptr<Shape> > &refined) const {
 		LOG(LUX_SEVERE,LUX_BUG)<<"Unimplemented Shape::Refine() method called";
 	}
 	virtual bool Intersect(const Ray &ray, float *t_hitp,
@@ -149,8 +149,8 @@ public:
 	// Shape data
 	const Transform ObjectToWorld;
 protected:
-	boost::shared_ptr<Material> material;
-	boost::shared_ptr<Volume> exterior, interior;
+	std::shared_ptr<Material> material;
+	std::shared_ptr<Volume> exterior, interior;
 	const string name;
 public: // Last to get better data alignment
 	const bool reverseOrientation, transformSwapsHandedness;
@@ -159,8 +159,8 @@ public: // Last to get better data alignment
 class PrimitiveSet : public Primitive {
 public:
 	// PrimitiveSet Public Methods
-	PrimitiveSet(boost::shared_ptr<Aggregate> &a);
-	PrimitiveSet(const vector<boost::shared_ptr<Primitive> > &p);
+	PrimitiveSet(std::shared_ptr<Aggregate> &a);
+	PrimitiveSet(const vector<std::shared_ptr<Primitive> > &p);
 	virtual ~PrimitiveSet() { }
 
 	virtual BBox WorldBound() const { return worldbound; }
@@ -202,9 +202,9 @@ private:
 	// PrimitiveSet Private Data
 	float area;
 	vector<float> areaCDF;
-	vector<boost::shared_ptr<Primitive> > primitives;
+	vector<std::shared_ptr<Primitive> > primitives;
 	BBox worldbound;
-	boost::shared_ptr<Primitive> accelerator;
+	std::shared_ptr<Primitive> accelerator;
 };
 
 }//namespace lux

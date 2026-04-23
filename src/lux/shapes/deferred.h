@@ -114,8 +114,8 @@ private:
 	mutable ParamSet *params;
 
 	// The deferred loaded shape
-	mutable boost::shared_ptr<Shape> shape;
-	mutable boost::shared_ptr<Aggregate> accelerator;
+	mutable std::shared_ptr<Shape> shape;
+	mutable std::shared_ptr<Aggregate> accelerator;
 	mutable Primitive *prim;
 };
 

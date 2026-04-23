@@ -34,7 +34,7 @@ class DistantLight : public Light {
 public:
 	// DistantLight Public Methods
 	DistantLight(const Transform &light2world, 
-		const boost::shared_ptr<Texture<SWCSpectrum> > &L, float gain, 
+		const std::shared_ptr<Texture<SWCSpectrum> > &L, float gain, 
 		float theta, const Vector &dir, u_int ns);
 	virtual ~DistantLight();
 	virtual bool IsDeltaLight() const { return false; }
@@ -66,7 +66,7 @@ public:
 private:
 	// DistantLight Private Data
 	Vector x, y, lightDir;
-	boost::shared_ptr<Texture<SWCSpectrum> > Lbase;
+	std::shared_ptr<Texture<SWCSpectrum> > Lbase;
 	float gain, theta, sin2ThetaMax, cosThetaMax;
 	BxDF *bxdf;
 };
