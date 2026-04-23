@@ -51,7 +51,7 @@ Compiling from source:
    like lzma and bzip2. These are likely present on your system already.
 
  - On Debian or Ubuntu run:
-    sudo apt install git cmake build-essential pkgconfig bison flex libfftw3-dev \
+    sudo apt install git cmake build-essential pkg-config bison flex libfftw3-dev \
     python3-dev qt6-base-dev qt6-image-formats-plugins
 
  - On Fedora or RHEL run:

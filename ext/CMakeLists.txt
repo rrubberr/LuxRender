@@ -259,6 +259,7 @@ ExternalProject_Add(
 		-DWITH_JAVA=FALSE
 		-DWITH_TURBOJPEG=FALSE
         -DBUILD_SHARED_LIBS=FALSE
+		-DWITH_TURBOJPEG=FALSE
 )
 
 #################
