@@ -107,6 +107,7 @@ ExternalProject_Add(
         OpenImageIO
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/lux
     PREFIX ${LUX_PFX_DIR}/LuxRender
+    BUILD_ALWAYS 1
     INSTALL_DIR ${LUX_BUILD_DIR}
     CMAKE_ARGS
         -DCMAKE_PREFIX_PATH=${LUX_BUILD_DIR}
