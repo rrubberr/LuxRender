@@ -323,6 +323,8 @@ ExternalProject_Add(
 		-DOPENEXR_INSTALL_DEVELOPER_TOOLS=FALSE
 		-DOPENEXR_FORCE_INTERNAL_OPENJPH=FALSE # Do not use internal. This will break the universe.
         -DBUILD_SHARED_LIBS=FALSE
+	CMAKE_CACHE_ARGS
+		"-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} -I${DEPS_INC_DIR}/openjph"
 )
 
 #####################
