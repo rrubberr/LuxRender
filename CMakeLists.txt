@@ -33,7 +33,9 @@ IF(COMMAND cmake_policy)
     cmake_policy(SET CMP0111 OLD)
     cmake_policy(SET CMP0144 OLD)
 	cmake_policy(SET CMP0148 OLD)
-	cmake_policy(SET CMP0167 OLD)
+	if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 OLD)
+    endif()
 ENDIF(COMMAND cmake_policy)
 
 # This points to LuxRender/ext.
