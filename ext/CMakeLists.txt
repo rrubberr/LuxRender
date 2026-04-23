@@ -287,6 +287,7 @@ ExternalProject_Add(
 		-Dtiff-cxx=FALSE
 		-Dtiff-opengl=FALSE
 		-Djbig=FALSE
+		-Djpeg12=FALSE
 )
 
 ###############
