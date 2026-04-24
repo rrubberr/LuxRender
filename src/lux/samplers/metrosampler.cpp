@@ -254,18 +254,24 @@ bool MetropolisSampler::GetNextSample(Sample *sample)
 			mutateScaled(data->sampleImage[1], rngGet(1),
 			yPixelStart, yPixelEnd, range);
 
+		// Derive a step size from the image-space range so that
+		// lensU/V, time, and wavelengths use the same kernel shape as image XY,
+		// rather than the hardcoded 0.5f which made small mutations behave nearly
+		// like large ones in those dimensions.
+		const float normRange = range / (0.5f * (xPixelEnd - xPixelStart + yPixelEnd - yPixelStart));
+		const float auxRange = max(0.001f, min(0.5f, normRange));
 		sample->lensU = data->currentImage[2] =
 			mutateScaled(data->sampleImage[2], rngGet(2),
-			0.f, 1.f, .5f);
+			0.f, 1.f, auxRange);
 		sample->lensV = data->currentImage[3] =
 			mutateScaled(data->sampleImage[3], rngGet(3),
-			0.f, 1.f, .5f);
+			0.f, 1.f, auxRange);
 		sample->time = data->currentImage[4] =
 			mutateScaled(data->sampleImage[4], rngGet(4),
-			0.f, 1.f, .5f);
+			0.f, 1.f, auxRange);
 		sample->wavelengths = data->currentImage[5] =
 			mutateScaled(data->sampleImage[5], rngGet(5),
-			0.f, 1.f, .5f);
+			0.f, 1.f, auxRange);
 		for (u_int i = SAMPLE_FLOATS; i < data->normalSamples; ++i)
 			data->currentImage[i] =
 				mutate(data->sampleImage[i], rngGet(i));
@@ -376,12 +382,18 @@ void MetropolisSampler::AddSample(const Sample &sample)
 		}
 	}
 		
+	// Use an exponential moving average for mean intensity so that
+	// early noisy samples are down-weighted over time.
+	static const float MEAN_EMA_ALPHA = 0.005f;
 	if (data->large) {
-		data->totalLY += newLY;
+		if (data->sampleCount == 0.f)
+			data->totalLY = (newLY > 0.f) ? newLY : 1.0; // bootstrap on first sample
+		else if (newLY > 0.f)
+			data->totalLY = data->totalLY * (1.0 - MEAN_EMA_ALPHA) + newLY * MEAN_EMA_ALPHA;
 		++(data->sampleCount);
 	}
 
-	const float meanIntensity = data->totalLY > 0. ? static_cast<float>(data->totalLY / data->sampleCount) : 1.f;
+	const float meanIntensity = data->totalLY > 0. ? static_cast<float>(data->totalLY) : 1.f;
 
 	sample.contribBuffer->AddSampleCount(1.f);
 
@@ -389,15 +401,22 @@ void MetropolisSampler::AddSample(const Sample &sample)
 	// inside the cooldown phase.
 	const float largeMutationProb = (data->cooldown) ? .5f : pLarge;
 
-	// calculate accept probability from old and new image sample
+	// Replace forced acceptance with a forced large mutation on the next step.
+	// Forced acceptance violates detailed balance; a large mutation is an
+	// independent draw that is always valid.
+	if (data->consecRejects >= maxRejects) {
+		data->large = true;
+		data->consecRejects = 0;
+	}
 	float accProb;
-	if (data->LY > 0.f && data->consecRejects < maxRejects)
+	if (data->LY > 0.f)
 		accProb = min(1.f, newLY / data->LY);
 	else
 		accProb = 1.f;
 	const float newWeight = accProb + (data->large ? 1.f : 0.f);
 	data->weight += 1.f - accProb;
 	// try or force accepting of the new sample
+	// This one does not break detailed balance because accProb 1.f is preordained.
 	if (accProb == 1.f || sample.rng->floatValue() < accProb) {
 		// Add accumulated contribution of previous reference sample
 		const float norm = data->weight / (data->LY / meanIntensity + largeMutationProb);
