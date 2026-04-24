@@ -43,38 +43,21 @@ endif()
 
 include_directories(${PYTHON_INCLUDE_DIRS})
 
-# Find Boost
-# set(Boost_USE_STATIC_LIBS       OFF)
-set(Boost_USE_MULTITHREADED     ON)
-# set(Boost_USE_STATIC_RUNTIME    OFF)
-set(BOOST_ROOT                  "${BOOST_SEARCH_PATH}")
-#set(Boost_DEBUG                 ON)
-set(Boost_MINIMUM_VERSION       "1.44.0")
+#############################################################################
+########################### BOOST LIBRARIES SETUP ###########################
+#############################################################################
 
-set(Boost_ADDITIONAL_VERSIONS "1.47.0" "1.46.1" "1.46" "1.46.0" "1.45" "1.45.0" "1.44" "1.44.0")
+find_package(Boost REQUIRED COMPONENTS
+    thread
+    program_options
+    filesystem
+    serialization
+    iostreams
+    regex
+    python
+)
 
-set(LUXRAYS_BOOST_COMPONENTS thread program_options filesystem serialization iostreams regex python chrono)
-find_package(Boost ${Boost_MINIMUM_VERSION} COMPONENTS ${LUXRAYS_BOOST_COMPONENTS})
-if (NOT Boost_FOUND)
-        # Try again with the other type of libs
-        if(Boost_USE_STATIC_LIBS)
-                set(Boost_USE_STATIC_LIBS OFF)
-        else()
-                set(Boost_USE_STATIC_LIBS ON)
-        endif()
-        find_package(Boost ${Boost_MINIMUM_VERSION} COMPONENTS ${LUXRAYS_BOOST_COMPONENTS})
-endif()
-
-if (Boost_FOUND)
-	include_directories(BEFORE SYSTEM ${Boost_INCLUDE_DIRS})
-	link_directories(${Boost_LIBRARY_DIRS})
-	# Don't use old boost versions interfaces
-	ADD_DEFINITIONS(-DBOOST_FILESYSTEM_NO_DEPRECATED)
-	if (Boost_USE_STATIC_LIBS)
-		ADD_DEFINITIONS(-DBOOST_STATIC_LIB)
-		ADD_DEFINITIONS(-DBOOST_PYTHON_STATIC_LIB)
-	endif()
-endif ()
+include_directories(${Boost_INCLUDE_DIRS})
 
 # OpenMP
 if(NOT APPLE)
@@ -86,13 +69,6 @@ if(NOT APPLE)
 	else()
 		MESSAGE(WARNING "OpenMP not found - compiling without")
 	endif()
-endif()
-
-# Find GTK 3.0 for Linux only (required by luxcoreui NFD)
-if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-	find_package(PkgConfig REQUIRED)
-	pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
-	include_directories(${GTK3_INCLUDE_DIRS})
 endif()
 
 # Find BISON

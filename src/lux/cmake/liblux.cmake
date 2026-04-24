@@ -925,6 +925,7 @@ ELSEIF(NOT APPLE)
         TIFF::TIFF
         FFTW3::fftw3
         Threads::Threads
+		pystring::pystring
     )
 
     target_compile_definitions(lux PRIVATE LUX_INTERNAL)

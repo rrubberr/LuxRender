@@ -19,6 +19,9 @@ What's new in 1.9:
    if host CPU support is detected. Set your accelerator to "BVH"
    in Blender. (Wald et al. 2008)
 
+ - The Bidirectional integrator now supports ray connections from
+   light sources directly to the camera. (Veach & Guibas 1994)
+
  - Misc. library updates include:
     - QT4 --> 6
     - Boost 1.44 --> 1.90
@@ -26,24 +29,18 @@ What's new in 1.9:
 
 What's included:
 ---------------
- - luxrender, luxconsole, luxmerger
-   LuxRender GUI and console version, FLM merging tool.
- 
- - liblux.so, pylux.so
-   LuxRender shared library and Python binding modules for Blender
-   2.79b integration.
- 
- - examples
-   Two example scenes for LuxRenderer which you can try right away:
+ - luxrender, luxconsole, luxmerger, liblux.so and pylux.so.
+
+ - Examples:
+   Two example scenes for LuxRender which you can try right away:
    LuxTime (by freejack) and School Corridor (by B.Y.O.B.).
 
 Notes:
 -----
- - Please note that our official precompiled LuxRender builds are only
+ - Please note that our precompiled LuxRender builds are only
    compatible with official Blender builds from http://blender.org. If
    you are using a custom Blender build from your Linux distribution
-   repository or a some alternative source, you should use a custom
-   LuxRender build as well.
+   repository or some alternative source, you should build LuxRender.
 
 Compiling from source:
 ---------------------
@@ -53,7 +50,24 @@ Compiling from source:
  - You will also need fftw3, freetype, and common compression libraries
    like lzma and bzip2. These are likely present on your system already.
 
- - Then, run "sh makelux.sh" in the same folder as this README.
+ - On Debian or Ubuntu run:
+    sudo apt install git cmake build-essential pkg-config bison flex libfftw3-dev \
+    python3-dev qt6-base-dev qt6-image-formats-plugins
+
+ - On Fedora or RHEL run:
+    sudo dnf group install "c-development"
+    sudo dnf install git cmake pkgconf-pkg-config bison flex fftw-devel \
+    python3-devel qt6-qtbase-devel qt6-qtimageformats expat-devel
+ 
+ - On Arch & friends run:
+    sudo pacman -S base-devel git cmake pkgconf bison flex fftw python \
+    qt6-base qt6-imageformats
+
+ - Then do the standard cmake dance from the main folder:
+    mkdir build
+    cd build
+    cmake ..
+    make -j
 
 Demo scenes:
 -----------

@@ -20,10 +20,19 @@
  *   Lux Renderer website : http://www.luxrender.org                       *
  ***************************************************************************/
 
-// Boundary Volume Hierarchy accelerator — 8-wide multi-branching version.
-// Build strategy based on Wald, Benthin & Boulos, "Getting Rid of Packets",
-// IEEE/EG Symposium on Interactive Ray Tracing 2008.
-// Original scalar BVH code by Ratow; octree split by LuxRender authors.
+// ---------------------------------------------------------------------------
+// BVH accelerator
+// ---------------------------------------------------------------------------
+// Construction pipeline (Wald 2008, "Stackless Multi-BVH Traversal"):
+//   1. Build a standard SAH binary BVH over the primitives.
+//   2. Annotate each binary node with its SAH collapse cost.
+//   3. Collapse the binary tree into a wide BVH.
+//   4. Lay out the resulting wide nodes in a depth-first flat array.
+// The MBVH8Node bounding boxes are stored in a structure-of-arrays
+// so that GCC can vectorize the 8-wide intersection test without intrinsics.
+// ---------------------------------------------------------------------------
+
+// bvhaccel.cpp*
 
 #include "bvhaccel.h"
 #include "paramset.h"
@@ -31,579 +40,700 @@
 #include "error.h"
 
 #include <algorithm>
-#include <functional>
-#include <vector>
-#include <cmath>
-#include <climits>
+#include <cassert>
+#include <cstring>
+#include <iomanip>
+#include <limits>
+#include <sstream>
 
-using std::bind2nd;
-using std::ptr_fun;
-using std::vector;
 using namespace luxrays;
 using namespace lux;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Centroid comparators for partition() in BuildHierarchy — unchanged.
-// ─────────────────────────────────────────────────────────────────────────────
-static bool bvh_ltf_x(boost::shared_ptr<BVHAccelTreeNode> n, float v)
-    { return n->bbox.pMax.x + n->bbox.pMin.x < v; }
-static bool bvh_ltf_y(boost::shared_ptr<BVHAccelTreeNode> n, float v)
-    { return n->bbox.pMax.y + n->bbox.pMin.y < v; }
-static bool bvh_ltf_z(boost::shared_ptr<BVHAccelTreeNode> n, float v)
-    { return n->bbox.pMax.z + n->bbox.pMin.z < v; }
-static bool (* const bvh_ltf[3])(boost::shared_ptr<BVHAccelTreeNode>, float) =
-    { bvh_ltf_x, bvh_ltf_y, bvh_ltf_z };
+// ---------------------------------------------------------------------------
+// Helpers.
+// ---------------------------------------------------------------------------
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Constructor
-// ─────────────────────────────────────────────────────────────────────────────
+static inline float BBoxSurfaceArea(const BBox &b)
+{
+	Vector d = b.pMax - b.pMin;
+	return 2.f * (d.x * d.y + d.x * d.z + d.y * d.z);
+}
+
+// ---------------------------------------------------------------------------
+// Constructor / Destructor.
+// ---------------------------------------------------------------------------
+
 BVHAccel::BVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
-                   u_int treetype, int csamples, int icost, int tcost,
-                   float ebonus)
-    : costSamples(csamples), isectCost(icost), traversalCost(tcost),
-      emptyBonus(ebonus), nBuildNodes(0),
-      nPrims(0), prims(NULL),
-      nWBVHNodes(0), wbvhTree(NULL), nLeafPrims(0), leafPrims(NULL)
+		int csamples, int icost, int tcost, float ebonus, int maxleafp)
+	: costSamples(csamples), isectCost(icost), traversalCost(tcost),
+	  maxLeafPrims(maxleafp < 1 ? 1 : maxleafp),
+	  emptyBonus(ebonus), nPrims(0), prims(nullptr), bvh8(nullptr), nWideNodes(0)
 {
-    // Refine all primitives.
-    vector<boost::shared_ptr<Primitive> > vPrims;
-    const PrimitiveRefinementHints refineHints(false);
-    for (u_int i = 0; i < p.size(); ++i) {
-        if (p[i]->CanIntersect()) vPrims.push_back(p[i]);
-        else p[i]->Refine(vPrims, refineHints, p[i]);
-    }
+	// ------------------------------------------------------------------
+	// Collect intersectable primitives.
+	// ------------------------------------------------------------------
+	vector<boost::shared_ptr<Primitive> > vPrims;
+	const PrimitiveRefinementHints refineHints(false);
+	for (u_int i = 0; i < p.size(); ++i) {
+		if (p[i]->CanIntersect())
+			vPrims.push_back(p[i]);
+		else
+			p[i]->Refine(vPrims, refineHints, p[i]);
+	}
 
-    // Always use 8-wide splitting; the collapsing step will improve quality.
-    treeType = 8;
-    (void)treetype; // user param ignored: we always build 8-wide
+	nPrims = static_cast<u_int>(vPrims.size());
+	if (nPrims == 0)
+		return;
 
-    nPrims = vPrims.size();
-    prims  = AllocAligned<boost::shared_ptr<Primitive> >(nPrims > 0 ? nPrims : 1);
-    for (u_int i = 0; i < nPrims; ++i)
-        new (&prims[i]) boost::shared_ptr<Primitive>(vPrims[i]);
+	// Keep ownership of the original shared_ptr array.
+	prims = AllocAligned<boost::shared_ptr<Primitive> >(nPrims);
+	for (u_int i = 0; i < nPrims; ++i)
+		new (&prims[i]) boost::shared_ptr<Primitive>(vPrims[i]);
 
-    if (nPrims == 0) {
-        wbvhTree  = AllocAligned<WBVHNode>(1);
-        wbvhTree[0] = WBVHNode();
-        for (int i = 0; i < 8; ++i) wbvhTree[0].children[i] = WBVHNode::EMPTY_CHILD;
-        leafPrims = NULL;
-        nLeafPrims = 0;
-        nWBVHNodes = 1;
-        return;
-    }
+	// Create per-primitive leaf nodes for the binary build.
+	vector<boost::shared_ptr<BVHAccelTreeNode> > leafNodes(nPrims);
+	for (u_int i = 0; i < nPrims; ++i) {
+		BVHAccelTreeNode *ln = new BVHAccelTreeNode();
+		ln->bbox      = prims[i]->WorldBound();
+		ln->bbox.Expand(MachineEpsilon::E(ln->bbox));
+		ln->isLeaf    = true;
+		ln->primitive = prims[i].get();
+		buildNodes.push_back(ln); // Non-owning shared_ptr: lifetime is managed by buildNodes.
+		leafNodes[i] = boost::shared_ptr<BVHAccelTreeNode>(ln, [](BVHAccelTreeNode *) {});
+	}
 
-    // Build the initial linked tree (octree split, treeType=8).
-    vector<boost::shared_ptr<BVHAccelTreeNode> > bvList;
-    bvList.reserve(nPrims);
-    for (u_int i = 0; i < nPrims; ++i) {
-        boost::shared_ptr<BVHAccelTreeNode> node(new BVHAccelTreeNode());
-        node->bbox = prims[i]->WorldBound();
-        node->bbox.Expand(MachineEpsilon::E(node->bbox));
-        node->primitive = prims[i].get();
-        bvList.push_back(node);
-    }
+	LOG(LUX_INFO, LUX_NOERROR) << "Building binary SAH BVH, primitives: " << nPrims
+		<< ", max leaf prims: " << maxLeafPrims;
 
-    LOG(LUX_INFO, LUX_NOERROR) << "Building 8-wide BVH, primitives: " << nPrims;
-    nBuildNodes = 0;
-    boost::shared_ptr<BVHAccelTreeNode> root = BuildHierarchy(bvList, 0, bvList.size(), 2);
+	// Build binary BVH.
+	BVHAccelTreeNode *root = BuildBinaryBVH(leafNodes, 0, nPrims);
 
-    LOG(LUX_INFO, LUX_NOERROR) << "Collapsing 8-wide BVH (SAH-based), "
-        << "initial nodes: " << nBuildNodes;
-    CollapseNode(root);
+	// Annotate nodes with SAH cost.
+	float rootSA    = BBoxSurfaceArea(root->bbox);
+	float rootSAInv = (rootSA > 0.f) ? 1.f / rootSA : 0.f;
+	ComputeCollapseInfo(root, rootSAInv);
 
-    // Allocate the WBVHNode array.  nBuildNodes is a safe upper bound on the
-    // number of wide nodes because collapsing only reduces node count.
-    wbvhTree = AllocAligned<WBVHNode>(nBuildNodes + 1);
+	// Collapse binary tree.
+	LOG(LUX_INFO, LUX_NOERROR) << "Collapsing binary BVH to " << MBVH8_WIDTH << "-wide BVH";
 
-    // Build the flat WBVHNode array and collect leaf primitive pointers.
-    vector<Primitive *> leafPrimsVec;
-    leafPrimsVec.reserve(nPrims);
-    nWBVHNodes = BuildWideArray(root, 0, leafPrimsVec);
+	vector<MBVH8Node> wideNodesTmp;
+	wideNodesTmp.reserve(nPrims);
+	CollapseToWide(root, leafNodes, wideNodesTmp, orderedPrims);
 
-    // Transfer leaf primitives to a plain array.
-    nLeafPrims = static_cast<u_int>(leafPrimsVec.size());
-    leafPrims  = new Primitive *[nLeafPrims > 0 ? nLeafPrims : 1];
-    for (u_int i = 0; i < nLeafPrims; ++i)
-        leafPrims[i] = leafPrimsVec[i];
+	nWideNodes = static_cast<u_int>(wideNodesTmp.size());
+	bvh8 = AllocAligned<MBVH8Node>(nWideNodes, MBVH8_ALIGN);
+	for (u_int i = 0; i < nWideNodes; ++i)
+		new (&bvh8[i]) MBVH8Node(wideNodesTmp[i]);
 
-    // Cache the world bounding box from the root tree node.
-    worldBound = root->bbox;
+	// Compute and log quality statistics
+	// This writes slot counts and outputs fill histogram.
+	u_int totalFilled = 0, totalLeafSlots = 0, totalInnerSlots = 0;
+	u_int fillHist[MBVH8_WIDTH + 1] = {}; // fillHist[k] = #nodes with k filled slots.
+	for (u_int i = 0; i < nWideNodes; ++i) {
+		int nodeFill = 0;
+		for (int s = 0; s < MBVH8_WIDTH; ++s) {
+			int ci = wideNodesTmp[i].childIndex[s];
+			if (ci == MBVH8_EMPTY_CHILD) continue;
+			++nodeFill;
+			++totalFilled;
+			if (ci < 0) ++totalLeafSlots;
+			else        ++totalInnerSlots;
+		}
+		fillHist[nodeFill]++;
+	}
+	float avgFill = (nWideNodes > 0)
+		? static_cast<float>(totalFilled) / static_cast<float>(nWideNodes)
+		: 0.f;
 
-    LOG(LUX_INFO, LUX_NOERROR) << "8-wide BVH complete: "
-        << nWBVHNodes << " wide nodes, " << nLeafPrims << " leaf prims";
+	// depth pass: iterative DFS over the wide node array.
+	u_int maxDepth       = 0;	// max depth of any leaf slot.
+	u_int totalLeafDepth = 0;   // sum of depth at every leaf slot.
+	u_int leafDepthCount = 0;   // number of leaf slots visited.
+
+	{
+		// Stack entries: (nodeIndex, depth).
+		vector<std::pair<u_int, u_int> > dfsStack;
+		dfsStack.reserve(nWideNodes);
+		dfsStack.push_back(std::make_pair(0u, 1u));
+		while (!dfsStack.empty()) {
+			u_int ni    = dfsStack.back().first;
+			u_int depth = dfsStack.back().second;
+			dfsStack.pop_back();
+			if (depth > maxDepth) maxDepth = depth;
+			for (int s = 0; s < MBVH8_WIDTH; ++s) {
+				int ci = wideNodesTmp[ni].childIndex[s];
+				if (ci == MBVH8_EMPTY_CHILD) continue;
+				if (ci < 0) {
+					totalLeafDepth += depth;
+					++leafDepthCount;
+				} else {
+					dfsStack.push_back(std::make_pair(static_cast<u_int>(ci), depth + 1u));
+				}
+			}
+		}
+	}
+	float avgLeafDepth = (leafDepthCount > 0)
+		? static_cast<float>(totalLeafDepth) / static_cast<float>(leafDepthCount)
+		: 0.f;
+
+	// Free the binary build tree.
+	for (BVHAccelTreeNode *n : buildNodes)
+		delete n;
+	buildNodes.clear();
+
+	LOG(LUX_INFO, LUX_NOERROR)
+		<< "Finished " << MBVH8_WIDTH << "-wide BVH:"
+		<< " nodes: "        << nWideNodes
+		<< ", inner slots: " << totalInnerSlots
+		<< ", leaf slots: "  << totalLeafSlots
+		<< ", avg fill: "    << std::fixed << std::setprecision(2) << avgFill
+		<< "/" << MBVH8_WIDTH
+		<< " (" << std::fixed << std::setprecision(1)
+		<< (100.f * avgFill / MBVH8_WIDTH) << "%)"
+		<< ", depth max/avg: " << maxDepth
+		<< "/" << std::fixed << std::setprecision(1) << avgLeafDepth;
+
+	// Fill histogram: only print non-zero buckets.
+	{
+		std::ostringstream hist;
+		hist << "Fill histogram (slots:nodes) –";
+		for (int k = 1; k <= MBVH8_WIDTH; ++k) {
+			if (fillHist[k] > 0)
+				hist << " " << k << ":" << fillHist[k];
+		}
+		LOG(LUX_INFO, LUX_NOERROR) << hist.str();
+	}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Destructor
-// ─────────────────────────────────────────────────────────────────────────────
-BVHAccel::~BVHAccel() {
-    for (u_int i = 0; i < nPrims; ++i)
-        prims[i].~shared_ptr();
-    FreeAligned(prims);
-    FreeAligned(wbvhTree);
-    delete[] leafPrims;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BuildHierarchy  —  recursive octree split; unchanged from the original.
-// ─────────────────────────────────────────────────────────────────────────────
-boost::shared_ptr<BVHAccelTreeNode> BVHAccel::BuildHierarchy(
-    vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
-    u_int begin, u_int end, u_int axis)
+BVHAccel::~BVHAccel()
 {
-    u_int splitAxis = axis;
-    float splitValue;
-
-    nBuildNodes += 1;
-    if (end - begin == 1)
-        return list[begin]; // single primitive — return leaf directly
-
-    boost::shared_ptr<BVHAccelTreeNode> parent(new BVHAccelTreeNode());
-    parent->primitive = NULL;
-    if (end == begin)
-        return parent; // empty subtree
-
-    // Compute up to treeType=8 split points using successive binary splits.
-    vector<u_int> splits;
-    splits.reserve(treeType + 1);
-    splits.push_back(begin);
-    splits.push_back(end);
-
-    for (u_int i = 2; i <= treeType; i *= 2) {
-        for (u_int j = 0, offset = 0;
-             j + offset < i && splits.size() > j + 1; j += 2)
-        {
-            if (splits[j + 1] - splits[j] < 2) {
-                --j; ++offset;
-                continue; // fewer than 2 elements — no split needed
-            }
-            FindBestSplit(list, splits[j], splits[j + 1],
-                          &splitValue, &splitAxis);
-            vector<boost::shared_ptr<BVHAccelTreeNode> >::iterator it =
-                partition(list.begin() + splits[j],
-                          list.begin() + splits[j + 1],
-                          bind2nd(ptr_fun(bvh_ltf[splitAxis]), splitValue));
-            u_int mid = distance(list.begin(), it);
-            mid = max(splits[j] + 1, min(splits[j + 1] - 1, mid));
-            splits.insert(splits.begin() + j + 1, mid);
-        }
-    }
-
-    // Build child subtrees for each interval.
-    boost::shared_ptr<BVHAccelTreeNode> child =
-        BuildHierarchy(list, splits[0], splits[1], splitAxis);
-    parent->leftChild = child;
-    parent->bbox = Union(parent->bbox, child->bbox);
-    boost::shared_ptr<BVHAccelTreeNode> last = child;
-
-    for (u_int i = 1; i < splits.size() - 1; ++i) {
-        child = BuildHierarchy(list, splits[i], splits[i + 1], splitAxis);
-        last->rightSibling = child;
-        parent->bbox = Union(parent->bbox, child->bbox);
-        last = child;
-    }
-
-    return parent;
+	for (u_int i = 0; i < nPrims; ++i)
+		prims[i].~shared_ptr();
+	FreeAligned(prims);
+	if (bvh8) {
+		for (u_int i = 0; i < nWideNodes; ++i)
+			bvh8[i].~MBVH8Node();
+		FreeAligned(bvh8);
+	}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FindBestSplit  —  unchanged from the original.
-// ─────────────────────────────────────────────────────────────────────────────
-void BVHAccel::FindBestSplit(vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
-    u_int begin, u_int end, float *splitValue, u_int *bestAxis)
+// Binary SAH BVH construction.
+BVHAccelTreeNode *BVHAccel::BuildBinaryBVH(
+		vector<boost::shared_ptr<BVHAccelTreeNode> > &leaves,
+		u_int begin, u_int end)
 {
-    if (end - begin == 2) {
-        *splitValue = (list[begin]->bbox.pMax[0] + list[begin]->bbox.pMin[0] +
-                       list[end-1]->bbox.pMax[0] + list[end-1]->bbox.pMin[0]) / 2.f;
-        *bestAxis = 0;
-        return;
-    }
+	assert(begin < end);
 
-    Point mean2(0, 0, 0), var(0, 0, 0);
-    for (u_int i = begin; i < end; ++i)
-        mean2 += list[i]->bbox.pMax + list[i]->bbox.pMin;
-    mean2 /= static_cast<float>(end - begin);
+	// Stop recursing once the range fits in a single wide leaf slot.
+	if (end - begin <= static_cast<u_int>(maxLeafPrims)) {
+		if (end - begin == 1)
+			return leaves[begin].get(); // Reuse the already-created single-prim leaf.
 
-    for (u_int i = begin; i < end; ++i) {
-        Vector v = list[i]->bbox.pMax + list[i]->bbox.pMin - mean2;
-        v.x *= v.x; v.y *= v.y; v.z *= v.z;
-        var += v;
-    }
-    if      (var.x > var.y && var.x > var.z) *bestAxis = 0;
-    else if (var.y > var.z)                   *bestAxis = 1;
-    else                                       *bestAxis = 2;
+		// Primitive aggregate leaf: covers multiple primitive leaves[begin..end).
+		// primitive == nullptr distinguishes it from a single-prim leaf.
+		BVHAccelTreeNode *node = new BVHAccelTreeNode();
+		buildNodes.push_back(node);
+		node->isLeaf        = true;
+		node->primitive     = nullptr;
+		node->leafPrimStart = begin;
+		node->leafPrimEnd   = end;
+		node->bbox = leaves[begin]->bbox;
+		for (u_int i = begin + 1; i < end; ++i)
+			node->bbox = Union(node->bbox, leaves[i]->bbox);
+		return node;
+	}
 
-    if (costSamples > 1) {
-        BBox nodeBounds;
-        for (u_int i = begin; i < end; ++i)
-            nodeBounds = Union(nodeBounds, list[i]->bbox);
+	u_int bestAxis;
+	float splitValue;
+	FindBestSplit(leaves, begin, end, &splitValue, &bestAxis);
 
-        Vector d = nodeBounds.pMax - nodeBounds.pMin;
-        float totalSA    = 2.f * (d.x*d.y + d.x*d.z + d.y*d.z);
-        float invTotalSA = 1.f / totalSA;
-        float increment  = 2.f * d[*bestAxis] / static_cast<float>(costSamples + 1);
-        float bestCost   = INFINITY;
+	// Partition around splitValue on bestAxis.
+	auto mid = std::partition(
+		leaves.begin() + begin,
+		leaves.begin() + end,
+		[bestAxis, splitValue](const boost::shared_ptr<BVHAccelTreeNode> &n) {
+			return (n->bbox.pMax[bestAxis] + n->bbox.pMin[bestAxis]) < splitValue;
+		});
 
-        for (float sv  = 2.f * nodeBounds.pMin[*bestAxis] + increment;
-                   sv  < 2.f * nodeBounds.pMax[*bestAxis]; sv += increment) {
-            int nBelow = 0, nAbove = 0;
-            BBox bbBelow, bbAbove;
-            for (u_int j = begin; j < end; ++j) {
-                if ((list[j]->bbox.pMax[*bestAxis] +
-                     list[j]->bbox.pMin[*bestAxis]) < sv) {
-                    ++nBelow; bbBelow = Union(bbBelow, list[j]->bbox);
-                } else {
-                    ++nAbove; bbAbove = Union(bbAbove, list[j]->bbox);
-                }
-            }
-            Vector dB = bbBelow.pMax - bbBelow.pMin;
-            Vector dA = bbAbove.pMax - bbAbove.pMin;
-            float pB = 2.f*(dB.x*dB.y+dB.x*dB.z+dB.y*dB.z) * invTotalSA;
-            float pA = 2.f*(dA.x*dA.y+dA.x*dA.z+dA.y*dA.z) * invTotalSA;
-            float eb  = (nAbove == 0 || nBelow == 0) ? emptyBonus : 0.f;
-            float cost = traversalCost +
-                         isectCost * (1.f - eb) * (pB*nBelow + pA*nAbove);
-            if (cost < bestCost) { bestCost = cost; *splitValue = sv; }
-        }
-    } else {
-        *splitValue = mean2[*bestAxis];
-    }
+	u_int midIdx = static_cast<u_int>(std::distance(leaves.begin(), mid));
+	// Guard against degenerate partition.
+	if (midIdx <= begin) midIdx = begin + 1;
+	if (midIdx >= end)   midIdx = end - 1;
+
+	BVHAccelTreeNode *node = new BVHAccelTreeNode();
+	buildNodes.push_back(node);
+	node->isLeaf           = false;
+	node->children.left    = BuildBinaryBVH(leaves, begin,  midIdx);
+	node->children.right   = BuildBinaryBVH(leaves, midIdx, end);
+	node->bbox = Union(node->children.left->bbox, node->children.right->bbox);
+
+	return node;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CollapseNode  —  SAH-based collapsing (Wald et al. 2008, Section 4.2).
-//
-// For each inner node, we try to pull inner-node children's children directly
-// into the current node ("merging a child into its parent").  The paper shows
-// this always reduces the expected traversal cost by exactly SA(child), so we
-// apply it unconditionally whenever (currentCount - 1 + grandCount) ≤ 8.
-// We repeat until no more pulls are possible, then recurse.
-//
-// Implementation: we work with a std::vector<shared_ptr<BVHAccelTreeNode>>
-// for the current node's children, which makes insertions/deletions O(n)
-// (n ≤ 8 always) and avoids complicated pointer-surgery on the linked list.
-// ─────────────────────────────────────────────────────────────────────────────
-void BVHAccel::CollapseNode(boost::shared_ptr<BVHAccelTreeNode> node) {
-    if (!node || node->primitive)
-        return; // null or leaf — nothing to collapse
-
-    // Collect the current children into a vector.
-    vector<boost::shared_ptr<BVHAccelTreeNode> > children;
-    {
-        auto c = node->leftChild;
-        while (c) { children.push_back(c); c = c->rightSibling; }
-    }
-
-    // Repeatedly try to absorb inner-node grandchildren into this node.
-    bool changed = true;
-    while (changed) {
-        changed = false;
-        const int n = static_cast<int>(children.size());
-        for (int i = 0; i < n && !changed; ++i) {
-            auto &ci = children[i];
-            // Only inner nodes (primitive == NULL) with children can be absorbed.
-            if (ci->primitive || !ci->leftChild) continue;
-
-            // Count ci's children (grandchildren of node).
-            int grandCount = 0;
-            for (auto gc = ci->leftChild; gc; gc = gc->rightSibling)
-                ++grandCount;
-
-            // Absorption replaces ci (cost: -1) with grandCount children.
-            // Condition: result fits in 8 slots.
-            if (n - 1 + grandCount > 8) continue;
-
-            // Perform absorption: collect grandchildren, splice into children[].
-            vector<boost::shared_ptr<BVHAccelTreeNode> > grandchildren;
-            grandchildren.reserve(grandCount);
-            for (auto gc = ci->leftChild; gc; gc = gc->rightSibling)
-                grandchildren.push_back(gc);
-
-            // Replace children[i] with the grandchildren in-place.
-            children.erase(children.begin() + i);
-            children.insert(children.begin() + i,
-                            grandchildren.begin(), grandchildren.end());
-
-            changed = true; // restart the scan — new pulls may now be possible
-        }
-    }
-
-    // Rebuild the rightSibling linked list from the updated children vector.
-    node->leftChild.reset();
-    if (!children.empty()) {
-        node->leftChild = children[0];
-        for (int i = 0; i + 1 < static_cast<int>(children.size()); ++i)
-            children[i]->rightSibling = children[i + 1];
-        children.back()->rightSibling.reset();
-    }
-
-    // Recurse into all remaining children.
-    for (auto &c : children)
-        CollapseNode(c);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BuildWideArray  —  converts collapsed linked tree to flat WBVHNode array.
-//
-// node    : the tree node whose children we are packaging into wbvhTree[nodeIdx]
-// nodeIdx : index in wbvhTree[] reserved for this wide node
-// returns : the next free index in wbvhTree[] after this entire subtree
-//
-// Leaf nodes (primitive != NULL) are encoded in children[] as ~leafIndex
-// (all negative values) and their Primitive* is appended to leafPrimsVec.
-// Unused child slots retain children[i] == EMPTY_CHILD.
-// ─────────────────────────────────────────────────────────────────────────────
-u_int BVHAccel::BuildWideArray(boost::shared_ptr<BVHAccelTreeNode> node,
-                               u_int nodeIdx,
-                               vector<Primitive *> &leafPrimsVec)
+void BVHAccel::FindBestSplit(
+		vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
+		u_int begin, u_int end,
+		float *splitValue, u_int *bestAxis)
 {
-    WBVHNode &wn = wbvhTree[nodeIdx];
+	if (end - begin == 2) {
+		*splitValue = (list[begin]->bbox.pMax[0] + list[begin]->bbox.pMin[0] +
+		               list[end-1]->bbox.pMax[0] + list[end-1]->bbox.pMin[0]) * 0.5f;
+		*bestAxis   = 0;
+		return;
+	}
 
-    // Initialise all 8 slots as empty.  Padding bbox values are +INFINITY so
-    // the slab test always fails: for positive invDir both t1 and t2 are +INF,
-    // driving tEntry to +INF > tExit; for negative invDir tExit collapses to
-    // -INF < tEntry.  Either way the slot is never reported as a hit.
-    const float kInf = std::numeric_limits<float>::infinity();
-    for (int i = 0; i < 8; ++i) {
-        wn.children[i] = WBVHNode::EMPTY_CHILD;
-        for (int ax = 0; ax < 3; ++ax) {
-            wn.bboxMin[ax][i] = kInf;
-            wn.bboxMax[ax][i] = kInf;
-        }
-    }
+	if (costSamples > 1) {
+		
+		// Compute both object bounds (for surface area) and centroid bounds
+		// (for split planes). Realistically, costSamples should ALWAYS be> 1.
+		BBox nodeBounds, centroidBounds;
+		for (u_int i = begin; i < end; ++i) {
+			nodeBounds = Union(nodeBounds, list[i]->bbox);
+			Point c = (list[i]->bbox.pMin + list[i]->bbox.pMax) * 0.5f;
+			centroidBounds = Union(centroidBounds, c);
+		}
 
-    // Handle the degenerate case where the root itself is a primitive leaf
-    // (only occurs when nPrims == 1).
-    if (node->primitive) {
-        for (int ax = 0; ax < 3; ++ax) {
-            wn.bboxMin[ax][0] = node->bbox.pMin[ax];
-            wn.bboxMax[ax][0] = node->bbox.pMax[ax];
-        }
-        wn.children[0] = ~static_cast<int>(leafPrimsVec.size());
-        leafPrimsVec.push_back(node->primitive);
-        return nodeIdx + 1;
-    }
+		float totalSA    = BBoxSurfaceArea(nodeBounds);
+		float invTotalSA = (totalSA > 0.f) ? 1.f / totalSA : 0.f;
 
-    // General case: inner node with up to 8 children.
-    u_int nextFree = nodeIdx + 1;
-    int ci = 0;
-    for (auto child = node->leftChild; child && ci < 8;
-         child = child->rightSibling, ++ci)
-    {
-        // Write the child's bounding box into this wide node's SoA arrays.
-        for (int ax = 0; ax < 3; ++ax) {
-            wn.bboxMin[ax][ci] = child->bbox.pMin[ax];
-            wn.bboxMax[ax][ci] = child->bbox.pMax[ax];
-        }
+		float bestCost = std::numeric_limits<float>::infinity();
+		*bestAxis   = 0;
+		*splitValue = 0.f;
 
-        if (child->primitive) {
-            // Leaf: encode as bitwise-complement of the leaf prim index.
-            wn.children[ci] = ~static_cast<int>(leafPrimsVec.size());
-            leafPrimsVec.push_back(child->primitive);
-        } else {
-            // Inner node: assign it the next free slot and recurse.
-            const u_int childIdx = nextFree;
-            wn.children[ci]      = static_cast<int>(childIdx);
-            nextFree = BuildWideArray(child, childIdx, leafPrimsVec);
-        }
-    }
+		Vector cext = centroidBounds.pMax - centroidBounds.pMin;
 
-    return nextFree;
+		// Test all three axes and take the globally best SAH split.
+		for (u_int axis = 0; axis < 3; ++axis) {
+			if (cext[axis] <= 0.f) continue; // all centroids coincide on this axis
+			
+			// Sample candidate planes evenly within the centroid range.
+			// splitValue is in "2x centroid" space to match the partition
+			// comparison (pMax[axis] + pMin[axis]) < splitValue.
+			float increment = cext[axis] / static_cast<float>(costSamples + 1);
+			for (int s = 1; s <= costSamples; ++s) {
+				float splitVal = 2.f * (centroidBounds.pMin[axis] +
+				                        s * increment);
+
+				int   nBelow = 0, nAbove = 0;
+				BBox  bbBelow, bbAbove;
+				for (u_int j = begin; j < end; ++j) {
+					if ((list[j]->bbox.pMax[axis] + list[j]->bbox.pMin[axis]) < splitVal) {
+						++nBelow;
+						bbBelow = Union(bbBelow, list[j]->bbox);
+					} else {
+						++nAbove;
+						bbAbove = Union(bbAbove, list[j]->bbox);
+					}
+				}
+				float belowSA = BBoxSurfaceArea(bbBelow);
+				float aboveSA = BBoxSurfaceArea(bbAbove);
+				float pBelow  = belowSA * invTotalSA;
+				float pAbove  = aboveSA * invTotalSA;
+				float eb      = (nAbove == 0 || nBelow == 0) ? emptyBonus : 0.f;
+				float cost    = traversalCost +
+				                isectCost * (1.f - eb) * (pBelow * nBelow + pAbove * nAbove);
+				if (cost < bestCost) {
+					bestCost    = cost;
+					*bestAxis   = axis;
+					*splitValue = splitVal;
+				}
+			}
+		}
+
+		if (bestCost < std::numeric_limits<float>::infinity())
+			return;
+		// All centroids identical; fall through.
+	}
+
+	// Centroid-median fallback (costSamples <= 1, or all axes degenerate):
+	// split on the axis with highest centroid variance.
+	Point mean2(0.f, 0.f, 0.f);
+	Point var(0.f, 0.f, 0.f);
+	for (u_int i = begin; i < end; ++i)
+		mean2 += list[i]->bbox.pMax + list[i]->bbox.pMin;
+	mean2 /= static_cast<float>(end - begin);
+
+	for (u_int i = begin; i < end; ++i) {
+		Vector v = list[i]->bbox.pMax + list[i]->bbox.pMin - mean2;
+		v.x *= v.x; v.y *= v.y; v.z *= v.z;
+		var += v;
+	}
+
+	if (var.x > var.y && var.x > var.z)  *bestAxis = 0;
+	else if (var.y > var.z)              *bestAxis = 1;
+	else                                  *bestAxis = 2;
+	*splitValue = mean2[*bestAxis];
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// SAH collapse cost annotation (Wald 2008, Section 3).
+// ---------------------------------------------------------------------------
+// C_leaf(n)  = isectCost * 1 (one primitive per leaf in binary BVH)
+// C_inner(n) = traversalCost
+//            + SA(left)/SA(n)  * C(left)
+//            + SA(right)/SA(n) * C(right)
+// ---------------------------------------------------------------------------
+// node->sahCost stores the per-unit-SA cost for the subtree rooted at node,
+// i.e., sahCost = C(n) / SA(n). This makes the recursive formula:
+// C_inner(n) / SA(n) = traversalCost/SA(n) + SA(left)*sahCost(left)/SA(n)
+//                                          + SA(right)*sahCost(right)/SA(n)
+// ---------------------------------------------------------------------------
+
+float BVHAccel::ComputeCollapseInfo(BVHAccelTreeNode *node, float rootSAInv)
+{
+	float sa = BBoxSurfaceArea(node->bbox);
+
+	if (node->isLeaf) {
+		// Cost scales with the number of primitives in this leaf.
+		u_int n = (node->primitive != nullptr)
+		        ? 1u
+		        : (node->leafPrimEnd - node->leafPrimStart);
+		node->sahCost = static_cast<float>(isectCost) * static_cast<float>(n);
+		return sa * node->sahCost * rootSAInv;
+	}
+
+	ComputeCollapseInfo(node->children.left,  rootSAInv);
+	ComputeCollapseInfo(node->children.right, rootSAInv);
+
+	float saLeft  = BBoxSurfaceArea(node->children.left->bbox);
+	float saRight = BBoxSurfaceArea(node->children.right->bbox);
+
+	float innerCost = static_cast<float>(traversalCost)
+	                + saLeft  * node->children.left->sahCost
+	                + saRight * node->children.right->sahCost;
+
+	node->sahCost = (sa > 0.f) ? innerCost / sa : 0.f;
+	return sa * node->sahCost * rootSAInv;
+}
+
+// ---------------------------------------------------------------------------
+// Child node gathering (Wald 2008, Section 4).
+// Starting from a node, repeatedly replace the non-leaf-candidate with the
+// highest surface area, by its two children, until we have filled all slots
+// or all candidates are leaves.
+// ---------------------------------------------------------------------------
+
+void BVHAccel::GatherChildren(BVHAccelTreeNode *node, int maxChildren,
+		vector<BVHAccelTreeNode *> &out)
+{
+	if (node->isLeaf) {
+		out.push_back(node);
+		return;
+	}
+
+	// Seed with the two direct children of this (non-leaf) binary node
+	out.push_back(node->children.left);
+	out.push_back(node->children.right);
+
+	while (static_cast<int>(out.size()) < maxChildren) {
+		// Find the non-leaf candidate with the largest surface area
+		int   bestIdx = -1;
+		float bestSA  = -1.f;
+		for (int i = 0; i < static_cast<int>(out.size()); ++i) {
+			if (!out[i]->isLeaf) {
+				float sa = BBoxSurfaceArea(out[i]->bbox);
+				if (sa > bestSA) {
+					bestSA  = sa;
+					bestIdx = i;
+				}
+			}
+		}
+
+		if (bestIdx < 0)
+			break; // All candidates are leaves; nothing more to do.
+
+		// Replace this node with its two binary child nodes.
+		BVHAccelTreeNode *toOpen = out[bestIdx];
+		out[bestIdx] = toOpen->children.left;
+		out.push_back(toOpen->children.right);
+	}
+}
+
+// Collapse the binary tree into a flat array.
+u_int BVHAccel::CollapseToWide(BVHAccelTreeNode *node,
+		const vector<boost::shared_ptr<BVHAccelTreeNode> > &leafNodes,
+		vector<MBVH8Node> &wideNodes,
+		vector<Primitive *> &oPrims)
+{
+	// Allocate a slot for this wide node up front.
+	u_int nodeIdx = static_cast<u_int>(wideNodes.size());
+	wideNodes.emplace_back();
+
+	// Gather up to MBVH8_WIDTH children via the SAH strategy.
+	vector<BVHAccelTreeNode *> children;
+	children.reserve(MBVH8_WIDTH);
+	GatherChildren(node, MBVH8_WIDTH, children);
+
+	for (u_int slot = 0; slot < static_cast<u_int>(children.size()); ++slot) {
+		BVHAccelTreeNode *ch = children[slot];
+
+		// Store bounding box in SoA layout for vectorizable traversal.
+		wideNodes[nodeIdx].bboxMin[0][slot] = ch->bbox.pMin.x;
+		wideNodes[nodeIdx].bboxMin[1][slot] = ch->bbox.pMin.y;
+		wideNodes[nodeIdx].bboxMin[2][slot] = ch->bbox.pMin.z;
+		wideNodes[nodeIdx].bboxMax[0][slot] = ch->bbox.pMax.x;
+		wideNodes[nodeIdx].bboxMax[1][slot] = ch->bbox.pMax.y;
+		wideNodes[nodeIdx].bboxMax[2][slot] = ch->bbox.pMax.z;
+
+		// Emit primitives from one binary leaf node into oPrims.
+		auto emitBinaryLeaf = [&](BVHAccelTreeNode *leaf) {
+			if (leaf->primitive != nullptr) {
+				oPrims.push_back(leaf->primitive);
+			} else {
+				for (u_int pi = leaf->leafPrimStart; pi < leaf->leafPrimEnd; ++pi)
+					oPrims.push_back(leafNodes[pi]->primitive);
+			}
+		};
+
+		if (ch->isLeaf) {
+			// Leaf: record primitive(s) in ordered list; encode slot as leaf.
+			u_int primIdx = static_cast<u_int>(oPrims.size());
+			emitBinaryLeaf(ch);
+			wideNodes[nodeIdx].primCount[slot]  = static_cast<int>(oPrims.size() - primIdx);
+			// Negative childIndex signals a leaf; primOffset = ~childIndex (sign-bit trick).
+			wideNodes[nodeIdx].childIndex[slot] = ~static_cast<int>(primIdx);
+			wideNodes[nodeIdx].validChildMask  |= (1 << static_cast<int>(slot));
+		} else if (ch->children.left->isLeaf && ch->children.right->isLeaf) {
+			// ---------------------------------------------------------------------------
+			// Leaf-parent: this binary inner node's children are both leaves.
+			// GatherChildren fills up to 8 items and stops, so a tree that is
+			// >=4 binary levels above its leaf nodes will produce exactly 8
+			// leaf-parents as gathered child nodes. Each would become a fill=2
+			// wide node on its own. Avoid this by inlining both child-nodes'
+			// primitives directly into this slot: the slot bbox (ch->bbox =
+			// Union of the two leaf bboxes, already written above) covers all
+			// primitives.
+			// ---------------------------------------------------------------------------
+			u_int primIdx = static_cast<u_int>(oPrims.size());
+			emitBinaryLeaf(ch->children.left);
+			emitBinaryLeaf(ch->children.right);
+			wideNodes[nodeIdx].primCount[slot]  = static_cast<int>(oPrims.size() - primIdx);
+			wideNodes[nodeIdx].childIndex[slot] = ~static_cast<int>(primIdx);
+			wideNodes[nodeIdx].validChildMask  |= (1 << static_cast<int>(slot));
+		} else {
+			// General inner node: recurse and record child wide-node index.
+			// We must index through wideNodes[nodeIdx] after the recursive
+			// call because the vector may have been reallocated.
+			u_int childWideIdx = CollapseToWide(ch, leafNodes, wideNodes, oPrims);
+			wideNodes[nodeIdx].childIndex[slot] = static_cast<int>(childWideIdx);
+			wideNodes[nodeIdx].primCount[slot]  = 0;
+			wideNodes[nodeIdx].validChildMask  |= (1 << static_cast<int>(slot));
+		}
+	}
+
+	return nodeIdx;
+}
+
+// ---------------------------------------------------------------------------
 // WorldBound
-// ─────────────────────────────────────────────────────────────────────────────
-BBox BVHAccel::WorldBound() const {
-    return worldBound;
-}
+// ---------------------------------------------------------------------------
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Intersect  —  single-ray 8-wide BVH traversal (Wald et al. 2008, Section 5).
-//
-// Design for compiler auto-vectorisation:
-//   - invDir[] and org[] are plain float[3] arrays (no struct members in loops)
-//   - tEntry[8] / tExit[8] are fixed-size float arrays on the stack
-//   - The slab test is three nested loops: outer=axis (3), inner=child (8)
-//     with no dependencies across iterations and no branches in the inner loop
-//   - fminf/fmaxf expand to conditional-move sequences on x86, avoiding
-//     the branch mispredictions that killed the original scalar traversal
-//
-// The compiler with -O2 -march=native auto-vectorises the inner 8-element
-// loops as 256-bit (AVX2) or 128-bit (SSE) operations depending on the target.
-// No explicit intrinsics are required or used.
-// ─────────────────────────────────────────────────────────────────────────────
-bool BVHAccel::Intersect(const Ray &ray, Intersection *isect) const {
-    bool hit = false;
-
-    // Broadcast per-ray constants once.  r_maxt is NOT pre-captured here
-    // because ray.maxt is modified by leaf hits — see the note in the loop.
-    const __m256 r_mint = _mm256_set1_ps(ray.mint);
-    const __m256 r_org[3] = {
-        _mm256_set1_ps(ray.o.x),
-        _mm256_set1_ps(ray.o.y),
-        _mm256_set1_ps(ray.o.z)
-    };
-    const __m256 r_invDir[3] = {
-        _mm256_set1_ps(1.f / ray.d.x),
-        _mm256_set1_ps(1.f / ray.d.y),
-        _mm256_set1_ps(1.f / ray.d.z)
-    };
-
-    int stackTop = 0;
-    int stack[64];
-    stack[0] = 0; // root node
-
-    while (stackTop >= 0) {
-        const int nodeIdx = stack[stackTop--];
-        const WBVHNode &node = wbvhTree[nodeIdx];
-
-        // Re-read ray.maxt every node: MeshBaryTriangle::Intersect writes
-        // ray.maxt = t on every hit to tighten the ray.  Capturing it once
-        // before the loop meant subsequent node tests never saw the tightened
-        // bound, disabling all BVH traversal pruning.
-        __m256 tEntry = r_mint;
-        __m256 tExit  = _mm256_set1_ps(ray.maxt);
-
-        // ── SIMD Slab test for all 8 children simultaneously ──────────────
-        for (int ax = 0; ax < 3; ++ax) {
-            // Load 8-wide bounding box bounds for the current axis
-            __m256 boundsMin = _mm256_load_ps(node.bboxMin[ax]);
-            __m256 boundsMax = _mm256_load_ps(node.bboxMax[ax]);
-
-            // t1 = (boundsMin - org) * invDir
-            __m256 t1 = _mm256_mul_ps(_mm256_sub_ps(boundsMin, r_org[ax]), r_invDir[ax]);
-            // t2 = (boundsMax - org) * invDir
-            __m256 t2 = _mm256_mul_ps(_mm256_sub_ps(boundsMax, r_org[ax]), r_invDir[ax]);
-
-            __m256 tMin = _mm256_min_ps(t1, t2);
-            __m256 tMax = _mm256_max_ps(t1, t2);
-
-            tEntry = _mm256_max_ps(tEntry, tMin);
-            tExit  = _mm256_min_ps(tExit, tMax);
-        }
-
-        // Compare tEntry <= tExit. Returns a mask of 0xFFFFFFFF for true, 0x0 for false.
-        __m256 cmpMask = _mm256_cmp_ps(tEntry, tExit, _CMP_LE_OQ);
-        
-        // Extract the highest bit of each 32-bit float into an 8-bit integer mask
-        int hitMask = _mm256_movemask_ps(cmpMask);
-
-        // ── Dispatch hit children via bit-scan ────────────────────────────
-        // Process hits right-to-left to keep the original stack popping order.
-        while (hitMask != 0) {
-            // Find the index of the most significant set bit (GCC/Clang builtin)
-            int i = 31 - __builtin_clz(hitMask);
-            hitMask ^= (1 << i); // Clear the processed bit
-
-            const int child = node.children[i];
-            
-            // Empty slots will typically fail the intersection due to degenerate 
-            // bounds, but if one sneaks through, catch it here.
-            if (child == WBVHNode::EMPTY_CHILD) continue; 
-
-            if (child >= 0) {
-                // Inner node: push onto stack.
-                stack[++stackTop] = child;
-            } else {
-                // Leaf: test the primitive.
-                if (leafPrims[~child]->Intersect(ray, isect)) {
-                    hit = true;
-                }
-            }
-        }
-    }
-
-    return hit;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// IntersectP  —  shadow-ray version with early exit on first hit.
-// Identical structure to Intersect; exits as soon as any primitive is hit.
-// ─────────────────────────────────────────────────────────────────────────────
-bool BVHAccel::IntersectP(const Ray &ray) const {
-    const __m256 r_mint = _mm256_set1_ps(ray.mint);
-    const __m256 r_org[3] = {
-        _mm256_set1_ps(ray.o.x),
-        _mm256_set1_ps(ray.o.y),
-        _mm256_set1_ps(ray.o.z)
-    };
-    const __m256 r_invDir[3] = {
-        _mm256_set1_ps(1.f / ray.d.x),
-        _mm256_set1_ps(1.f / ray.d.y),
-        _mm256_set1_ps(1.f / ray.d.z)
-    };
-
-    int stackTop = 0;
-    int stack[64];
-    stack[0] = 0;
-
-    while (stackTop >= 0) {
-        const int nodeIdx = stack[stackTop--];
-        const WBVHNode &node = wbvhTree[nodeIdx];
-
-        __m256 tEntry = r_mint;
-        __m256 tExit  = _mm256_set1_ps(ray.maxt); // ray.maxt unchanged in IntersectP, but kept symmetric
-
-        for (int ax = 0; ax < 3; ++ax) {
-            __m256 boundsMin = _mm256_load_ps(node.bboxMin[ax]);
-            __m256 boundsMax = _mm256_load_ps(node.bboxMax[ax]);
-
-            __m256 t1 = _mm256_mul_ps(_mm256_sub_ps(boundsMin, r_org[ax]), r_invDir[ax]);
-            __m256 t2 = _mm256_mul_ps(_mm256_sub_ps(boundsMax, r_org[ax]), r_invDir[ax]);
-
-            __m256 tMin = _mm256_min_ps(t1, t2);
-            __m256 tMax = _mm256_max_ps(t1, t2);
-
-            tEntry = _mm256_max_ps(tEntry, tMin);
-            tExit  = _mm256_min_ps(tExit, tMax);
-        }
-
-        __m256 cmpMask = _mm256_cmp_ps(tEntry, tExit, _CMP_LE_OQ);
-        int hitMask = _mm256_movemask_ps(cmpMask);
-
-        while (hitMask != 0) {
-            int i = 31 - __builtin_clz(hitMask);
-            hitMask ^= (1 << i); 
-
-            const int child = node.children[i];
-            if (child == WBVHNode::EMPTY_CHILD) continue;
-
-            if (child >= 0) {
-                stack[++stackTop] = child;
-            } else {
-                if (leafPrims[~child]->IntersectP(ray)) {
-                    return true; // Shadow ray — early exit on first hit
-                }
-            }
-        }
-    }
-
-    return false;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GetPrimitives / CreateAccelerator
-// ─────────────────────────────────────────────────────────────────────────────
-void BVHAccel::GetPrimitives(
-    vector<boost::shared_ptr<Primitive> > &primitives) const
+BBox BVHAccel::WorldBound() const
 {
-    primitives.reserve(primitives.size() + nPrims);
-    for (u_int i = 0; i < nPrims; ++i)
-        primitives.push_back(prims[i]);
+	if (nWideNodes == 0)
+		return BBox();
+
+	BBox b;
+	const MBVH8Node &root = bvh8[0];
+	for (int i = 0; i < MBVH8_WIDTH; ++i) {
+		if (root.childIndex[i] == MBVH8_EMPTY_CHILD)
+			continue;
+		b = Union(b, BBox(
+			Point(root.bboxMin[0][i], root.bboxMin[1][i], root.bboxMin[2][i]),
+			Point(root.bboxMax[0][i], root.bboxMax[1][i], root.bboxMax[2][i])));
+	}
+	return b;
+}
+
+// ---------------------------------------------------------------------------
+// Traversal helpers:
+// Combining the slab test with hit filtering inside one noinline function:
+// 1. noinline is required so GCC sees the 6 slab loops as a flat (non-nested)
+//    sequence. ("loop nest containing two or more consecutive inner loops 
+//    cannot be vectorized").
+// 2. Returning an int bitmask instead of two float[8] output arrays reduces
+//    the argument count from 14 to 12.
+// 3. The caller iterates only over *set* bits with __builtin_ctz rather than
+//    looping over all 8 slots unconditionally, cutting dispatch iterations
+//    from always-8 down to the number of actual child hits.
+// ---------------------------------------------------------------------------
+// Returns a bitmask: bit i set  <=>  child slot i is non-empty and intersects
+// the ray segment [mint, maxt]. The 6 slab loops are each vectorized by
+// GCC into 256-bit VMAXPS/VMINPS instructions. The final mask loop is all-float
+// so GCC can vectorize it too; node->validChildMask ANDs away any empty slots.
+// ---------------------------------------------------------------------------
+
+static __attribute__((noinline, hot)) int
+ComputeHitMask(const MBVH8Node * __restrict__ node,
+               int sx, int sy, int sz,
+               float ox, float oy, float oz,
+               float idx, float idy, float idz,
+               float mint, float maxt)
+{
+	const float *nearX = sx ? node->bboxMax[0] : node->bboxMin[0];
+	const float *farX  = sx ? node->bboxMin[0] : node->bboxMax[0];
+	const float *nearY = sy ? node->bboxMax[1] : node->bboxMin[1];
+	const float *farY  = sy ? node->bboxMin[1] : node->bboxMax[1];
+	const float *nearZ = sz ? node->bboxMax[2] : node->bboxMin[2];
+	const float *farZ  = sz ? node->bboxMin[2] : node->bboxMax[2];
+
+	float tminC[MBVH8_WIDTH] __attribute__((aligned(MBVH8_ALIGN)));
+	float tmaxC[MBVH8_WIDTH] __attribute__((aligned(MBVH8_ALIGN)));
+
+	for (int i = 0; i < MBVH8_WIDTH; ++i)
+		tminC[i] = (nearX[i] - ox) * idx;
+	for (int i = 0; i < MBVH8_WIDTH; ++i)
+		tmaxC[i] = (farX[i]  - ox) * idx;
+	for (int i = 0; i < MBVH8_WIDTH; ++i) {
+		float lo = (nearY[i] - oy) * idy;
+		if (lo > tminC[i]) tminC[i] = lo;
+	}
+	for (int i = 0; i < MBVH8_WIDTH; ++i) {
+		float hi = (farY[i] - oy) * idy;
+		if (hi < tmaxC[i]) tmaxC[i] = hi;
+	}
+	for (int i = 0; i < MBVH8_WIDTH; ++i) {
+		float lo = (nearZ[i] - oz) * idz;
+		if (lo > tminC[i]) tminC[i] = lo;
+	}
+	for (int i = 0; i < MBVH8_WIDTH; ++i) {
+		float hi = (farZ[i] - oz) * idz;
+		if (hi < tmaxC[i]) tmaxC[i] = hi;
+	}
+
+	int mask = 0;
+	for (int i = 0; i < MBVH8_WIDTH; ++i) {
+		if (tminC[i] <= tmaxC[i] && tmaxC[i] >= mint && tminC[i] <= maxt)
+			mask |= (1 << i);
+	}
+	// AND with precomputed valid-slot mask to exclude MBVH8_EMPTY_CHILD slots
+	// without loading/scanning childIndex[8] inside this function.
+	return mask & node->validChildMask;
+}
+
+// Traversal
+bool BVHAccel::Intersect(const Ray &ray, Intersection *isect) const
+{
+	if (nWideNodes == 0) return false;
+
+	u_int stack[64];
+	int   top    = 0;
+	bool  hit    = false;
+	stack[top++] = 0u;
+
+	const float ox  = ray.o.x, oy = ray.o.y, oz = ray.o.z;
+	const float idx = (ray.d.x != 0.f) ? 1.f / ray.d.x : std::numeric_limits<float>::infinity();
+	const float idy = (ray.d.y != 0.f) ? 1.f / ray.d.y : std::numeric_limits<float>::infinity();
+	const float idz = (ray.d.z != 0.f) ? 1.f / ray.d.z : std::numeric_limits<float>::infinity();
+
+	// Sign bits precomputed once per ray: 1 => bboxMax is the near plane for
+	// that axis (ray travels in the negative direction). This lets us select
+	// the near/far arrays with a single pointer branch per axis per node,
+	// eliminating all conditional swaps from the slab loops so GCC can emit
+	// VMAXPS/VMINPS sequences.
+	const int sx = (idx < 0.f) ? 1 : 0;
+	const int sy = (idy < 0.f) ? 1 : 0;
+	const int sz = (idz < 0.f) ? 1 : 0;
+
+	while (top > 0) {
+		const MBVH8Node &node = bvh8[stack[--top]];
+
+		// ComputeHitMask runs the vectorized slab test and returns a
+		// bitmask of hit children. Iterating only the set bits with
+		// __builtin_ctz (single TZCNT instruction) keeps dispatch iterations
+		// at the number of actual hits, instead of always 8.
+		int hitMask = ComputeHitMask(&node, sx, sy, sz,
+		                             ox, oy, oz, idx, idy, idz,
+		                             ray.mint, ray.maxt);
+		while (hitMask) {
+			const int i  = __builtin_ctz(hitMask);
+			hitMask     &= hitMask - 1;   // clear lowest set bit
+			const int ci = node.childIndex[i];
+			if (ci < 0) {
+				const int cnt  = node.primCount[i];
+				const int base = ~ci;  // primOffset = ~childIndex (sign-bit encoding)
+				for (int k = 0; k < cnt; ++k)
+					if (orderedPrims[base + k]->Intersect(ray, isect))
+						hit = true;
+			} else {
+				assert(top < 64);
+				stack[top++] = static_cast<u_int>(ci);
+			}
+		}
+	}
+	return hit;
+}
+
+bool BVHAccel::IntersectP(const Ray &ray) const
+{
+	if (nWideNodes == 0) return false;
+
+	u_int stack[64];
+	int   top    = 0;
+	stack[top++] = 0u;
+
+	const float ox  = ray.o.x, oy = ray.o.y, oz = ray.o.z;
+	const float idx = (ray.d.x != 0.f) ? 1.f / ray.d.x : std::numeric_limits<float>::infinity();
+	const float idy = (ray.d.y != 0.f) ? 1.f / ray.d.y : std::numeric_limits<float>::infinity();
+	const float idz = (ray.d.z != 0.f) ? 1.f / ray.d.z : std::numeric_limits<float>::infinity();
+
+	const int sx = (idx < 0.f) ? 1 : 0;
+	const int sy = (idy < 0.f) ? 1 : 0;
+	const int sz = (idz < 0.f) ? 1 : 0;
+
+	while (top > 0) {
+		const MBVH8Node &node = bvh8[stack[--top]];
+
+		int hitMask = ComputeHitMask(&node, sx, sy, sz,
+		                             ox, oy, oz, idx, idy, idz,
+		                             ray.mint, ray.maxt);
+		while (hitMask) {
+			const int i  = __builtin_ctz(hitMask);
+			hitMask     &= hitMask - 1;
+			const int ci = node.childIndex[i];
+			if (ci < 0) {
+				const int cnt  = node.primCount[i];
+				const int base = ~ci;  // primOffset = ~childIndex (sign-bit encoding)
+				for (int k = 0; k < cnt; ++k)
+					if (orderedPrims[base + k]->IntersectP(ray))
+						return true;
+			} else {
+				assert(top < 64);
+				stack[top++] = static_cast<u_int>(ci);
+			}
+		}
+	}
+	return false;
+}
+
+// GetPrimitives / CreateAccelerator
+void BVHAccel::GetPrimitives(vector<boost::shared_ptr<Primitive> > &primitives) const
+{
+	primitives.reserve(nPrims);
+	for (u_int i = 0; i < nPrims; ++i)
+		primitives.push_back(prims[i]);
 }
 
 Aggregate *BVHAccel::CreateAccelerator(
-    const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps)
+		const vector<boost::shared_ptr<Primitive> > &prims,
+		const ParamSet &ps)
 {
-    // treetype is accepted for backward compatibility but internally always 8.
-    int treeType    = ps.FindOneInt("treetype", 8);
-    int costSamples = ps.FindOneInt("costsamples", 0);
-    int isectCost   = ps.FindOneInt("intersectcost", 80);
-    int travCost    = ps.FindOneInt("traversalcost", 10);
-    float emptyBonus = ps.FindOneFloat("emptybonus", 0.5f);
-    return new BVHAccel(prims, treeType, costSamples, isectCost,
-                        travCost, emptyBonus);
+	// costsamples: number of SAH candidate splits evaluated per binary split.
+	// 0 => centroid-median (fast, lower quality). 8 is a good default.
+	int costSamples  = ps.FindOneInt("costsamples", 8);
+	// isectCost: ray-triangle intersection cost.
+	int isectCost    = ps.FindOneInt("intersectcost", 80);
+	// traversalCost: A ratio of 80:1 (matching PBRT) is appropriate;
+	//it encourages more splits and a higher quality tree.
+	int travCost     = ps.FindOneInt("traversalcost", 1);
+	// emptybonus: for a BVH an all-one-side split provides no spatial separation,
+	// so we do not reward it.
+	float emptyBonus = ps.FindOneFloat("emptybonus", 0.0f);
+	// maxleafprims: max primitives per wide leaf slot. Higher values reduce
+	// node count and improve fill at the cost of slightly coarser culling.
+	// 8 is a good default.
+	int maxLeafPrims = ps.FindOneInt("maxleafprims", 8);
+	return new BVHAccel(prims, costSamples, isectCost, travCost, emptyBonus, maxLeafPrims);
 }
 
 static DynamicLoader::RegisterAccelerator<BVHAccel> r("bvh");

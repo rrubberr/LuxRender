@@ -1,51 +1,51 @@
-[submodule "ext/minizip-ng"]
-	path = ext/minizip-ng
-	url = https://github.com/zlib-ng/minizip-ng
-[submodule "ext/pystring"]
-	path = ext/pystring
-	url = https://github.com/imageworks/pystring
-[submodule "ext/pybind11"]
-	path = ext/pybind11
-	url = https://github.com/pybind/pybind11
-[submodule "ext/boost"]
-	path = ext/boost
-	url = https://github.com/boostorg/boost
 [submodule "ext/zlib-ng"]
 	path = ext/zlib-ng
-	url = https://github.com/zlib-ng/zlib-ng
+	url = https://github.com/zlib-ng/zlib-ng.git
 [submodule "ext/robin-map"]
 	path = ext/robin-map
-	url = https://github.com/Tessil/robin-map
+	url = https://github.com/Tessil/robin-map.git
 [submodule "ext/yaml-cpp"]
 	path = ext/yaml-cpp
-	url = https://github.com/jbeder/yaml-cpp
+	url = https://github.com/jbeder/yaml-cpp.git
+[submodule "ext/pybind11"]
+	path = ext/pybind11
+	url = https://github.com/pybind/pybind11.git
+[submodule "ext/pystring"]
+	path = ext/pystring
+	url = https://github.com/imageworks/pystring.git
+[submodule "ext/minizip-ng"]
+	path = ext/minizip-ng
+	url = https://github.com/zlib-ng/minizip-ng.git
 [submodule "ext/libpng"]
 	path = ext/libpng
-	url = https://github.com/pnggroup/libpng
+	url = https://github.com/pnggroup/libpng.git
 [submodule "ext/OpenJPH"]
 	path = ext/OpenJPH
-	url = https://github.com/aous72/OpenJPH
+	url = https://github.com/aous72/OpenJPH.git
 [submodule "ext/libjpeg-turbo"]
 	path = ext/libjpeg-turbo
-	url = https://github.com/libjpeg-turbo/libjpeg-turbo
+	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
 [submodule "ext/libtiff"]
 	path = ext/libtiff
-	url = https://gitlab.com/libtiff/libtiff
+	url = https://gitlab.com/libtiff/libtiff.git
 [submodule "ext/Imath"]
 	path = ext/Imath
-	url = https://github.com/AcademySoftwareFoundation/Imath
+	url = https://github.com/AcademySoftwareFoundation/Imath.git
 [submodule "ext/openexr"]
 	path = ext/openexr
-	url = https://github.com/AcademySoftwareFoundation/openexr
-[submodule "ext/OpenImageIO"]
-	path = ext/OpenImageIO
-	url = https://github.com/AcademySoftwareFoundation/OpenImageIO
+	url = https://github.com/AcademySoftwareFoundation/openexr.git
 [submodule "ext/OpenColorIO"]
 	path = ext/OpenColorIO
-	url = https://github.com/AcademySoftwareFoundation/OpenColorIO
+	url = https://github.com/AcademySoftwareFoundation/OpenColorIO.git
+[submodule "ext/OpenImageIO"]
+	path = ext/OpenImageIO
+	url = https://github.com/AcademySoftwareFoundation/OpenImageIO.git
 [submodule "ext/openssl"]
 	path = ext/openssl
-	url = https://github.com/openssl/openssl
+	url = https://github.com/openssl/openssl.git
 [submodule "ext/cpython"]
 	path = ext/cpython
-	url = https://github.com/python/cpython
+	url = https://github.com/python/cpython.git
+[submodule "ext/boost"]
+	path = ext/boost
+	url = https://github.com/boostorg/boost.git

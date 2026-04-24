@@ -20,49 +20,46 @@
 ###########################################################################
 
 #############################################################################
-#############################################################################
 ##########################      Find LuxRays       ##########################
 #############################################################################
-#############################################################################
 
-IF(APPLE)
-	FIND_PATH(LUXRAYS_INCLUDE_DIRS NAMES luxrays/luxrays.h PATHS ${OSX_DEPENDENCY_ROOT}/include/LuxRays)
-	FIND_LIBRARY(LUXRAYS_LIBRARY libluxrays.a ${OSX_DEPENDENCY_ROOT}/lib/LuxRays)
-ELSE(APPLE)
-	FIND_PATH(LUXRAYS_INCLUDE_DIRS NAMES luxrays/luxrays.h PATHS ../luxrays/include ${LuxRays_HOME}/include )
-	FIND_LIBRARY(LUXRAYS_LIBRARY luxrays PATHS ../luxrays/lib ${LuxRays_HOME}/lib PATH_SUFFIXES "" release relwithdebinfo minsizerel dist )
-ENDIF(APPLE)
+FIND_PATH(LUXRAYS_INCLUDE_DIRS NAMES luxrays/luxrays.h PATHS ../luxrays/include ${LuxRays_HOME}/include )
+FIND_LIBRARY(LUXRAYS_LIBRARY luxrays PATHS ../luxrays/lib ${LuxRays_HOME}/lib PATH_SUFFIXES "" release relwithdebinfo minsizerel dist )
+
 
 IF (LUXRAYS_INCLUDE_DIRS AND LUXRAYS_LIBRARY)
 	MESSAGE(STATUS "LuxRays include directory: " ${LUXRAYS_INCLUDE_DIRS})
-	MESSAGE(STATUS "LuxRays library directory: " ${LUXRAYS_LIBRARY})
+	MESSAGE(STATUS "LuxRays library: " ${LUXRAYS_LIBRARY})
 	INCLUDE_DIRECTORIES(SYSTEM ${LUXRAYS_INCLUDE_DIRS})
+	
+	# Create CMake target for LuxRays
+	if(NOT TARGET luxrays)
+		add_library(luxrays UNKNOWN IMPORTED)
+		set_target_properties(luxrays PROPERTIES
+			IMPORTED_LOCATION "${LUXRAYS_LIBRARY}"
+			INTERFACE_INCLUDE_DIRECTORIES "${LUXRAYS_INCLUDE_DIRS}"
+		)
+	endif()
+	
 ELSE (LUXRAYS_INCLUDE_DIRS AND LUXRAYS_LIBRARY)
 	MESSAGE(FATAL_ERROR "LuxRays not found.")
 ENDIF (LUXRAYS_INCLUDE_DIRS AND LUXRAYS_LIBRARY)
 
-
-#############################################################################
 #############################################################################
 ###########################      Find OpenMP       ##########################
 #############################################################################
-#############################################################################
 
-IF(NOT APPLE)
-	FIND_PACKAGE(OpenMP)
-	IF (OPENMP_FOUND)
-		MESSAGE(STATUS "OpenMP found - compiling with")
-	    SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-	    SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-	ELSE(OPENMP_FOUND)
-		MESSAGE(WARNING "OpenMP not found - compiling without")
-	endif(OPENMP_FOUND)
-endif()
+FIND_PACKAGE(OpenMP)
+IF (OPENMP_FOUND)
+	MESSAGE(STATUS "OpenMP found - compiling with")
+	SET (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+	SET (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+ELSE(OPENMP_FOUND)
+	MESSAGE(WARNING "OpenMP not found - compiling without")
+endif(OPENMP_FOUND)
 
-#############################################################################
 #############################################################################
 ###########################      Find BISON       ###########################
-#############################################################################
 #############################################################################
 
 IF (NOT BISON_NOT_AVAILABLE)
@@ -72,11 +69,8 @@ IF (NOT BISON_NOT_AVAILABLE)
 	ENDIF (NOT BISON_FOUND)
 ENDIF (NOT BISON_NOT_AVAILABLE)
 
-
-#############################################################################
 #############################################################################
 ###########################      Find FLEX        ###########################
-#############################################################################
 #############################################################################
 
 IF (NOT FLEX_NOT_AVAILABLE)
@@ -86,11 +80,8 @@ IF (NOT FLEX_NOT_AVAILABLE)
 	ENDIF (NOT FLEX_FOUND)
 ENDIF (NOT FLEX_NOT_AVAILABLE)
 
-
-#############################################################################
 #############################################################################
 ########################### BOOST LIBRARIES SETUP ###########################
-#############################################################################
 #############################################################################
 
 find_package(Boost REQUIRED COMPONENTS
@@ -103,43 +94,31 @@ find_package(Boost REQUIRED COMPONENTS
     python
 )
 
-#############################################################################
-#############################################################################
-######################### OPENEXR LIBRARIES SETUP ###########################
-#############################################################################
-#############################################################################
+include_directories(${Boost_INCLUDE_DIRS})
 
-find_package(OpenEXR CONFIG REQUIRED)
-find_package(Imath CONFIG REQUIRED)
-
-#############################################################################
 #############################################################################
 ##########################   OPENIMAGEIO LIBRARIES    #######################
 #############################################################################
-#############################################################################
 
 find_package(OpenImageIO CONFIG REQUIRED)
+find_package(OpenEXR CONFIG REQUIRED)
+find_package(Imath CONFIG REQUIRED)
 
-#############################################################################
+
 #############################################################################
 ########################### PNG   LIBRARIES SETUP ###########################
 #############################################################################
-#############################################################################
 
-IF(NOT APPLE)
-	FIND_PACKAGE(PNG)
-	IF(PNG_INCLUDE_DIRS)
-		MESSAGE(STATUS "PNG include directory: " ${PNG_INCLUDE_DIRS})
-		INCLUDE_DIRECTORIES(BEFORE SYSTEM ${PNG_INCLUDE_DIRS})
-	ELSE(PNG_INCLUDE_DIRS)
-		MESSAGE(STATUS "Warning : could not find PNG headers - building without png support")
-	ENDIF(PNG_INCLUDE_DIRS)
-ENDIF(NOT APPLE)
+FIND_PACKAGE(PNG)
+IF(PNG_INCLUDE_DIRS)
+	MESSAGE(STATUS "PNG include directory: " ${PNG_INCLUDE_DIRS})
+	INCLUDE_DIRECTORIES(BEFORE SYSTEM ${PNG_INCLUDE_DIRS})
+ELSE(PNG_INCLUDE_DIRS)
+	MESSAGE(STATUS "Warning : could not find PNG headers - building without png support")
+ENDIF(PNG_INCLUDE_DIRS)
 
-#############################################################################
 #############################################################################
 ########################### FFTW  LIBRARIES SETUP ###########################
-#############################################################################
 #############################################################################
 
 if(NOT TARGET FFTW3::fftw3)
@@ -158,16 +137,21 @@ if(NOT TARGET FFTW3::fftw3)
 endif()
 
 #############################################################################
-#############################################################################
 ############################ THREADING LIBRARIES ############################
-#############################################################################
 #############################################################################
 
 find_package(Threads REQUIRED)
 
+#############################################################################
+############################ FIX TIFF CMATH #################################
+#############################################################################
+
+find_package(TIFF REQUIRED)
 add_library(CMath::CMath INTERFACE IMPORTED GLOBAL)
 target_link_libraries(CMath::CMath INTERFACE m)
 
-find_package(TIFF REQUIRED)
+#############################################################################
+############################ NO OPENCL FOR US ###############################
+#############################################################################
 
 ADD_DEFINITIONS("-DLUXRAYS_DISABLE_OPENCL")

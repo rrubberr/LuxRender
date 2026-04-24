@@ -1,364 +1,145 @@
-cmake_minimum_required(VERSION 4.0)
-project(LuxRender)
+###########################################################################
+#   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  #
+#                                                                         #
+#   This file is part of LuxRender.                                       #
+#                                                                         #
+#   LuxRender is free software; you can redistribute it and/or modify     #
+#   it under the terms of the GNU General Public License as published by  #
+#   the Free Software Foundation; either version 3 of the License, or     #
+#   (at your option) any later version.                                   #
+#                                                                         #
+#   LuxRender is distributed in the hope that it will be useful,          #
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of        #
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         #
+#   GNU General Public License for more details.                          #
+#                                                                         #
+#   You should have received a copy of the GNU General Public License     #
+#   along with this program.  If not, see <http://www.gnu.org/licenses/>. #
+#                                                                         #
+#   LuxRender website: https://github.com/rrubberr/LuxRender              #
+###########################################################################
+
+MESSAGE(STATUS "CMAKE VERSION DETECTED " ${CMAKE_VERSION})
+	cmake_minimum_required(VERSION 3.10)
+
+PROJECT(lux)
+SET(VERSION 1.9)
+
 include(ExternalProject)
 
-set(BLD_DIR ${CMAKE_CURRENT_BINARY_DIR}/build)
-set(BIN_DIR ${CMAKE_CURRENT_BINARY_DIR}/build/bin)
-set(LIB_DIR ${CMAKE_CURRENT_BINARY_DIR}/build/lib)
-set(INC_DIR ${CMAKE_CURRENT_BINARY_DIR}/build/include)
+IF(COMMAND cmake_policy)
+	cmake_policy(SET CMP0003 NEW)
+    cmake_policy(SET CMP0074 NEW)
+    cmake_policy(SET CMP0111 OLD)
+    cmake_policy(SET CMP0144 OLD)
+	cmake_policy(SET CMP0148 OLD)
+	if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 OLD)
+    endif()
+ENDIF(COMMAND cmake_policy)
 
-set(
-	COMMON_EXT_PROJECT_ARGS
-	-DCMAKE_CXX_FLAGS="-fPIC"
-	-D_GLIBCXX_USE_CXX11_ABI=11
-	-DCMAKE_POSITION_INDEPENDENT_CODE=TRUE
-	-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-	-DCMAKE_INSTALL_LIBDIR=${CMAKE_CURRENT_BINARY_DIR}/build/lib
-	-DENABLE_SHARED=FALSE
-	-DENABLE_STATIC=TRUE
-	-DWITH_TESTS=FALSE
-	-DBUILD_SHARED_LIBS=FALSE
-	-DBUILD_WEBSITE=FALSE
-	-DBUILD_TESTING=FALSE
-)
+# This points to LuxRender/ext.
+set(EXT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext)
 
-###################################
-# build openimageio dependencies #
-###################################
+# This points to LuxRender/ext/build.
+set(LUX_BUILD_DIR ${EXT_DIR}/build)
 
-ExternalProject_Add(
-	zlib-ng
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/zlib-ng
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/zlib-ng
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DZLIB_COMPAT=FALSE
-		-DZLIB_ENABLE_TESTS=FALSE
-)
+# This points to LuxRender/ext/build/bin.
+set(LUX_BIN_DIR ${LUX_BUILD_DIR}/bin)
 
-ExternalProject_Add(
-	robin-map
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/robin-map
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/robin-map
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DTSL_ROBIN_MAP_ENABLE_INSTALL=TRUE
-)
+# This points to LuxRender/ext/build/lib.
+set(LUX_LIB_DIR ${LUX_BUILD_DIR}/lib)
 
-ExternalProject_Add(
-	yaml-cpp
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/yaml-cpp
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/yaml-cpp
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DYAML_CPP_BUILD_CONTRIB=FALSE
-		-DYAML_CPP_BUILD_TOOLS=FALSE
-		-DYAML_BUILD_SHARED_LIBS=FALSE
-		-DYAML_BUILD_SHARED_LIBS=FALSE
-)
+# This points to LuxRender/ext/build/include.
+set(LUX_INC_DIR ${LUX_BUILD_DIR}/include)
+
+#This points to LuxRender/ext/build/pfx.
+set(LUX_PFX_DIR ${LUX_BUILD_DIR}/pfx)
+
+SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Don't over-configure!
+SET(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "limit configs" FORCE)
+
+
+##############
+# Build Deps #
+##############
+
+add_subdirectory(ext)
+
+#################
+# Build LuxRays #
+#################
 
 ExternalProject_Add(
-	pybind11
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/pybind11
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/pybind11
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DPYBIND11_TEST=FALSE
+    LuxRays
+    DEPENDS
+        boost
+        OpenImageIO
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/luxrays
+    PREFIX ${LUX_PFX_DIR}/luxrays
+    INSTALL_DIR ${LUX_BUILD_DIR}
+    CMAKE_ARGS
+        -DCMAKE_PREFIX_PATH=${LUX_BUILD_DIR}
+        -DCMAKE_CXX_STANDARD=14
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        "-DCMAKE_CXX_FLAGS=-DBOOST_BIND_GLOBAL_PLACEHOLDERS -w"
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        -DBoost_DIR=${LUX_LIB_DIR}/cmake/Boost-1.90.0
+        -DBoost_LIBRARY_DIRS=${LUX_LIB_DIR}
+        -DBoost_INCLUDE_DIRS=${LUX_INC_DIR}
+        -DBoost_NO_SYSTEM_PATHS=ON
+        -DBoost_USE_STATIC_LIBS=ON
+    INSTALL_COMMAND
+        /bin/sh -c "cp -av ${LUX_PFX_DIR}/luxrays/src/LuxRays-build/lib/. ${LUX_LIB_DIR}/ && cp -av ${CMAKE_SOURCE_DIR}/src/luxrays/include/luxrays ${LUX_INC_DIR}/"
 )
+
+###################
+# Build LuxRender #
+###################
 
 ExternalProject_Add(
-	pystring
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/pystring
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/pystring
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-)
-
-ExternalProject_Add(
-	minizip-ng
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/minizip-ng
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/minizip-ng
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DMZ_ZLIB_FLAVOR="zlib"
-		-DMZ_PKCRYPT=FALSE
-		-DMZ_WZAES=FALSE
-		-DMZ_OPENSSL=FALSE
-)
-
-ExternalProject_Add(
-	libpng
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/libpng
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/libpng
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DPNG_STATIC=TRUE
-		-DPNG_SHARED=FALSE
-		-DPNG_TESTS=FALSE
-		-DPNG_EXECUTABLES=FALSE
-)
-
-ExternalProject_Add(
-	OpenJPH
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/OpenJPH
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/OpenJPH
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DOJPH_BUILD_EXECUTABLES=FALSE
-		-DOJPH_ENABLE_TIFF_SUPPORT=FALSE
-)
-
-ExternalProject_Add(
-	libjpeg-turbo
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/libjpeg-turbo
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/libjpeg-turbo
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DWITH_JAVA=FALSE
-		-DWITH_TURBOJPEG=FALSE
-)
-
-ExternalProject_Add(
-	libtiff
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/libtiff
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/libtiff
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-Dtiff-static=TRUE
-		-Dtiff-tools=FALSE
-		-Dtiff-tests=FALSE
-		-Dtiff-contrib=FALSE
-		-Dtiff-docs=FALSE
-		-Dtiff-deprecated=FALSE
-		-Dlibdeflate=FALSE
-		-Dlzma=FALSE
-		-Dzstd=FALSE
-		-Dwebp=FALSE
-		-Dtiff-cxx=FALSE
-		-Dtiff-opengl=FALSE
-		-Dtiff-jbig=FALSE
-		-Djbig=FALSE
-		-Duse-jbig=FALSE
-)
-
-ExternalProject_Add(
-	Imath
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/Imath
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/Imath
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-)
-
-ExternalProject_Add(
-	openexr
-	DEPENDS
-		OpenJPH
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/openexr
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/openexr
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DOPENEXR_BUILD_TOOLS=FALSE
-		-DOPENEXR_BUILD_EXAMPLES=FALSE
-		-DOPENEXR_INSTALL_DOCS=FALSE
-		-DOPENEXR_BUILD_PYTHON=FALSE
-		-DOPENEXR_INSTALL_TOOLS=FALSE
-		-DOPENEXR_INSTALL_DEVELOPER_TOOLS=FALSE
-		-DOPENEXR_FORCE_INTERNAL_OPENJPH=TRUE #it fails to find the headers for some reason
-)
-
-ExternalProject_Add(
-	OpenColorIO
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/OpenColorIO
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/OpenColorIO
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DOCIO_BUILD_APPS=FALSE
-		-DOCIO_BUILD_OPENFX=FALSE
-		-DOCIO_BUILD_TESTS=FALSE
-		-DOCIO_BUILD_PYTHON=FALSE
-		-DOCIO_BUILD_GPU_TESTS=FALSE
-)
-
-#####################
-# build openimageio #
-#####################
-
-ExternalProject_Add(
-	OpenImageIO
-	DEPENDS
-		OpenColorIO openexr Imath libtiff libjpeg-turbo OpenJPH libpng
-		minizip-ng pystring pybind11 yaml-cpp robin-map zlib-ng
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/OpenImageIO
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/OpenImageIO
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DPNG_ROOT=${CMAKE_CURRENT_BINARY_DIR}/build/
-		-DUSE_PYTHON=FALSE
-		-DOIIO_BUILD_TESTS=FALSE
-		-DOIIO_BUILD_TOOLS=FALSE
-		-DINSTALL_FONTS=FALSE
-		-DBUILD_DOCS=FALSE
-		-DINSTALL_DOCS=FALSE
-		-DUSE_GIF=FALSE
-		-DUSE_FFMPEG=FALSE
-		-DUSE_FREETYPE=FALSE
-		-DUSE_LIBUHDR=FALSE
-		-DUSE_LIBRAW=FALSE
-		-DUSE_NUKE=FALSE
-		-DUSE_QT=FALSE
-		-DUSE_JXL=FALSE
-		-DUSE_OPENCV=FALSE
-		-DUSE_DCMTK=FALSE
-		-DUSE_FFmpeg=FALSE
-		-DUSE_LibRaw=FALSE
-		-DUSE_OpenVDB=FALSE
-		-DUSE_Ptex=FALSE
-		-DUSE_WebP=FALSE
-		-DUSE_OpenVDB=FALSE
-		-DUSE_openjph=TRUE
-		-DUSE_Libheif=FALSE
-		-DUSE_OpenJPEG=FALSE
-)
-
-#############
-# misc deps #
-#############
-
-ExternalProject_Add(
-	openssl
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/openssl
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/openssl
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CONFIGURE_COMMAND
-		sh ${CMAKE_CURRENT_SOURCE_DIR}/ext/openssl/config
-		shared -fPIC -std=c++14 -w --prefix=${CMAKE_CURRENT_BINARY_DIR}/build
-	INSTALL_COMMAND
-		make install_sw 
-)
-
-ExternalProject_Add(
-	cpython
-	DEPENDS
-		openssl
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/cpython
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/cpython
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CONFIGURE_COMMAND
-		sh ${CMAKE_CURRENT_SOURCE_DIR}/ext/cpython/configure
-		--prefix=${CMAKE_CURRENT_BINARY_DIR}/build
-		--with-openssl=${BIN_DIR} --disable-shared --with-ensurepip=no
-		--enable-optimizations --disable-test-modules
-	PATCH_COMMAND
-		/bin/sh -c "(grep -q m_sinpi Modules/mathmodule.c || sed -i 's@sinpi@m_sinpi@g' Modules/mathmodule.c) && \
-					(grep -q is_pad Modules/_cursesmodule.c || sed -i 's@(self->win->_flags & _ISPAD)@(is_pad(self->win))@g' Modules/_cursesmodule.c) && \
-					(patch -p1 --dry-run -i ${CMAKE_CURRENT_SOURCE_DIR}/patches/python-disable-nis.patch && \
-					 patch -p1 -i ${CMAKE_CURRENT_SOURCE_DIR}/patches/python-disable-nis.patch || true)"
-	INSTALL_COMMAND
-		make install -j$(nproc) cc=g++ cxx=g++ LDFLAGS="-Wl,-rpath,'\$\$ORIGIN'"
-		cflags="-O2 -w -fPIC -I \"${BIN_DIR}\" -I $\"{INC_DIR}/openssl\""
-		cxxflags="-O2 -w -fPIC -std=c++14 -I \"${BIN_DIR}\" -I \"${INC_DIR}/openssl\" -fpermissive"
-)
-
-set(
-	BOOST_MODULES
-	"filesystem|system|program_options|regex|system|thread|serialization|iostreams|python|chrono|array|assert"
-)
-
-ExternalProject_Add(
-	boost
-	DEPENDS
-		cpython openssl
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext/boost
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/boost
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	LIST_SEPARATOR |
-	CMAKE_ARGS
-		${COMMON_EXT_PROJECT_ARGS}
-		-DBOOST_INCLUDE_LIBRARIES=${BOOST_MODULES}
-		-DCMAKE_INSTALL_MESSAGE=LAZY
-		-DCMAKE_CXX_FLAGS="-I\"${INC_DIR}/python3.5m\" -w -fPIC -std=c++14"
-		-DBOOST_RUNTIME_LINK=static
-		-DBOOST_ENABLE_PYTHON=ON
-		-DBUILD_SHARED_LIBS=OFF
-		-DBUILD_STATIC_LIBS=ON
-		-DBOOST_CMAKE_RELOCATABLE=ON
-		-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=TRUE
-		-DCMAKE_BUILD_WITH_INSTALL_RPATH=TRUE
-		-DPython_ROOT_DIR=${BLD_DIR}
-		-DPython_FIND_STRATEGY=LOCATION
-)
-
-set(LXR_DST ${CMAKE_CURRENT_BINARY_DIR}/build/lib/libluxrays.a)
-set(LXR_SRC ${CMAKE_CURRENT_BINARY_DIR}/pfx/luxrays/src/luxrays-build/lib/libluxrays.a)
-set(LUXRAYS_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/luxrays/include)
-
-ExternalProject_Add(
-	luxrays
-	DEPENDS
-		boost cpython openssl OpenImageIO Imath OpenColorIO
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/luxrays
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/luxrays
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		-D_GLIBCXX_USE_CXX11_ABI=11
-		-DCMAKE_POSITION_INDEPENDENT_CODE=ON
-		-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-		-DCMAKE_CXX_FLAGS="-I\"${INC_DIR}\" -fPIC -std=c++14 -DBOOST_BIND_GLOBAL_PLACEHOLDERS"
-		-DBOOST_BIND_GLOBAL_PLACEHOLDERS=ON
-		-DCMAKE_BUILD_TYPE=Release
-		-DCMAKE_POLICY_VERSION_MINIMUM=3.5
-		-D_GLIBCXX_USE_CXX11_ABI=11
-		-DPYTHON_LIBRARY=${LIB_DIR}/libpython3.5m.so
-		-DBoost_USE_STATIC_LIBS=ON
-		-DBoost_USE_STATIC_RUNTIME=ON
-		-DCMAKE_PREFIX_PATH=${BLD_DIR}
-		-DCMAKE_POLICY_DEFAULT_CMP0074=NEW
-		-DCMAKE_POLICY_DEFAULT_CMP0148=OLD
-		-DCMAKE_POLICY_DEFAULT_CMP0167=OLD
-		-DCMAKE_EXE_LINKER_FLAGS=-static
-		-DCMAKE_FIND_LIBRARY_SUFFIXES=.a
-	INSTALL_COMMAND
-		COMMAND ${CMAKE_COMMAND} -E copy "${LXR_SRC}" "${LXR_DST}"
-		COMMAND ${CMAKE_COMMAND} -E copy_directory "${LUXRAYS_INC_DIR}" "${INC_DIR}"
-	BUILD_ALWAYS 0
-)
-
-
-set(LUX_PFX ${CMAKE_CURRENT_BINARY_DIR}/pfx/lux)
-set(LUX_BUILD ${LUX_PFX}/src/lux-build)
-set(OUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
-set(LCC_DST ${OUT_DIR}/compile_commands.json)
-
-ExternalProject_Add(
-	lux
-	DEPENDS
-		luxrays boost cpython openssl OpenImageIO Imath OpenColorIO
-	SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/lux
-	PREFIX ${CMAKE_CURRENT_BINARY_DIR}/pfx/lux
-	INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/build
-	CMAKE_ARGS
-		-DBLD_DIR=${BLD_DIR}
-		-DBIN_DIR=${BIN_DIR}
-		-DLIB_DIR=${LIB_DIR}
-		-DINC_DIR=${INC_DIR}
-	INSTALL_COMMAND
-		COMMAND ${CMAKE_COMMAND} -E copy "${LUX_BUILD}/compile_commands.json" "${LCC_DST}"
-		COMMAND ${CMAKE_COMMAND} -E copy "${LUX_BUILD}/luxrender" "${OUT_DIR}/luxrender"
-		COMMAND ${CMAKE_COMMAND} -E copy "${LUX_BUILD}/liblux.so" "${OUT_DIR}/liblux.so"
-		COMMAND ${CMAKE_COMMAND} -E copy "${LUX_BUILD}/luxconsole" "${OUT_DIR}/luxconsole"
-	BUILD_ALWAYS 1
+    LuxRender
+    DEPENDS
+        LuxRays
+        boost
+        OpenImageIO
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/lux
+    PREFIX ${LUX_PFX_DIR}/LuxRender
+    BUILD_ALWAYS 1
+    INSTALL_DIR ${LUX_BUILD_DIR}
+    CMAKE_ARGS
+        -DCMAKE_PREFIX_PATH=${LUX_BUILD_DIR}
+        -DCMAKE_CXX_STANDARD=14
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        "-DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS} -DBOOST_BIND_GLOBAL_PLACEHOLDERS -w"
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        -DBoost_DIR=${LUX_LIB_DIR}/cmake/Boost-1.90.0
+        -DBoost_LIBRARY_DIRS=${LUX_LIB_DIR}
+        -DBoost_INCLUDE_DIRS=${LUX_INC_DIR}
+        -DBoost_NO_SYSTEM_PATHS=ON
+        -DBoost_USE_STATIC_LIBS=ON
+        "-DCMAKE_EXE_LINKER_FLAGS=-static"
+        "-DCMAKE_FIND_LIBRARY_SUFFIXES=.a"
+        "-DTIFF_LIBRARY=${LUX_LIB_DIR}/libtiff.a"
+        "-DJPEG_LIBRARY=${LUX_LIB_DIR}/libjpeg.a"
+        "-DPNG_LIBRARY=${LUX_LIB_DIR}/libpng16.a"
+        "-Dminizip-ng_LIBRARY=${LUX_LIB_DIR}/libminizip.a"
+        -DJPEG_INCLUDE_DIR=${LUX_INC_DIR}
+        -DLuxRays_HOME=${LUX_BUILD_DIR}
+        -DPython3_ROOT_DIR=${LUX_BUILD_DIR}
+        -DPython3_FIND_STRATEGY=LOCATION
+        -DPython3_FIND_REGISTRY=NEVER
+        -DPython3_FIND_FRAMEWORK=NEVER
+        "-DCMAKE_EXE_LINKER_FLAGS=-L${LUX_LIB_DIR} -lpystring"
+        "-DCMAKE_SHARED_LINKER_FLAGS=-L${LUX_LIB_DIR} -lpystring"
+    INSTALL_COMMAND
+        ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/release &&
+        ${CMAKE_COMMAND} -E copy ${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/luxcomp ${CMAKE_SOURCE_DIR}/release/ &&
+        ${CMAKE_COMMAND} -E copy ${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/luxconsole ${CMAKE_SOURCE_DIR}/release/ &&
+        ${CMAKE_COMMAND} -E copy ${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/luxmerger ${CMAKE_SOURCE_DIR}/release/ &&
+        ${CMAKE_COMMAND} -E copy ${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/luxrender ${CMAKE_SOURCE_DIR}/release/ &&
+        ${CMAKE_COMMAND} -E copy ${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/pylux.so ${CMAKE_SOURCE_DIR}/release/ &&
+        ${CMAKE_COMMAND} -E copy ${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/liblux.so ${CMAKE_SOURCE_DIR}/release/
 )
