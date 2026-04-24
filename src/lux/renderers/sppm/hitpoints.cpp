@@ -86,7 +86,7 @@ HitPoints::HitPoints(SPPMRenderer *engine, RandomGenerator *rng)  {
 	LOG(LUX_DEBUG, LUX_NOERROR) << "Hit points count: " << hitPoints->size();
 
 	// Initialize hit points field
-	for (u_int i = 0; i < (*hitPoints).size(); ++i) {
+	for (size_t i = 0; i < (*hitPoints).size(); ++i) {
 		HitPoint *hp = &(*hitPoints)[i];
 
 		hp->InitStats();
@@ -110,7 +110,7 @@ HitPoints::~HitPoints() {
 const double HitPoints::GetPhotonHitEfficency() {
 	u_int surfaceHitPointsCount = 0;
 	u_int hitPointsUpdatedCount = 0;
-	for (u_int i = 0; i < GetSize(); ++i) {
+	for (size_t i = 0; i < GetSize(); ++i) {
 		HitPoint *hp = &(*hitPoints)[i];
 
 		if (hp->IsSurface()) {
@@ -127,7 +127,7 @@ const double HitPoints::GetPhotonHitEfficency() {
 void HitPoints::Init() {
 	// Not using UpdateBBox() because hp->accumPhotonRadius2 is not yet set
 	BBox hpBBox = BBox();
-	for (u_int i = 0; i < (*hitPoints).size(); ++i) {
+	for (size_t i = 0; i < (*hitPoints).size(); ++i) {
 		HitPoint *hp = &(*hitPoints)[i];
 
 		if (hp->IsSurface())
@@ -150,7 +150,7 @@ void HitPoints::Init() {
 	LOG(LUX_DEBUG, LUX_NOERROR) << "Hit points max. radius: " << sqrtf(maxHitPointRadius2);
 
 	// Initialize hit points field
-	for (u_int i = 0; i < (*hitPoints).size(); ++i) {
+	for (size_t i = 0; i < (*hitPoints).size(); ++i) {
 		HitPoint *hp = &(*hitPoints)[i];
 
 		hp->accumPhotonRadius2 = photonRadius2;
@@ -458,7 +458,7 @@ void HitPoints::UpdatePointsInformation() {
 		minp = maxp = meanp = 0;
 	}
 
-	for (u_int i = 1; i < (*hitPoints).size(); ++i) {
+	for (size_t i = 1; i < (*hitPoints).size(); ++i) {
 		hp = &(*hitPoints)[i];
 
 		if (hp->IsSurface()) {

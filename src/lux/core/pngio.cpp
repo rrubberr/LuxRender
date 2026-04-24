@@ -354,7 +354,7 @@ bool WritePngImage(int channeltype, bool ubit, bool savezbuf, const string &name
 			
 			png_write_row(png, reinterpret_cast<png_bytep>(&row[0]));
 		}
-		for (u_int i = 0; i < row.size(); ++i)
+		for (size_t i = 0; i < row.size(); ++i)
 			row[i] = 0;
 		for (u_int y = yPixelStart + yPixelCount; y < yResolution; ++y)
 			png_write_row(png, reinterpret_cast<png_bytep>(&row[0]));
@@ -428,7 +428,7 @@ bool WritePngImage(int channeltype, bool ubit, bool savezbuf, const string &name
 			
 			png_write_row(png, &row[0]);
 		}
-		for (u_int i = 0; i < row.size(); ++i)
+		for (size_t i = 0; i < row.size(); ++i)
 			row[i] = 0;
 		for (u_int y = yPixelStart + yPixelCount; y < yResolution; ++y)
 			png_write_row(png, &row[0]);

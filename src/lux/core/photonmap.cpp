@@ -699,7 +699,7 @@ void PhotonMapPreprocess(const RandomGenerator &rng, const Scene &scene,
 		if (nDirectPhotons > 0)
 			directMap.init(nDirectPhotons, directPhotons);
 
-		for (u_int i = 0; i < radiancePhotons.size(); ++i) {
+		for (size_t i = 0; i < radiancePhotons.size(); ++i) {
 			// Dade - print some progress info
 			boost::xtime currentTime;
 			boost::xtime_get(&currentTime, boost::TIME_UTC_);

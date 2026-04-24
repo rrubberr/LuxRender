@@ -45,33 +45,33 @@ IESSphericalFunction::IESSphericalFunction(const PhotometricDataIES& data,
 
 	// Add a begin/end vertical angle with 0 emission if necessary
 	if (vertAngles[0] < 0.) {
-		for (u_int i = 0; i < vertAngles.size(); ++i)
+		for (size_t i = 0; i < vertAngles.size(); ++i)
 			vertAngles[i] = vertAngles[i] + 90.;
 	}
 	if (vertAngles[0] > 0.) {
 		vertAngles.insert(vertAngles.begin(), max(0., vertAngles[0] - 1e-3));
-		for (u_int i = 0; i < horizAngles.size(); ++i)
+		for (size_t i = 0; i < horizAngles.size(); ++i)
 			values[i].insert(values[i].begin(), 0.);
 		if (vertAngles[0] > 0.) {
 			vertAngles.insert(vertAngles.begin(), 0.);
-			for (u_int i = 0; i < horizAngles.size(); ++i)
+			for (size_t i = 0; i < horizAngles.size(); ++i)
 				values[i].insert(values[i].begin(), 0.);
 		}
 	}
 	if (vertAngles.back() < 180.) {
 		vertAngles.push_back(min(180., vertAngles.back() + 1e-3));
-		for (u_int i = 0; i < horizAngles.size(); ++i)
+		for (size_t i = 0; i < horizAngles.size(); ++i)
 			values[i].push_back(0.);
 		if (vertAngles.back() < 180.) {
 			vertAngles.push_back(180.);
-			for (u_int i = 0; i < horizAngles.size(); ++i)
+			for (size_t i = 0; i < horizAngles.size(); ++i)
 				values[i].push_back(0.);
 		}
 	}
 	// Generate missing horizontal angles
 	if (horizAngles[0] == 90. || horizAngles[0] == -90.) {
 		const double offset = horizAngles[0];
-		for (u_int i = 0; i < horizAngles.size(); ++i)
+		for (size_t i = 0; i < horizAngles.size(); ++i)
 			horizAngles[i] -= offset;
 	}
 	if (horizAngles[0] == 0.) {

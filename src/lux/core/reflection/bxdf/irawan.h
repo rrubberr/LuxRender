@@ -175,7 +175,7 @@ public:
 		repeat_u(w_repeat_u), repeat_v(w_repeat_v) { }
 
 	~WeavePattern() {
-		for (u_int i = 0; i < yarns.size(); ++i)
+		for (size_t i = 0; i < yarns.size(); ++i)
 			delete yarns.at(i);
 	 }
 	const Yarn *GetYarn(float u_i, float v_i, Point *uv, float *umax,

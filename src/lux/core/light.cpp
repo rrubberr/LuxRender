@@ -43,7 +43,7 @@ void Light::AddPortalShape(boost::shared_ptr<Primitive> &s)
 		vector<boost::shared_ptr<Primitive> > done;
 		PrimitiveRefinementHints refineHints(true);
 		s->Refine(done, refineHints, s);
-		for (u_int i = 0; i < done.size(); ++i) {
+		for (size_t i = 0; i < done.size(); ++i) {
 			PortalArea += done[i]->Area();
 			PortalShapes.push_back(done[i]);
 			++nrPortalShapes;

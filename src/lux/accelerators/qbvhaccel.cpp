@@ -267,7 +267,7 @@ QBVHAccel::QBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 	// Refine all primitives
 	vector<boost::shared_ptr<Primitive> > vPrims;
 	const PrimitiveRefinementHints refineHints(false);
-	for (u_int i = 0; i < p.size(); ++i) {
+	for (size_t i = 0; i < p.size(); ++i) {
 		if(p[i]->CanIntersect())
 			vPrims.push_back(p[i]);
 		else

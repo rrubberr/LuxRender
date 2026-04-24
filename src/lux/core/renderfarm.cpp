@@ -1147,7 +1147,7 @@ void RenderFarm::updateUserSamplingMap() {
 	// first try to reconnect to failed servers which may be up now
 	reconnectFailed();
 
-	for (u_int i = 0; i < serverInfoList.size(); i++)
+	for (size_t i = 0; i < serverInfoList.size(); i++)
 		updateServerUserSamplingMap(serverInfoList[i], size, map);
 
 	// attempt to reconnect
@@ -1172,7 +1172,7 @@ void RenderFarm::updateNoiseAwareMap() {
 	// first try to reconnect to failed servers which may be up now
 	reconnectFailed();
 
-	for (u_int i = 0; i < serverInfoList.size(); i++)
+	for (size_t i = 0; i < serverInfoList.size(); i++)
 		updateServerNoiseAwareMap(serverInfoList[i], size, map);
 
 	// attempt to reconnect

@@ -33,14 +33,14 @@ using namespace lux;
 // BruteForceAccel Method Definitions
 BruteForceAccel::BruteForceAccel(const vector<boost::shared_ptr<Primitive> > &p) {
 	PrimitiveRefinementHints refineHints(false);
-	for (u_int i = 0; i < p.size(); ++i) {
+	for (size_t i = 0; i < p.size(); ++i) {
 		if(p[i]->CanIntersect())
 			prims.push_back(p[i]);
 		else
 			p[i]->Refine(prims, refineHints, p[i]);
 	}
 	// Compute bounds
-	for (u_int i = 0; i < prims.size(); ++i)
+	for (size_t i = 0; i < prims.size(); ++i)
 		bounds = Union(bounds, prims[i]->WorldBound());
 }
 
@@ -57,7 +57,7 @@ bool BruteForceAccel::Intersect(const Ray &ray, Intersection *isect) const {
 	if (!bounds.IntersectP(ray))
 		return false;
 
-	for (u_int i = 0; i < prims.size(); ++i) {
+	for (size_t i = 0; i < prims.size(); ++i) {
 		hitSomething |= prims[i]->Intersect(ray, isect);
 	}
 
@@ -68,7 +68,7 @@ bool BruteForceAccel::IntersectP(const Ray &ray) const {
 	if (!bounds.IntersectP(ray))
 		return false;
 
-	for (u_int i = 0; i < prims.size(); ++i) {
+	for (size_t i = 0; i < prims.size(); ++i) {
 		if(prims[i]->IntersectP(ray))
 			return true;
 	}

@@ -98,11 +98,11 @@ public:
 				sampler.n2D.size() + sampler.nxD.size()];
 			u_int n = 0;
 
-			for (u_int i = 0; i < sampler.n1D.size(); ++i)
+			for (size_t i = 0; i < sampler.n1D.size(); ++i)
 				n += sampler.n1D[i];
-			for (u_int i = 0; i < sampler.n2D.size(); ++i)
+			for (size_t i = 0; i < sampler.n2D.size(); ++i)
 				n += 2 * sampler.n2D[i];
-			for (u_int i = 0; i < sampler.nxD.size(); ++i)
+			for (size_t i = 0; i < sampler.nxD.size(); ++i)
 				n += sampler.dxD[i];
 			if (n == 0) {
 				values[0] = NULL;
@@ -110,17 +110,17 @@ public:
 			}
 			float *buffer = new float[n];
 			u_int offset = 0;
-			for (u_int i = 0; i < sampler.n1D.size(); ++i) {
+			for (size_t i = 0; i < sampler.n1D.size(); ++i) {
 				values[offset + i] = buffer;
 				buffer += sampler.n1D[i];
 			}
 			offset += sampler.n1D.size();
-			for (u_int i = 0; i < sampler.n2D.size(); ++i) {
+			for (size_t i = 0; i < sampler.n2D.size(); ++i) {
 				values[offset + i] = buffer;
 				buffer += 2 * sampler.n2D[i];
 			}
 			offset += sampler.n2D.size();
-			for (u_int i = 0; i < sampler.nxD.size(); ++i) {
+			for (size_t i = 0; i < sampler.nxD.size(); ++i) {
 				values[offset + i] = buffer;
 				buffer += sampler.dxD[i];
 			}
@@ -141,9 +141,9 @@ public:
 	virtual void InitSample(Sample *sample) const {
 		sample->sampler = const_cast<HaltonPhotonSampler *>(this);
 		u_int size = 0;
-		for (u_int i = 0; i < n1D.size(); ++i)
+		for (size_t i = 0; i < n1D.size(); ++i)
 			size += n1D[i];
-		for (u_int i = 0; i < n2D.size(); ++i)
+		for (size_t i = 0; i < n2D.size(); ++i)
 			size += 2 * n2D[i];
 		sample->samplerData = new HaltonPhotonSamplerData(*this, *(sample->rng), size);
 	}
@@ -199,11 +199,11 @@ public:
 
 			n = 0;
 
-			for (u_int i = 0; i < sampler.n1D.size(); ++i)
+			for (size_t i = 0; i < sampler.n1D.size(); ++i)
 				n += sampler.n1D[i];
-			for (u_int i = 0; i < sampler.n2D.size(); ++i)
+			for (size_t i = 0; i < sampler.n2D.size(); ++i)
 				n += 2 * sampler.n2D[i];
-			for (u_int i = 0; i < sampler.nxD.size(); ++i)
+			for (size_t i = 0; i < sampler.nxD.size(); ++i)
 				n += sampler.dxD[i] * sampler.nxD[i];
 			if (n == 0) {
 				values[0] = NULL;
@@ -212,17 +212,17 @@ public:
 
 			float *buffer = new float[n];
 			u_int offset = 0;
-			for (u_int i = 0; i < sampler.n1D.size(); ++i) {
+			for (size_t i = 0; i < sampler.n1D.size(); ++i) {
 				values[offset + i] = buffer;
 				buffer += sampler.n1D[i];
 			}
 			offset += sampler.n1D.size();
-			for (u_int i = 0; i < sampler.n2D.size(); ++i) {
+			for (size_t i = 0; i < sampler.n2D.size(); ++i) {
 				values[offset + i] = buffer;
 				buffer += 2 * sampler.n2D[i];
 			}
 			offset += sampler.n2D.size();
-			for (u_int i = 0; i < sampler.nxD.size(); ++i) {
+			for (size_t i = 0; i < sampler.nxD.size(); ++i) {
 				values[offset + i] = buffer;
 				buffer += sampler.dxD[i];
 			}

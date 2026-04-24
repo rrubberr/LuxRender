@@ -74,7 +74,7 @@ BVHAccel::BVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 	// ------------------------------------------------------------------
 	vector<boost::shared_ptr<Primitive> > vPrims;
 	const PrimitiveRefinementHints refineHints(false);
-	for (u_int i = 0; i < p.size(); ++i) {
+	for (size_t i = 0; i < p.size(); ++i) {
 		if (p[i]->CanIntersect())
 			vPrims.push_back(p[i]);
 		else
@@ -464,7 +464,7 @@ u_int BVHAccel::CollapseToWide(BVHAccelTreeNode *node,
 	children.reserve(MBVH8_WIDTH);
 	GatherChildren(node, MBVH8_WIDTH, children);
 
-	for (u_int slot = 0; slot < static_cast<u_int>(children.size()); ++slot) {
+	for (size_t slot = 0; slot < children.size(); ++slot) {
 		BVHAccelTreeNode *ch = children[slot];
 
 		// Store bounding box in SoA layout for vectorizable traversal.

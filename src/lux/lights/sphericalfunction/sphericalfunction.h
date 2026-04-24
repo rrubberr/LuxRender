@@ -107,7 +107,7 @@ public:
 	using SphericalFunction::f;
 	SWCSpectrum f(const SpectrumWavelengths &sw, float phi, float theta) const {
 		SWCSpectrum ret(1.f);
-		for (u_int i = 0; i < funcs.size(); ++i)
+		for (size_t i = 0; i < funcs.size(); ++i)
 			ret *= funcs[i]->f(sw, phi, theta);
 		return ret;
 	}

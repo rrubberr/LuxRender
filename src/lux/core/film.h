@@ -468,8 +468,8 @@ public:
 	}
 
 	void Clear() {
-		for (u_int y = 0; y < pixels.vSize(); ++y) {
-			for (u_int x = 0; x < pixels.uSize(); ++x) {
+		for (size_t y = 0; y < pixels.vSize(); ++y) {
+			for (size_t x = 0; x < pixels.uSize(); ++x) {
 				VariancePixel &pixel = pixels(x, y);
 				pixel.Sn = 0.f;
 				pixel.mean = 0.f;

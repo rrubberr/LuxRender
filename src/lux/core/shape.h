@@ -71,7 +71,7 @@ public:
 		const boost::shared_ptr<Primitive> &thisPtr) {
 		vector<boost::shared_ptr<Shape> > todo;
 		Refine(todo); // Use shape refine method
-		for (u_int i = 0; i < todo.size(); ++i) {
+		for (size_t i = 0; i < todo.size(); ++i) {
 			boost::shared_ptr<Shape> &shape(todo[i]);
 			shape->SetMaterial(material);
 			shape->SetExterior(exterior);
@@ -165,7 +165,7 @@ public:
 
 	virtual BBox WorldBound() const { return worldbound; }
 	virtual bool CanIntersect() const {
-		for (u_int i = 0; i < primitives.size(); ++i)
+		for (size_t i = 0; i < primitives.size(); ++i)
 			if (!primitives[i]->CanIntersect()) return false;
 		return true;
 	}
@@ -173,7 +173,7 @@ public:
 	virtual bool IntersectP(const Ray &r) const;
 
 	virtual bool CanSample() const {
-		for (u_int i = 0; i < primitives.size(); ++i)
+		for (size_t i = 0; i < primitives.size(); ++i)
 			if (!primitives[i]->CanSample()) return false;
 		return true;
 	}

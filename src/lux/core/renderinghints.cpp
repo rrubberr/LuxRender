@@ -212,10 +212,9 @@ const Light *LSSOneImportance::SampleLight(const Scene &scene, u_int index,
 
 float LSSOneImportance::Pdf(const Scene &scene, const Light *light) const
 {
-	for (u_int i = 0; i < scene.lights.size(); ++i) {
+	for (u_int i = 0; i < scene.lights.size(); ++i)
 		if (scene.lights[i].get() == light)
 			return lightDistribution->Pdf(i);
-	}
 	return 0.f;
 }
 
@@ -261,10 +260,9 @@ const Light *LSSAllPowerImportance::SampleLight(const Scene &scene, u_int index,
 
 float LSSAllPowerImportance::Pdf(const Scene &scene, const Light *light) const
 {
-	for (u_int i = 0; i < scene.lights.size(); ++i) {
+	for (u_int i = 0; i < scene.lights.size(); ++i)
 		if (scene.lights[i].get() == light)
 			return lightDistribution->Pdf(i) * scene.lights.size();
-	}
 	return 0.f;
 }
 
@@ -387,7 +385,7 @@ u_int SurfaceIntegratorRenderingHints::SampleLights(const Scene &scene,
 					&lightIsect, &ibsdf, NULL, NULL, &Lt)) {
 					BSDF *lightBsdf;
 					float lightPdf;
-					for (u_int i = 0; i < scene.lights.size(); ++i) {
+					for (size_t i = 0; i < scene.lights.size(); ++i) {
 						const Light *light = scene.lights[i].get();
 						if (!light->IsEnvironmental())
 							continue;
@@ -490,7 +488,7 @@ u_int SurfaceIntegratorRenderingHints::SampleLights(const Scene &scene,
 	}
 
 	if (V) {
-		for (u_int i = 0; i < scene.lightGroups.size(); ++i)
+		for (size_t i = 0; i < scene.lightGroups.size(); ++i)
 			(*V)[i] += L[i].Filter(sample.swl);
 	}
 

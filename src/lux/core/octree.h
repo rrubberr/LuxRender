@@ -128,7 +128,7 @@ template <class NodeData, class LookupProc>
 void Octree<NodeData, LookupProc>::lookupPrivate(
 		OctNode<NodeData> *node, const BBox &nodeBound,
 		const Point &p, const LookupProc &process) {
-	for (u_int i = 0; i < node->data.size(); ++i)
+	for (size_t i = 0; i < node->data.size(); ++i)
 		process(p, node->data[i]);
 	// Determine which octree child node _p_ is inside
 	Point pMid = .5f * nodeBound.pMin + .5f * nodeBound.pMax;

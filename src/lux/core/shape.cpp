@@ -79,7 +79,7 @@ bool PrimitiveSet::Intersect(const Ray &ray, Intersection *in) const
 	if (worldbound.IntersectP(ray)) {
 		// NOTE - ratow - Testing each shape for intersections again because the _PrimitiveSet_ can be non-planar.
 		bool anyHit = false;
-		for (u_int i = 0; i < primitives.size(); ++i) {
+		for (size_t i = 0; i < primitives.size(); ++i) {
 			if (primitives[i]->Intersect(ray, in))
 				anyHit = true;
 		}
@@ -93,7 +93,7 @@ bool PrimitiveSet::IntersectP(const Ray &ray) const
 	if (accelerator)
 		return accelerator->IntersectP(ray);
 	if (worldbound.IntersectP(ray)) {
-		for (u_int i = 0; i < primitives.size(); ++i) {
+		for (size_t i = 0; i < primitives.size(); ++i) {
 			if (primitives[i]->IntersectP(ray))
 				return true;
 		}
@@ -106,14 +106,14 @@ void PrimitiveSet::initAreas()
 	area = 0;
 	vector<float> areas;
 	areas.reserve(primitives.size());
-	for (u_int i = 0; i < primitives.size(); ++i) {
+	for (size_t i = 0; i < primitives.size(); ++i) {
 		float a = primitives[i]->Area();
 		area += a;
 		areas.push_back(a);
 	}
 	float prevCDF = 0;
 	areaCDF.reserve(primitives.size());
-	for (u_int i = 0; i < primitives.size(); ++i) {
+	for (size_t i = 0; i < primitives.size(); ++i) {
 		areaCDF.push_back(prevCDF + areas[i] / area);
 		prevCDF = areaCDF[i];
 	}

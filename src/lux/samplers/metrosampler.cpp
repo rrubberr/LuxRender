@@ -296,7 +296,7 @@ void MetropolisSampler::GetTwoD(const Sample &sample, u_int num, u_int pos, floa
 {
 	MetropolisData *data = (MetropolisData *)(sample.samplerData);
 	u_int offset = SAMPLE_FLOATS;
-	for (u_int i = 0; i < n1D.size(); ++i)
+	for (size_t i = 0; i < n1D.size(); ++i)
 		offset += n1D[i];
 	for (u_int i = 0; i < num; ++i)
 		offset += n2D[i] * 2;

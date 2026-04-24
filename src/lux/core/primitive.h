@@ -302,7 +302,7 @@ public:
 
 		prim->Tessellate(meshList, &plist);
 
-		for (u_int i = 0; i < plist.size(); ++i)
+		for (size_t i = 0; i < plist.size(); ++i)
 			primitiveList->push_back(this);
 	}
 
@@ -312,7 +312,7 @@ public:
 
 		prim->ExtTessellate(meshList, &plist);
 
-		for (u_int i = 0; i < plist.size(); ++i)
+		for (size_t i = 0; i < plist.size(); ++i)
 			primitiveList->push_back(this);
 	}
 

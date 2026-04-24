@@ -102,7 +102,7 @@ void AreaLightPrimitive::Refine(vector<boost::shared_ptr<Primitive> > &refined,
 	// Refine the decorated primitive and add an arealight decorator to each result
 	vector<boost::shared_ptr<Primitive> > tmpRefined;
 	prim->Refine(tmpRefined, refineHints, prim);
-	for (u_int i = 0; i < tmpRefined.size(); ++i) {
+	for (size_t i = 0; i < tmpRefined.size(); ++i) {
 		boost::shared_ptr<Primitive> currPrim(
 			new AreaLightPrimitive(tmpRefined[i], areaLight));
 		refined.push_back(currPrim);

@@ -162,7 +162,7 @@ public:
 	}
 	float Pdf(const Vector &wi) const {
 		float pdf = 0.f;
-		for (u_int i = 0; i < dirs.size(); ++i) {
+		for (size_t i = 0; i < dirs.size(); ++i) {
 			if (Dot(dirs[i].dir, wi) > dirs[i].cosRadius)
 				pdf += luxrays::UniformConePdf(dirs[i].cosRadius);
 		}

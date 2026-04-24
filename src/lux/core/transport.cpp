@@ -194,7 +194,7 @@ SWCSpectrum UniformSampleAllLights(const Scene &scene, const Sample &sample,
 	const float *bsdfSample, const float *bsdfComponent)
 {
 	SWCSpectrum L(0.f);
-	for (u_int i = 0; i < scene.lights.size(); ++i) {
+	for (size_t i = 0; i < scene.lights.size(); ++i) {
 		L += EstimateDirect(scene, *(scene.lights[i]), sample, p, n, wo,
 			bsdf, lightSample[0], lightSample[1], *lightNum,
 			bsdfSample[0], bsdfSample[1], *bsdfComponent);

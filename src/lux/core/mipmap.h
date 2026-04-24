@@ -1192,8 +1192,8 @@ void MIPMapFastImpl<T>::GetMinMaxFloat(Channel channel, float *minValue, float *
 	const luxrays::BlockedArray<T> &map = (nLevels == 0) ? *singleMap : *pyramid[0];
 	float minv = INFINITY;
 	float maxv = -INFINITY;
-	for (u_int t = 0; t < map.vSize(); ++t) {
-		for (u_int s = 0; s < map.uSize(); ++s) {
+	for (size_t t = 0; t < map.vSize(); ++t) {
+		for (size_t s = 0; s < map.uSize(); ++s) {
 			const float v = map(s, t).GetFloat(channel);
 			minv = min(minv, v);
 			maxv = max(maxv, v);

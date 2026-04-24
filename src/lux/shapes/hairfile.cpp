@@ -464,7 +464,7 @@ void HairFile::TessellateAdaptive(const bool solid, const vector<Point> &hairPoi
 	vector<RGBColor> tesselCols;
 	vector<float> tesselTransps;
 	vector<luxrays::UV> tesselUVs;
-	for (u_int i = 0; i < values.size(); ++i) {
+	for (size_t i = 0; i < values.size(); ++i) {
 		tesselPoints.push_back(curve.EvaluatePoint(values[i]));
 		tesselSizes.push_back(curve.EvaluateSize(values[i]));
 		tesselCols.push_back(curve.EvaluateColor(values[i]));
@@ -666,7 +666,7 @@ void HairFile::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
 
 	if (refinedHairs.size() > 0) {
 		refined.reserve(refined.size() + refinedHairs.size());
-		for (u_int i = 0; i < refinedHairs.size(); ++i)
+		for (size_t i = 0; i < refinedHairs.size(); ++i)
 			refined.push_back(refinedHairs[i]);
 		return;
 	}
@@ -754,7 +754,7 @@ void HairFile::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
 		}
 
 		// Normalize normals
-		for (u_int i = 0; i < meshNorms.size(); ++i)
+		for (size_t i = 0; i < meshNorms.size(); ++i)
 			meshNorms[i] = Normalize(meshNorms[i]);
 
 		LOG(LUX_DEBUG, LUX_NOERROR) << "Strands mesh: " << meshTris.size() / 3 << " triangles";
@@ -827,7 +827,7 @@ void HairFile::Tessellate(vector<luxrays::TriangleMesh *> *meshList,
 	Refine(refined);
 
 	// Tessellate all generated primitives
-	for (u_int i = 0; i < refined.size(); ++i)
+	for (size_t i = 0; i < refined.size(); ++i)
 		refined[i]->Tessellate(meshList, primitiveList);
 }
 
@@ -838,7 +838,7 @@ void HairFile::ExtTessellate(vector<luxrays::ExtTriangleMesh *> *meshList,
 	Refine(refined);
 
 	// Tessellate all generated primitives
-	for (u_int i = 0; i < refined.size(); ++i)
+	for (size_t i = 0; i < refined.size(); ++i)
 		refined[i]->ExtTessellate(meshList, primitiveList);
 }
 

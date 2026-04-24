@@ -37,7 +37,7 @@ RandomSampler::RandomData::RandomData(const Sampler &sampler, int xPixelStart,
 	samplePos = pixelSamples;
 	xD = new float *[sampler.nxD.size()];
 	nxD = sampler.nxD.size();
-	for (u_int i = 0; i < sampler.nxD.size(); ++i)
+	for (size_t i = 0; i < sampler.nxD.size(); ++i)
 		xD[i] = new float[sampler.dxD[i]];
 }
 RandomSampler::RandomData::~RandomData()

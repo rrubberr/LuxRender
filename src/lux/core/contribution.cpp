@@ -52,9 +52,9 @@ ContributionBuffer::ContributionBuffer(ContributionPool *p) :
 	sampleCount(0.f), pool(p)
 {
 	buffers.resize(pool->CFull.size());
-	for (u_int i = 0; i < buffers.size(); ++i) {
+	for (size_t i = 0; i < buffers.size(); ++i) {
 		buffers[i].resize(pool->CFull[i].size());
-		for (u_int j = 0; j < buffers[i].size(); ++j)
+		for (size_t j = 0; j < buffers[i].size(); ++j)
 			buffers[i][j] = new Buffer();
 	}
 }
@@ -76,9 +76,9 @@ void ScopedPoolLock::unlock() {
 ContributionPool::ContributionPool(Film *f) : sampleCount(0.f), film(f)
 {
 	CFull.resize(film->GetTileCount());
-	for (u_int i = 0; i < CFull.size(); ++i)
+	for (size_t i = 0; i < CFull.size(); ++i)
 		CFull[i].resize(film->GetNumBufferGroups());
-	for (u_int i = 0; i < CFull.size(); ++i)
+	for (size_t i = 0; i < CFull.size(); ++i)
 		tileSplattingMutexes.push_back(new tile_mutex);
 	splattingTile.resize(CFull.size());
 	for (u_int total = 0; total < CONTRIB_BUF_KEEPALIVE; ++total) {
@@ -93,8 +93,8 @@ void ContributionPool::End(ContributionBuffer *c)
 {
 	fast_mutex::scoped_lock poolAction(poolMutex);
 
-	for (u_int i = 0; i < c->buffers.size(); ++i) {
-		for (u_int j = 0; j < c->buffers[i].size(); ++j)
+	for (size_t i = 0; i < c->buffers.size(); ++i) {
+		for (size_t j = 0; j < c->buffers[i].size(); ++j)
 			CFull[i][j].push_back(c->buffers[i][j]);
 	}
 	sampleCount = c->sampleCount;
@@ -155,7 +155,7 @@ void ContributionPool::Next(ContributionBuffer::Buffer* volatile *b, float *sc,
 	// Either way, perform splatting
 
 	vector<ContributionBuffer::Buffer*> splat_buffers;
-	for (u_int j = 0; j < full_buffers.size(); ++j) {
+	for (size_t j = 0; j < full_buffers.size(); ++j) {
 		splat_buffers.insert(splat_buffers.end(),
 			full_buffers[j].begin(), full_buffers[j].end());
 		full_buffers[j].clear();
@@ -207,9 +207,9 @@ void ContributionPool::Next(ContributionBuffer::Buffer* volatile *b, float *sc,
 
 void ContributionPool::Flush()
 {
-	for (u_int tileIndex = 0; tileIndex < CFull.size(); ++tileIndex) {
-		for (u_int j = 0; j < CFull[tileIndex].size(); ++j) {
-			for (u_int k = 0; k < CFull[tileIndex][j].size(); ++k)
+	for (size_t tileIndex = 0; tileIndex < CFull.size(); ++tileIndex) {
+		for (size_t j = 0; j < CFull[tileIndex].size(); ++j) {
+			for (size_t k = 0; k < CFull[tileIndex][j].size(); ++k)
 				CFull[tileIndex][j][k]->Splat(film, tileIndex);
 			CFree.insert(CFree.end(),
 				CFull[tileIndex][j].begin(), CFull[tileIndex][j].end());

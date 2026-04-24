@@ -41,16 +41,16 @@ LDSampler::LDData::LDData(const Sampler &sampler, int xPixelStart, int yPixelSta
 	wavelengthsSamples = imageSamples + 5 * pixelSamples;
 	oneDSamples = new float *[sampler.n1D.size()];
 	n1D = sampler.n1D.size();
-	for (u_int i = 0; i < sampler.n1D.size(); ++i)
+	for (size_t i = 0; i < sampler.n1D.size(); ++i)
 		oneDSamples[i] = new float[sampler.n1D[i] * pixelSamples];
 	twoDSamples = new float *[sampler.n2D.size()];
 	n2D = sampler.n2D.size();
-	for (u_int i = 0; i < sampler.n2D.size(); ++i)
+	for (size_t i = 0; i < sampler.n2D.size(); ++i)
 		twoDSamples[i] = new float[2 * sampler.n2D[i] * pixelSamples];
 	xDSamples = new float *[sampler.nxD.size()];
 	xD = new float *[sampler.nxD.size()];
 	nxD = sampler.nxD.size();
-	for (u_int i = 0; i < sampler.nxD.size(); ++i) {
+	for (size_t i = 0; i < sampler.nxD.size(); ++i) {
 		xDSamples[i] = new float[sampler.dxD[i] * sampler.nxD[i] *
 			pixelSamples];
 		xD[i] = new float[sampler.dxD[i]];
@@ -158,16 +158,16 @@ bool LDSampler::GetNextSample(Sample *sample) {
 		LDShuffleScrambled2D(rng, 1, pixelSamples, data->lensSamples);
 		LDShuffleScrambled1D(rng, 1, pixelSamples, data->timeSamples);
 		LDShuffleScrambled1D(rng, 1, pixelSamples, data->wavelengthsSamples);
-		for (u_int i = 0; i < n1D.size(); ++i)
+		for (size_t i = 0; i < n1D.size(); ++i)
 			LDShuffleScrambled1D(rng, n1D[i], pixelSamples,
 				data->oneDSamples[i]);
-		for (u_int i = 0; i < n2D.size(); ++i)
+		for (size_t i = 0; i < n2D.size(); ++i)
 			LDShuffleScrambled2D(rng, n2D[i], pixelSamples,
 				data->twoDSamples[i]);
 		float *xDSamp;
-		for (u_int i = 0; i < nxD.size(); ++i) {
+		for (size_t i = 0; i < nxD.size(); ++i) {
 			xDSamp = data->xDSamples[i];
-			for (u_int j = 0; j < sxD[i].size(); ++j) {
+			for (size_t j = 0; j < sxD[i].size(); ++j) {
 				switch (sxD[i][j]) {
 				case 1: {
 					LDShuffleScrambled1D(rng, nxD[i],
@@ -233,7 +233,7 @@ float *LDSampler::GetLazyValues(const Sample &sample, u_int num, u_int pos)
 	float *sd = data->xD[num];
 	float *xDSamp = data->xDSamples[num];
 	u_int offset = 0;
-	for (u_int i = 0; i < sxD[num].size(); ++i) {
+	for (size_t i = 0; i < sxD[num].size(); ++i) {
 		if (sxD[num][i] == 1) {
 			sd[offset] = xDSamp[nxD[num] * data->samplePos + pos];
 		} else if (sxD[num][i] == 2) {

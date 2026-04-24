@@ -212,7 +212,7 @@ void SamplerRenderer::Render(Scene *s) {
 			boost::mutex::scoped_lock lock(renderThreadsMutex);
 
 			// wait for all threads to finish their job
-			for (u_int i = 0; i < renderThreads.size(); ++i) {
+			for (size_t i = 0; i < renderThreads.size(); ++i) {
 				renderThreads[i]->thread->join();
 				delete renderThreads[i];
 			}

@@ -50,30 +50,24 @@ public:
 		const DifferentialGeometry &dg) const
 	{
 		T ret = 0.f;
-		for (u_int i = 0; i < tex.size(); ++i)
-		{
+		for (size_t i = 0; i < tex.size(); ++i)
 			ret += weights[i] * tex[i]->Evaluate(sw, dg);
-		}
 		return ret;
 	}
 
 	virtual float Y() const
 	{
 		float ret = 0;
-		for (u_int i = 0; i < tex.size(); ++i)
-		{
+		for (size_t i = 0; i < tex.size(); ++i)
 			ret += weights[i] * tex[i]->Y();
-		}
 		return ret;
 	}
 
 	virtual float Filter() const
 	{
 		float ret = 0;
-		for (u_int i = 0; i < tex.size(); ++i)
-		{
+		for (size_t i = 0; i < tex.size(); ++i)
 			ret += weights[i] * tex[i]->Filter();
-		}
 		return ret;
 	}
 
@@ -83,7 +77,7 @@ public:
 	{
 		float dua = 0.f, dva = 0.f;
 		float duat, dvat;
-		for (u_int i = 0; i < tex.size(); ++i)
+		for (size_t i = 0; i < tex.size(); ++i)
 		{
 			tex[i]->GetDuv(sw, dg, delta, &duat, &dvat);
 			dua += weights[i] * duat;
@@ -96,7 +90,7 @@ public:
 	virtual void GetMinMaxFloat(float *minValue, float *maxValue) const {
 		*minValue = 0.f;
 		*maxValue = 0.f;
-		for (u_int i = 0; i < tex.size() - 1; ++i) {
+		for (size_t i = 0; i < tex.size() - 1; ++i) {
 			float minv, maxv;
 			tex[i]->GetMinMaxFloat(&minv, &maxv);
 			const float wminv = weights[i] * minv;
@@ -108,7 +102,7 @@ public:
 	virtual void SetIlluminant()
 	{
 		// Update sub-textures
-		for (u_int i = 0; i < tex.size(); ++i)
+		for (size_t i = 0; i < tex.size(); ++i)
 			tex[i]->SetIlluminant();
 	}
 	static Texture<float> * CreateFloatTexture(const Transform &tex2world, const ParamSet &tp);

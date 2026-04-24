@@ -519,7 +519,7 @@ u_int BidirIntegrator::Li(const Scene &scene, const Sample &sample) const
 				// Reinitalize ray origin to the previous
 				// non passthrough intersection
 				ray.o = vp.p;
-				for (u_int lightNumber = 0; lightNumber < scene.lights.size(); ++lightNumber) {
+				for (size_t lightNumber = 0; lightNumber < scene.lights.size(); ++lightNumber) {
 					const Light *light = scene.lights[lightNumber].get();
 					if (!light->IsEnvironmental())
 						continue;

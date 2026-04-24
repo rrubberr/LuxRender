@@ -96,7 +96,7 @@ public:
 		nxD.push_back(num);
 		sxD.push_back(structure);
 		u_int d = 0;
-		for (u_int i = 0; i < structure.size(); ++i)
+		for (size_t i = 0; i < structure.size(); ++i)
 			d += structure[i];
 		dxD.push_back(d);
 		return nxD.size()-1;

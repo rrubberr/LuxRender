@@ -129,7 +129,7 @@ double SRStatistics::getEfficiency() {
 	// Get the current counts from the renderthreads
 	// Cannot just use getSampleCount() because the blackSampleCount is necessary
 	boost::mutex::scoped_lock lock(renderer->renderThreadsMutex);
-	for (u_int i = 0; i < renderer->renderThreads.size(); ++i) {
+	for (size_t i = 0; i < renderer->renderThreads.size(); ++i) {
 		fast_mutex::scoped_lock lockStats(renderer->renderThreads[i]->statLock);
 		sampleCount += renderer->renderThreads[i]->samples;
 		blackSampleCount += renderer->renderThreads[i]->blackSamples;
@@ -145,7 +145,7 @@ double SRStatistics::getEfficiencyWindow() {
 	// Get the current counts from the renderthreads
 	// Cannot just use getSampleCount() because the blackSampleCount is necessary
 	boost::mutex::scoped_lock lock(renderer->renderThreadsMutex);
-	for (u_int i = 0; i < renderer->renderThreads.size(); ++i) {
+	for (size_t i = 0; i < renderer->renderThreads.size(); ++i) {
 		fast_mutex::scoped_lock lockStats(renderer->renderThreads[i]->statLock);
 		sampleCount += renderer->renderThreads[i]->samples;
 		blackSampleCount += renderer->renderThreads[i]->blackSamples;
@@ -164,7 +164,7 @@ double SRStatistics::getPathEfficiency() {
 	// Get the current counts from the renderthreads
 	// Cannot just use getSampleCount() because the blackSamplePathCount is necessary
 	boost::mutex::scoped_lock lock(renderer->renderThreadsMutex);
-	for (u_int i = 0; i < renderer->renderThreads.size(); ++i) {
+	for (size_t i = 0; i < renderer->renderThreads.size(); ++i) {
 		fast_mutex::scoped_lock lockStats(renderer->renderThreads[i]->statLock);
 		sampleCount += renderer->renderThreads[i]->samples;
 		blackSamplePathCount += renderer->renderThreads[i]->blackSamplePaths;
@@ -180,7 +180,7 @@ double SRStatistics::getPathEfficiencyWindow() {
 	// Get the current counts from the renderthreads
 	// Cannot just use getSampleCount() because the blackSamplePathCount is necessary
 	boost::mutex::scoped_lock lock(renderer->renderThreadsMutex);
-	for (u_int i = 0; i < renderer->renderThreads.size(); ++i) {
+	for (size_t i = 0; i < renderer->renderThreads.size(); ++i) {
 		fast_mutex::scoped_lock lockStats(renderer->renderThreads[i]->statLock);
 		sampleCount += renderer->renderThreads[i]->samples;
 		blackSamplePathCount += renderer->renderThreads[i]->blackSamplePaths;

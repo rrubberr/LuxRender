@@ -769,7 +769,7 @@ void lux::Context::Shape(const string &n, const ParamSet &params) {
 				vector<boost::shared_ptr<Primitive> > tmp;
 				prim->Refine(tmp,
 					PrimitiveRefinementHints(true), prim);
-				for (u_int i = 0; i < tmp.size(); ++i)
+				for (size_t i = 0; i < tmp.size(); ++i)
 					aList.push_back(*((boost::shared_ptr<AreaLightPrimitive> *)(&(tmp[i]))));
 			} else
 				aList.push_back(prim);
@@ -898,7 +898,7 @@ void lux::Context::ObjectInstance(const string &n) {
 		LOG(LUX_ERROR,LUX_NESTING) << "ObjectInstance '" << n << "' self reference";
 		return;
 	}
-	for (u_int i = 0; i < renderOptions->areaLightInstances[n].size(); ++i) {
+	for (size_t i = 0; i < renderOptions->areaLightInstances[n].size(); ++i) {
 		if (renderOptions->areaLightInstances[n][i].size() == 0)
 			continue;
 		boost::shared_ptr<AreaLight> li(renderOptions->areaLightInstances[n][i][0]->GetAreaLight());
@@ -913,7 +913,7 @@ void lux::Context::ObjectInstance(const string &n) {
 		// Add the instanced primitives
 		if (renderOptions->currentAreaLightInstance)
 			renderOptions->currentAreaLightInstance->push_back(vector<boost::shared_ptr<AreaLightPrimitive> >());
-		for (u_int j = 0; j < renderOptions->areaLightInstances[n][i].size(); ++j) {
+		for (size_t j = 0; j < renderOptions->areaLightInstances[n][i].size(); ++j) {
 			boost::shared_ptr<Primitive> pi(renderOptions->areaLightInstances[n][i][j]->GetPrimitive());
 			AreaLightPrimitive *ap;
 			vector<boost::shared_ptr<Primitive> > source;
@@ -980,7 +980,7 @@ void lux::Context::ObjectInstance(const string &n) {
 			renderOptions->primitives.push_back(o);
 	}
 	vector<boost::shared_ptr<Light> > &li = renderOptions->lightInstances[n];
-	for (u_int i = 0; i < li.size(); ++i) {
+	for (size_t i = 0; i < li.size(); ++i) {
 		boost::shared_ptr<Light> l;
 		if (curTransform.IsStatic())
 			l.reset(new InstanceLight(curTransform.StaticTransform(),

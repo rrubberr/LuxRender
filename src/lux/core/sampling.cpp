@@ -45,7 +45,7 @@ Sampler::Sampler(const int xstart, const int xend, const int ystart, const int y
 void Sampler::AddSample(const Sample &sample)
 {
 	sample.contribBuffer->AddSampleCount(1.f);
-	for (u_int i = 0; i < sample.contributions.size(); ++i)
+	for (size_t i = 0; i < sample.contributions.size(); ++i)
 		sample.contribBuffer->Add(sample.contributions[i], 1.f);
 	sample.contributions.clear();
 }

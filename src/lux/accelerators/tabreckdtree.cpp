@@ -39,7 +39,7 @@ TaBRecKdTreeAccel::TaBRecKdTreeAccel(const vector<boost::shared_ptr<Primitive> >
         maxPrims(maxp), emptyBonus(ebonus) {
     vector<boost::shared_ptr<Primitive> > vPrims;
     const PrimitiveRefinementHints refineHints(false);
-    for (u_int i = 0; i < p.size(); ++i) {
+    for (size_t i = 0; i < p.size(); ++i) {
     	if(p[i]->CanIntersect())
     		vPrims.push_back(p[i]);
     	else
@@ -61,7 +61,7 @@ TaBRecKdTreeAccel::TaBRecKdTreeAccel(const vector<boost::shared_ptr<Primitive> >
     // Compute bounds for kd-tree construction
     vector<BBox> primBounds;
     primBounds.reserve(vPrims.size());
-    for (u_int i = 0; i < vPrims.size(); ++i) {
+    for (size_t i = 0; i < vPrims.size(); ++i) {
         BBox b = prims[i]->WorldBound();
 
 	// Dade - expand the bbox by EPSILON in order to avoid numerical problems
@@ -79,7 +79,7 @@ TaBRecKdTreeAccel::TaBRecKdTreeAccel(const vector<boost::shared_ptr<Primitive> >
     int *prims1 = new int[(maxDepth+1) * vPrims.size()];
     // Initialize _primNums_ for kd-tree construction
     int *primNums = new int[vPrims.size()];
-    for (u_int i = 0; i < vPrims.size(); ++i)
+    for (size_t i = 0; i < vPrims.size(); ++i)
         primNums[i] = i;
 
 	LOG(LUX_DEBUG,LUX_NOERROR)<< "Building KDTree, primitives: " << nPrims;;

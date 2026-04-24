@@ -73,14 +73,14 @@ bool LookupType(const char *token, ParamType *type, string &name)
 // ParamSet Macros
 template <class T> inline void DelParams(vector<ParamSetItem<T> *> &vec)
 {
-	for (u_int i = 0; i < vec.size(); ++i)
+	for (size_t i = 0; i < vec.size(); ++i)
 		delete vec[i];
 	vec.clear();
 }
 template <class T> inline bool EraseParamType(vector<ParamSetItem<T> *> &vec,
 	const string &name)
 {
-	for (u_int i = 0; i < vec.size(); ++i)
+	for (size_t i = 0; i < vec.size(); ++i)
 		if (vec[i]->name == name) {
 			delete vec[i];
 			vec.erase(vec.begin() + i);
@@ -97,7 +97,7 @@ template <class T> inline void AddParamType(vector<ParamSetItem<T> *> &vec,
 template <class T> inline const T *LookupPtr(const vector<ParamSetItem<T> *> &vec,
 	const string &name, u_int *nItems)
 {
-	for (u_int i = 0; i < vec.size(); ++i)
+	for (size_t i = 0; i < vec.size(); ++i)
 		if (vec[i]->name == name) {
 			*nItems = vec[i]->nItems;
 			vec[i]->lookedUp = true;
@@ -108,7 +108,7 @@ template <class T> inline const T *LookupPtr(const vector<ParamSetItem<T> *> &ve
 template <class T> inline const T &LookupOne(const vector<ParamSetItem<T> *> &vec,
 	const string &name, const T &d)
 {
-	for (u_int i = 0; i < vec.size(); ++i)
+	for (size_t i = 0; i < vec.size(); ++i)
 		if (vec[i]->name == name && vec[i]->nItems == 1) {
 			vec[i]->lookedUp = true;
 			return *(vec[i]->data);
@@ -117,14 +117,14 @@ template <class T> inline const T &LookupOne(const vector<ParamSetItem<T> *> &ve
 }
 template <class T> inline void CheckUnused(const vector<ParamSetItem<T> *> &vec)
 {
-	for (u_int i = 0; i < vec.size(); ++i)
+	for (size_t i = 0; i < vec.size(); ++i)
 		if (!vec[i]->lookedUp) {
 			LOG( LUX_WARNING,LUX_NOERROR) << "Parameter '" << vec[i]->name << "' not used";
 		}
 }
 template <class T> inline void MarkAsUsed(const vector<ParamSetItem<T> *> &vec, const vector<ParamSetItem<T> *> &vecOther)
 {
-	for (u_int i = 0; i < vecOther.size(); ++i) {
+	for (size_t i = 0; i < vecOther.size(); ++i) {
 		if (vecOther[i]->lookedUp) {
 			u_int n;
 			LookupPtr(vec, vecOther[i]->name, &n);
@@ -133,7 +133,7 @@ template <class T> inline void MarkAsUsed(const vector<ParamSetItem<T> *> &vec, 
 }
 
 template <class T> inline void MarkAllUsed(const vector<ParamSetItem<T> *> &vec) {
-	for (u_int i = 0; i < vec.size(); ++i)
+	for (size_t i = 0; i < vec.size(); ++i)
 		vec[i]->lookedUp = true;
 }
 
@@ -1077,46 +1077,46 @@ ParamSet::ParamSet(u_int n, const char * pluginName, const char * const tokens[]
 ParamSet &ParamSet::operator=(const ParamSet &p2) {
 	if (&p2 != this) {
 		Clear();
-		for (u_int i = 0; i < p2.ints.size(); ++i)
+		for (size_t i = 0; i < p2.ints.size(); ++i)
 			ints.push_back(p2.ints[i]->Clone());
-		for (u_int i = 0; i < p2.bools.size(); ++i)
+		for (size_t i = 0; i < p2.bools.size(); ++i)
 			bools.push_back(p2.bools[i]->Clone());
-		for (u_int i = 0; i < p2.floats.size(); ++i)
+		for (size_t i = 0; i < p2.floats.size(); ++i)
 			floats.push_back(p2.floats[i]->Clone());
-		for (u_int i = 0; i < p2.points.size(); ++i)
+		for (size_t i = 0; i < p2.points.size(); ++i)
 			points.push_back(p2.points[i]->Clone());
-		for (u_int i = 0; i < p2.vectors.size(); ++i)
+		for (size_t i = 0; i < p2.vectors.size(); ++i)
 			vectors.push_back(p2.vectors[i]->Clone());
-		for (u_int i = 0; i < p2.normals.size(); ++i)
+		for (size_t i = 0; i < p2.normals.size(); ++i)
 			normals.push_back(p2.normals[i]->Clone());
-		for (u_int i = 0; i < p2.spectra.size(); ++i)
+		for (size_t i = 0; i < p2.spectra.size(); ++i)
 			spectra.push_back(p2.spectra[i]->Clone());
-		for (u_int i = 0; i < p2.strings.size(); ++i)
+		for (size_t i = 0; i < p2.strings.size(); ++i)
 			strings.push_back(p2.strings[i]->Clone());
-		for (u_int i = 0; i < p2.textures.size(); ++i)
+		for (size_t i = 0; i < p2.textures.size(); ++i)
 			textures.push_back(p2.textures[i]->Clone());
 	}
 	return *this;
 }
 
 void ParamSet::Add(const ParamSet &params) {
-	for (u_int i = 0; i < params.ints.size(); ++i)
+	for (size_t i = 0; i < params.ints.size(); ++i)
 		AddInt(params.ints[i]->name, params.ints[i]->data, params.ints[i]->nItems);
-	for (u_int i = 0; i < params.bools.size(); ++i)
+	for (size_t i = 0; i < params.bools.size(); ++i)
 		AddBool(params.bools[i]->name, params.bools[i]->data, params.bools[i]->nItems);
-	for (u_int i = 0; i < params.floats.size(); ++i)
+	for (size_t i = 0; i < params.floats.size(); ++i)
 		AddFloat(params.floats[i]->name, params.floats[i]->data, params.floats[i]->nItems);
-	for (u_int i = 0; i < params.points.size(); ++i)
+	for (size_t i = 0; i < params.points.size(); ++i)
 		AddPoint(params.points[i]->name, params.points[i]->data, params.points[i]->nItems);
-	for (u_int i = 0; i < params.vectors.size(); ++i)
+	for (size_t i = 0; i < params.vectors.size(); ++i)
 		AddVector(params.vectors[i]->name, params.vectors[i]->data, params.vectors[i]->nItems);
-	for (u_int i = 0; i < params.normals.size(); ++i)
+	for (size_t i = 0; i < params.normals.size(); ++i)
 		AddNormal(params.normals[i]->name, params.normals[i]->data, params.normals[i]->nItems);
-	for (u_int i = 0; i < params.spectra.size(); ++i)
+	for (size_t i = 0; i < params.spectra.size(); ++i)
 		AddRGBColor(params.spectra[i]->name, params.spectra[i]->data, params.spectra[i]->nItems);
-	for (u_int i = 0; i < params.strings.size(); ++i)
+	for (size_t i = 0; i < params.strings.size(); ++i)
 		AddString(params.strings[i]->name, params.strings[i]->data, params.strings[i]->nItems);
-	for (u_int i = 0; i < params.textures.size(); ++i)
+	for (size_t i = 0; i < params.textures.size(); ++i)
 		AddTexture(params.textures[i]->name, *(params.textures[i]->data));
 }
 
@@ -1300,28 +1300,28 @@ void ParamSet::Clear() {
 }
 string ParamSet::ToString() const {
 	std::stringstream ret("");
-	for (u_int i = 0; i < ints.size(); ++i) {
+	for (size_t i = 0; i < ints.size(); ++i) {
 		const ParamSetItem<int> *item = ints[i];
 		ret << "\"integer " << item->name << "\" [";
 		for (u_int j = 0; j < item->nItems; ++j)
 			ret << item->data[j] << " ";
 		ret << "] ";
 	}
-	for (u_int i = 0; i < bools.size(); ++i) {
+	for (size_t i = 0; i < bools.size(); ++i) {
 		const ParamSetItem<bool> *item = bools[i];
 		ret << "\"bool " << item->name << "\" [";
 		for (u_int j = 0; j < item->nItems; ++j)
 			ret << (item->data[j] ? "true" : "false") << " ";
 		ret << "] ";
 	}
-	for (u_int i = 0; i < floats.size(); ++i) {
+	for (size_t i = 0; i < floats.size(); ++i) {
 		const ParamSetItem<float> *item = floats[i];
 		ret << "\"float " << item->name << "\" [";
 		for (u_int j = 0; j < item->nItems; ++j)
 			ret << item->data[j] << " ";
 		ret << "] ";
 	}
-	for (u_int i = 0; i < points.size(); ++i) {
+	for (size_t i = 0; i < points.size(); ++i) {
 		const ParamSetItem<Point> *item = points[i];
 		ret << "\"point " << item->name << "\" [";
 		for (u_int j = 0; j < item->nItems; ++j)
@@ -1330,7 +1330,7 @@ string ParamSet::ToString() const {
 				item->data[j].z << " ";
 		ret << "] ";
 	}
-	for (u_int i = 0; i < vectors.size(); ++i) {
+	for (size_t i = 0; i < vectors.size(); ++i) {
 		const ParamSetItem<Vector> *item = vectors[i];
 		ret << "\"vector " << item->name << "\" [";
 		for (u_int j = 0; j < item->nItems; ++j)
@@ -1339,7 +1339,7 @@ string ParamSet::ToString() const {
 				item->data[j].z << " ";
 		ret << "] ";
 	}
-	for (u_int i = 0; i < normals.size(); ++i) {
+	for (size_t i = 0; i < normals.size(); ++i) {
 		const ParamSetItem<Normal> *item = normals[i];
 		ret << "\"normal " << item->name << "\" [";
 		for (u_int j = 0; j < item->nItems; ++j)
@@ -1348,21 +1348,21 @@ string ParamSet::ToString() const {
 				item->data[j].z << " ";
 		ret << "] ";
 	}
-	for (u_int i = 0; i < strings.size(); ++i) {
+	for (size_t i = 0; i < strings.size(); ++i) {
 		const ParamSetItem<string> *item = strings[i];
 		ret << "\"string " << item->name << "\" [";
 		for (u_int j = 0; j < item->nItems; ++j)
 			ret << item->data[j] << " ";
 		ret << "] ";
 	}
-	for (u_int i = 0; i < textures.size(); ++i) {
+	for (size_t i = 0; i < textures.size(); ++i) {
 		const ParamSetItem<string> *item = textures[i];
 		ret << "\"texture " << item->name << "\" [";
 		for (u_int j = 0; j < item->nItems; ++j)
 			ret << item->data[j] << " ";
 		ret << "] ";
 	}
-	for (u_int i = 0; i < spectra.size(); ++i) {
+	for (size_t i = 0; i < spectra.size(); ++i) {
 		const ParamSetItem<RGBColor> *item = spectra[i];
 		ret << "\"color " << item->name << "\" [";
 		for (u_int j = 0; j < item->nItems; ++j)

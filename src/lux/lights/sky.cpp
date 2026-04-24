@@ -141,7 +141,7 @@ public:
 		*f_ = SWCSpectrum(cosi);
 		light.GetSkySpectralRadiance(sw, w, f_);
 		*pdf *= DistanceSquared(ps, dg.p) / AbsDot(*wiW, dg.nn);
-		for (u_int i = 0; i < PortalShapes.size(); ++i) {
+		for (size_t i = 0; i < PortalShapes.size(); ++i) {
 			if (i == shapeIndex)
 				continue;
 			Intersection isect;
@@ -165,7 +165,7 @@ public:
 		if (NumComponents(flags) == 0 && !(Dot(wiW, dgShading.nn) > 0.f))
 			return 0.f;
 		float pdf = 0.f;
-		for (u_int i = 0; i < PortalShapes.size(); ++i) {
+		for (size_t i = 0; i < PortalShapes.size(); ++i) {
 			Intersection isect;
 			Ray ray(ps, wiW);
 			ray.mint = -INFINITY;

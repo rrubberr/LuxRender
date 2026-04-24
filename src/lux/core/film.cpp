@@ -685,7 +685,7 @@ void ApplyImagingPipeline(vector<XYZColor> &xyzpixels, u_int xResolution, u_int 
 				eyelashes.resize(nc, nr);
 				// Compose the pupil and eye lashes pictures
 				cimg_library::CImg<double> composition(pupil);
-				for (u_int i = 0; i < composition.size(); ++i) {
+				for (size_t i = 0; i < composition.size(); ++i) {
 					if (pupil[i] == 0.0)
 						composition[i] = 0.0;
 					else
@@ -1051,7 +1051,7 @@ FilterLUT::FilterLUT(Filter *filter, const float offsetX, const float offsetY) {
 
 	// Normalize LUT
 	if (totalWeight > 0.f) {
-		for (u_int i = 0; i < lut.size(); ++i)
+		for (size_t i = 0; i < lut.size(); ++i)
 			lut[i] /= totalWeight;
 	}
 }
@@ -1303,7 +1303,7 @@ void Film::EnableNoiseAwareMap() {
 
 void Film::RequestBufferGroups(const vector<string> &bg)
 {
-	for (u_int i = 0; i < bg.size(); ++i)
+	for (size_t i = 0; i < bg.size(); ++i)
 		bufferGroups.push_back(BufferGroup(bg[i]));
 }
 
@@ -1318,7 +1318,7 @@ void Film::CreateBuffers()
 {
 	if (bufferGroups.size() == 0)
 		bufferGroups.push_back(BufferGroup("default"));
-	for (u_int i = 0; i < bufferGroups.size(); ++i)
+	for (size_t i = 0; i < bufferGroups.size(); ++i)
 		bufferGroups[i].CreateBuffers(bufferConfigs, xPixelCount, yPixelCount);
 
 	// Allocate ZBuf buffer if needed
@@ -1375,11 +1375,11 @@ void Film::CreateBuffers()
 
 void Film::ClearBuffers()
 {
-	for (u_int i = 0; i < bufferGroups.size(); ++i) {
+	for (size_t i = 0; i < bufferGroups.size(); ++i) {
 
 		BufferGroup& bufferGroup = bufferGroups[i];
 
-		for (u_int j = 0; j < bufferConfigs.size(); ++j) {
+		for (size_t j = 0; j < bufferConfigs.size(); ++j) {
 			Buffer* buffer = bufferGroup.getBuffer(j);
 
 			buffer->Clear();
@@ -1520,7 +1520,7 @@ void Film::AddSampleCount(const double count) {
 
 	numberOfLocalSamples += count;
 
-	for (u_int i = 0; i < bufferGroups.size(); ++i) {
+	for (size_t i = 0; i < bufferGroups.size(); ++i) {
 		bufferGroups[i].numberOfSamples += count;
 
 		// Dade - check if we have enough samples per pixel. The rendering stop
@@ -2302,7 +2302,7 @@ double Film::MergeFilmFromStream(std::basic_istream<char> &stream) {
 	// Read buffer groups
 	vector<double> bufferGroupNumSamples(bufferGroups.size());
 	vector<BlockedArray<Pixel>*> tmpPixelArrays(bufferGroups.size() * bufferConfigs.size());
-	for (u_int i = 0; i < bufferGroups.size(); i++) {
+	for (size_t i = 0; i < bufferGroups.size(); i++) {
 		double numberOfSamples;
 		numberOfSamples = osReadLittleEndianDouble(isLittleEndian, in);
 		if (!in.good())
@@ -2316,8 +2316,8 @@ double Film::MergeFilmFromStream(std::basic_istream<char> &stream) {
 			BlockedArray<Pixel> *tmpPixelArr = new BlockedArray<Pixel>(
 				localBuffer->xPixelCount, localBuffer->yPixelCount);
 			tmpPixelArrays[i*bufferConfigs.size() + j] = tmpPixelArr;
-			for (u_int y = 0; y < tmpPixelArr->vSize(); ++y) {
-				for (u_int x = 0; x < tmpPixelArr->uSize(); ++x) {
+			for (size_t y = 0; y < tmpPixelArr->vSize(); ++y) {
+				for (size_t x = 0; x < tmpPixelArr->uSize(); ++x) {
 					Pixel &pixel = (*tmpPixelArr)(x, y);
 					pixel.L.c[0] = osReadLittleEndianFloat(isLittleEndian, in);
 					pixel.L.c[1] = osReadLittleEndianFloat(isLittleEndian, in);
@@ -2349,9 +2349,9 @@ double Film::MergeFilmFromStream(std::basic_istream<char> &stream) {
 		ScopedPoolLock poolLock(contribPool);
 
 		// Dade - add all received data
-		for (u_int i = 0; i < bufferGroups.size(); ++i) {
+		for (size_t i = 0; i < bufferGroups.size(); ++i) {
 			BufferGroup &currentGroup = bufferGroups[i];
-			for (u_int j = 0; j < bufferConfigs.size(); ++j) {
+			for (size_t j = 0; j < bufferConfigs.size(); ++j) {
 				const BlockedArray<Pixel> *receivedPixels = tmpPixelArrays[ i * bufferConfigs.size() + j ];
 				Buffer *buffer = currentGroup.getBuffer(j);
 
@@ -2382,7 +2382,7 @@ double Film::MergeFilmFromStream(std::basic_istream<char> &stream) {
 		LOG( LUX_ERROR,LUX_SYSTEM)<< "IO error while receiving film buffers";
 
 	// Clean up
-	for (u_int i = 0; i < tmpPixelArrays.size(); ++i)
+	for (size_t i = 0; i < tmpPixelArrays.size(); ++i)
 		delete tmpPixelArrays[i];
 
 	return maxTotNumberOfSamples;
@@ -2414,7 +2414,7 @@ bool Film::WriteFilmDataToStream(
 	header.yResolution = yPixelCount;
 	header.numBufferGroups = bufferGroups.size();
 	header.numBufferConfigs = bufferConfigs.size();
-	for (u_int i = 0; i < bufferConfigs.size(); ++i)
+	for (size_t i = 0; i < bufferConfigs.size(); ++i)
 		header.bufferTypes.push_back(bufferConfigs[i].type);
 	// Write parameters
 	if (transmitParams) {
@@ -2506,19 +2506,19 @@ bool Film::WriteFilmDataToStream(
 
 	// Write each buffer group
 	double totNumberOfSamples = 0.;
-	for (u_int i = 0; i < bufferGroups.size(); ++i) {
+	for (size_t i = 0; i < bufferGroups.size(); ++i) {
 		BufferGroup& bufferGroup = bufferGroups[i];
 		// Write number of samples
 		osWriteLittleEndianDouble(isLittleEndian, fs, bufferGroup.numberOfSamples);
 
 		// Write each buffer
-		for (u_int j = 0; j < bufferConfigs.size(); ++j) {
+		for (size_t j = 0; j < bufferConfigs.size(); ++j) {
 			Buffer* buffer = bufferGroup.getBuffer(j);
 
 			// Write pixels
 			const BlockedArray<Pixel>* pixelBuf = &(buffer->pixels);
-			for (u_int y = 0; y < pixelBuf->vSize(); ++y) {
-				for (u_int x = 0; x < pixelBuf->uSize(); ++x) {
+			for (size_t y = 0; y < pixelBuf->vSize(); ++y) {
+				for (size_t x = 0; x < pixelBuf->uSize(); ++x) {
 					const Pixel &pixel = (*pixelBuf)(x, y);
 					osWriteLittleEndianFloat(isLittleEndian, fs, pixel.L.c[0]);
 					osWriteLittleEndianFloat(isLittleEndian, fs, pixel.L.c[1]);
@@ -2607,7 +2607,7 @@ double Film::UpdateFilm(std::basic_istream<char> &stream) {
 	// Read buffer groups
 	vector<double> bufferGroupNumSamples(bufferGroups.size());
 	vector<BlockedArray<Pixel>*> tmpPixelArrays(bufferGroups.size() * bufferConfigs.size());
-	for (u_int i = 0; i < bufferGroups.size(); i++) {
+	for (size_t i = 0; i < bufferGroups.size(); i++) {
 		double numberOfSamples;
 		numberOfSamples = osReadLittleEndianDouble(isLittleEndian, in);
 		if (!in.good())
@@ -2615,14 +2615,14 @@ double Film::UpdateFilm(std::basic_istream<char> &stream) {
 		bufferGroupNumSamples[i] = numberOfSamples;
 
 		// Read buffers
-		for(u_int j = 0; j < bufferConfigs.size(); ++j) {
+		for(size_t j = 0; j < bufferConfigs.size(); ++j) {
 			const Buffer* localBuffer = bufferGroups[i].getBuffer(j);
 			// Read pixels
 			BlockedArray<Pixel> *tmpPixelArr = new BlockedArray<Pixel>(
 				localBuffer->xPixelCount, localBuffer->yPixelCount);
 			tmpPixelArrays[i*bufferConfigs.size() + j] = tmpPixelArr;
-			for (u_int y = 0; y < tmpPixelArr->vSize(); ++y) {
-				for (u_int x = 0; x < tmpPixelArr->uSize(); ++x) {
+			for (size_t y = 0; y < tmpPixelArr->vSize(); ++y) {
+				for (size_t x = 0; x < tmpPixelArr->uSize(); ++x) {
 					Pixel &pixel = (*tmpPixelArr)(x, y);
 					pixel.L.c[0] = osReadLittleEndianFloat(isLittleEndian, in);
 					pixel.L.c[1] = osReadLittleEndianFloat(isLittleEndian, in);
@@ -2651,9 +2651,9 @@ double Film::UpdateFilm(std::basic_istream<char> &stream) {
 			it->Set(this);
 
 		// Dade - add all received data
-		for (u_int i = 0; i < bufferGroups.size(); ++i) {
+		for (size_t i = 0; i < bufferGroups.size(); ++i) {
 			BufferGroup &currentGroup = bufferGroups[i];
-			for (u_int j = 0; j < bufferConfigs.size(); ++j) {
+			for (size_t j = 0; j < bufferConfigs.size(); ++j) {
 				const BlockedArray<Pixel> *receivedPixels = tmpPixelArrays[ i * bufferConfigs.size() + j ];
 				Buffer *buffer = currentGroup.getBuffer(j);
 
@@ -2686,7 +2686,7 @@ double Film::UpdateFilm(std::basic_istream<char> &stream) {
 		LOG( LUX_ERROR,LUX_SYSTEM)<< "IO error while receiving film buffers";
 
 	// Clean up
-	for (u_int i = 0; i < tmpPixelArrays.size(); ++i)
+	for (size_t i = 0; i < tmpPixelArrays.size(); ++i)
 		delete tmpPixelArrays[i];
 
 	return maxTotNumberOfSamples;
@@ -2752,7 +2752,7 @@ void Film::CreateBuffers(std::basic_istream<char> &stream)
 {
 	if (bufferGroups.size() == 0)
 		bufferGroups.push_back(BufferGroup("default"));
-	for (u_int i = 0; i < bufferGroups.size(); ++i)
+	for (size_t i = 0; i < bufferGroups.size(); ++i)
 		bufferGroups[i].CreateBuffers(bufferConfigs,xPixelCount,yPixelCount);
 
 	// Allocate ZBuf buffer if needed

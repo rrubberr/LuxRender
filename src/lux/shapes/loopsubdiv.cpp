@@ -216,7 +216,7 @@ boost::shared_ptr<LoopSubdiv::SubdivResult> LoopSubdiv::Refine() const {
 
 		// Allocate next level of children in mesh tree
 		newFaces.reserve(f.size());
-		for (u_int j = 0; j < f.size(); ++j) {
+		for (size_t j = 0; j < f.size(); ++j) {
 			SDFace *face = f[j];
 			// Verify that the face is not degenerate
 			bool degenerate = CheckDegenerate(face);
@@ -230,7 +230,7 @@ boost::shared_ptr<LoopSubdiv::SubdivResult> LoopSubdiv::Refine() const {
 			}
 		}
 		newVertices.reserve(v.size());
-		for (u_int j = 0; j < v.size(); ++j) {
+		for (size_t j = 0; j < v.size(); ++j) {
 			SDVertex *vert = v[j];
 			if (!vert->startFace)
 				continue;
@@ -257,12 +257,12 @@ boost::shared_ptr<LoopSubdiv::SubdivResult> LoopSubdiv::Refine() const {
 		// Compute new odd edge vertices
 		// Update new mesh topology
 		map<SDEdge, SDVertex *> edgeVerts;
-		for (u_int j = 0; j < f.size(); ++j) {
+		for (size_t j = 0; j < f.size(); ++j) {
 			SDFace *face = f[j];
 			// Skip degenerate faces
 			if (face->children[0] == NULL)
 				continue;
-			for (u_int k = 0; k < 3; ++k) {
+			for (size_t k = 0; k < 3; ++k) {
 				// Update face neighbor pointers
 				// Update children _f_ pointers for siblings
 				face->children[3]->f[k] = face->children[NEXT(k)];
@@ -390,14 +390,14 @@ boost::shared_ptr<LoopSubdiv::SubdivResult> LoopSubdiv::Refine() const {
 		u.swap(newUniqueVertices);
 	}
 	// Check for degenerate faces
-	for (u_int i = 0; i < f.size(); ++i) {
+	for (size_t i = 0; i < f.size(); ++i) {
 		CheckDegenerate(f[i]);
 	}
 
 	// Push vertices to limit surface
 	SDVertex *Vlimit = new SDVertex[v.size()];
 	set<Point, PointCompare> uniqueLimit;
-	for (u_int i = 0; i < v.size(); ++i) {
+	for (size_t i = 0; i < v.size(); ++i) {
 		// Skip unused vertices
 		if (!v[i]->startFace)
 			continue;
@@ -406,7 +406,7 @@ boost::shared_ptr<LoopSubdiv::SubdivResult> LoopSubdiv::Refine() const {
 		else
 			weightOneRing(uniqueLimit, &Vlimit[i], v[i], gamma(v[i]->valence()));
 	}
-	for (u_int i = 0; i < v.size(); ++i) {
+	for (size_t i = 0; i < v.size(); ++i) {
 		v[i]->P = Vlimit[i].P;
 		v[i]->u = Vlimit[i].u;
 		v[i]->v = Vlimit[i].v;
@@ -502,7 +502,7 @@ void LoopSubdiv::GenerateNormals(const vector<SDVertex *> v) {
 	// Compute vertex tangents on limit surface
 	u_int ringSize = 16;
 	Point *Pring = new Point[ringSize];
-	for (u_int i = 0; i < v.size(); ++i) {
+	for (size_t i = 0; i < v.size(); ++i) {
 		SDVertex *vert = v[i];
 		// Skip unused vertices
 		if (!vert->startFace)
@@ -555,7 +555,7 @@ void LoopSubdiv::ApplyDisplacementMap(set<Point, PointCompare> &unique, const ve
 
 	// Compute vertex displacement
 	map<const Point *, std::pair<Vector, u_int> > dispMap;
-	for (u_int i = 0; i < verts.size(); ++i) {
+	for (size_t i = 0; i < verts.size(); ++i) {
 		SDVertex *v = verts[i];
 		if (!v->startFace)
 			continue;
@@ -589,7 +589,7 @@ void LoopSubdiv::ApplyDisplacementMap(set<Point, PointCompare> &unique, const ve
 	}
 	// Swap to preserve data location since pointers are held
 	unique.swap(newUnique);
-	for (u_int i = 0; i < verts.size(); ++i)
+	for (size_t i = 0; i < verts.size(); ++i)
 		verts[i]->P = uniqueMap[verts[i]->P];
 }
 

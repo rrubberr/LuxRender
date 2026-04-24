@@ -92,14 +92,14 @@ bool RGBVolume::Scatter(const Sample &sample, bool scatteredStart,
 AggregateRegion::AggregateRegion(const vector<Region *> &r) :
 	Region("AggregateRegion-" + boost::lexical_cast<string>(this)) {
 	regions = r;
-	for (u_int i = 0; i < regions.size(); ++i)
+	for (size_t i = 0; i < regions.size(); ++i)
 		bound = Union(bound, regions[i]->WorldBound());
 }
 SWCSpectrum AggregateRegion::SigmaA(const SpectrumWavelengths &sw,
 	const DifferentialGeometry &dg) const
 {
 	SWCSpectrum s(0.f);
-	for (u_int i = 0; i < regions.size(); ++i)
+	for (size_t i = 0; i < regions.size(); ++i)
 		s += regions[i]->SigmaA(sw, dg);
 	return s;
 }
@@ -107,7 +107,7 @@ SWCSpectrum AggregateRegion::SigmaS(const SpectrumWavelengths &sw,
 	const DifferentialGeometry &dg) const
 {
 	SWCSpectrum s(0.f);
-	for (u_int i = 0; i < regions.size(); ++i)
+	for (size_t i = 0; i < regions.size(); ++i)
 		s += regions[i]->SigmaS(sw, dg);
 	return s;
 }
@@ -115,7 +115,7 @@ SWCSpectrum AggregateRegion::Lve(const SpectrumWavelengths &sw,
 	const DifferentialGeometry &dg) const
 {
 	SWCSpectrum L(0.f);
-	for (u_int i = 0; i < regions.size(); ++i)
+	for (size_t i = 0; i < regions.size(); ++i)
 		L += regions[i]->Lve(sw, dg);
 	return L;
 }
@@ -123,7 +123,7 @@ float AggregateRegion::P(const SpectrumWavelengths &sw,
 	const DifferentialGeometry &dg, const Vector &w, const Vector &wp) const
 {
 	float ph = 0.f, sumWt = 0.f;
-	for (u_int i = 0; i < regions.size(); ++i) {
+	for (size_t i = 0; i < regions.size(); ++i) {
 		const float sigt = regions[i]->SigmaT(sw, dg).Filter(sw);
 		if (sigt > 0.f) {
 			const float wt = regions[i]->SigmaA(sw, dg).Filter(sw) /
@@ -138,7 +138,7 @@ SWCSpectrum AggregateRegion::SigmaT(const SpectrumWavelengths &sw,
 	const DifferentialGeometry &dg) const
 {
 	SWCSpectrum s(0.f);
-	for (u_int i = 0; i < regions.size(); ++i)
+	for (size_t i = 0; i < regions.size(); ++i)
 		s += regions[i]->SigmaT(sw, dg);
 	return s;
 }
@@ -146,7 +146,7 @@ SWCSpectrum AggregateRegion::Tau(const SpectrumWavelengths &sw, const Ray &ray,
 	float step, float offset) const
 {
 	SWCSpectrum t(0.f);
-	for (u_int i = 0; i < regions.size(); ++i)
+	for (size_t i = 0; i < regions.size(); ++i)
 		t += regions[i]->Tau(sw, ray, step, offset);
 	return t;
 }
@@ -154,7 +154,7 @@ bool AggregateRegion::IntersectP(const Ray &ray, float *t0, float *t1) const
 {
 	*t0 = INFINITY;
 	*t1 = -INFINITY;
-	for (u_int i = 0; i < regions.size(); ++i) {
+	for (size_t i = 0; i < regions.size(); ++i) {
 		float tr0, tr1;
 		if (regions[i]->IntersectP(ray, &tr0, &tr1)) {
 			*t0 = min(*t0, tr0);
@@ -164,7 +164,7 @@ bool AggregateRegion::IntersectP(const Ray &ray, float *t0, float *t1) const
 	return (*t0 < *t1);
 }
 AggregateRegion::~AggregateRegion() {
-	for (u_int i = 0; i < regions.size(); ++i)
+	for (size_t i = 0; i < regions.size(); ++i)
 		delete regions[i];
 }
 bool AggregateRegion::Scatter(const Sample &sample, bool scatteredStart,
@@ -172,7 +172,7 @@ bool AggregateRegion::Scatter(const Sample &sample, bool scatteredStart,
 	float *pdfBack, SWCSpectrum *L) const
 {
 	bool scatter = false;
-	for (u_int i = 0; i < regions.size(); ++i)
+	for (size_t i = 0; i < regions.size(); ++i)
 		scatter = scatter || regions[i]->Scatter(sample, scatteredStart,
 			ray, u, isect, pdf, pdfBack, L);
 	return scatter;

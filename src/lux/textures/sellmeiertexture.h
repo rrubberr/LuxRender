@@ -57,7 +57,7 @@ public:
 		const SWCSpectrum w(sw.w);
 		const SWCSpectrum w2(w * w);
 		SWCSpectrum ior2(a);
-		for (u_int i = 0; i < b.size(); ++i)
+		for (size_t i = 0; i < b.size(); ++i)
 			ior2 += b[i] * w2 / (w2 - SWCSpectrum(c[i]));
 		return FresnelGeneral(DIELECTRIC_FRESNEL, Sqrt(ior2),
 			SWCSpectrum(0.f));

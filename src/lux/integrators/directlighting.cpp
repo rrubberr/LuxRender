@@ -120,7 +120,7 @@ u_int DirectLightingIntegrator::LiInternal(const Scene &scene,
 					bsdf->dgShading.scattered,
 					rd, Lr, alpha, distance, rayDepth + 1);
 				if (nc > 0) {
-					for (u_int i = 0; i < L.size(); ++i)
+					for (size_t i = 0; i < L.size(); ++i)
 						L[i] += Lr[i] * f;
 					nContribs += nc;
 				}
@@ -139,7 +139,7 @@ u_int DirectLightingIntegrator::LiInternal(const Scene &scene,
 					bsdf->dgShading.scattered, rd, Lr,
 					alpha, distance, rayDepth + 1);
 				if (nc > 0) {
-					for (u_int i = 0; i < L.size(); ++i)
+					for (size_t i = 0; i < L.size(); ++i)
 						L[i] += Lr[i] * f;
 					nContribs += nc;
 				}
@@ -164,7 +164,7 @@ u_int DirectLightingIntegrator::LiInternal(const Scene &scene,
 	Lt /= spdf;
 
 	if (nContribs > 0) {
-		for (u_int i = 0; i < L.size(); ++i)
+		for (size_t i = 0; i < L.size(); ++i)
 			L[i] *= Lt;
 	}
 	SWCSpectrum VLi(0.f);
@@ -190,7 +190,7 @@ u_int DirectLightingIntegrator::Li(const Scene &scene,
 	u_int nContribs = LiInternal(scene, sample, NULL, false, ray, L, &alpha,
 		distance, 0);
 
-	for (u_int i = 0; i < scene.lightGroups.size(); ++i)
+	for (size_t i = 0; i < scene.lightGroups.size(); ++i)
 		sample.AddContribution(xi, yi,
 			XYZColor(sample.swl, L[i]) * rayWeight, alpha,
 			distance, 0.f, bufferId, i);

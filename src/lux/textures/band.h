@@ -61,14 +61,14 @@ public:
 	}
 	virtual float Y() const {
 		float ret = offsets[0] * tex[0]->Y();
-		for (u_int i = 0; i < offsets.size() - 1; ++i)
+		for (size_t i = 0; i < offsets.size() - 1; ++i)
 			ret += .5f * (offsets[i + 1] - offsets[i]) *
 				(tex[i + 1]->Y() + tex[i]->Y());
 		return ret;
 	}
 	virtual float Filter() const {
 		float ret = offsets[0] * tex[0]->Y();
-		for (u_int i = 0; i < offsets.size() - 1; ++i)
+		for (size_t i = 0; i < offsets.size() - 1; ++i)
 			ret += .5f * (offsets[i + 1] - offsets[i]) *
 				(tex[i + 1]->Filter() + tex[i]->Filter());
 		return ret;
@@ -98,7 +98,7 @@ public:
 	}
 	virtual void GetMinMaxFloat(float *minValue, float *maxValue) const {
 		tex.front()->GetMinMaxFloat(minValue, maxValue);
-		for (u_int i = 1; i < offsets.size() - 1; ++i) {
+		for (size_t i = 1; i < offsets.size() - 1; ++i) {
 			float minv, maxv;
 			tex[i]->GetMinMaxFloat(&minv, &maxv);
 			*minValue = min(*minValue, minv);
@@ -107,7 +107,7 @@ public:
 	}
 	virtual void SetIlluminant() {
 		// Update sub-textures
-		for (u_int i = 0; i < tex.size(); ++i)
+		for (size_t i = 0; i < tex.size(); ++i)
 			tex[i]->SetIlluminant();
 	}
 
