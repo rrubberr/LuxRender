@@ -297,11 +297,11 @@ void LSSAutoPowerImportance::Init(const Scene &scene)
 
 void LSSOneLogPowerImportance::Init(const Scene &scene) {
 	// Compute light power CDF
-	const u_int nLights = scene.lights.size();
+	const size_t nLights = scene.lights.size();
 	float *lightPower = new float[nLights];
 
 	// Averge the light power
-	for (u_int i = 0; i < nLights; ++i) {
+	for (size_t i = 0; i < nLights; ++i) {
 		const Light *l = scene.lights[i].get();
 		lightPower[i] = logf(l->GetRenderingHints()->GetImportance() * l->Power(scene));
 	}
