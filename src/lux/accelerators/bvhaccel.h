@@ -20,119 +20,152 @@
  *   Lux Renderer website : http://www.luxrender.org                       *
  ***************************************************************************/
 
-// bvhaccel.h
-
-#ifndef LUX_BVHACCEL_H
-#define LUX_BVHACCEL_H
+// bvhaccel.h*
 
 #include "lux.h"
 #include "primitive.h"
 
-#include <climits>
-
-#include <immintrin.h>
-#include "memory.h"
-
 namespace lux
 {
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BVHAccelTreeNode  —  temporary linked-list tree used during construction.
-// Unchanged from the original; BuildHierarchy populates it.
-// ─────────────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Binary build tree node (used only during construction).
+// ---------------------------------------------------------------------------
 struct BVHAccelTreeNode {
-    BBox bbox;
-    Primitive *primitive;
-    boost::shared_ptr<BVHAccelTreeNode> leftChild;
-    boost::shared_ptr<BVHAccelTreeNode> rightSibling;
+	BBox bbox;
+	union {
+		Primitive *primitive; // non-null -> leaf.
+		struct {
+			BVHAccelTreeNode *left;
+			BVHAccelTreeNode *right;
+		} children;
+	};
+	bool isLeaf;
+
+	float sahCost; // SAH collapse cost.
+
+	// Range into the partitioned leafNodes array; only valid when
+	// isLeaf == true && primitive == nullptr (multi-prim aggregate leaf).
+	u_int leafPrimStart, leafPrimEnd;
+
+	BVHAccelTreeNode() : primitive(nullptr), isLeaf(false), sahCost(0.f),
+	                     leafPrimStart(0), leafPrimEnd(0) {}
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WBVHNode  —  8-wide BVH node with SoA bounding-box layout.
-// Inherits from Aligned32 to guarantee safe AVX2 loads.
-// ─────────────────────────────────────────────────────────────────────────────
-struct WBVHNode : public luxrays::Aligned32 {
-    // SoA bbox: [axis 0/1/2][child 0..7]
-    float bboxMin[3][8];
-    float bboxMax[3][8];
+// ---------------------------------------------------------------------------
+// 8-wide BVH node – Structure-of-Arrays layout so GCC can vectorize.
+//
+// For each of the (up to) 8 children:
+// bboxMin[axis][child]  bboxMax[axis][child]
+//
+// childIndex[i]:
+// >= 0  => inner node at that offset in the flat array
+// <  0  => leaf; primOffset = ~childIndex
+// MBVH8_EMPTY_CHILD -> slot unused
+// ---------------------------------------------------------------------------
+static const int MBVH8_WIDTH       = 8;
+static const int MBVH8_EMPTY_CHILD = 0x7fffffff;
 
-    static const int EMPTY_CHILD = 0x7fffffff;
-    int children[8];
+// Each SoA row (bboxMin[axis] or bboxMax[axis]) is MBVH8_WIDTH floats wide.
+// For auto-vectorization the struct must be aligned to that row size so the
+// compiler can issue aligned SIMD loads.  This works for any power-of-2 width:
+// width=4  -> 16-byte rows -> SSE/NEON alignment.
+// width=8  -> 32-byte rows -> AVX2 alignment.
+// width=16 -> 64-byte rows -> AVX-512 alignment...?
+static const int MBVH8_ALIGN = MBVH8_WIDTH * static_cast<int>(sizeof(float));
+
+struct __attribute__((aligned(MBVH8_ALIGN))) MBVH8Node {
+	
+	float bboxMin[3][MBVH8_WIDTH]; // SoA bounding boxes: [min][axis][child]
+	float bboxMax[3][MBVH8_WIDTH]; // SoA bounding boxes: [max][axis][child]
+
+	// childIndex[i]: inner-node offset, or encoded leaf (negative), or MBVH8_EMPTY_CHILD.
+	// For leaf slots: primOffset = ~childIndex[i].
+	int childIndex[MBVH8_WIDTH];
+	// For leaf slots: number of primitives; 0 for inner nodes / empty slots.
+	int primCount[MBVH8_WIDTH];
+	// Precomputed bitmask of non-empty slots (bit i set <=> childIndex[i] != MBVH8_EMPTY_CHILD).
+	// Used in ComputeHitMask to avoid loading and scanning childIndex[8] just for the empty check.
+	int validChildMask;
+
+	MBVH8Node() {
+		for (int i = 0; i < MBVH8_WIDTH; ++i) {
+			bboxMin[0][i] = bboxMin[1][i] = bboxMin[2][i] =  std::numeric_limits<float>::infinity();
+			bboxMax[0][i] = bboxMax[1][i] = bboxMax[2][i] = -std::numeric_limits<float>::infinity();
+			childIndex[i] = MBVH8_EMPTY_CHILD;
+			primCount[i]  = 0;
+		}
+		validChildMask = 0;
+	}
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// BVHAccel  —  8-wide multi-branching BVH (Wald, Benthin & Boulos 2008).
-//
-// Build pipeline (Section 4 of the paper):
-//   1. BuildHierarchy (treeType=8) — standard recursive octree split using
-//      FindBestSplit's variance/SAH heuristic.  Produces a linked tree with
-//      up to 8 children per inner node.
-//   2. CollapseNode — top-down SAH-based collapsing.  Pulls inner-node
-//      grandchildren into the parent whenever (count - 1 + grandCount) ≤ 8.
-//      The paper proves this always reduces traversal cost (gain = SA(child)),
-//      so we perform it unconditionally until no further pulls are possible.
-//   3. BuildWideArray — converts the collapsed tree into a flat WBVHNode
-//      array with SoA float[8] bbox layout and index-encoded child links.
-//
-// Traversal (Section 5):
-//   Each inner-node test runs three fixed 8-element loops (one per axis) that
-//   the compiler auto-vectorises.  Child links are then processed scalarly.
-//   No AVX intrinsics are used; vectorisation is entirely compiler-driven.
-// ─────────────────────────────────────────────────────────────────────────────
+// BVHAccel Declarations
 class BVHAccel : public Aggregate {
 public:
-    BVHAccel(const vector<boost::shared_ptr<Primitive> > &p, u_int treetype,
-             int csamples, int icost, int tcost, float ebonus);
-    virtual ~BVHAccel();
+	// BVHAccel Public Methods
+	BVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
+		int csamples, int icost, int tcost, float ebonus, int maxleafp = 8);
+	virtual ~BVHAccel();
+	virtual BBox WorldBound() const;
+	virtual bool CanIntersect() const { return true; }
+	virtual bool Intersect(const Ray &ray, Intersection *isect) const;
+	virtual bool IntersectP(const Ray &ray) const;
+	virtual Transform GetLocalToWorld(float time) const {
+		return Transform();
+	}
 
-    virtual BBox WorldBound() const;
-    virtual bool CanIntersect() const { return true; }
-    virtual bool Intersect(const Ray &ray, Intersection *isect) const;
-    virtual bool IntersectP(const Ray &ray) const;
-    virtual Transform GetLocalToWorld(float /*time*/) const { return Transform(); }
-    virtual void GetPrimitives(vector<boost::shared_ptr<Primitive> > &prims) const;
+	virtual void GetPrimitives(vector<boost::shared_ptr<Primitive> > &prims) const;
 
-    static Aggregate *CreateAccelerator(
-        const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps);
+	static Aggregate *CreateAccelerator(const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps);
 
 private:
-    // ── build helpers (unchanged from original) ───────────────────────────
-    boost::shared_ptr<BVHAccelTreeNode> BuildHierarchy(
-        vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
-        u_int begin, u_int end, u_int axis);
-    void FindBestSplit(
-        vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
-        u_int begin, u_int end, float *splitValue, u_int *bestAxis);
+	// -----------------------------------------------------------------------
+	// Binary BVH construction surface-area heuristic.
+	// -----------------------------------------------------------------------
+	BVHAccelTreeNode *BuildBinaryBVH(
+		vector<boost::shared_ptr<BVHAccelTreeNode> > &leaves,
+		u_int begin, u_int end);
 
-    // ── SAH-based collapsing (Wald et al. 2008, Section 4.2) ─────────────
-    // Pulls inner-node grandchildren into the parent when profitable and
-    // within the 8-child capacity, top-down, then recurses into children.
-    void CollapseNode(boost::shared_ptr<BVHAccelTreeNode> node);
+	void FindBestSplit(
+		vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
+		u_int begin, u_int end,
+		float *splitValue, u_int *bestAxis);
 
-    // ── WBVHNode array construction ───────────────────────────────────────
-    // Converts the collapsed linked tree to a flat WBVHNode array.
-    // Returns the next free node index after this subtree.
-    u_int BuildWideArray(boost::shared_ptr<BVHAccelTreeNode> node,
-                         u_int nodeIdx,
-                         vector<Primitive *> &leafPrimsVec);
+	// -----------------------------------------------------------------------
+	// SAH-driven collapsing pass (Wald 2008).
+	// -----------------------------------------------------------------------
+	float ComputeCollapseInfo(BVHAccelTreeNode *node, float rootSAInv);
 
-    // ── build-time state ──────────────────────────────────────────────────
-    u_int treeType;
-    int   costSamples, isectCost, traversalCost;
-    float emptyBonus;
-    u_int nBuildNodes;  // running counter used by BuildHierarchy
+	// Collect up to MBVH8_WIDTH children by searching the binary node
+	// with the highest surface area until we have 8 slots or only leaves.
+	void GatherChildren(BVHAccelTreeNode *node, int maxChildren,
+		vector<BVHAccelTreeNode *> &out);
 
-    // ── primitives (kept for GetPrimitives) ───────────────────────────────
-    u_int nPrims;
-    boost::shared_ptr<Primitive> *prims;
+	// Recursively collapse the binary BVH into the flat array.
+	// Returns the index of the newly created MBVH8Node.
+	u_int CollapseToWide(BVHAccelTreeNode *node,
+		const vector<boost::shared_ptr<BVHAccelTreeNode> > &leafNodes,
+		vector<MBVH8Node> &wideNodes,
+		vector<Primitive *> &orderedPrims);
 
-    // ── wide BVH runtime data ─────────────────────────────────────────────
-    u_int     nWBVHNodes;
-    WBVHNode *wbvhTree;   // flat SoA node array
-    u_int     nLeafPrims;
-    Primitive **leafPrims; // leaf primitive pointers, indexed by ~children[i]
-    BBox      worldBound;
+	// -----------------------------------------------------------------------
+	// BVH Private Data.
+	// -----------------------------------------------------------------------
+	int  costSamples, isectCost, traversalCost, maxLeafPrims;
+	float emptyBonus;
+
+	u_int nPrims;
+	boost::shared_ptr<Primitive> *prims; // Original prim array (aligned).
+
+	vector<Primitive *> orderedPrims; // Flat ordered primitive pointers for leaves.
+
+	// Flat 8-wide BVH node array.
+	MBVH8Node *bvh8;
+	u_int      nWideNodes;
+
+	// Object arena for binary tree nodes (freed after construction);
+	// a plain vector of raw pointers deleted manually.
+	vector<BVHAccelTreeNode *> buildNodes;
 };
 
-} // namespace lux
-#endif // LUX_BVHACCEL_H
+}//namespace lux
