@@ -19,18 +19,14 @@
 #ifndef _LUXRAYS_MEMORY_H
 #define _LUXRAYS_MEMORY_H
 
+#include <cstdlib>  // posix_memalign, free, malloc
 #if !defined(__APPLE__) && !defined(__OpenBSD__) && !defined(__FreeBSD__)
-#  include <malloc.h> // for _alloca, memalign
+#  include <malloc.h> // for _alloca
 #  if !defined(WIN32) || defined(__CYGWIN__)
 #    include <alloca.h>
 #  else
-#    define memalign(a,b) _aligned_malloc(b, a)
 #    define alloca _alloca
 #  endif
-#elif defined(__APPLE__)
-#  define memalign(a,b) valloc(b)
-#elif defined(__OpenBSD__) || defined(__FreeBSD__)
-#  define memalign(a,b) malloc(b)
 #endif
 
 #include <vector>
@@ -49,9 +45,18 @@ namespace luxrays {
 #define L1_CACHE_LINE_SIZE 64
 #endif
 
+// Allocate 'size' objects of type T with alignment N (must be a power of 2
+// and a multiple of sizeof(void*), i.e. 16/32/64 are all fine).
 template<class T> inline T *AllocAligned(size_t size, std::size_t N = L1_CACHE_LINE_SIZE)
 {
-	return static_cast<T *>(memalign(N, size * sizeof(T)));
+#if defined(WIN32) && !defined(__CYGWIN__)
+	return static_cast<T *>(_aligned_malloc(size * sizeof(T), N));
+#else
+	void *ptr = nullptr;
+	if (::posix_memalign(&ptr, N, size * sizeof(T)) != 0)
+		return nullptr;
+	return static_cast<T *>(ptr);
+#endif
 }
 template<class T> inline void FreeAligned(T *ptr)
 {
