@@ -106,8 +106,10 @@ string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_REL
 # The QBVH accelerator needs to be compiled with much reduced optimizations
 # otherwise gcc produces incorrect code and ruins the render on 64bits machines
 SET_SOURCE_FILES_PROPERTIES(accelerators/qbvhaccel.cpp COMPILE_FLAGS "-O1")
-# Safe fast-math subset for the BVH.
+# Safe fast-math subset for the BVH and triangle intersection.
+# (-ffinite-math-only is intentionally excluded: infinity is used for ray reciprocals.)
 SET_SOURCE_FILES_PROPERTIES(accelerators/bvhaccel.cpp COMPILE_FLAGS "-fno-math-errno -fno-trapping-math -fassociative-math")
+SET_SOURCE_FILES_PROPERTIES(shapes/meshbarytriangle.cpp COMPILE_FLAGS "-fno-math-errno -fno-trapping-math -fassociative-math")
 
 #############################################################################
 #####################            LINKER INFO           ######################
