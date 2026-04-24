@@ -98,9 +98,16 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines
 		MESSAGE(STATUS "No AVX2 support. Reverting to SSE2")
 		ADD_DEFINITIONS(-msse2 -mfpmath=sse -march=nocona)
 	ENDIF()
+
+# RelWithDebInfo defaults to -O2; upgrade to -O3 so profiling builds are as
+# fast as Release. For Release CMake already uses -O3 by default.
+string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+
 # The QBVH accelerator needs to be compiled with much reduced optimizations
 # otherwise gcc produces incorrect code and ruins the render on 64bits machines
 SET_SOURCE_FILES_PROPERTIES(accelerators/qbvhaccel.cpp COMPILE_FLAGS "-O1")
+# Safe fast-math subset for the BVH.
+SET_SOURCE_FILES_PROPERTIES(accelerators/bvhaccel.cpp COMPILE_FLAGS "-fno-math-errno -fno-trapping-math -fassociative-math")
 
 #############################################################################
 #####################            LINKER INFO           ######################
