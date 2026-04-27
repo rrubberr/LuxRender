@@ -72,6 +72,8 @@
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>luxrender</string>
+	<key>NSRequiresAquaSystemAppearance</key>
+	<true/>
 	<key>CFBundleIconFile</key>
 	<string>luxrender.icns</string>
 	<key>CFBundleIdentifier</key>
