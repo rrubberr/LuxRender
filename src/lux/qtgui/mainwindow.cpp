@@ -211,9 +211,6 @@ MainWindow::MainWindow(QWidget *parent, bool copylog2console)
 
 	ui->setupUi(this);
 
-#if defined(__APPLE__)
-	ui->menubar->setNativeMenuBar(true);
-#endif
 
 	createActions();
 
