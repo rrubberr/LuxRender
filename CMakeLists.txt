@@ -185,16 +185,16 @@ if(APPLE)
         # 1. Clean and Create Folders
         ${CMAKE_COMMAND} -E rm -rf "${CMAKE_SOURCE_DIR}/release/LuxRender.app" &&
         ${CMAKE_COMMAND} -E copy_directory "${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/luxrender.app" "${CMAKE_SOURCE_DIR}/release/LuxRender.app" &&
-        ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/ext/build/lib/png.framework" "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/png.framework" &&
         ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS" &&
         ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/Resources" &&
+        ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/Frameworks" &&
+        ${CMAKE_COMMAND} -E copy_directory "${CMAKE_SOURCE_DIR}/ext/build/lib/png.framework" "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/Frameworks/png.framework" &&
         
-        # 2. Copy EVERYTHING into the MacOS folder FIRST
-        # This ensures otool-classic (used by macdeployqt) actually finds the files
+        # 2. Copy into the .app folders.
         ${CMAKE_COMMAND} -E copy "${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/luxconsole" "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/" &&
         ${CMAKE_COMMAND} -E copy "${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/luxmerger" "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/" &&
         ${CMAKE_COMMAND} -E copy "${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/luxcomp" "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/" &&
-        ${CMAKE_COMMAND} -E copy "${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/liblux.dylib" "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/" &&
+        ${CMAKE_COMMAND} -E copy "${LUX_PFX_DIR}/LuxRender/src/LuxRender-build/liblux.dylib" "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/Frameworks/" &&
         
         # 3. Copy Icons
         ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/lux/qtgui/icons/macos/luxrender.icns" "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/Resources/" &&
@@ -203,13 +203,12 @@ if(APPLE)
         ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/src/lux/qtgui/icons/macos/luxqueue.icns" "${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/Resources/" &&
 
         # 4. Run Deploy Tool
-        # We add -always-overwrite to handle any stubborn symlinks
         "${MAC_DEPLOY_QT}" "${CMAKE_SOURCE_DIR}/release/LuxRender.app"
-            -libpath="${CMAKE_SOURCE_DIR}/ext/build/lib"
-            -libpath="${LUX_PFX_DIR}/LuxRender/src/LuxRender-build" 
-            -executable="${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/luxconsole" 
-            -executable="${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/luxmerger" 
-            -executable="${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/luxcomp"
+            -libpath=${CMAKE_SOURCE_DIR}/ext/build/lib
+            -libpath=${LUX_PFX_DIR}/LuxRender/src/LuxRender-build 
+            -executable=${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/luxconsole
+            -executable=${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/luxmerger
+            -executable=${CMAKE_SOURCE_DIR}/release/LuxRender.app/Contents/MacOS/luxcomp
             -verbose=2
     )
 else()

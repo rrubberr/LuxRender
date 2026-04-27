@@ -154,10 +154,14 @@ ADD_DEFINITIONS(-DLUX_DLL) # for controlling visibility
 set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 
 if(APPLE)
-    # @loader_path: allows dylibs in MacOS to find each other.
-    # @executable_path: allows the main app to find dylibs in the same folder.
-    set(CMAKE_INSTALL_RPATH "@loader_path;@executable_path")
+    # Ensure all binaries look for libs in the app bundle's Frameworks folder.
+    set(CMAKE_INSTALL_RPATH "@executable_path/../Frameworks;@loader_path/../Frameworks")
+
+    # Use @rpath for install names (required for macdeployqt)
     set(CMAKE_INSTALL_NAME_DIR "@rpath")
+
+    # Ensure build uses the same rpath.
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
     
     # Force CMake to use these RPATHs during the build phase too.
     set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE) 

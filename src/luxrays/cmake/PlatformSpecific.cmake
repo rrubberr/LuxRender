@@ -48,12 +48,16 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     # ... keep your existing Linux export map logic here ...
 
 ELSEIF(APPLE)
-    # 1. @loader_path: For dylibs to find other dylibs in the same folder.
-    # 2. @executable_path: For the app to find dylibs in the SAME folder (MacOS).
-    # 3. @executable_path/../Frameworks: For finding the Qt Frameworks macdeployqt installs.
-    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath,@loader_path -Wl,-rpath,@executable_path -Wl,-rpath,@executable_path/../Frameworks")
-    
-    SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-rpath,@loader_path")
-    SET(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-rpath,@loader_path")
+    # All binaries should resolve dependencies from the Frameworks folder.
+    set(CMAKE_EXE_LINKER_FLAGS
+        "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath,@executable_path/../Frameworks"
+    )
 
+    set(CMAKE_SHARED_LINKER_FLAGS
+        "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-rpath,@loader_path/../Frameworks"
+    )
+
+    set(CMAKE_MODULE_LINKER_FLAGS
+        "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-rpath,@loader_path/../Frameworks"
+    )
 ENDIF()

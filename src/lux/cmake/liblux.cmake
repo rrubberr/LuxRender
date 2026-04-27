@@ -909,10 +909,11 @@ target_compile_definitions(lux PRIVATE LUX_INTERNAL)
 if(APPLE)
     set_target_properties(lux PROPERTIES
         BUILD_WITH_INSTALL_RPATH TRUE
-        # Use @loader_path for macOS relative linking
-        INSTALL_RPATH "@loader_path"
-        # This is critical: it tells the linker that this library 
-        # is meant to be found via the RPATH system.
+
+        # Let this dylib find OTHER dylibs in the Frameworks folder.
+        INSTALL_RPATH "@loader_path/../Frameworks;@executable_path/../Frameworks"
+
+        # Ensure the install name is @rpath-based.
         INSTALL_NAME_DIR "@rpath"
     )
 else()

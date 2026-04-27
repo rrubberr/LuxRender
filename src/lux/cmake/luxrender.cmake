@@ -148,13 +148,13 @@ IF(Qt6_FOUND)
 		set_target_properties(luxrender PROPERTIES
 			MACOSX_BUNDLE_BUNDLE_NAME "LuxRender"
 			MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/Info.plist
-			
-			# This is the "Magic" part:
-			# It tells luxrender to look in its own 'Frameworks' folder for .so files
-			INSTALL_RPATH "@executable_path"
-			
-			# This ensures the RPATH is actually built into the binary
+
+			# Correct macOS app bundle rpath layout
+			INSTALL_RPATH "@executable_path/../Frameworks;@loader_path/../Frameworks"
+
 			BUILD_WITH_INSTALL_RPATH TRUE
+
+			INSTALL_NAME_DIR "@rpath"
 		)
 	endif()
 
