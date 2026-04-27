@@ -45,20 +45,28 @@ IF(Python3_FOUND)
 
 	ADD_LIBRARY(pylux MODULE python/binding.cpp)
 
-		target_link_libraries(pylux PRIVATE
-    		lux
-    		Threads::Threads
-    		Boost::python
-			Boost::thread
-			pystring::pystring
+	target_link_libraries(pylux PRIVATE
+		lux
+		Threads::Threads
+		Boost::python
+		Boost::thread
+		pystring::pystring
+	)
+
+	if(APPLE)
+		set_target_properties(pylux PROPERTIES
+			PREFIX ""
+			SUFFIX ".so" # Python expects .so even on macOS for extensions
+			BUILD_WITH_INSTALL_RPATH TRUE
+			INSTALL_RPATH "@loader_path"
 		)
-		
-		SET_TARGET_PROPERTIES(pylux PROPERTIES
-		PREFIX ""
-		BUILD_WITH_INSTALL_RPATH TRUE
-		BUILD_RPATH "$ORIGIN"
-)
-		
+	else()
+		set_target_properties(pylux PROPERTIES
+			PREFIX ""
+			BUILD_WITH_INSTALL_RPATH TRUE
+			INSTALL_RPATH "$ORIGIN"
+		)
+	endif()
 
 ELSE(Python3_FOUND)
 	MESSAGE( STATUS "Warning: could not find Python libraries - not building python module")

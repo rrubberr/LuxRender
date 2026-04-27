@@ -19,6 +19,31 @@
 #   Lux website: http://www.luxrender.net                                 #
 ###########################################################################
 
+if(APPLE)
+    # Check for both Apple Silicon and Intel Homebrew paths.
+    set(QT_SEARCH_PATHS 
+        "/opt/homebrew/opt/qt"
+        "/opt/homebrew/opt/qt@6"
+        "/usr/local/opt/qt"
+        "/usr/local/opt/qt@6"
+    )
+
+	set(CMAKE_AUTOMOC ON)
+	set(CMAKE_AUTOUIC ON)
+	set(CMAKE_AUTORCC ON)
+
+    foreach(PATH ${QT_SEARCH_PATHS})
+        if(EXISTS "${PATH}")
+            # Add to prefix path so find_package can see it.
+            list(APPEND CMAKE_PREFIX_PATH "${PATH}")
+            message(STATUS "Found Qt6 path: ${PATH}")
+        endif()
+    endforeach()
+
+    # 2. Prevent CMake from only looking for system frameworks
+    set(CMAKE_FIND_FRAMEWORK LAST)
+endif()
+
 FIND_PACKAGE(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
 
 IF(Qt6_FOUND)
@@ -94,6 +119,13 @@ IF(Qt6_FOUND)
 		)
 	SOURCE_GROUP("Resource Files\\Qt GUI" FILES ${LUXQTGUI_RCS})
 
+	if(APPLE)
+    	set(GUI_TYPE MACOSX_BUNDLE)
+	else()
+    	# On Linux, no special keyword is needed for GUI apps.
+    	set(GUI_TYPE "")
+	endif()
+
 	QT_ADD_RESOURCES( LUXQTGUI_RC_SRCS ${LUXQTGUI_RCS})
 	QT_WRAP_UI( LUXQTGUI_UI_HDRS ${LUXQTGUI_UIS} )
 
@@ -101,18 +133,30 @@ IF(Qt6_FOUND)
 
 	ADD_EXECUTABLE(luxrender ${GUI_TYPE} ${LUXQTGUI_SRCS} ${LUXQTGUI_MOC_SRCS} ${LUXQTGUI_RC_SRCS} ${LUXQTGUI_UI_HDRS})
 
-	IF(APPLE)
-	ELSE(APPLE)
-		target_link_libraries(luxrender PRIVATE
-    		Qt6::Core
-    		Qt6::Gui
-    		Qt6::Widgets
-    		Boost::program_options
-			Boost::filesystem
-			Boost::thread
-			lux
+
+	target_link_libraries(luxrender PRIVATE
+    	Qt6::Core
+    	Qt6::Gui
+    	Qt6::Widgets
+    	Boost::program_options
+		Boost::filesystem
+		Boost::thread
+		lux
+	)
+
+	if(APPLE)
+		set_target_properties(luxrender PROPERTIES
+			MACOSX_BUNDLE_BUNDLE_NAME "LuxRender"
+			MACOSX_BUNDLE_INFO_PLIST ${CMAKE_SOURCE_DIR}/Info.plist
+			
+			# This is the "Magic" part:
+			# It tells luxrender to look in its own 'Frameworks' folder for .so files
+			INSTALL_RPATH "@executable_path"
+			
+			# This ensures the RPATH is actually built into the binary
+			BUILD_WITH_INSTALL_RPATH TRUE
 		)
-	ENDIF(APPLE)
+	endif()
 
 ELSE(Qt6_FOUND)
 	MESSAGE( FATAL_ERROR "Warning : could not find Qt - not building Qt GUI")

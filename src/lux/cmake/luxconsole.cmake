@@ -32,15 +32,13 @@ SOURCE_GROUP("Header Files\\Console" FILES ${LUXCONSOLE_HDRS})
 
 ADD_EXECUTABLE(luxconsole ${LUXCONSOLE_SRCS} ${LUXCONSOLE_HDRS})
 
-IF(APPLE)
-ELSE(APPLE)
-    target_link_libraries(luxconsole PRIVATE
-        lux
-        Threads::Threads
-		Boost::filesystem
-		Boost::program_options
-		Boost::thread
-    	Boost::chrono
-		Boost::thread
-    )
-endif()
+
+target_link_libraries(luxconsole PRIVATE
+    lux
+    Threads::Threads
+	Boost::filesystem
+	Boost::program_options
+	Boost::thread
+    Boost::chrono
+	Boost::thread
+)

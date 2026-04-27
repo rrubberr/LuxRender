@@ -121,6 +121,23 @@ ENDIF(PNG_INCLUDE_DIRS)
 ########################### FFTW  LIBRARIES SETUP ###########################
 #############################################################################
 
+if(APPLE)
+    # Check both Apple Silicon and Intel Homebrew locations
+    set(FFTW_SEARCH_PATHS 
+        "/opt/homebrew/opt/fftw"
+        "/usr/local/opt/fftw"
+    )
+
+    foreach(PATH ${FFTW_SEARCH_PATHS})
+        if(EXISTS "${PATH}")
+            list(APPEND CMAKE_PREFIX_PATH "${PATH}")
+            # Explicitly set include/link directories for non-find_package setups
+            include_directories("${PATH}/include")
+            link_directories("${PATH}/lib")
+        endif()
+    endforeach()
+endif()
+
 if(NOT TARGET FFTW3::fftw3)
     find_path(FFTW3_INCLUDE_DIR fftw3.h)
     find_library(FFTW3_LIBRARY fftw3)

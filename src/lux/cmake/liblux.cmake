@@ -874,68 +874,52 @@ INCLUDE_DIRECTORIES(BEFORE
 #############################################################################
 # Here we build the shared core library liblux.so
 #############################################################################
-IF(APPLE)
-	ADD_LIBRARY(luxShared SHARED ${lux_cpp_api_src} ${lux_lib_src} ${lux_lib_hdr} ${lux_parser_src})
-	TARGET_LINK_LIBRARIES(luxShared ${LUX_LIBRARY_DEPENDS})
-	SET_TARGET_PROPERTIES(luxShared PROPERTIES OUTPUT_NAME lux)
-	SET_TARGET_PROPERTIES(luxShared PROPERTIES DEFINE_SYMBOL LUX_INTERNAL) # for controlling visibility
-	### tentative fix for crashing ultra long reality stacks due a compiler bug ###
 
-	if(${CMAKE_GENERATOR} MATCHES "Xcode")
-		SET_TARGET_PROPERTIES(luxShared PROPERTIES XCODE_ATTRIBUTE_LD_DYLIB_INSTALL_NAME @loader_path/liblux.dylib)
-		SET_TARGET_PROPERTIES(luxShared PROPERTIES XCODE_ATTRIBUTE_DYLIB_COMPATIBILITY_VERSION 2.0.0)
-		SET_TARGET_PROPERTIES(luxShared PROPERTIES XCODE_ATTRIBUTE_DYLIB_CURRENT_VERSION 2.0.0)
-		SET_TARGET_PROPERTIES(luxShared PROPERTIES XCODE_ATTRIBUTE_STRIP_STYLE non-global) # wip testing !
-	else()
-		SET_TARGET_PROPERTIES(luxShared PROPERTIES LINK_FLAGS "-compatibility_version 2.0.0 -current_version 2.0.0")
-		ADD_CUSTOM_COMMAND(
-			TARGET luxShared POST_BUILD
-			COMMAND install_name_tool -id @loader_path/liblux.dylib ${CMAKE_BUILD_TYPE}/liblux.dylib)
-	endif()
-ELSEIF(MSVC)
-	ADD_LIBRARY(luxShared SHARED ${lux_lib_src} ${lux_lib_hdr} ${lux_parser_src})
-	TARGET_LINK_LIBRARIES(luxShared ${LUX_LIBRARY} ${LUX_LIBRARY_DEPENDS})
-	# Make CMake output both libs with the same name
-	SET_TARGET_PROPERTIES(luxShared PROPERTIES OUTPUT_NAME lux)
-	SET_TARGET_PROPERTIES(luxShared PROPERTIES DEFINE_SYMBOL LUX_INTERNAL)
-ELSEIF(NOT APPLE)
 
-    set(LUX_SOURCES
-        ${lux_cpp_api_src}
-        ${lux_lib_src}
-        ${lux_lib_hdr}
-        ${lux_parser_src}
+set(LUX_SOURCES
+	${lux_cpp_api_src}
+	${lux_lib_src}
+	${lux_lib_hdr}
+	${lux_parser_src}
+)
+
+add_library(lux SHARED ${LUX_SOURCES})
+
+target_link_libraries(lux PRIVATE
+	luxrays
+	OpenImageIO::OpenImageIO
+	OpenEXR::OpenEXR
+	OpenEXR::Iex
+	Imath::Imath
+	Boost::thread
+	Boost::filesystem
+	Boost::iostreams
+	Boost::serialization
+	Boost::python
+	PNG::PNG
+	JPEG::JPEG
+	TIFF::TIFF
+	FFTW3::fftw3
+	Threads::Threads
+	pystring::pystring
+)
+
+target_compile_definitions(lux PRIVATE LUX_INTERNAL)
+
+if(APPLE)
+    set_target_properties(lux PROPERTIES
+        BUILD_WITH_INSTALL_RPATH TRUE
+        # Use @loader_path for macOS relative linking
+        INSTALL_RPATH "@loader_path"
+        # This is critical: it tells the linker that this library 
+        # is meant to be found via the RPATH system.
+        INSTALL_NAME_DIR "@rpath"
     )
-
-    add_library(lux SHARED ${LUX_SOURCES})
-
-    target_link_libraries(lux PRIVATE
-        luxrays
-        OpenImageIO::OpenImageIO
-        OpenEXR::OpenEXR
-		OpenEXR::Iex
-        Imath::Imath
-        Boost::thread
-        Boost::filesystem
-		Boost::iostreams
-    	Boost::serialization
-        Boost::python
-        PNG::PNG
-        JPEG::JPEG
-        TIFF::TIFF
-        FFTW3::fftw3
-        Threads::Threads
-		pystring::pystring
-    )
-
-    target_compile_definitions(lux PRIVATE LUX_INTERNAL)
-
+else()
     set_target_properties(lux PROPERTIES
         BUILD_WITH_INSTALL_RPATH TRUE
         INSTALL_RPATH "$ORIGIN"
     )
-
 endif()
-
 
 #ADD_CUSTOM_TARGET(luxStatic SOURCES ${lux_lib_hdr})

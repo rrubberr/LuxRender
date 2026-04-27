@@ -41,7 +41,7 @@ public:
 		height_ = height;
 		pixel_type_ = type;
 		noChannels_ = noChannels;
-		// NOTE - Ratow - Not using auto_ptr here because of undefined behavior when deleting array data
+		// NOTE - Ratow - Not using  here because of undefined behavior when deleting array data
 		data_ = data;
 		isExrImage_ = false;
 

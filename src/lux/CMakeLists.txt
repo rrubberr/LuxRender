@@ -22,6 +22,28 @@
 MESSAGE(STATUS "CMAKE VERSION DETECTED " ${CMAKE_VERSION})
 	cmake_minimum_required(VERSION 3.10)
 
+#############################
+# Set the compiler on macOS #
+#############################
+
+if(APPLE)
+    # 1. Use the system Clang
+    find_program(CLANG_CC NAMES clang)
+    find_program(CLANG_CXX NAMES clang++)
+    
+    set(CMAKE_C_COMPILER ${CLANG_CC})
+    set(CMAKE_CXX_COMPILER ${CLANG_CXX})
+    message(STATUS "Using Apple Clang: ${CMAKE_C_COMPILER}")
+
+    execute_process(COMMAND sysctl -n hw.ncpu OUTPUT_VARIABLE NPROC_VALUE OUTPUT_STRIP_TRAILING_WHITESPACE)
+else()
+    set(NPROC_VALUE "$(nproc)")
+endif()
+
+##########################
+# Set the CMake policies #
+##########################
+
 IF(COMMAND cmake_policy)
 	cmake_policy(SET CMP0003 NEW)
     cmake_policy(SET CMP0074 NEW)
@@ -32,6 +54,10 @@ IF(COMMAND cmake_policy)
     cmake_policy(SET CMP0167 OLD)
     endif()
 ENDIF(COMMAND cmake_policy)
+
+#####################
+# Setup the project #
+#####################
 
 PROJECT(lux)
 SET(VERSION 1.9)
@@ -44,6 +70,10 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 	"${LUX_CMAKE_DIR}/SpecializedConfig"
 )
 option(LUX_DOCUMENTATION "Generate project documentation" OFF)
+
+##############################
+# Set the default build type #
+##############################
 
 # Don't overconfigure
 SET(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "limit configs" FORCE)
@@ -119,8 +149,21 @@ LINK_DIRECTORIES(${LINK_DIRECTORIES} ${Boost_LIBRARY_DIRS} )
 
 SET(LUX_LIBRARY luxShared)
 ADD_DEFINITIONS(-DLUX_DLL) # for controlling visibility
-SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
-SET(CMAKE_INSTALL_RPATH "$ORIGIN")
+
+# Control how the linker handles relative paths
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+
+if(APPLE)
+    # @loader_path: allows dylibs in MacOS to find each other.
+    # @executable_path: allows the main app to find dylibs in the same folder.
+    set(CMAKE_INSTALL_RPATH "@loader_path;@executable_path")
+    set(CMAKE_INSTALL_NAME_DIR "@rpath")
+    
+    # Force CMake to use these RPATHs during the build phase too.
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE) 
+else()
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+endif()
 
 set(LUX_DEPS
 	OpenImageIO::OpenImageIO

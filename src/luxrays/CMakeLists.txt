@@ -19,6 +19,28 @@
 MESSAGE(STATUS "CMAKE VERSION DETECTED " ${CMAKE_VERSION})
 	cmake_minimum_required(VERSION 3.10)
 
+#############################
+# Set the compiler on macOS #
+#############################
+
+if(APPLE)
+    # 1. Use the system Clang
+    find_program(CLANG_CC NAMES clang)
+    find_program(CLANG_CXX NAMES clang++)
+    
+    set(CMAKE_C_COMPILER ${CLANG_CC})
+    set(CMAKE_CXX_COMPILER ${CLANG_CXX})
+    message(STATUS "Using Apple Clang: ${CMAKE_C_COMPILER}")
+
+    execute_process(COMMAND sysctl -n hw.ncpu OUTPUT_VARIABLE NPROC_VALUE OUTPUT_STRIP_TRAILING_WHITESPACE)
+else()
+    set(NPROC_VALUE "$(nproc)")
+endif()
+
+##########################
+# Set the CMake policies #
+##########################
+
 IF(COMMAND cmake_policy)
 	cmake_policy(SET CMP0003 NEW)
     cmake_policy(SET CMP0074 NEW)
@@ -30,10 +52,26 @@ IF(COMMAND cmake_policy)
     endif()
 ENDIF(COMMAND cmake_policy)
 
+#####################
+# Setup the project #
+#####################
+
 project(LuxRays)
 
-# Don't over-configure
+##############################
+# Set the default build type #
+##############################
+
+# Don't overconfigure.
 SET(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "limit configs" FORCE)
+
+# CMake needs to know which configuration to generate by default.
+IF (NOT CMAKE_BUILD_TYPE)
+	SET(CMAKE_BUILD_TYPE Release)
+ENDIF(NOT CMAKE_BUILD_TYPE)
+
+MESSAGE(STATUS "Building mode: " ${CMAKE_BUILD_TYPE})
+SET(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "assure config" FORCE) # makes sure type is shown in cmake gui
 
 
 ################################################################################

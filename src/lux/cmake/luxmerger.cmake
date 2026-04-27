@@ -21,13 +21,11 @@
 
 SOURCE_GROUP("Source Files\\Tools" FILES tools/luxmerger.cpp)
 ADD_EXECUTABLE(luxmerger tools/luxmerger.cpp)
-IF(APPLE)
-ELSE(APPLE)
-    target_link_libraries(luxmerger PRIVATE
-        lux
-        Threads::Threads
-        Boost::filesystem
-		Boost::program_options
-        Boost::thread
-    )
-endif()
+
+target_link_libraries(luxmerger PRIVATE
+    lux
+    Threads::Threads
+    Boost::filesystem
+    Boost::program_options
+    Boost::thread
+)

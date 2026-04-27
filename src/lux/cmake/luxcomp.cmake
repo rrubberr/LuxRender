@@ -21,13 +21,11 @@
 
 SOURCE_GROUP("Source Files\\Tools" FILES tools/luxcomp.cpp)
 ADD_EXECUTABLE(luxcomp tools/luxcomp.cpp)
-IF(APPLE)
-ELSE(APPLE)
-    target_link_libraries(luxcomp PRIVATE
-        lux
-        Threads::Threads
-		Boost::program_options
-		Boost::filesystem
-        Boost::thread
-    )
-endif()
+
+target_link_libraries(luxcomp PRIVATE
+    lux
+    Threads::Threads
+    Boost::program_options
+    Boost::filesystem
+    Boost::thread
+)
