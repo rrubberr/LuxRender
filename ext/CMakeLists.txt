@@ -106,18 +106,24 @@ include(ExternalProject)
 # Build OpenSSL #
 #################
 
+if(APPLE)
+    set(OPENSSL_CONFIGURE_CMD
+        bash -c "cd ${EXT_DIR}/openssl && ./Configure darwin64-x86_64-cc shared -fPIC -w --prefix=${DEPS_BUILD_DIR}"
+    )
+else()
+    set(OPENSSL_CONFIGURE_CMD
+        bash -c "cd ${EXT_DIR}/openssl && ./config shared -fPIC -w -std=c++14 --prefix=${DEPS_BUILD_DIR}"
+    )
+endif()
+
 ExternalProject_Add(
     openssl
     SOURCE_DIR ${EXT_DIR}/openssl
     PREFIX ${DEPS_PFX_DIR}/openssl
     INSTALL_DIR ${DEPS_BUILD_DIR}
     WORKING_DIRECTORY ${EXT_DIR}/openssl
-	IF(APPLE)
-    CONFIGURE_COMMAND bash -c "cd ${EXT_DIR}/openssl && ./Configure darwin64-x86_64-cc shared -fPIC -w --prefix=${DEPS_BUILD_DIR}"
-	ELSE(APPLE)
-    CONFIGURE_COMMAND bash -c "cd ${EXT_DIR}/openssl && ./config shared -fPIC -w -std=c++14 --prefix=${DEPS_BUILD_DIR}"
-	ENDIF(APPLE)
-	BUILD_COMMAND bash -c "cd ${EXT_DIR}/openssl && make -j1 install"
+    CONFIGURE_COMMAND ${OPENSSL_CONFIGURE_CMD}
+    BUILD_COMMAND bash -c "cd ${EXT_DIR}/openssl && make -j1 install"
     INSTALL_COMMAND ""
 )
 
@@ -125,17 +131,8 @@ ExternalProject_Add(
 # Build cpython #
 #################
 
-ExternalProject_Add(
-	cpython
-	DEPENDS
-		openssl
-	SOURCE_DIR ${EXT_DIR}/cpython
-	PREFIX ${DEPS_PFX_DIR}/cpython
-	INSTALL_DIR ${DEPS_BUILD_DIR}
-	CMAKE_ARGS
-		-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-	IF(APPLE)
-	CONFIGURE_COMMAND
+if(APPLE)
+    set(CPYTHON_CONFIGURE_CMD
         /bin/sh -c "cd ${EXT_DIR}/cpython && \
         CC=${CMAKE_C_COMPILER} \
         CXX=${CMAKE_CXX_COMPILER} \
@@ -143,21 +140,35 @@ ExternalProject_Add(
         CXXFLAGS='-I${DEPS_INC_DIR} -I${DEPS_INC_DIR}/openssl' \
         LDFLAGS='-L${DEPS_LIB_DIR} -Wl,-rpath,@loader_path' \
         ./configure --prefix=${DEPS_BUILD_DIR} --disable-shared --with-ensurepip=no --enable-optimizations"
-	ELSE(APPLE)
-    CONFIGURE_COMMAND
-        /bin/sh -c "cd ${EXT_DIR}/cpython && sh ./configure --prefix=${DEPS_BUILD_DIR} --disable-shared \
+    )
+else()
+    set(CPYTHON_CONFIGURE_CMD
+        /bin/sh -c "cd ${EXT_DIR}/cpython && \
+        CC=${CMAKE_C_COMPILER} \
+        CXX=${CMAKE_CXX_COMPILER} \
+        sh ./configure --prefix=${DEPS_BUILD_DIR} --disable-shared \
         --with-ensurepip=no --enable-optimizations"
-	ENDIF(APPLE)
-	PATCH_COMMAND
-		/bin/sh -c "(cd ${EXT_DIR}/cpython && grep -q m_sinpi Modules/mathmodule.c || sed -i '' 's@sinpi@m_sinpi@g' Modules/mathmodule.c) && \
-					(cd ${EXT_DIR}/cpython && grep -q is_pad Modules/_cursesmodule.c || sed -i '' 's@(self->win->_flags & _ISPAD)@(is_pad(self->win))@g' Modules/_cursesmodule.c) && \
+    )
+endif()
+
+ExternalProject_Add(
+    cpython
+    DEPENDS openssl
+    SOURCE_DIR ${EXT_DIR}/cpython
+    PREFIX ${DEPS_PFX_DIR}/cpython
+    INSTALL_DIR ${DEPS_BUILD_DIR}
+    CMAKE_ARGS
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+    CONFIGURE_COMMAND ${CPYTHON_CONFIGURE_CMD}
+    PATCH_COMMAND
+        /bin/sh -c "(cd ${EXT_DIR}/cpython && grep -q m_sinpi Modules/mathmodule.c || sed -i '' 's@sinpi@m_sinpi@g' Modules/mathmodule.c) && \
+                    (cd ${EXT_DIR}/cpython && grep -q is_pad Modules/_cursesmodule.c || sed -i '' 's@(self->win->_flags & _ISPAD)@(is_pad(self->win))@g' Modules/_cursesmodule.c) && \
                     (cd ${EXT_DIR}/cpython && patch -p1 -N -i ${EXT_DIR}/patches/python/python-disable-nis.patch || true)"
-	BUILD_COMMAND
+    BUILD_COMMAND
         /bin/sh -c "cd ${EXT_DIR}/cpython && make install -j$(nproc) cc=g++ cxx=g++ \
             LDFLAGS=\"-Wl,-rpath,'\$\$ORIGIN'\" \
             cflags=\"-O2 -w -fPIC -I ${BIN_DIR} -I ${INC_DIR}/openssl\" \
             cxxflags=\"-O2 -w -fPIC -std=c++14 -I ${BIN_DIR} -I ${INC_DIR}/openssl -fpermissive\""
-
     INSTALL_COMMAND ""
 )
 
