@@ -141,6 +141,12 @@ if(APPLE)
         LDFLAGS='-L${DEPS_LIB_DIR} -Wl,-rpath,@loader_path' \
         ./configure --prefix=${DEPS_BUILD_DIR} --disable-shared --with-ensurepip=no --enable-optimizations"
     )
+	set(CPYTHON_PATCH_CMD
+	    /bin/sh -c "(cd ${EXT_DIR}/cpython && grep -q m_sinpi Modules/mathmodule.c || sed -i '' 's@sinpi@m_sinpi@g' Modules/mathmodule.c) && \
+            (cd ${EXT_DIR}/cpython && grep -q is_pad Modules/_cursesmodule.c || sed -i '' 's@(self->win->_flags & _ISPAD)@(is_pad(self->win))@g' Modules/_cursesmodule.c) && \
+            (cd ${EXT_DIR}/cpython && patch -p1 -N -i ${EXT_DIR}/patches/python/python-disable-nis.patch || true)"
+	
+	)
 else()
     set(CPYTHON_CONFIGURE_CMD
         /bin/sh -c "cd ${EXT_DIR}/cpython && \
@@ -149,6 +155,12 @@ else()
         sh ./configure --prefix=${DEPS_BUILD_DIR} --disable-shared \
         --with-ensurepip=no --enable-optimizations"
     )
+	set(CPYTHON_PATCH_CMD
+	/bin/sh -c "(cd ${EXT_DIR}/cpython && grep -q m_sinpi Modules/mathmodule.c || sed -i 's@sinpi@m_sinpi@g' Modules/mathmodule.c) && \
+		(cd ${EXT_DIR}/cpython && grep -q is_pad Modules/_cursesmodule.c || sed -i 's@(self->win->_flags & _ISPAD)@(is_pad(self->win))@g' Modules/_cursesmodule.c) && \
+		(cd ${EXT_DIR}/cpython && patch -p1 -N -i ${EXT_DIR}/patches/python/python-disable-nis.patch || true)"
+	
+	)
 endif()
 
 ExternalProject_Add(
@@ -161,9 +173,7 @@ ExternalProject_Add(
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
     CONFIGURE_COMMAND ${CPYTHON_CONFIGURE_CMD}
     PATCH_COMMAND
-        /bin/sh -c "(cd ${EXT_DIR}/cpython && grep -q m_sinpi Modules/mathmodule.c || sed -i '' 's@sinpi@m_sinpi@g' Modules/mathmodule.c) && \
-                    (cd ${EXT_DIR}/cpython && grep -q is_pad Modules/_cursesmodule.c || sed -i '' 's@(self->win->_flags & _ISPAD)@(is_pad(self->win))@g' Modules/_cursesmodule.c) && \
-                    (cd ${EXT_DIR}/cpython && patch -p1 -N -i ${EXT_DIR}/patches/python/python-disable-nis.patch || true)"
+
     BUILD_COMMAND
         /bin/sh -c "cd ${EXT_DIR}/cpython && make install -j$(nproc) cc=g++ cxx=g++ \
             LDFLAGS=\"-Wl,-rpath,'\$\$ORIGIN'\" \
