@@ -146,6 +146,11 @@ namespace lux {
 
 			ImageSpec config;
 			config.attribute("oiio:UnassociatedAlpha", 1);
+
+			std::string format_list;
+				OIIO::getattribute("format_list", format_list);
+				LOG(LUX_INFO, LUX_NOERROR) << "OIIO registered formats: " << format_list;
+
 			std::unique_ptr<ImageInput> in = ImageInput::open(name, &config);
 			if (in.get()) {
 				const ImageSpec &spec = in->spec();
@@ -201,8 +206,7 @@ namespace lux {
 				return new ImageData(width, height, type, channelCount, data);
 			}
 			LOG(LUX_ERROR, LUX_BADFILE) <<
-				"Cannot recognise file format for image '" <<
-				name << "'";
+				"Cannot open image '" << name << "': " << OIIO::geterror();
 			return NULL;
 		}
 		catch (const std::exception &e) {

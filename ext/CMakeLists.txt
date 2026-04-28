@@ -317,9 +317,12 @@ ExternalProject_Add(
 	CMAKE_ARGS
 		${COMMON_EXT_PROJECT_ARGS}
 		-DWITH_JAVA=FALSE
+		-DWITH_TESTS=FALSE
 		-DWITH_TURBOJPEG=FALSE
-        -DBUILD_SHARED_LIBS=FALSE
-		-DWITH_TURBOJPEG=FALSE
+        -DENABLE_SHARED=FALSE
+		-DENABLE_STATIC=TRUE
+		-DWITH_JPEG7=TRUE
+		-DWITH_JPEG8=TRUE
 )
 
 #################
@@ -347,8 +350,8 @@ ExternalProject_Add(
 		-Dtiff-cxx=FALSE
 		-Dtiff-opengl=FALSE
 		-Djbig=FALSE
-		-Dtiff-jpeg=OFF
-        -Dtiff-jpeg12=OFF
+		-Dtiff-jpeg=FALSE
+        -Dtiff-jpeg12=FALSE
 		-Djpeg12=FALSE
 		-Djpeg=FALSE
 )
@@ -434,6 +437,7 @@ ExternalProject_Add(
 		-DUSE_PYTHON=FALSE
 		-DOIIO_BUILD_TESTS=FALSE
 		-DOIIO_BUILD_TOOLS=FALSE
+		-DEMBEDPLUGINS=TRUE
 		-DINSTALL_FONTS=FALSE
 		-DBUILD_DOCS=FALSE
 		-DINSTALL_DOCS=FALSE
@@ -460,6 +464,7 @@ ExternalProject_Add(
         -DBUILD_SHARED_LIBS=FALSE
 		-DZLIB_INCLUDE_DIR=${DEPS_INC_DIR}
         -DZLIB_LIBRARY=${DEPS_LIB_DIR}/libz.a
+		-DJPEG_ROOT=${DEPS_BUILD_DIR}
 )
 
 ###############
