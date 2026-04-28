@@ -172,8 +172,7 @@ ExternalProject_Add(
     CMAKE_ARGS
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
     CONFIGURE_COMMAND ${CPYTHON_CONFIGURE_CMD}
-    PATCH_COMMAND
-
+    PATCH_COMMAND ${CPYTHON_PATCH_CMD}
     BUILD_COMMAND
         /bin/sh -c "cd ${EXT_DIR}/cpython && make install -j$(nproc) cc=g++ cxx=g++ \
             LDFLAGS=\"-Wl,-rpath,'\$\$ORIGIN'\" \
