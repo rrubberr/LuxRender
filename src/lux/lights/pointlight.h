@@ -27,37 +27,60 @@
 namespace lux
 {
 
-// PointLight Declarations
-class PointLight : public Light {
-public:
-	// PointLight Public Methods
-	PointLight(const Transform &light2world, 
+class PointLight : public Light
+{
+	public:
+	PointLight(
+		const Transform &light2world, 
 		const boost::shared_ptr< Texture<SWCSpectrum> > &L, float gain,
-		float power, float efficacy, SampleableSphericalFunction *ssf);
-	virtual ~PointLight();
-	virtual bool IsDeltaLight() const { return true; }
-	virtual bool IsEnvironmental() const { return false; }
-	virtual float Power(const Scene &) const;
-	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const;
-	virtual bool SampleL(const Scene &scene, const Sample &sample,
-		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
-		SWCSpectrum *Le) const;
-	virtual bool SampleL(const Scene &scene, const Sample &sample,
-		const Point &p, float u1, float u2, float u3, BSDF **bsdf,
-		float *pdf, float *pdfDirect, SWCSpectrum *Le) const;
-	
-	Texture<SWCSpectrum> *GetLbaseTexture() { return Lbase.get(); }
-	const SampleableSphericalFunction *GetFunc() const { return func; }
+		float power, float efficacy, SampleableSphericalFunction *ssf
+	);
 
-	static Light *CreateLight(const Transform &light2world,
-		const ParamSet &paramSet);
-private:
-	// PointLight Private Data
-	Point lightPos;
-	boost::shared_ptr< Texture<SWCSpectrum> > Lbase;
-	float gain;
-	SampleableSphericalFunction *func;
+	virtual ~PointLight();
+
+	virtual bool IsDeltaLight() const
+	{
+		return true;
+	};
+
+	virtual bool IsEnvironmental() const
+	{
+		return false;
+	};
+
+	virtual float Power(const Scene &) const;
+
+	virtual float Pdf(const Point &p, const PartialDifferentialGeometry &dg) const;
+
+	virtual bool SampleL(
+		const Scene &scene, const Sample &sample,
+		float u1, float u2, float u3, BSDF **bsdf, float *pdf,
+		SWCSpectrum *Le
+	) const;
+
+	virtual bool SampleL(
+		const Scene &scene, const Sample &sample,
+		const Point &p, float u1, float u2, float u3, BSDF **bsdf,
+		float *pdf, float *pdfDirect, SWCSpectrum *Le
+	) const;
+	
+	Texture<SWCSpectrum> *GetLbaseTexture()
+	{
+		return Lbase.get();
+	};
+	
+	const SampleableSphericalFunction *GetFunc() const
+	{
+		return func;
+	};
+
+	static Light *CreateLight(const Transform &light2world, const ParamSet &paramSet);
+	
+	private:
+	Point lightPos = {0,0,0};
+	boost::shared_ptr<Texture<SWCSpectrum>> Lbase = nullptr;
+	float gain = 0.0f;
+	SampleableSphericalFunction *func = nullptr;
 };
 
 }//namespace lux
-
