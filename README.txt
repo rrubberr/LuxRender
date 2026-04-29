@@ -44,24 +44,23 @@ Notes:
 
 Compiling from source:
 ---------------------
- - To compile from source, you'll need to install Qt6 core, dbus,
-   gui, imageformats, and widgets from your package manager.
-
- - You will also need fftw3, freetype, and common compression libraries
-   like lzma and bzip2. These are likely present on your system already.
+ - To compile from source, you'll need to install several libraries.
 
  - On Debian or Ubuntu run:
-    sudo apt install git cmake build-essential pkg-config bison flex libfftw3-dev \
-    python3-dev qt6-base-dev qt6-image-formats-plugins
+    sudo apt install bison build-essential cmake flex git libfftw3-dev \
+    patch pkg-config python3-dev qt6-base-dev qt6-image-formats-plugins
 
  - On Fedora or RHEL run:
     sudo dnf group install "c-development"
-    sudo dnf install git cmake pkgconf-pkg-config bison flex fftw-devel patch \
-    python3-devel qt6-qtbase-devel qt6-qtimageformats expat-devel
+    sudo dnf install bison cmake expat-devel fftw-devel patch flex git \
+    pkgconf-pkg-config python3-devel qt6-qtbase-devel qt6-qtimageformats 
  
  - On Arch & friends run:
-    sudo pacman -S base-devel git cmake pkgconf bison flex fftw python \
+    sudo pacman -S base-devel bison cmake fftw flex git pkgconf python \
     qt6-base qt6-imageformats
+
+ - On an Intel Mac, first install XCode and Brew, then run:
+    brew install bison cmake fftw flex gpatch pkgconf qt xquartz
 
  - Then do the standard cmake dance from the main folder:
     mkdir build
@@ -74,13 +73,16 @@ Demo scenes:
 Various LuxRender demo scenes, ranging from the most simple to highly 
 complex ones: https://github.com/rrubberr/Flatpak-LuxRender-Scenes
 
+Wiki:
+----
+Our wiki is at https://github.com/rrubberr/LuxRender/wiki
+
 Bugs:
 ----
-Our bugtracker is at https://github.com/rrubberr/Flatpak-LuxRender/issues
+Our bugtracker is at https://github.com/rrubberr/LuxRender/issues
 
 License:
 -------
 LuxRender is developed and distributed under GNU GPL v3.
-
 
   LuxRender Team
