@@ -369,6 +369,7 @@ ExternalProject_Add(
 		-Dwebp=FALSE
 		-Dtiff-cxx=FALSE
 		-Dtiff-opengl=FALSE
+		-Dlerc=FALSE
 		-Djbig=FALSE
 		-Dtiff-jpeg=FALSE
         -Dtiff-jpeg12=FALSE
