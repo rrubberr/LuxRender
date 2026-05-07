@@ -20,7 +20,7 @@
  *   Lux Renderer website : http://www.luxrender.org                       *
  ***************************************************************************/
 
-// bvhaccel.h*
+// mbvhaccel.h*
 
 #include "lux.h"
 #include "primitive.h"
@@ -44,8 +44,12 @@ struct BVHAccelTreeNode {
 
 	float sahCost; // SAH collapse cost.
 
-	// Range into the partitioned leafNodes array; only valid when
-	// isLeaf == true && primitive == nullptr (multi-prim aggregate leaf).
+	// Range into the partitioned leafNodes array.
+	// Set on ALL node types by BuildBinaryBVH so that CollapseToWide can
+	// determine a subtree's primitive count in O(1) without an extra walk:
+	//   single-prim leaf  (primitive != nullptr): [i, i+1)
+	//   multi-prim leaf   (primitive == nullptr) : [begin, end)
+	//   inner node        (isLeaf == false)      : [begin, end) for whole subtree
 	u_int leafPrimStart, leafPrimEnd;
 
 	BVHAccelTreeNode() : primitive(nullptr), isLeaf(false), sahCost(0.f),
@@ -53,59 +57,71 @@ struct BVHAccelTreeNode {
 };
 
 // ---------------------------------------------------------------------------
-// 8-wide BVH node – Structure-of-Arrays layout so GCC can vectorize.
+// Wide BVH node.
 //
-// For each of the (up to) 8 children:
+// For each of the (up to) 16 children:
 // bboxMin[axis][child]  bboxMax[axis][child]
 //
 // childIndex[i]:
 // >= 0  => inner node at that offset in the flat array
 // <  0  => leaf; primOffset = ~childIndex
-// MBVH8_EMPTY_CHILD -> slot unused
+// MBVH_EMPTY_CHILD -> slot unused. Max int. value for GCC reasons.
 // ---------------------------------------------------------------------------
-static const int MBVH8_WIDTH       = 8;
-static const int MBVH8_EMPTY_CHILD = 0x7fffffff;
+#if defined(MBVH_TARGET_STR)
+    #if (MBVH_TARGET_STR == 30)
+        static const int MBVH_WIDTH = 16;
+		#pragma message("MBVH_WIDTH = 16")
+    #elif (MBVH_TARGET_STR == 20)
+        static const int MBVH_WIDTH = 8;
+		#pragma message("MBVH_WIDTH = 8")
+	#elif (MBVH_TARGET_STR == 10)
+		static const int MBVH_WIDTH = 8;
+		#pragma message("MBVH_WIDTH = 8")
+    #endif
+#else
+    static const int MBVH_WIDTH = 4;
+	#pragma message("MBVH_WIDTH = 4")
+#endif
 
-// Each SoA row (bboxMin[axis] or bboxMax[axis]) is MBVH8_WIDTH floats wide.
+static const int MBVH_EMPTY_CHILD = 0x7fffffff;
+
+// Each SoA row (bboxMin[axis] or bboxMax[axis]) is MBVH_WIDTH floats wide.
 // For auto-vectorization the struct must be aligned to that row size so the
-// compiler can issue aligned SIMD loads.  This works for any power-of-2 width:
-// width=4  -> 16-byte rows -> SSE/NEON alignment.
-// width=8  -> 32-byte rows -> AVX2 alignment.
-// width=16 -> 64-byte rows -> AVX-512 alignment...?
-static const int MBVH8_ALIGN = MBVH8_WIDTH * static_cast<int>(sizeof(float));
+// compiler can align SIMD loads. This works for any power-of-2 up to 16.
+static const int MBVH_ALIGN = MBVH_WIDTH * static_cast<int>(sizeof(float));
 
-struct __attribute__((aligned(MBVH8_ALIGN))) MBVH8Node {
+struct __attribute__((aligned(MBVH_ALIGN))) MBVHNode {
 	
-	float bboxMin[3][MBVH8_WIDTH]; // SoA bounding boxes: [min][axis][child]
-	float bboxMax[3][MBVH8_WIDTH]; // SoA bounding boxes: [max][axis][child]
+	float bboxMin[3][MBVH_WIDTH]; // SoA bounding boxes: [min][axis][child]
+	float bboxMax[3][MBVH_WIDTH]; // SoA bounding boxes: [max][axis][child]
 
-	// childIndex[i]: inner-node offset, or encoded leaf (negative), or MBVH8_EMPTY_CHILD.
+	// childIndex[i]: inner-node offset, or encoded leaf (negative), or MBVH_EMPTY_CHILD.
 	// For leaf slots: primOffset = ~childIndex[i].
-	int childIndex[MBVH8_WIDTH];
+	int childIndex[MBVH_WIDTH];
 	// For leaf slots: number of primitives; 0 for inner nodes / empty slots.
-	int primCount[MBVH8_WIDTH];
-	// Precomputed bitmask of non-empty slots (bit i set <=> childIndex[i] != MBVH8_EMPTY_CHILD).
+	int primCount[MBVH_WIDTH];
+	// Precomputed bitmask of non-empty slots (bit i set <=> childIndex[i] != MBVH_EMPTY_CHILD).
 	// Used in ComputeHitMask to avoid loading and scanning childIndex[8] just for the empty check.
 	int validChildMask;
 
-	MBVH8Node() {
-		for (int i = 0; i < MBVH8_WIDTH; ++i) {
+	MBVHNode() {
+		for (int i = 0; i < MBVH_WIDTH; ++i) {
 			bboxMin[0][i] = bboxMin[1][i] = bboxMin[2][i] =  std::numeric_limits<float>::infinity();
 			bboxMax[0][i] = bboxMax[1][i] = bboxMax[2][i] = -std::numeric_limits<float>::infinity();
-			childIndex[i] = MBVH8_EMPTY_CHILD;
+			childIndex[i] = MBVH_EMPTY_CHILD;
 			primCount[i]  = 0;
 		}
 		validChildMask = 0;
 	}
 };
 
-// BVHAccel Declarations
-class BVHAccel : public Aggregate {
+// BVHAccel Declarations.
+class MBVHAccel : public Aggregate {
 public:
-	// BVHAccel Public Methods
-	BVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
+	// MBVHAccel Public Methods.
+	MBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 		int csamples, int icost, int tcost, float ebonus, int maxleafp = 8);
-	virtual ~BVHAccel();
+	virtual ~MBVHAccel();
 	virtual BBox WorldBound() const;
 	virtual bool CanIntersect() const { return true; }
 	virtual bool Intersect(const Ray &ray, Intersection *isect) const;
@@ -136,16 +152,19 @@ private:
 	// -----------------------------------------------------------------------
 	float ComputeCollapseInfo(BVHAccelTreeNode *node, float rootSAInv);
 
-	// Collect up to MBVH8_WIDTH children by searching the binary node
-	// with the highest surface area until we have 8 slots or only leaves.
+	// Collect up to MBVH_WIDTH children by repeatedly expanding the
+	// non-leaf candidate with the highest SAH cost contribution
+	// (surface-area*sahCost) until we have maxChildren slots or only
+	// leaves remain. Using SA*sahCost rather than raw SA respects primitive
+	// density and matches the greedy collapsing intent of Wald 2008, Sec. 4.
 	void GatherChildren(BVHAccelTreeNode *node, int maxChildren,
 		vector<BVHAccelTreeNode *> &out);
 
 	// Recursively collapse the binary BVH into the flat array.
-	// Returns the index of the newly created MBVH8Node.
+	// Returns the index of the newly created MBVHNode.
 	u_int CollapseToWide(BVHAccelTreeNode *node,
 		const vector<boost::shared_ptr<BVHAccelTreeNode> > &leafNodes,
-		vector<MBVH8Node> &wideNodes,
+		vector<MBVHNode> &wideNodes,
 		vector<Primitive *> &orderedPrims);
 
 	// -----------------------------------------------------------------------
@@ -159,8 +178,8 @@ private:
 
 	vector<Primitive *> orderedPrims; // Flat ordered primitive pointers for leaves.
 
-	// Flat 8-wide BVH node array.
-	MBVH8Node *bvh8;
+	// Flat wide BVH node array.
+	MBVHNode *wideNodes;
 	u_int      nWideNodes;
 
 	// Object arena for binary tree nodes (freed after construction);
