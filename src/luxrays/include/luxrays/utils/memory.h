@@ -131,20 +131,8 @@ class __declspec(align(16)) Aligned16 {
 class Aligned16 {
 #endif // NOBOOK
 public:
-
-	/*
-	Aligned16(){
-		if(((int)this & 15) != 0){
-			printf("bad alloc\n");
-			assert(0);
-		}
-	}
-	*/
-
 	void *operator new(size_t s) { return AllocAligned<char>(s, 16); }
-
 	void *operator new (size_t s, void *q) { return q; }
-
 	void operator delete(void *p) { FreeAligned(p); }
 #if defined(WIN32) && !defined(__CYGWIN__) // NOBOOK
 } ;
@@ -165,6 +153,21 @@ public:
 } ;
 #else // NOBOOK
 } __attribute__ ((aligned(32)));
+#endif // NOBOOK
+
+#if defined(WIN32) && !defined(__CYGWIN__) // NOBOOK
+class __declspec(align(64)) Aligned64 {
+#else // NOBOOK
+class Aligned64 {
+#endif // NOBOOK
+public:
+	void *operator new(size_t s) { return AllocAligned<char>(s, 64); }
+	void *operator new (size_t s, void *q) { return q; }
+	void operator delete(void *p) { FreeAligned(p); }
+#if defined(WIN32) && !defined(__CYGWIN__) // NOBOOK
+} ;
+#else // NOBOOK
+} __attribute__ ((aligned(64)));
 #endif // NOBOOK
 
 /*

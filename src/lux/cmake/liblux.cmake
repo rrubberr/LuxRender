@@ -186,7 +186,7 @@ SOURCE_GROUP("Source Files\\Accelerators" FILES ${lux_accelerators_src})
 # These experimental sources REQUIRE host AVX2 support.
 
 SET(lux_experimental_src
-	accelerators/bvhaccel.cpp
+	accelerators/mbvhaccel.cpp
 	)
 SOURCE_GROUP("Source Files\\Accelerators" FILES ${lux_experimental_src})
 
@@ -446,17 +446,17 @@ SET(lux_modules_src
 	${lux_volumes_src}
 	)
 
-# If AVX2 is not found, exlude experimental sources.
+# If AVX is not found, exlude experimental sources.
 
 IF(AVX_FOUND)
-	MESSAGE(STATUS "AVX2 detected. Including experimental sources.")
+	MESSAGE(STATUS "AVX ${AVX_VERSION} detected (${AVX_STR}). Including experimental sources.")
 	SET(lux_lib_src
 		${lux_core_all_src}
 		${lux_modules_src}
 		${lux_experimental_src}
 		)
 ELSE()
-	MESSAGE(STATUS "No AVX2 support. Excluding experimental sources.")
+	MESSAGE(STATUS "No AVX support. Excluding experimental sources.")
 	SET(lux_lib_src
 		${lux_core_all_src}
 		${lux_modules_src}
@@ -597,7 +597,7 @@ SET(lux_core_reflection_microfacetdistribution_hdr
 SOURCE_GROUP("Header Files\\Core\\Reflection\\Microfacet Distribution" FILES ${lux_core_reflection_microfacetdistribution_hdr})
 SET(lux_accelerators_hdr
 	accelerators/bruteforce.h
-	accelerators/bvhaccel.h
+	accelerators/mbvhaccel.h
 	accelerators/qbvhaccel.h
 	accelerators/tabreckdtreeaccel.h
 	)

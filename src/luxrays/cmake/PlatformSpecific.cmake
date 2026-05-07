@@ -19,21 +19,22 @@
 # This covers GCC, Apple Clang, and LLVM Clang.
 IF(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
-    # Standard warning and position-independent code flags.
+    # Look for the highest supported AVX version.
+    FIND_PACKAGE(AVX)
+
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-long-long -pedantic -fPIC")
 
-    # SIMD / Architecture Logic.
-    # Note: On Apple Silicon (M1/M2/M3), -mavx2 will FAIL.
-    # We only want this for Intel Macs.
-    IF(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
-        FIND_PACKAGE(AVX 2.0 EXACT)
-        IF(AVX_FOUND)
-            MESSAGE(STATUS "AVX2 detected. Adding compiler definitions.")
-            ADD_DEFINITIONS(-mavx2 -march=haswell)
-        ELSE()
-            MESSAGE(STATUS "No AVX2 support. Reverting to SSE2")
-            ADD_DEFINITIONS(-msse2 -mfpmath=sse -march=nocona)
-        ENDIF()
+    IF(AVX_FOUND)
+        MESSAGE(STATUS "AVX ${AVX_VERSION} detected (${AVX_STR}). Adding compiler definitions.")
+        
+        # Use the flags determined by the FindAVX script.
+        # This will include -mavx512f if on an AVX-512 machine,
+        # -mavx2 on an AVX2 machine, or -mavx on an AVX machine.
+        ADD_DEFINITIONS(${AVX_FLAGS})
+
+    ELSE()
+        MESSAGE(STATUS "No AVX support. Reverting to SSE2.")
+        ADD_DEFINITIONS(-msse2 -mfpmath=sse -march=nocona)
     ENDIF()
 
     SET(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")

@@ -118,16 +118,25 @@ ADD_DEFINITIONS(-DLUX_USE_CONFIG_H)
 # Removed "-O3" from definitions in order to have CMake Release/Debug options to work
 ADD_DEFINITIONS(-ftree-vectorize -funroll-loops -Wall -fPIC -DHAVE_PTHREAD_H)
 
-FIND_PACKAGE(AVX 2.0 EXACT)
-	
+# Look for the highest supported AVX version.
+FIND_PACKAGE(AVX)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=hidden -fvisibility-inlines-hidden")
-	IF(AVX_FOUND)
-		MESSAGE(STATUS "AVX2 detected. Adding compiler definitions.")
-		ADD_DEFINITIONS(-mavx2 -march=haswell)
-	ELSE()
-		MESSAGE(STATUS "No AVX2 support. Reverting to SSE2")
-		ADD_DEFINITIONS(-msse2 -mfpmath=sse -march=nocona)
-	ENDIF()
+
+IF(AVX_FOUND)
+    MESSAGE(STATUS "AVX ${AVX_VERSION} detected (${AVX_STR}). Adding compiler definitions.")
+    
+    # Use the flags determined by the FindAVX script
+    # This will include -mavx512f if on an AVX-512 machine,
+	# -mavx2 on an AVX2 machine, or -mavx on an AVX machine.
+    ADD_DEFINITIONS(${AVX_FLAGS})
+    
+    # Pass the width for MBVH.
+    ADD_DEFINITIONS(-DMBVH_TARGET_STR=${AVX_STR})
+ELSE()
+    MESSAGE(STATUS "No AVX support. Reverting to SSE2.")
+    ADD_DEFINITIONS(-msse2 -mfpmath=sse -march=nocona)
+ENDIF()
 
 # RelWithDebInfo defaults to -O2; upgrade to -O3 so profiling builds are as
 # fast as Release. For Release CMake already uses -O3 by default.
@@ -138,7 +147,7 @@ string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_REL
 SET_SOURCE_FILES_PROPERTIES(accelerators/qbvhaccel.cpp COMPILE_FLAGS "-O1")
 # Safe fast-math subset for the BVH and triangle intersection.
 # (-ffinite-math-only is intentionally excluded: infinity is used for ray reciprocals.)
-SET_SOURCE_FILES_PROPERTIES(accelerators/bvhaccel.cpp COMPILE_FLAGS "-fno-math-errno -fno-trapping-math -fassociative-math")
+SET_SOURCE_FILES_PROPERTIES(accelerators/mbvhaccel.cpp COMPILE_FLAGS "-fno-math-errno -fno-trapping-math -fassociative-math")
 SET_SOURCE_FILES_PROPERTIES(shapes/meshbarytriangle.cpp COMPILE_FLAGS "-fno-math-errno -fno-trapping-math -fassociative-math")
 
 #############################################################################
