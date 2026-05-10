@@ -24,6 +24,7 @@
 #include "paramset.h"
 #include "dynload.h"
 #include "error.h"
+#include "simd.h"
 
 using namespace luxrays;
 
@@ -38,19 +39,19 @@ class QuadRay {
 public:
 	QuadRay(const Ray &ray)
 	{
-		ox = _mm_set1_ps(ray.o.x);
-		oy = _mm_set1_ps(ray.o.y);
-		oz = _mm_set1_ps(ray.o.z);
-		dx = _mm_set1_ps(ray.d.x);
-		dy = _mm_set1_ps(ray.d.y);
-		dz = _mm_set1_ps(ray.d.z);
-		mint = _mm_set1_ps(ray.mint);
-		maxt = _mm_set1_ps(ray.maxt);
+		ox = ray.o.x;
+		oy = ray.o.y;
+		oz = ray.o.z;
+		dx = ray.d.x;
+		dy = ray.d.y;
+		dz = ray.d.z;
+		mint = ray.mint;
+		maxt = ray.maxt;
 	}
 
-	__m128 ox, oy, oz;
-	__m128 dx, dy, dz;
-	mutable __m128 mint, maxt;
+	vfloat<4> ox, oy, oz;
+	vfloat<4> dx, dy, dz;
+	mutable vfloat<4> mint, maxt;
 #if defined(WIN32) && !defined(__CYGWIN__)
 };
 #else 
@@ -105,17 +106,18 @@ public:
 		const bool hit = Intersect(ray, isect);
 		if (!hit)
 			return false;
-		ray4.maxt = _mm_set1_ps(ray.maxt);
+		ray4.maxt = ray.maxt;
 		return true;
 	}
 protected:
 	boost::shared_ptr<Primitive> primitives[4];
 };
 
-static inline __m128 reciprocal(const __m128 x)
+static inline vfloat<4> reciprocal(const vfloat<4> &x)
 {
-	const __m128 y = _mm_rcp_ps(x);
-	return _mm_mul_ps(y, _mm_sub_ps(_mm_set1_ps(2.f), _mm_mul_ps(x, y)));
+	vfloat<4> y;
+	y.as<__m128>() = _mm_rcp_ps(x.as<__m128>());
+	return y * (2.f - (x * y));
 }
 
 class QuadTriangle : public QuadPrimitive, public Aligned16
@@ -129,84 +131,71 @@ public:
 	{
 		for (u_int i = 0; i < 4; ++i) {
 			const MeshBaryTriangle *t = static_cast<const MeshBaryTriangle *>(primitives[i].get());
-			reinterpret_cast<float *>(&origx)[i] = t->GetP(0).x;
-			reinterpret_cast<float *>(&origy)[i] = t->GetP(0).y;
-			reinterpret_cast<float *>(&origz)[i] = t->GetP(0).z;
-			reinterpret_cast<float *>(&edge1x)[i] = t->GetP(1).x - t->GetP(0).x;
-			reinterpret_cast<float *>(&edge1y)[i] = t->GetP(1).y - t->GetP(0).y;
-			reinterpret_cast<float *>(&edge1z)[i] = t->GetP(1).z - t->GetP(0).z;
-			reinterpret_cast<float *>(&edge2x)[i] = t->GetP(2).x - t->GetP(0).x;
-			reinterpret_cast<float *>(&edge2y)[i] = t->GetP(2).y - t->GetP(0).y;
-			reinterpret_cast<float *>(&edge2z)[i] = t->GetP(2).z - t->GetP(0).z;
+			origx[i] = t->GetP(0).x;
+			origy[i] = t->GetP(0).y;
+			origz[i] = t->GetP(0).z;
+			edge1x[i] = t->GetP(1).x - t->GetP(0).x;
+			edge1y[i] = t->GetP(1).y - t->GetP(0).y;
+			edge1z[i] = t->GetP(1).z - t->GetP(0).z;
+			edge2x[i] = t->GetP(2).x - t->GetP(0).x;
+			edge2y[i] = t->GetP(2).y - t->GetP(0).y;
+			edge2z[i] = t->GetP(2).z - t->GetP(0).z;
 		}
 	}
 	virtual ~QuadTriangle() { }
 	virtual bool Intersect(const QuadRay &ray4, const Ray &ray, Intersection *isect) const
 	{
-		const __m128 zero = _mm_set1_ps(0.f);
-		const __m128 s1x = _mm_sub_ps(_mm_mul_ps(ray4.dy, edge2z),
-			_mm_mul_ps(ray4.dz, edge2y));
-		const __m128 s1y = _mm_sub_ps(_mm_mul_ps(ray4.dz, edge2x),
-			_mm_mul_ps(ray4.dx, edge2z));
-		const __m128 s1z = _mm_sub_ps(_mm_mul_ps(ray4.dx, edge2y),
-			_mm_mul_ps(ray4.dy, edge2x));
-		const __m128 divisor = _mm_add_ps(_mm_mul_ps(s1x, edge1x),
-			_mm_add_ps(_mm_mul_ps(s1y, edge1y),
-			_mm_mul_ps(s1z, edge1z)));
-		__m128 test = _mm_cmpneq_ps(divisor, zero);
+		const vfloat<4> zero = 0.f;
+		const vfloat<4> s1x = ((ray4.dy * edge2z) - (ray4.dz * edge2y));
+		const vfloat<4> s1y = ((ray4.dz * edge2x) - (ray4.dx * edge2z));
+		const vfloat<4> s1z = ((ray4.dx * edge2y) - (ray4.dy * edge2x));
+		const vfloat<4> divisor = ((s1x * edge1x) + ((s1y * edge1y) + (s1z * edge1z)));
+		vfloat<4> test;
+		test.as<__m128>() = _mm_cmpneq_ps(divisor.as<__m128>(), zero.as<__m128>());
 //		const __m128 inverse = reciprocal(divisor);
-		const __m128 dx = _mm_sub_ps(ray4.ox, origx);
-		const __m128 dy = _mm_sub_ps(ray4.oy, origy);
-		const __m128 dz = _mm_sub_ps(ray4.oz, origz);
-		const __m128 b1 = _mm_div_ps(_mm_add_ps(_mm_mul_ps(dx, s1x),
-			_mm_add_ps(_mm_mul_ps(dy, s1y), _mm_mul_ps(dz, s1z))),
-			divisor);
-		test = _mm_and_ps(test, _mm_cmpge_ps(b1, zero));
-		const __m128 s2x = _mm_sub_ps(_mm_mul_ps(dy, edge1z),
-			_mm_mul_ps(dz, edge1y));
-		const __m128 s2y = _mm_sub_ps(_mm_mul_ps(dz, edge1x),
-			_mm_mul_ps(dx, edge1z));
-		const __m128 s2z = _mm_sub_ps(_mm_mul_ps(dx, edge1y),
-			_mm_mul_ps(dy, edge1x));
-		const __m128 b2 = _mm_div_ps(_mm_add_ps(_mm_mul_ps(ray4.dx, s2x),
-			_mm_add_ps(_mm_mul_ps(ray4.dy, s2y), _mm_mul_ps(ray4.dz, s2z))),
-			divisor);
-		const __m128 b0 = _mm_sub_ps(_mm_set1_ps(1.f),
-			_mm_add_ps(b1, b2));
-		test = _mm_and_ps(test, _mm_and_ps(_mm_cmpge_ps(b2, zero),
-			_mm_cmpge_ps(b0, zero)));
-		const __m128 t = _mm_div_ps(_mm_add_ps(_mm_mul_ps(edge2x, s2x),
-			_mm_add_ps(_mm_mul_ps(edge2y, s2y),
-			_mm_mul_ps(edge2z, s2z))), divisor);
-		test = _mm_and_ps(test,
-			_mm_and_ps(_mm_cmpgt_ps(t, ray4.mint),
-			_mm_cmplt_ps(t, ray4.maxt)));
-		u_int hit = 4;
-		for (u_int i = 0; i < 4; ++i) {
-			if (reinterpret_cast<int32_t *>(&test)[i] &&
-				reinterpret_cast<const float *>(&t)[i] < ray.maxt) {
+		const vfloat<4> dx = (ray4.ox - origx);
+		const vfloat<4> dy = (ray4.oy - origy);
+		const vfloat<4> dz = (ray4.oz - origz);
+		const vfloat<4> b1 = (((dx * s1x) + ((dy * s1y) + (dz * s1z))) / divisor);
+		test.as<__m128>() = _mm_and_ps(test.as<__m128>(), _mm_cmpge_ps(b1.as<__m128>(), zero.as<__m128>()));
+		const vfloat<4> s2x = ((dy * edge1z) - (dz * edge1y));
+		const vfloat<4> s2y = ((dz * edge1x) - (dx * edge1z));
+		const vfloat<4> s2z = ((dx * edge1y) - (dy * edge1x));
+		const vfloat<4> b2 = (((ray4.dx * s2x) + ((ray4.dy * s2y) + (ray4.dz * s2z))) / divisor);
+		const vfloat<4> b0 = (1.f - (b1 + b2));
+		test.as<__m128>() = _mm_and_ps(test.as<__m128>(),_mm_and_ps(
+			_mm_cmpge_ps(b2.as<__m128>(), zero.as<__m128>()),
+			_mm_cmpge_ps(b0.as<__m128>(), zero.as<__m128>())
+		));
+		const vfloat<4> t = (((edge2x * s2x) + ((edge2y * s2y) + (edge2z * s2z))) / divisor);
+		test.as<__m128>() = _mm_and_ps(test.as<__m128>(), _mm_and_ps(
+			_mm_cmpgt_ps(t.as<__m128>(), ray4.mint.as<__m128>()),
+			_mm_cmplt_ps(t.as<__m128>(), ray4.maxt.as<__m128>())
+		));
+		
+		size_t hit = 4;
+		for(size_t i = 0; i < 4; ++i)
+		{
+			if (reinterpret_cast<int32_t *>(&test)[i] && t[i] < ray.maxt)
+			{
 				hit = i;
-				ray.maxt = reinterpret_cast<const float *>(&t)[i];
+				ray.maxt = t[i];
 			}
 		}
-		if (hit == 4)
+
+		if(hit == 4)
 			return false;
-		ray4.maxt = _mm_set1_ps(ray.maxt);
+
+		ray4.maxt = ray.maxt;
 
 		const MeshBaryTriangle *triangle(static_cast<const MeshBaryTriangle *>(primitives[hit].get()));
 
-		const Point o(reinterpret_cast<const float *>(&origx)[hit],
-			reinterpret_cast<const float *>(&origy)[hit],
-			reinterpret_cast<const float *>(&origz)[hit]);
-		const Vector e1(reinterpret_cast<const float *>(&edge1x)[hit],
-			reinterpret_cast<const float *>(&edge1y)[hit],
-			reinterpret_cast<const float *>(&edge1z)[hit]);
-		const Vector e2(reinterpret_cast<const float *>(&edge2x)[hit],
-			reinterpret_cast<const float *>(&edge2y)[hit],
-			reinterpret_cast<const float *>(&edge2z)[hit]);
-		const float _b0 = reinterpret_cast<const float *>(&b0)[hit];
-		const float _b1 = reinterpret_cast<const float *>(&b1)[hit];
-		const float _b2 = reinterpret_cast<const float *>(&b2)[hit];
+		const Point o(origx[hit],origy[hit],origz[hit]);
+		const Vector e1(edge1x[hit],edge1y[hit],edge1z[hit]);
+		const Vector e2(edge2x[hit],edge2y[hit],edge2z[hit]);
+		const float _b0 = b0[hit];
+		const float _b1 = b1[hit];
+		const float _b2 = b2[hit];
 		const Normal nn(Normalize(Cross(e1, e2)));
 		const Point pp(o + _b1 * e1 + _b2 * e2);
 
@@ -254,9 +243,9 @@ public:
 		return true;
 	}
 private:
-	__m128 origx, origy, origz;
-	__m128 edge1x, edge1y, edge1z;
-	__m128 edge2x, edge2y, edge2z;
+	vfloat<4> origx, origy, origz;
+	vfloat<4> edge1x, edge1y, edge1z;
+	vfloat<4> edge2x, edge2y, edge2z;
 };
 
 /***************************************************/
@@ -660,32 +649,26 @@ void QBVHAccel::CreateSwizzledLeaf(int32_t parentIndex, int32_t childIndex,
 	node.InitializeLeaf(childIndex, nbQuads, startQuad);
 }
 
-int32_t QBVHNode::BBoxIntersect(const QuadRay &ray4, const __m128 invDir[3],
+int32_t QBVHNode::BBoxIntersect(const QuadRay &ray4, const vfloat<4> invDir[3],
 	const int sign[3]) const
 {
-	__m128 tMin = ray4.mint;
-	__m128 tMax = ray4.maxt;
+	vfloat<4> tMin = ray4.mint;
+	vfloat<4> tMax = ray4.maxt;
 
 	// X coordinate
-	tMin = _mm_max_ps(tMin, _mm_mul_ps(_mm_sub_ps(bboxes[sign[0]][0],
-		ray4.ox), invDir[0]));
-	tMax = _mm_min_ps(tMax, _mm_mul_ps(_mm_sub_ps(bboxes[1 - sign[0]][0],
-		ray4.ox), invDir[0]));
+	tMin = vmax(tMin,((bboxes[sign[0]][0] - ray4.ox) * invDir[0]));
+	tMax = vmin(tMax,((bboxes[1 - sign[0]][0] - ray4.ox) * invDir[0]));
 
 	// Y coordinate
-	tMin = _mm_max_ps(tMin, _mm_mul_ps(_mm_sub_ps(bboxes[sign[1]][1],
-		ray4.oy), invDir[1]));
-	tMax = _mm_min_ps(tMax, _mm_mul_ps(_mm_sub_ps(bboxes[1 - sign[1]][1],
-		ray4.oy), invDir[1]));
+	tMin = vmax(tMin,((bboxes[sign[1]][1] - ray4.oy) * invDir[1]));
+	tMax = vmin(tMax,((bboxes[1 - sign[1]][1] - ray4.oy) * invDir[1]));
 
 	// Z coordinate
-	tMin = _mm_max_ps(tMin, _mm_mul_ps(_mm_sub_ps(bboxes[sign[2]][2],
-		ray4.oz), invDir[2]));
-	tMax = _mm_min_ps(tMax, _mm_mul_ps(_mm_sub_ps(bboxes[1 - sign[2]][2],
-		ray4.oz), invDir[2]));
+	tMin = vmax(tMin,((bboxes[sign[2]][2] - ray4.oz) * invDir[2]));
+	tMax = vmin(tMax,((bboxes[1 - sign[2]][2] - ray4.oz) * invDir[2]));
 
 	//return the visit flags
-	return _mm_movemask_ps(_mm_cmpge_ps(tMax, tMin));;
+	return _mm_movemask_ps(_mm_cmpge_ps(tMax.as<__m128>(),tMin.as<__m128>()));
 }
 
 /***************************************************/
@@ -694,10 +677,10 @@ bool QBVHAccel::Intersect(const Ray &ray, Intersection *isect) const
 	//------------------------------
 	// Prepare the ray for intersection
 	QuadRay ray4(ray);
-	__m128 invDir[3];
-	invDir[0] = _mm_set1_ps(1.f / ray.d.x);
-	invDir[1] = _mm_set1_ps(1.f / ray.d.y);
-	invDir[2] = _mm_set1_ps(1.f / ray.d.z);
+	vfloat<4> invDir[3];
+	invDir[0] = (1.f / ray.d.x);
+	invDir[1] = (1.f / ray.d.y);
+	invDir[2] = (1.f / ray.d.z);
 
 	int signs[3];
 	ray.GetDirectionSigns(signs);
@@ -756,10 +739,10 @@ bool QBVHAccel::IntersectP(const Ray &ray) const
 	//------------------------------
 	// Prepare the ray for intersection
 	QuadRay ray4(ray);
-	__m128 invDir[3];
-	invDir[0] = _mm_set1_ps(1.f / ray.d.x);
-	invDir[1] = _mm_set1_ps(1.f / ray.d.y);
-	invDir[2] = _mm_set1_ps(1.f / ray.d.z);
+	vfloat<4> invDir[3];
+	invDir[0] = (1.f / ray.d.x);
+	invDir[1] = (1.f / ray.d.y);
+	invDir[2] = (1.f / ray.d.z);
 
 	int signs[3];
 	ray.GetDirectionSigns(signs);

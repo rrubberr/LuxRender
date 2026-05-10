@@ -28,6 +28,7 @@
 #include "primitive.h"
 
 #include <xmmintrin.h>
+#include "simd.h"
 
 namespace lux
 {
@@ -65,7 +66,7 @@ public:
 	   The 4 bounding boxes, in SoA form, for direct SIMD use
 	   (one __m128 for each coordinate)
 	*/
-	__m128 bboxes[2][3];
+	vfloat<4> bboxes[2][3];
 
 	/**
 	   The 4 children. If a child is a leaf, its index will be negative,
@@ -81,9 +82,10 @@ public:
 	   (parentNodeIndex == -1)
 	*/
 	inline QBVHNode() {
-		for (int i = 0; i < 3; ++i) {
-			bboxes[0][i] = _mm_set1_ps(INFINITY);
-			bboxes[1][i] = _mm_set1_ps(-INFINITY);
+		for (int i = 0; i < 3; ++i)
+		{
+			bboxes[0][i] = INFINITY;
+			bboxes[1][i] = -INFINITY;
 		}
 		
 		// All children are empty leaves by default
@@ -228,8 +230,9 @@ public:
 	   @return an int used to index the array of paths in the bboxes
 	   (the visit array)
 	*/
-	int32_t inline BBoxIntersect(const QuadRay &ray4, const __m128 invDir[3],
-		const int sign[3]) const;
+	int32_t inline BBoxIntersect(
+		const QuadRay &ray4, const vfloat<4> invDir[3], const int sign[3]
+	) const;
 };
 
 /***************************************************/
