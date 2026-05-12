@@ -25,6 +25,7 @@
 #include "dynload.h"
 #include "error.h"
 #include "simd.h"
+#include <immintrin.h>
 
 using namespace luxrays;
 
@@ -61,10 +62,13 @@ public:
 class QuadPrimitive : public Aggregate {
 public:
 	// Don't use references to force temporaries and increase use count
-	QuadPrimitive(boost::shared_ptr<Primitive> p1,
+	QuadPrimitive(
+		boost::shared_ptr<Primitive> p1,
 		boost::shared_ptr<Primitive> p2,
 		boost::shared_ptr<Primitive> p3,
-		boost::shared_ptr<Primitive> p4) {
+		boost::shared_ptr<Primitive> p4
+	)
+	{
 		primitives[0] = p1;
 		primitives[1] = p2;
 		primitives[2] = p3;
@@ -115,21 +119,37 @@ protected:
 
 static inline vfloat<4> reciprocal(const vfloat<4> &x)
 {
-	vfloat<4> y;
+	vfloat<4> y; //12 digits of precision
 	y.as<__m128>() = _mm_rcp_ps(x.as<__m128>());
 	return y * (2.f - (x * y));
 }
 
+static inline vfloat<8> reciprocal(const vfloat<8> &x)
+{
+	vfloat<8> y; //12 digits of precision
+	y.as<__m256>() = _mm256_rcp_ps(x.as<__m256>());
+	return y * (2.f - (x * y));
+};
+
+static inline vfloat<16> reciprocal(const vfloat<16> &x)
+{
+	vfloat<16> y; //14 digits of precision (only option)
+	y.as<__m512>() = _mm512_rcp14_ps(x.as<__m512>());
+	return y * (2.f - (x * y));
+};
+
 class QuadTriangle : public QuadPrimitive, public Aligned16
 {
-public:
-	QuadTriangle(const boost::shared_ptr<Primitive> &p1,
+	public:
+	QuadTriangle(
+		const boost::shared_ptr<Primitive> &p1,
 		const boost::shared_ptr<Primitive> &p2,
 		const boost::shared_ptr<Primitive> &p3,
-		const boost::shared_ptr<Primitive> &p4) :
-		QuadPrimitive(p1, p2, p3, p4)
+		const boost::shared_ptr<Primitive> &p4
+	) : QuadPrimitive(p1, p2, p3, p4)
 	{
-		for (u_int i = 0; i < 4; ++i) {
+		for(size_t i = 0; i < 4; ++i)
+		{
 			const MeshBaryTriangle *t = static_cast<const MeshBaryTriangle *>(primitives[i].get());
 			origx[i] = t->GetP(0).x;
 			origy[i] = t->GetP(0).y;
@@ -141,8 +161,13 @@ public:
 			edge2y[i] = t->GetP(2).y - t->GetP(0).y;
 			edge2z[i] = t->GetP(2).z - t->GetP(0).z;
 		}
-	}
-	virtual ~QuadTriangle() { }
+	};
+
+	virtual ~QuadTriangle()
+	{
+
+	};
+
 	virtual bool Intersect(const QuadRay &ray4, const Ray &ray, Intersection *isect) const
 	{
 		const vfloat<4> zero = 0.f;
@@ -157,7 +182,7 @@ public:
 		const vfloat<4> dy = (ray4.oy - origy);
 		const vfloat<4> dz = (ray4.oz - origz);
 		const vfloat<4> b1 = (((dx * s1x) + ((dy * s1y) + (dz * s1z))) / divisor);
-		test.as<__m128>() = _mm_and_ps(test.as<__m128>(), _mm_cmpge_ps(b1.as<__m128>(), zero.as<__m128>()));
+		test.as<__m128>() = _mm_and_ps(test.as<__m128>(),_mm_cmpge_ps(b1.as<__m128>(),zero.as<__m128>()));
 		const vfloat<4> s2x = ((dy * edge1z) - (dz * edge1y));
 		const vfloat<4> s2y = ((dz * edge1x) - (dx * edge1z));
 		const vfloat<4> s2z = ((dx * edge1y) - (dy * edge1x));
@@ -210,17 +235,19 @@ public:
 		const float du2 = uvs[1][0] - uvs[2][0];
 		const float dv1 = uvs[0][1] - uvs[2][1];
 		const float dv2 = uvs[1][1] - uvs[2][1];
-		const Vector dp1(triangle->GetP(0) - triangle->GetP(2)),
-		      dp2(triangle->GetP(1) - triangle->GetP(2));
+		const Vector dp1(triangle->GetP(0) - triangle->GetP(2)), dp2(triangle->GetP(1) - triangle->GetP(2));
 
 		const float determinant = du1 * dv2 - dv1 * du2;
-		if (determinant == 0.f) {
-        		// Handle zero determinant for triangle partial derivative matrix
+		if(determinant == 0.f)
+		{
+			// Handle zero determinant for triangle partial derivative matrix
 			CoordinateSystem(Vector(nn), &dpdu, &dpdv);
-    		} else {
-		        const float invdet = 1.f / determinant;
-		        dpdu = ( dv2 * dp1 - dv1 * dp2) * invdet;
-		        dpdv = (-du2 * dp1 + du1 * dp2) * invdet;
+		}
+		else
+		{
+			const float invdet = 1.f / determinant;
+			dpdu = ( dv2 * dp1 - dv1 * dp2) * invdet;
+			dpdv = (-du2 * dp1 + du1 * dp2) * invdet;
 		}
 
 		// Interpolate $(u,v)$ triangle parametric coordinates
@@ -277,7 +304,10 @@ QBVHAccel::QBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 	// it is not always the case => continue to use the normal bounds.
 	nNodes = 0;
 	maxNodes = 1;
-	for (u_int layer = ((nPrims + maxPrimsPerLeaf - 1) / maxPrimsPerLeaf + 3) / 4; layer > 1; layer = (layer + 3) / 4)
+	for(
+		u_int layer = ((nPrims + maxPrimsPerLeaf - 1) / maxPrimsPerLeaf + 3) / 4;
+		layer > 1; layer = (layer + 3) / 4
+	)
 		maxNodes += layer;
 	nodes = AllocAligned<QBVHNode>(maxNodes);
 	for (u_int i = 0; i < maxNodes; ++i)
@@ -313,7 +343,8 @@ QBVHAccel::QBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 	primsIndexes[nPrims + 2] = nPrims - 1;
 
 	// Recursively build the tree
-	LOG(LUX_DEBUG,LUX_NOERROR) << "Building QBVH, primitives: " << nPrims << ", initial nodes: " << maxNodes;
+	LOG(LUX_DEBUG,LUX_NOERROR) << "Building QBVH, primitives: " << nPrims << 
+		", initial nodes: " << maxNodes;
 	nQuads = 0;
 	BuildTree(0, nPrims, primsIndexes, primsBboxes, primsCentroids,
 		worldBound, centroidsBbox, -1, 0, 0);
@@ -369,7 +400,8 @@ float QBVHAccel::CollectStatistics(const int32_t nodeIndex, const u_int depth,
 				const u_int nPrims = node.NbPrimitivesInLeaf(i);
 				primReferences += nPrims;
 				// The classic SAH (Surface Area Heuristic)
-				cost += (childBBox.SurfaceArea() / nodeSA) * nPrims; // * 1.f => Ci, the cost of intersecting
+				cost += (childBBox.SurfaceArea() / nodeSA) * nPrims;
+				// * 1.f => Ci, the cost of intersecting
 			}
 		} else {
 			// The probability to intersect the child node multiplied for the cost
@@ -389,11 +421,16 @@ void QBVHAccel::BuildTree(u_int start, u_int end, u_int *primsIndexes,
 {
 	// Create a leaf ?
 	//********
-	if (depth > 64 || end - start <= maxPrimsPerLeaf) {
-		if (depth > 64) {
-			LOG(LUX_WARNING, LUX_LIMIT) << "Maximum recursion depth reached while constructing QBVH, forcing a leaf node";
-			if (end - start > 64) {
-				LOG(LUX_ERROR, LUX_LIMIT) << "QBVH unable to handle geometry, too many primitives in leaf";
+	if(depth > 64 || end - start <= maxPrimsPerLeaf)
+	{
+		if(depth > 64)
+		{
+			LOG(LUX_WARNING, LUX_LIMIT) << "Maximum recursion depth reached while "
+			"constructing QBVH, forcing a leaf node";
+			if(end - start > 64)
+			{
+				LOG(LUX_ERROR, LUX_LIMIT) << "QBVH unable to handle geometry, too "
+				"many primitives in leaf";
 				end = start + 64;
 			}
 		}
@@ -406,9 +443,12 @@ void QBVHAccel::BuildTree(u_int start, u_int end, u_int *primsIndexes,
 	float splitPos = BuildObjectSplit(start, end, primsIndexes, primsBboxes,
 		primsCentroids, centroidsBbox, axis);
 	
-	if (isnan(splitPos)) {
-		if (end - start > 64) {
-			LOG(LUX_ERROR, LUX_LIMIT) << "QBVH unable to handle geometry, too many primitives with the same centroid";
+	if(isnan(splitPos))
+	{
+		if(end - start > 64)
+		{
+			LOG(LUX_ERROR, LUX_LIMIT) << "QBVH unable to handle geometry, too many primitives "
+			"with the same centroid";
 			end = start + 64;
 		}
 		CreateTempLeaf(parentIndex, childIndex, start, end, nodeBbox);
@@ -611,19 +651,22 @@ void QBVHAccel::CreateTempLeaf(int32_t parentIndex, int32_t childIndex,
 void QBVHAccel::PreSwizzle(int32_t nodeIndex, const u_int *primsIndexes,
 	const vector<boost::shared_ptr<Primitive> > &vPrims)
 {
-	for (int i = 0; i < 4; ++i) {
-		if (nodes[nodeIndex].ChildIsLeaf(i))
+	for(int i = 0; i < 4; ++i)
+	{
+		if(nodes[nodeIndex].ChildIsLeaf(i))
 			CreateSwizzledLeaf(nodeIndex, i, primsIndexes, vPrims);
 		else
 			PreSwizzle(nodes[nodeIndex].children[i], primsIndexes, vPrims);
 	}
-}
+};
 
-void QBVHAccel::CreateSwizzledLeaf(int32_t parentIndex, int32_t childIndex,
-	const u_int *primsIndexes, const vector<boost::shared_ptr<Primitive> > &vPrims)
+void QBVHAccel::CreateSwizzledLeaf(
+	int32_t parentIndex, int32_t childIndex,
+	const u_int *primsIndexes, const vector<boost::shared_ptr<Primitive>> &vPrims
+)
 {
 	QBVHNode &node = nodes[parentIndex];
-	if (node.LeafIsEmpty(childIndex))
+	if(node.LeafIsEmpty(childIndex))
 		return;
 	const u_int startQuad = nQuads;
 	const u_int nbQuads = node.NbQuadsInLeaf(childIndex);
@@ -631,15 +674,31 @@ void QBVHAccel::CreateSwizzledLeaf(int32_t parentIndex, int32_t childIndex,
 	u_int primOffset = node.FirstQuadIndexForLeaf(childIndex);
 	u_int primNum = nQuads;
 
-	for (u_int q = 0; q < nbQuads; ++q) {
+	for(u_int q = 0; q < nbQuads; ++q)
+	{
 		bool allTri = true;
-		for (u_int i = 0; i < 4; ++i)
-			allTri &= dynamic_cast<MeshBaryTriangle *>(vPrims[primsIndexes[primOffset + i]].get()) != NULL;
-		if (allTri) {
-			boost::shared_ptr<QuadPrimitive> p(new QuadTriangle(vPrims[primsIndexes[primOffset]], vPrims[primsIndexes[primOffset + 1]], vPrims[primsIndexes[primOffset + 2]], vPrims[primsIndexes[primOffset + 3]]));
+		for(u_int i = 0; i < 4; ++i)
+			allTri &= dynamic_cast<MeshBaryTriangle*>(
+				vPrims[primsIndexes[primOffset + i]].get()
+			) != nullptr;
+		if(allTri)
+		{
+			boost::shared_ptr<QuadPrimitive> p(new QuadTriangle(
+					vPrims[primsIndexes[primOffset]],
+					vPrims[primsIndexes[primOffset + 1]],
+					vPrims[primsIndexes[primOffset + 2]],
+					vPrims[primsIndexes[primOffset + 3]]
+			));
 			new (&prims[primNum]) boost::shared_ptr<QuadPrimitive>(p);
-		} else {
-			boost::shared_ptr<QuadPrimitive> p(new QuadPrimitive(vPrims[primsIndexes[primOffset]], vPrims[primsIndexes[primOffset + 1]], vPrims[primsIndexes[primOffset + 2]], vPrims[primsIndexes[primOffset + 3]]));
+		}
+		else
+		{
+			boost::shared_ptr<QuadPrimitive> p(new QuadPrimitive(
+				vPrims[primsIndexes[primOffset]],
+				vPrims[primsIndexes[primOffset + 1]],
+				vPrims[primsIndexes[primOffset + 2]],
+				vPrims[primsIndexes[primOffset + 3]]
+			));
 			new (&prims[primNum]) boost::shared_ptr<QuadPrimitive>(p);
 		}
 		++primNum;
@@ -647,10 +706,9 @@ void QBVHAccel::CreateSwizzledLeaf(int32_t parentIndex, int32_t childIndex,
 	}
 	nQuads += nbQuads;
 	node.InitializeLeaf(childIndex, nbQuads, startQuad);
-}
+};
 
-int32_t QBVHNode::BBoxIntersect(const QuadRay &ray4, const vfloat<4> invDir[3],
-	const int sign[3]) const
+int32_t QBVHNode::BBoxIntersect(const QuadRay &ray4, const vfloat<4> invDir[3], const int sign[3]) const
 {
 	vfloat<4> tMin = ray4.mint;
 	vfloat<4> tMax = ray4.maxt;
@@ -669,7 +727,7 @@ int32_t QBVHNode::BBoxIntersect(const QuadRay &ray4, const vfloat<4> invDir[3],
 
 	//return the visit flags
 	return _mm_movemask_ps(_mm_cmpge_ps(tMax.as<__m128>(),tMin.as<__m128>()));
-}
+};
 
 /***************************************************/
 bool QBVHAccel::Intersect(const Ray &ray, Intersection *isect) const
@@ -693,31 +751,35 @@ bool QBVHAccel::Intersect(const Ray &ray, Intersection *isect) const
 	int32_t nodeStack[64];
 	nodeStack[0] = 0; // first node to handle: root node
 	
-	while (todoNode >= 0) {
+	while(todoNode >= 0)
+	{
 		// Leaves are identified by a negative index
-		if (!QBVHNode::IsLeaf(nodeStack[todoNode])) {
+		if(!QBVHNode::IsLeaf(nodeStack[todoNode]))
+		{
 			QBVHNode &node = nodes[nodeStack[todoNode]];
 			--todoNode;
 			
 			const int32_t visit = node.BBoxIntersect(ray4, invDir,
 				signs);
 
-			if (visit & 0x1)
+			if(visit & 0x1)
 				nodeStack[++todoNode] = node.children[0];
-			if (visit & 0x2)
+			if(visit & 0x2)
 				nodeStack[++todoNode] = node.children[1];
-			if (visit & 0x4)
+			if(visit & 0x4)
 				nodeStack[++todoNode] = node.children[2];
-			if (visit & 0x8)
+			if(visit & 0x8)
 				nodeStack[++todoNode] = node.children[3];
-		} else {
+		}
+		else
+		{
 			//----------------------
 			// It is a leaf,
 			// all the informations are encoded in the index
 			const int32_t leafData = nodeStack[todoNode];
 			--todoNode;
 			
-			if (QBVHNode::IsEmpty(leafData))
+			if(QBVHNode::IsEmpty(leafData))
 				continue;
 
 			// Perform intersection
@@ -725,13 +787,13 @@ bool QBVHAccel::Intersect(const Ray &ray, Intersection *isect) const
 			
 			const u_int offset = QBVHNode::FirstQuadIndex(leafData);
 
-			for (u_int primNumber = offset; primNumber < (offset + nbQuadPrimitives); ++primNumber)
+			for(u_int primNumber = offset; primNumber < (offset + nbQuadPrimitives); ++primNumber)
 				hit |= prims[primNumber]->Intersect(ray4, ray, isect);
 		}//end of the else
 	}
 
 	return hit;
-}
+};
 
 /***************************************************/
 bool QBVHAccel::IntersectP(const Ray &ray) const
@@ -754,9 +816,11 @@ bool QBVHAccel::IntersectP(const Ray &ray) const
 	int32_t nodeStack[64];
 	nodeStack[0] = 0; // first node to handle: root node
 
-	while (todoNode >= 0) {
+	while (todoNode >= 0)
+	{
 		// Leaves are identified by a negative index
-		if (!QBVHNode::IsLeaf(nodeStack[todoNode])) {
+		if(!QBVHNode::IsLeaf(nodeStack[todoNode]))
+		{
 			QBVHNode &node = nodes[nodeStack[todoNode]];
 			--todoNode;
 
@@ -771,14 +835,16 @@ bool QBVHAccel::IntersectP(const Ray &ray) const
 				nodeStack[++todoNode] = node.children[2];
 			if (visit & 0x8)
 				nodeStack[++todoNode] = node.children[3];
-		} else {
+		}
+		else
+		{
 			//----------------------
 			// It is a leaf,
 			// all the informations are encoded in the index
 			const int32_t leafData = nodeStack[todoNode];
 			--todoNode;
 			
-			if (QBVHNode::IsEmpty(leafData))
+			if(QBVHNode::IsEmpty(leafData))
 				continue;
 
 			// Perform intersection
@@ -786,15 +852,16 @@ bool QBVHAccel::IntersectP(const Ray &ray) const
 			
 			const u_int offset = QBVHNode::FirstQuadIndex(leafData);
 
-			for (u_int primNumber = offset; primNumber < (offset + nbQuadPrimitives); ++primNumber) {
-				if (prims[primNumber]->IntersectP(ray))
+			for(u_int primNumber = offset; primNumber < (offset + nbQuadPrimitives); ++primNumber)
+			{
+				if(prims[primNumber]->IntersectP(ray))
 					return true;
 			}
 		} // end of the else
 	}
 
 	return false;
-}
+};
 
 /***************************************************/
 QBVHAccel::~QBVHAccel()
@@ -820,14 +887,15 @@ void QBVHAccel::GetPrimitives(vector<boost::shared_ptr<Primitive> > &primitives)
 		prims[i]->GetPrimitives(primitives);
 }
 
-Aggregate* QBVHAccel::CreateAccelerator(const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps)
+Aggregate* QBVHAccel::CreateAccelerator(
+	const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps
+)
 {
 	int maxPrimsPerLeaf = ps.FindOneInt("maxprimsperleaf", 4);
 	int fullSweepThreshold = ps.FindOneInt("fullsweepthreshold", 4 * maxPrimsPerLeaf);
 	int skipFactor = ps.FindOneInt("skipfactor", 1);
 	return new QBVHAccel(prims, maxPrimsPerLeaf, fullSweepThreshold, skipFactor);
-
-}
+};
 
 static DynamicLoader::RegisterAccelerator<QBVHAccel> r("qbvh");
 

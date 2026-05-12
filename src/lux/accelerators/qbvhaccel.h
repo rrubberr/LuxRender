@@ -81,26 +81,28 @@ public:
 	   Base constructor, init correct bounding boxes and a "root" node
 	   (parentNodeIndex == -1)
 	*/
-	inline QBVHNode() {
-		for (int i = 0; i < 3; ++i)
+	inline QBVHNode()
+	{
+		for(size_t i = 0; i < 3; ++i)
 		{
 			bboxes[0][i] = INFINITY;
 			bboxes[1][i] = -INFINITY;
 		}
 		
 		// All children are empty leaves by default
-		for (int i = 0; i < 4; ++i)
+		for(size_t i = 0; i < 4; ++i)
 			children[i] = emptyLeafNode;
-	}
+	};
 
 	/**
 	   Indicate whether the ith child is a leaf.
 	   @param i
 	   @return
 	*/
-	inline bool ChildIsLeaf(int i) const {
+	inline bool ChildIsLeaf(int32_t i) const
+	{
 		return (children[i] < 0);
-	}
+	};
 
 	/**
 	   Same thing, directly from the index.
@@ -108,15 +110,15 @@ public:
 	*/
 	inline static bool IsLeaf(int32_t index) {
 		return (index < 0);
-	}
+	};
 
 	/**
 	   Indicates whether the ith child is an empty leaf.
 	   @param i
 	*/
-	inline bool LeafIsEmpty(int i) const {
+	inline bool LeafIsEmpty(int32_t i) const {
 		return (children[i] == emptyLeafNode);
-	}
+	};
 
 	/**
 	   Same thing, directly from the index.
@@ -124,7 +126,7 @@ public:
 	*/
 	inline static bool IsEmpty(int32_t index) {
 		return (index == emptyLeafNode);
-	}
+	};
 	
 	/**
 	   Indicate the number of quads in the ith child, which must be
@@ -132,9 +134,9 @@ public:
 	   @param i
 	   @return
 	*/
-	inline u_int NbQuadsInLeaf(int i) const {
+	inline u_int NbQuadsInLeaf(int32_t i) const {
 		return static_cast<u_int>((children[i] >> 27) & 0xf) + 1;
-	}
+	};
 
 	/**
 	   Return the number of group of 4 primitives, directly from the index.
@@ -142,7 +144,7 @@ public:
 	*/
 	inline static u_int NbQuadPrimitives(int32_t index) {
 		return static_cast<u_int>((index >> 27) & 0xf) + 1;
-	}
+	};
 	
 	/**
 	   Indicate the number of primitives in the ith child, which must be
@@ -150,9 +152,9 @@ public:
 	   @param i
 	   @return
 	*/
-	inline u_int NbPrimitivesInLeaf(int i) const {
+	inline u_int NbPrimitivesInLeaf(int32_t i) const {
 		return NbQuadsInLeaf(i) * 4;
-	}
+	};
 
 	/**
 	   Indicate the index in the quads array of the first quad contained
@@ -160,9 +162,9 @@ public:
 	   @param i
 	   @return
 	*/
-	inline u_int FirstQuadIndexForLeaf(int i) const {
+	inline u_int FirstQuadIndexForLeaf(int32_t i) const {
 		return children[i] & 0x07ffffff;
-	}
+	};
 	
 	/**
 	   Same thing, directly from the index.
@@ -170,7 +172,7 @@ public:
 	*/
 	inline static u_int FirstQuadIndex(int32_t index) {
 		return index & 0x07ffffff;
-	}
+	};
 
 	/**
 	   Initialize the ith child as a leaf
@@ -178,11 +180,15 @@ public:
  	   @param nbQuads
 	   @param firstQuadIndex
 	*/
-	inline void InitializeLeaf(int i, u_int nbQuads, u_int firstQuadIndex) {
+	inline void InitializeLeaf(int i, u_int nbQuads, u_int firstQuadIndex)
+	{
 		// Take care to make a valid initialisation of the leaf.
-		if (nbQuads == 0) {
+		if(nbQuads == 0)
+		{
 			children[i] = emptyLeafNode;
-		} else {
+		}
+		else
+		{
 			// Put the negative sign in a plateform independent way
 			children[i] = 0x80000000;//-1L & ~(-1L >> 1L);
 			
@@ -197,25 +203,28 @@ public:
 	   @param i
 	   @param bbox
 	*/
-	inline void SetBBox(int i, const BBox &bbox) {
-		for (int axis = 0; axis < 3; ++axis) {
-			reinterpret_cast<float *>(&(bboxes[0][axis]))[i] = bbox.pMin[axis];
-			reinterpret_cast<float *>(&(bboxes[1][axis]))[i] = bbox.pMax[axis];
+	inline void SetBBox(int i, const BBox &bbox)
+	{
+		for(size_t axis = 0; axis < 3; ++axis)
+		{
+			bboxes[0][axis][i] = bbox.pMin[axis];
+			bboxes[1][axis][i] = bbox.pMax[axis];
 		}
-	}
+	};
 
 	// Return the bounding box of the ith child
-	inline BBox GetBBox(int i) const {
+	inline BBox GetBBox(int i) const
+	{
 		BBox bbox;
-		bbox.pMin.x = reinterpret_cast<const float *>(&(bboxes[0][0]))[i];
-		bbox.pMax.x = reinterpret_cast<const float *>(&(bboxes[1][0]))[i];
-		bbox.pMin.y = reinterpret_cast<const float *>(&(bboxes[0][1]))[i];
-		bbox.pMax.y = reinterpret_cast<const float *>(&(bboxes[1][1]))[i];
-		bbox.pMin.z = reinterpret_cast<const float *>(&(bboxes[0][2]))[i];
-		bbox.pMax.z = reinterpret_cast<const float *>(&(bboxes[1][2]))[i];
+		bbox.pMin.x = bboxes[0][0][i];
+		bbox.pMax.x = bboxes[1][0][i];
+		bbox.pMin.y = bboxes[0][1][i];
+		bbox.pMax.y = bboxes[1][1][i];
+		bbox.pMin.z = bboxes[0][2][i];
+		bbox.pMax.z = bboxes[1][2][i];
 
 		return bbox;
-	}
+	};
 
 	/**
 	   Intersect a ray described by sse variables with the 4 bounding boxes
@@ -274,9 +283,10 @@ public:
 	*/
 	virtual bool IntersectP(const Ray &ray) const;
 
-	virtual Transform GetLocalToWorld(float time) const {
+	virtual Transform GetLocalToWorld(float time) const
+	{
 		return Transform();
-	}
+	};
 
 	/**
 	   Fills an array with the primitives
@@ -289,7 +299,9 @@ public:
 	   @param prims vector of primitives to store into the QBVH
 	   @param ps configuration parameters
 	*/
-	static Aggregate *CreateAccelerator(const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps);
+	static Aggregate *CreateAccelerator(
+		const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps
+	);
 
 protected:
 	QBVHAccel() { }
@@ -337,25 +349,27 @@ protected:
 	   @param childIndex
 	   @param nodeBbox
 	*/
-	inline int32_t CreateIntermediateNode(int32_t parentIndex, int32_t childIndex,
-		const BBox &nodeBbox) {
+	inline int32_t CreateIntermediateNode(int32_t parentIndex, int32_t childIndex, const BBox &nodeBbox)
+	{
 		int32_t index = nNodes++; // increment after assignment
-		if (nNodes >= maxNodes) {
+		if(nNodes >= maxNodes)
+		{
 			QBVHNode *newNodes = luxrays::AllocAligned<QBVHNode>(2 * maxNodes);
 			memcpy(newNodes, nodes, sizeof(QBVHNode) * maxNodes);
-			for (u_int i = 0; i < maxNodes; ++i)
+			for(size_t i = 0; i < maxNodes; ++i)
 				newNodes[maxNodes + i] = QBVHNode();
 			luxrays::FreeAligned(nodes);
 			nodes = newNodes;
 			maxNodes *= 2;
 		}
 
-		if (parentIndex >= 0) {
+		if(parentIndex >= 0)
+		{
 			nodes[parentIndex].children[childIndex] = index;
 			nodes[parentIndex].SetBBox(childIndex, nodeBbox);
 		}
 		return index;
-	}
+	};
 
 	/**
 	   switch a node and its subnodes from the
@@ -385,7 +399,7 @@ protected:
 	/**
 	   the actual number of quads
 	*/
-	u_int nQuads;
+	u_int nQuads = 0;
 
 	/**
 	   The primitive associated with each triangle. indexed by the number of quad
@@ -394,22 +408,23 @@ protected:
 	   test will be redone for the nearest triangle found, to
 	   fill the Intersection structure.
 	*/
-	boost::shared_ptr<QuadPrimitive> *prims;
+	boost::shared_ptr<QuadPrimitive> *prims = nullptr;
 	
 	/**
 	   The number of primitives
 	*/
-	u_int nPrims;
+	u_int nPrims = 0;
 
 	/**
 	   The nodes of the QBVH.
 	*/
-	QBVHNode *nodes;
+	QBVHNode *nodes = nullptr;
 
 	/**
 	   The number of nodes really used.
 	*/
-	u_int nNodes, maxNodes;
+	u_int nNodes = 0;
+	u_int maxNodes = 0;
 
 	/**
 	   The world bounding box of the QBVH.
@@ -420,17 +435,17 @@ protected:
 	   The number of primitives in the node that makes switch
 	   to full sweep for binning
 	*/
-	u_int fullSweepThreshold;
+	u_int fullSweepThreshold = 0;
 
 	/**
 	   The skip factor for binning
 	*/
-	u_int skipFactor;
+	u_int skipFactor = 0;
 
 	/**
 	   The maximum number of primitives per leaf
 	*/
-	u_int maxPrimsPerLeaf;
+	u_int maxPrimsPerLeaf = 0;
 
 	// Some statistics about the quality of the built accelerator
 	float SAHCost, avgLeafPrimReferences;
@@ -457,7 +472,7 @@ protected:
 	static inline u_int QuadCount(const u_int nPrims) {
 		// Next multiple of 4, divided by 4
 		return (nPrims + 3) / 4;
-	}
+	};
 };
 
 } // namespace lux
