@@ -31,6 +31,7 @@
 #include "renderers/statistics/samplerstatistics.h"
 
 using namespace lux;
+using namespace std::chrono_literals;
 
 //------------------------------------------------------------------------------
 // SRDeviceDescription
@@ -130,7 +131,7 @@ static void writeIntervalCheck(Film *film) {
 
 	while (!boost::this_thread::interruption_requested()) {
 		try {
-			boost::this_thread::sleep(boost::posix_time::seconds(1));
+			std::this_thread::sleep_for(1000ms);
 
 			film->CheckWriteOuputInterval();
 		} catch(boost::thread_interrupted&) {
@@ -313,7 +314,7 @@ void SamplerRenderer::RenderThread::RenderImpl(RenderThread *myThread) {
 
 	// Dade - wait the end of the preprocessing phase
 	while (!renderer->preprocessDone) {
-		boost::this_thread::sleep(boost::posix_time::seconds(1));
+		std::this_thread::sleep_for(1000ms);
 	}
 
 	// ContribBuffer has to wait until the end of the preprocessing
@@ -331,7 +332,7 @@ void SamplerRenderer::RenderThread::RenderImpl(RenderThread *myThread) {
 				// Dade - wait for a resume rendering or exit
 				renderer->Pause();
 				while (renderer->state == PAUSE) {
-					boost::this_thread::sleep(boost::posix_time::seconds(1));
+					std::this_thread::sleep_for(1000ms);
 				}
 
 				if (renderer->state == TERMINATE)
@@ -353,7 +354,7 @@ void SamplerRenderer::RenderThread::RenderImpl(RenderThread *myThread) {
 		sample.swl.Sample(sample.wavelengths);
 
 		while (renderer->state == PAUSE && !boost::this_thread::interruption_requested()) {
-			boost::this_thread::sleep(boost::posix_time::seconds(1));
+			std::this_thread::sleep_for(1000ms);
 		}
 		if ((renderer->state == TERMINATE) || boost::this_thread::interruption_requested())
 			break;

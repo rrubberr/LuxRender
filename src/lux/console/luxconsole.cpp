@@ -41,6 +41,7 @@
 #endif
 
 using namespace lux;
+using namespace std::chrono_literals;
 
 std::string sceneFileName;
 bool parseError;
@@ -59,7 +60,7 @@ void infoThread() {
 	std::vector<char> buf(1 << 16, '\0');
 	while (!boost::this_thread::interruption_requested()) {
 		try {
-			boost::this_thread::sleep(boost::posix_time::seconds(5));
+			std::this_thread::sleep_for(1000ms);
 
 			luxUpdateStatisticsWindow();
 			luxGetStringAttribute("renderer_statistics_formatted_short", "_recommended_string", &buf[0], static_cast<unsigned int>(buf.size()));
@@ -154,7 +155,6 @@ int main(int argc, char **argv) {
 			// add slaves, need to do this for each scene file
 			boost::thread addSlaves(boost::bind(addNetworkSlavesThread, config.slaveNodeList));
 
-			using namespace std::chrono_literals;
 			// wait the scene parsing to finish
 			while (!luxStatistics("sceneIsReady") && !parseError)
 				std::this_thread::sleep_for(1000ms);

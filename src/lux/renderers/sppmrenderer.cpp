@@ -45,6 +45,7 @@
 
 using namespace luxrays;
 using namespace lux;
+using namespace std::chrono_literals;
 
 //------------------------------------------------------------------------------
 // SPPMRDeviceDescription
@@ -144,7 +145,7 @@ static void writeIntervalCheck(Film *film) {
 
 	while (!boost::this_thread::interruption_requested()) {
 		try {
-			boost::this_thread::sleep(boost::posix_time::seconds(1));
+			std::this_thread::sleep_for(1000ms);
 
 			film->CheckWriteOuputInterval();
 		} catch(boost::thread_interrupted&) {
@@ -210,7 +211,7 @@ void SPPMRenderer::Render(Scene *s) {
 		// Dade - to support autofocus for some camera model
 		scene->camera()->AutoFocus(*scene);
 
-		size_t threadCount = boost::thread::hardware_concurrency();
+		size_t threadCount = std::thread::hardware_concurrency();
 		LOG(LUX_INFO, LUX_NOERROR) << "Hardware concurrency: " << threadCount;
 
 		// initialise
@@ -293,7 +294,7 @@ void SPPMRenderer::RenderThread::Init() {
 
 	// Dade - wait the end of the preprocessing phase
 	while (!renderer->preprocessDone) {
-		boost::this_thread::sleep(boost::posix_time::seconds(1));
+		std::this_thread::sleep_for(1000ms);
 	}
 
 	Scene &scene = *renderer->scene;

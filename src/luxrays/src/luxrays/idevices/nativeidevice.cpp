@@ -75,7 +75,7 @@ void NativeThreadIntersectionDevice::Start() {
 
 		// Create all threads for the rendering
 		for (u_int i = 0; i < threadCount; ++i) {
-			std::thread *intersectionThread = new std::thread(boost::bind(NativeThreadIntersectionDevice::IntersectionThread, this, i));
+			std::thread *intersectionThread = new std::thread(std::bind(NativeThreadIntersectionDevice::IntersectionThread, this, i));
 
 			// Set intersectionThread priority
 			const bool res = SetThreadRRPriority(intersectionThread);
@@ -147,7 +147,7 @@ void NativeThreadIntersectionDevice::IntersectionThread(NativeThreadIntersection
 		RayBufferQueue *queue = renderDevice->rayBufferQueue;
 
 		const double startTime = WallClockTime();
-		while (!boost::this_thread::interruption_requested()) {
+		while (!bo/ost::this_thread::interruption_requested()) {
 			const double t1 = WallClockTime();
 			RayBuffer *rayBuffer = queue->PopToDo();
 			renderDevice->threadDeviceIdleTime[threadIndex] += WallClockTime() - t1;
@@ -167,7 +167,7 @@ void NativeThreadIntersectionDevice::IntersectionThread(NativeThreadIntersection
 		}
 
 		//LR_LOG(renderDevice->deviceContext, "[NativeThread device::" << renderDevice->deviceName << "::" << threadIndex <<"] Rendering thread halted");
-	} catch (boost::thread_interrupted) {
+	} catch (bo/ost::thread_interrupted) {
 		//LR_LOG(renderDevice->deviceContext, "[NativeThread device::" << renderDevice->deviceName << "::" << threadIndex <<"] Rendering thread halted");
 	}*/
 }

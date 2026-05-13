@@ -24,6 +24,7 @@
 #define LUX_SPPMRenderer_H
 
 #include <vector>
+#include <thread>
 #include <boost/thread.hpp>
 
 #include "lux.h"
@@ -52,7 +53,7 @@ public:
 	const string &GetName() const { return name; }
 
 	u_int GetAvailableUnitsCount() const {
-		return max(boost::thread::hardware_concurrency(), 1u);
+		return max(std::thread::hardware_concurrency(), 1u);
 	}
 	u_int GetUsedUnitsCount() const;
 	void SetUsedUnitsCount(const u_int units);

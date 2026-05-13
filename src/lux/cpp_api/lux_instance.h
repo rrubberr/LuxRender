@@ -136,7 +136,7 @@ public:
 	virtual void setNetworkServerUpdateInterval(int updateInterval) = 0;
 	virtual int getNetworkServerUpdateInterval() = 0;
 	// How to return data from this one? Export another data type?
-	// virtual boost::python::tuple getRenderingServersStatus() = 0;
+	// virtual boo/st::python::tuple getRenderingServersStatus() = 0;
 
 	// Stats
 	virtual double statistics(const char* statName) = 0;

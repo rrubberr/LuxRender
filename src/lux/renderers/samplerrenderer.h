@@ -24,6 +24,7 @@
 #define LUX_SAMPLERRENDERER_H
 
 #include <vector>
+#include <thread>
 #include <boost/thread.hpp>
 
 #include "lux.h"
@@ -47,7 +48,7 @@ public:
 	const string &GetName() const { return name; }
 
 	unsigned int GetAvailableUnitsCount() const {
-		return max(boost::thread::hardware_concurrency(), 1u);
+		return max(std::thread::hardware_concurrency(), 1u);
 	}
 	unsigned int GetUsedUnitsCount() const;
 	void SetUsedUnitsCount(const unsigned int units);

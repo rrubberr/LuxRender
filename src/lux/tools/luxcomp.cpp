@@ -305,7 +305,7 @@ int main(int ac, char *av[]) {
 				CheckFilePath(refFileName);
 
 				// Dade - read the reference film from the file
-				boost::scoped_ptr<FlexImageFilm> refFilm;
+				std::unique_ptr<FlexImageFilm> refFilm;
 				refFilm.reset((FlexImageFilm *)FlexImageFilm::CreateFilmFromFLM(refFileName));
 				if (!refFilm) {
 					LOG( LUX_SEVERE,LUX_NOFILE) << "Error reading reference FLM file '" << refFileName << "'";
@@ -325,7 +325,7 @@ int main(int ac, char *av[]) {
 					CheckFilePath(testFileName);
 
 					// Dade - read the test film from the file
-					boost::scoped_ptr<FlexImageFilm> testFilm;
+					std::unique_ptr<FlexImageFilm> testFilm;
 					testFilm.reset((FlexImageFilm *)FlexImageFilm::CreateFilmFromFLM(testFileName));
 					if (!testFilm) {
 						LOG(LUX_SEVERE, LUX_NOFILE) << "Error reading test FLM file '" << testFileName << "'";

@@ -24,6 +24,7 @@
 #include <iostream>
 #include <exception>
 #include <fstream>
+#include <thread>
 #if !defined(WIN32)
 #include <unistd.h>
 #endif
@@ -243,7 +244,7 @@ bool ProcessCommandLine(int argc, char **argv, clConfig& config, unsigned int fe
 		if (vm.count("threads"))
 			config.threadCount = vm["threads"].as<unsigned int>();
 		else
-			config.threadCount = std::max<unsigned int>(1, boost::thread::hardware_concurrency());
+			config.threadCount = std::max<unsigned int>(1, std::thread::hardware_concurrency());
 		LOG(LUX_INFO,LUX_NOERROR) << "Threads: " << config.threadCount;
 
 		config.password = vm["password"].as<std::string>();

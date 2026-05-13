@@ -35,6 +35,7 @@
 #include "streamio.h"
 #include "asyncstream.h"
 
+#include <filesystem>
 #include <boost/version.hpp>
 #include <boost/filesystem.hpp>
 #include <fstream>
@@ -302,7 +303,7 @@ static bool receiveFile(const std::string &filename, const std::string &filehash
 			LOG( LUX_INFO,LUX_SYSTEM) << "Removing incomplete file '" << filename << "'";
 
 			boost::system::error_code ec;
-			if (!boost::filesystem::remove(filename, ec)) {
+			if (!std::filesystem::remove(filename, ec)) {
 				LOG( LUX_ERROR,LUX_SYSTEM) << "Error removing file '" << filename << "', error code: '" << ec << "'";
 			}
 
@@ -357,14 +358,14 @@ static void processFiles(ParamSet &params, socket_stream_t &stream) {
 
 		LOG(LUX_DEBUG,LUX_NOERROR) << "File param '" << paramName << "', filename '" << filename << "', hash '" << hash << "'";
 
-		boost::filesystem::path fname(filename);
+		std::filesystem::path fname(filename);
 
-		boost::filesystem::path tfile("tmp_" + hash);
+		std::filesystem::path tfile("tmp_" + hash);
 		tfile.replace_extension(fname.extension());
 
 		//if (tmpFiles.find(tfile.string()) == tmpFiles.end()) {
 		boost::system::error_code ec;
-		if (!boost::filesystem::exists(tfile, ec)) {
+		if (!std::filesystem::exists(tfile, ec)) {
 			LOG( LUX_INFO,LUX_NOERROR) << "Requesting file '" << filename << "' (as '" << tfile.string() << "')";
 			neededFiles.push_back(std::make_pair(hash, tfile.string()));
 		} else {
@@ -372,7 +373,7 @@ static void processFiles(ParamSet &params, socket_stream_t &stream) {
 		}
 		
 		// replace parameter
-		params.AddString(paramName, &tfile.string());
+		params.AddString(paramName, &tfile.string()); //TODO: fix this, it isn't safe
 	}
 
 	stream << "END FILE INDEX OK" << "\n";
