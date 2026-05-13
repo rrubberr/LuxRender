@@ -42,7 +42,7 @@ DeferredLoadShape::~DeferredLoadShape() {
 void DeferredLoadShape::LoadShape() const {
 	// Check if I have yet to load the shape
 	if (params) {
-		boost::mutex::scoped_lock(loadMutex);
+		std::scoped_lock(loadMutex);
 
 		// Just in case some other thread was faster than me
 		if (params) {
@@ -61,7 +61,7 @@ void DeferredLoadShape::LoadShape() const {
 
 			// Check if I have to refine the shape
 			if (!shape->CanIntersect()) {
-				vector<boost::shared_ptr<Primitive> > refined;
+				vector<std::shared_ptr<Primitive> > refined;
 				shape->Refine(refined, PrimitiveRefinementHints(false), shape);
 				accelerator = MakeAccelerator("qbvh", refined, ParamSet());
 				prim = accelerator.get();

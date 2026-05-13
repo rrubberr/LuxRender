@@ -33,7 +33,7 @@ Material::Material(const string &name, const ParamSet &mp, bool hasBumpMap) : Qu
 	// so we can accurately report unused params if material doesn't support bump mapping
 	if (hasBumpMap) {
 		bumpmapSampleDistance = mp.FindOneFloat("bumpmapsampledistance", .001f);
-		boost::shared_ptr<Texture<float> > bump(mp.GetFloatTexture("bumpmap"));
+		std::shared_ptr<Texture<float> > bump(mp.GetFloatTexture("bumpmap"));
 		bumpMap = bump;
 	}
 	compParams.tVm = mp.FindOneBool("compo_visible_material", true);

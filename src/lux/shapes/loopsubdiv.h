@@ -167,7 +167,7 @@ public:
 	LoopSubdiv(u_int nt, u_int nv, const int *vi,
 		const Point *P, const float *uv, const Normal *n,
 		const float *cols, const float *alphas,
-		u_int nlevels, const boost::shared_ptr<Texture<float> > &dismap,
+		u_int nlevels, const std::shared_ptr<Texture<float> > &dismap,
 		float dmscale, float dmoffset, bool dmnormalsmooth,
 		bool dmsharpboundary, bool normalsplit, const string &name);
 	virtual ~LoopSubdiv();
@@ -198,7 +198,7 @@ public:
 		const float * const cols;
 		const float * const alphas;
 	};
-	boost::shared_ptr<SubdivResult> Refine() const;
+	std::shared_ptr<SubdivResult> Refine() const;
 
 private:
 	// LoopSubdiv Private Methods
@@ -222,7 +222,7 @@ private:
 	vector<SDFace *> faces;
 
 	// Dade - optional displacement map
-	boost::shared_ptr<Texture<float> > displacementMap;
+	std::shared_ptr<Texture<float> > displacementMap;
 	float displacementMapScale;
 	float displacementMapOffset;
 
@@ -232,7 +232,7 @@ private:
 	string name;
 
 	// Lotus - a pointer to the refined mesh to avoid double refinement or deletion
-	mutable boost::shared_ptr<Shape> refinedShape;
+	mutable std::shared_ptr<Shape> refinedShape;
 };
 
 // LoopSubdiv Inline Functions

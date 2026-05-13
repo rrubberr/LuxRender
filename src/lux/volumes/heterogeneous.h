@@ -32,10 +32,10 @@ namespace lux
 // HeterogeneousVolume Declarations
 class HeterogeneousVolume : public Volume {
 public:
-	HeterogeneousVolume(const boost::shared_ptr<Texture<FresnelGeneral> > &fr,
-		boost::shared_ptr<Texture<SWCSpectrum> > &a,
-		boost::shared_ptr<Texture<SWCSpectrum> > &s,
-		boost::shared_ptr<Texture<SWCSpectrum> > &g_,
+	HeterogeneousVolume(const std::shared_ptr<Texture<FresnelGeneral> > &fr,
+		std::shared_ptr<Texture<SWCSpectrum> > &a,
+		std::shared_ptr<Texture<SWCSpectrum> > &s,
+		std::shared_ptr<Texture<SWCSpectrum> > &g_,
 		float ss) :
 		Volume("HeterogeneousVolume-"  + boost::lexical_cast<string>(this)),
 		fresnel(fr), sigmaA(a), sigmaS(s), g(g_),
@@ -185,8 +185,8 @@ public:
 	static Region *CreateVolumeRegion(const Transform &volume2world, const ParamSet &params);
 	// HeterogeneousVolume Private Data
 private:
-	boost::shared_ptr<Texture<FresnelGeneral> > fresnel;
-	boost::shared_ptr<Texture<SWCSpectrum> > sigmaA, sigmaS, g;
+	std::shared_ptr<Texture<FresnelGeneral> > fresnel;
+	std::shared_ptr<Texture<SWCSpectrum> > sigmaA, sigmaS, g;
 	ScattererPrimitive primitive;
 	VolumeScatterMaterial material;
 	float stepSize;

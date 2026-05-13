@@ -32,8 +32,8 @@ using namespace lux;
 Volume * ClearVolume::CreateVolume(const Transform &volume2world,
 		const ParamSet &params) {
 	// Initialize common volume region parameters
-	boost::shared_ptr<Texture<FresnelGeneral> > fr(params.GetFresnelTexture("fresnel", 1.5f));
-	boost::shared_ptr<Texture<SWCSpectrum> > absorption(params.GetSWCSpectrumTexture("absorption", RGBColor(0.f)));
+	std::shared_ptr<Texture<FresnelGeneral> > fr(params.GetFresnelTexture("fresnel", 1.5f));
+	std::shared_ptr<Texture<SWCSpectrum> > absorption(params.GetSWCSpectrumTexture("absorption", RGBColor(0.f)));
 
 	return new ClearVolume(fr, absorption);
 }

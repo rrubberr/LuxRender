@@ -1417,7 +1417,7 @@ void Film::SetGroupEnable(u_int index, bool status)
 
 	// Reset the convergence test
 	if (convTest) {
-		boost::mutex::scoped_lock(write_mutex);
+		std::scoped_lock(write_mutex);
 		convTest->Reset();
 	}
 }
@@ -1436,7 +1436,7 @@ void Film::SetGroupScale(u_int index, float value)
 
 	// Reset the convergence test
 	if (convTest) {
-		boost::mutex::scoped_lock(write_mutex);
+		std::scoped_lock(write_mutex);
 		convTest->Reset();
 	}
 }
@@ -1455,7 +1455,7 @@ void Film::SetGroupRGBScale(u_int index, const RGBColor &value)
 
 	// Reset the convergence test
 	if (convTest) {
-		boost::mutex::scoped_lock(write_mutex);
+		std::scoped_lock(write_mutex);
 		convTest->Reset();
 	}
 }
@@ -1474,7 +1474,7 @@ void Film::SetGroupTemperature(u_int index, float value)
 
 	// Reset the convergence test
 	if (convTest) {
-		boost::mutex::scoped_lock(write_mutex);
+		std::scoped_lock(write_mutex);
 		convTest->Reset();
 	}
 }
@@ -2771,7 +2771,7 @@ void Film::CreateBuffers(std::basic_istream<char> &stream)
 
 void Film::getHistogramImage(unsigned char *outPixels, u_int width, u_int height, int options)
 {
-    boost::mutex::scoped_lock lock(histMutex);
+    std::scoped_lock<std::mutex> lock(histMutex);
 	if (!histogram)
 		histogram = new Histogram();
 	histogram->MakeImage(outPixels, width, height, options);
@@ -2826,7 +2826,7 @@ void Histogram::CheckBucketNr()
 
 void Histogram::Calculate(vector<RGBColor> &pixels, u_int width, u_int height)
 {
-	boost::mutex::scoped_lock lock(this->m_mutex);
+	std::scoped_lock<std::mutex> lock(this->m_mutex);
 	if (pixels.empty() || width == 0 || height == 0)
 		return;
 	u_int pixelNr = width * height;
@@ -2858,7 +2858,7 @@ void Histogram::Calculate(vector<RGBColor> &pixels, u_int width, u_int height)
 }
 
 void Histogram::MakeImage(unsigned char *outPixels, u_int canvasW, u_int canvasH, int options){
-    boost::mutex::scoped_lock lock(this->m_mutex);
+    std::scoped_lock<std::mutex> lock(this->m_mutex);
 	#define PIXELIDX(x,y,w) ((y)*(w)*3+(x)*3)
 	#define GETMAX(x,y) ((x)>(y)?(x):(y))
 	#define OPTIONS_CHANNELS_MASK (LUX_HISTOGRAM_LOG-1)
@@ -3219,7 +3219,7 @@ void Film::UpdateConvergenceInfo(const float *framebuffer) {
 }
 
 void Film::GenerateNoiseAwareMap() {
-	fast_mutex::scoped_lock lock(samplingMapMutex);
+	std::scoped_lock<std::mutex> lock(samplingMapMutex);
 
 	const u_int nPix = xPixelCount * yPixelCount;
 
@@ -3339,8 +3339,8 @@ void Film::GenerateNoiseAwareMap() {
 }
 
 const bool Film::GetNoiseAwareMap(u_int &version, boost::shared_array<float> &map,
-		boost::shared_ptr<Distribution2D> &distrib) {
-	fast_mutex::scoped_lock lock(samplingMapMutex);
+		std::shared_ptr<Distribution2D> &distrib) {
+	std::scoped_lock<std::mutex> lock(samplingMapMutex);
 
 	if (noiseAwareMapVersion > version) {
 		map = noiseAwareMap;
@@ -3354,7 +3354,7 @@ const bool Film::GetNoiseAwareMap(u_int &version, boost::shared_array<float> &ma
 
 // NOTE: returns a copy of the map, it is up to the caller to free the allocated memory !
 float *Film::GetNoiseAwareMap() {
-	fast_mutex::scoped_lock lock(samplingMapMutex);
+	std::scoped_lock<std::mutex> lock(samplingMapMutex);
 
 	if (noiseAwareMapVersion == 0)
 		return NULL;
@@ -3367,7 +3367,7 @@ float *Film::GetNoiseAwareMap() {
 }
 
 void Film::SetNoiseAwareMap(const float *map) {
-	fast_mutex::scoped_lock lock(samplingMapMutex);
+	std::scoped_lock<std::mutex> lock(samplingMapMutex);
 
 	const u_int nPix = xPixelCount * yPixelCount;
 	noiseAwareMap.reset(new float[nPix]);
@@ -3381,8 +3381,8 @@ void Film::SetNoiseAwareMap(const float *map) {
 }
 
 const bool Film::GetUserSamplingMap(u_int &version, boost::shared_array<float> &map,
-		boost::shared_ptr<Distribution2D> &distrib) {
-	fast_mutex::scoped_lock lock(samplingMapMutex);
+		std::shared_ptr<Distribution2D> &distrib) {
+	std::scoped_lock<std::mutex> lock(samplingMapMutex);
 
 	if (userSamplingMapVersion > version) {
 		map = userSamplingMap;
@@ -3395,7 +3395,7 @@ const bool Film::GetUserSamplingMap(u_int &version, boost::shared_array<float> &
 
 // NOTE: returns a copy of the map, it is up to the caller to free the allocated memory !
 float *Film::GetUserSamplingMap() {
-	fast_mutex::scoped_lock lock(samplingMapMutex);
+	std::scoped_lock<std::mutex> lock(samplingMapMutex);
 
 	if (userSamplingMapVersion == 0)
 		return NULL;
@@ -3408,7 +3408,7 @@ float *Film::GetUserSamplingMap() {
 }
 
 void Film::SetUserSamplingMap(const float *map) {
-	fast_mutex::scoped_lock lock(samplingMapMutex);
+	std::scoped_lock<std::mutex> lock(samplingMapMutex);
 
 	// TODO: reject the map if all values are 0.0
 	const u_int nPix = xPixelCount * yPixelCount;
@@ -3453,8 +3453,8 @@ void Film::UpdateSamplingMap() {
 }
 
 const bool Film::GetSamplingMap(u_int &naMapVersion, u_int &usMapVersion,
-		boost::shared_array<float> &map, boost::shared_ptr<Distribution2D> &distrib) {
-	fast_mutex::scoped_lock lock(samplingMapMutex);
+		boost::shared_array<float> &map, std::shared_ptr<Distribution2D> &distrib) {
+	std::scoped_lock<std::mutex> lock(samplingMapMutex);
 
 	if ((noiseAwareMapVersion > naMapVersion) || (userSamplingMapVersion > usMapVersion)) {
 		naMapVersion = noiseAwareMapVersion;

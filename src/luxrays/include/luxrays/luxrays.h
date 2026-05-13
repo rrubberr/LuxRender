@@ -38,8 +38,11 @@
 #include <boost/locale.hpp>
 #include <boost/filesystem/fstream.hpp>
 
-#define BOOST_IFSTREAM boost::filesystem::ifstream
-#define BOOST_OFSTREAM boost::filesystem::ofstream
+//#define BOOST_IFSTREAM std::filesystem::ifstream
+//#define BOOST_OFSTREAM std::filesystem::ofstream
+
+#define BOOST_IFSTREAM std::ifstream
+#define BOOST_OFSTREAM std::ofstream
 
 #else
 

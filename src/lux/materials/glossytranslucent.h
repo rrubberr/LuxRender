@@ -32,20 +32,20 @@ namespace lux
 class GlossyTranslucent : public Material {
 public:
 	// GlossyTranslucent Public Methods
-	GlossyTranslucent(boost::shared_ptr<Texture<SWCSpectrum> > &kd,
-		boost::shared_ptr<Texture<SWCSpectrum> > &kt,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ks,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ks2,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ka,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ka2,
-		boost::shared_ptr<Texture<float> > &i,
-		boost::shared_ptr<Texture<float> > &i2,
-		boost::shared_ptr<Texture<float> > &d,
-		boost::shared_ptr<Texture<float> > &d2,
-		boost::shared_ptr<Texture<float> > &u,
-		boost::shared_ptr<Texture<float> > &u2,
-		boost::shared_ptr<Texture<float> > &v,
-		boost::shared_ptr<Texture<float> > &v2,
+	GlossyTranslucent(std::shared_ptr<Texture<SWCSpectrum> > &kd,
+		std::shared_ptr<Texture<SWCSpectrum> > &kt,
+		std::shared_ptr<Texture<SWCSpectrum> > &ks,
+		std::shared_ptr<Texture<SWCSpectrum> > &ks2,
+		std::shared_ptr<Texture<SWCSpectrum> > &ka,
+		std::shared_ptr<Texture<SWCSpectrum> > &ka2,
+		std::shared_ptr<Texture<float> > &i,
+		std::shared_ptr<Texture<float> > &i2,
+		std::shared_ptr<Texture<float> > &d,
+		std::shared_ptr<Texture<float> > &d2,
+		std::shared_ptr<Texture<float> > &u,
+		std::shared_ptr<Texture<float> > &u2,
+		std::shared_ptr<Texture<float> > &v,
+		std::shared_ptr<Texture<float> > &v2,
 		bool mb,
 		bool mb2,
 		const ParamSet &mp) : Material("GlossyTranslucent-" + boost::lexical_cast<string>(this), mp),
@@ -80,9 +80,9 @@ public:
 
 private:
 	// GlossyTranslucent Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd, Kt, Ks, Ks_bf, Ka, Ka_bf;
-	boost::shared_ptr<Texture<float> > depth, depth_bf, index, index_bf;
-	boost::shared_ptr<Texture<float> > nu, nu_bf, nv, nv_bf;
+	std::shared_ptr<Texture<SWCSpectrum> > Kd, Kt, Ks, Ks_bf, Ka, Ka_bf;
+	std::shared_ptr<Texture<float> > depth, depth_bf, index, index_bf;
+	std::shared_ptr<Texture<float> > nu, nu_bf, nv, nv_bf;
 	bool multibounce, multibounce_bf;
 };
 

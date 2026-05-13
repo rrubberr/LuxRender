@@ -35,8 +35,8 @@ Shape::Shape(const Transform &o2w, bool ro, const string &n)
 {
 }
 
-Shape::Shape(const Transform &o2w, bool ro, boost::shared_ptr<Material> &mat,
-	boost::shared_ptr<Volume> &ex, boost::shared_ptr<Volume> &in, const string &n)
+Shape::Shape(const Transform &o2w, bool ro, std::shared_ptr<Material> &mat,
+	std::shared_ptr<Volume> &ex, std::shared_ptr<Volume> &in, const string &n)
 	: ObjectToWorld(o2w), material(mat), exterior(ex), interior(in),
 	name(n), reverseOrientation(ro),
 	transformSwapsHandedness(o2w.SwapsHandedness())
@@ -44,20 +44,20 @@ Shape::Shape(const Transform &o2w, bool ro, boost::shared_ptr<Material> &mat,
 }
 
 // PrimitiveSet Method Definitions
-PrimitiveSet::PrimitiveSet(boost::shared_ptr<Aggregate> &a) : accelerator(a)
+PrimitiveSet::PrimitiveSet(std::shared_ptr<Aggregate> &a) : accelerator(a)
 {
 	a->GetPrimitives(primitives);
 	initAreas();
 }
 
-PrimitiveSet::PrimitiveSet(const vector<boost::shared_ptr<Primitive> > &p) :
+PrimitiveSet::PrimitiveSet(const vector<std::shared_ptr<Primitive> > &p) :
 	primitives(p)
 {
 	initAreas();
 
 	// NOTE - ratow - Use accelerator for complex lights.
 	if (primitives.size() <= 16) {
-		accelerator = boost::shared_ptr<Primitive>();
+		accelerator = std::shared_ptr<Primitive>();
 		worldbound = BBox();
 		for(u_int i = 0; i < primitives.size(); i++)
 			worldbound = Union(worldbound, primitives[i]->WorldBound());
@@ -65,7 +65,7 @@ PrimitiveSet::PrimitiveSet(const vector<boost::shared_ptr<Primitive> > &p) :
 		worldbound.pMin -= (worldbound.pMax - worldbound.pMin) * 0.01f;
 		worldbound.pMax += (worldbound.pMax - worldbound.pMin) * 0.01f;
 	} else {
-		accelerator = boost::shared_ptr<Primitive>(
+		accelerator = std::shared_ptr<Primitive>(
 			MakeAccelerator("kdtree", primitives, ParamSet()));
 		if (!accelerator)
 			LOG( LUX_SEVERE,LUX_BUG)<<"Unable to find \"kdtree\" accelerator";

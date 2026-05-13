@@ -433,13 +433,13 @@ Shape* PlyMesh::CreateShape(const Transform &o2w,
 	bool displacementMapSharpBoundary = params.FindOneBool("dmsharpboundary", false);
 	bool normalSplit = params.FindOneBool("dmnormalsplit", false);
 
-	boost::shared_ptr<Texture<float> > displacementMap;
+	std::shared_ptr<Texture<float> > displacementMap;
 	if (displacementMapName != "") {
 		LOG(LUX_WARNING, LUX_SYNTAX) << "The \"string displacementmap\" syntax is now deprecated, use \"texture displacementmap\" instead";
 		// Lotus - read subdivision data
-		map<string, boost::shared_ptr<Texture<float> > > *floatTextures = Context::GetActiveFloatTextures();
+		map<string, std::shared_ptr<Texture<float> > > *floatTextures = Context::GetActiveFloatTextures();
 
-		boost::shared_ptr<Texture<float> > dm((*floatTextures)[displacementMapName]);
+		std::shared_ptr<Texture<float> > dm((*floatTextures)[displacementMapName]);
 		displacementMap = dm;
 
 		if (!displacementMap) {
@@ -465,7 +465,7 @@ Shape* PlyMesh::CreateShape(const Transform &o2w,
 
 	const float colorGamma = params.FindOneFloat("gamma", 1.f);
 
-	boost::shared_ptr<Texture<float> > dummytex;
+	std::shared_ptr<Texture<float> > dummytex;
 
 	Mesh *mesh = new Mesh(o2w, reverseOrientation, name, Mesh::ACCEL_NONE,
 		plyNbVerts, p, n, uv, cols, alphas, colorGamma,

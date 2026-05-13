@@ -74,13 +74,13 @@ BSDF *Glossy::GetBSDF(MemoryArena &arena, const SpectrumWavelengths &sw,
 }
 Material* Glossy::CreateMaterial(const Transform &xform,
 		const ParamSet &mp) {
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(1.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(.0f)));
-	boost::shared_ptr<Texture<float> > i(mp.GetFloatTexture("index", 0.0f));
-	boost::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", .0f));
-	boost::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", .1f));
-	boost::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", .1f));
+	std::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(.0f)));
+	std::shared_ptr<Texture<float> > i(mp.GetFloatTexture("index", 0.0f));
+	std::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", .0f));
+	std::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", .1f));
+	std::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", .1f));
 
 	return new Glossy(Kd, Ks, Ka, i, d, uroughness, vroughness, mp);
 }

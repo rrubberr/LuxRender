@@ -45,7 +45,7 @@
 #include <boost/random/mersenne_twister.hpp>
 boost::hash<boost::uuids::uuid> uuid_hasher;
 boost::mt19937 scene_rng(uuid_hasher(boost::uuids::random_generator()()));
-boost::mutex scene_rand_mutex;
+std::mutex scene_rand_mutex;
 
 using namespace lux;
 
@@ -139,8 +139,8 @@ Scene::~Scene() {
 }
 
 Scene::Scene(Camera *cam, SurfaceIntegrator *si, VolumeIntegrator *vi,
-	Sampler *s, vector<boost::shared_ptr<Primitive> > &prims, boost::shared_ptr<Primitive> &accel,
-	vector<boost::shared_ptr<Light> > &lts, const vector<string> &lg, Region *vr) :
+	Sampler *s, vector<std::shared_ptr<Primitive> > &prims, std::shared_ptr<Primitive> &accel,
+	vector<std::shared_ptr<Light> > &lts, const vector<string> &lg, Region *vr) :
 	ready(false), aggregate(accel), lights(lts),
 	lightGroups(lg), camera(cam), volumeRegion(vr), surfaceIntegrator(si),
 	volumeIntegrator(vi), sampler(s), terminated(false), primitives(prims),

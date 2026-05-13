@@ -791,7 +791,7 @@ private:
 
 	// This vector used, among other things, to keep track of the insertion order
 	std::vector<std::string> names;
-	boost::unordered_map<std::string, Property> props;
+	std::unordered_map<std::string, Property> props;
 };
 
 Properties operator<<(const Property &prop0, const Property &prop1);

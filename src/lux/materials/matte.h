@@ -31,8 +31,8 @@ namespace lux
 class Matte : public Material {
 public:
 	// Matte Public Methods
-	Matte(boost::shared_ptr<Texture<SWCSpectrum> > &kd,
-		boost::shared_ptr<Texture<float> > &sig,
+	Matte(std::shared_ptr<Texture<SWCSpectrum> > &kd,
+		std::shared_ptr<Texture<float> > &sig,
 		const ParamSet &mp) : Material("Matte-" + boost::lexical_cast<string>(this), mp),
 			Kd(kd), sigma(sig) { }
 	virtual ~Matte() { }
@@ -47,8 +47,8 @@ public:
 		const ParamSet &mp);
 private:
 	// Matte Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd;
-	boost::shared_ptr<Texture<float> > sigma;
+	std::shared_ptr<Texture<SWCSpectrum> > Kd;
+	std::shared_ptr<Texture<float> > sigma;
 };
 
 }//namespace lux

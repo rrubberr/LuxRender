@@ -34,9 +34,9 @@ namespace lux
 class Metal2 : public Material {
 public:
 	// Metal2 Public Methods
-	Metal2(boost::shared_ptr<Texture<FresnelGeneral> > &fr,
-		boost::shared_ptr<Texture<float> > &u,
-		boost::shared_ptr<Texture<float> > &v,
+	Metal2(std::shared_ptr<Texture<FresnelGeneral> > &fr,
+		std::shared_ptr<Texture<float> > &u,
+		std::shared_ptr<Texture<float> > &v,
 		const ParamSet &mp);
 	virtual ~Metal2() { }
 
@@ -53,8 +53,8 @@ public:
 
 private:
 	// Metal2 Private Data
-	boost::shared_ptr<Texture<FresnelGeneral> > fresnel;
-	boost::shared_ptr<Texture<float> > nu, nv;
+	std::shared_ptr<Texture<FresnelGeneral> > fresnel;
+	std::shared_ptr<Texture<float> > nu, nv;
 };
 
 }//namespace lux

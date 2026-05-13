@@ -128,9 +128,9 @@ double SRStatistics::getEfficiency() {
 
 	// Get the current counts from the renderthreads
 	// Cannot just use getSampleCount() because the blackSampleCount is necessary
-	boost::mutex::scoped_lock lock(renderer->renderThreadsMutex);
+	std::scoped_lock<std::mutex> lock(renderer->renderThreadsMutex);
 	for (u_int i = 0; i < renderer->renderThreads.size(); ++i) {
-		fast_mutex::scoped_lock lockStats(renderer->renderThreads[i]->statLock);
+		std::scoped_lock<std::mutex> lockStats(renderer->renderThreads[i]->statLock);
 		sampleCount += renderer->renderThreads[i]->samples;
 		blackSampleCount += renderer->renderThreads[i]->blackSamples;
 	}
@@ -144,9 +144,9 @@ double SRStatistics::getEfficiencyWindow() {
 
 	// Get the current counts from the renderthreads
 	// Cannot just use getSampleCount() because the blackSampleCount is necessary
-	boost::mutex::scoped_lock lock(renderer->renderThreadsMutex);
+	std::scoped_lock<std::mutex> lock(renderer->renderThreadsMutex);
 	for (u_int i = 0; i < renderer->renderThreads.size(); ++i) {
-		fast_mutex::scoped_lock lockStats(renderer->renderThreads[i]->statLock);
+		std::scoped_lock<std::mutex> lockStats(renderer->renderThreads[i]->statLock);
 		sampleCount += renderer->renderThreads[i]->samples;
 		blackSampleCount += renderer->renderThreads[i]->blackSamples;
 	}
@@ -163,9 +163,9 @@ double SRStatistics::getPathEfficiency() {
 
 	// Get the current counts from the renderthreads
 	// Cannot just use getSampleCount() because the blackSamplePathCount is necessary
-	boost::mutex::scoped_lock lock(renderer->renderThreadsMutex);
+	std::scoped_lock<std::mutex> lock(renderer->renderThreadsMutex);
 	for (u_int i = 0; i < renderer->renderThreads.size(); ++i) {
-		fast_mutex::scoped_lock lockStats(renderer->renderThreads[i]->statLock);
+		std::scoped_lock<std::mutex> lockStats(renderer->renderThreads[i]->statLock);
 		sampleCount += renderer->renderThreads[i]->samples;
 		blackSamplePathCount += renderer->renderThreads[i]->blackSamplePaths;
 	}
@@ -179,9 +179,9 @@ double SRStatistics::getPathEfficiencyWindow() {
 
 	// Get the current counts from the renderthreads
 	// Cannot just use getSampleCount() because the blackSamplePathCount is necessary
-	boost::mutex::scoped_lock lock(renderer->renderThreadsMutex);
+	std::scoped_lock<std::mutex> lock(renderer->renderThreadsMutex);
 	for (u_int i = 0; i < renderer->renderThreads.size(); ++i) {
-		fast_mutex::scoped_lock lockStats(renderer->renderThreads[i]->statLock);
+		std::scoped_lock<std::mutex> lockStats(renderer->renderThreads[i]->statLock);
 		sampleCount += renderer->renderThreads[i]->samples;
 		blackSamplePathCount += renderer->renderThreads[i]->blackSamplePaths;
 	}
@@ -198,7 +198,7 @@ double SRStatistics::getAverageSamplesPerSecond() {
 }
 
 double SRStatistics::getAverageSamplesPerSecondWindow() {
-	boost::mutex::scoped_lock window_mutex(windowMutex);
+	std::scoped_lock<std::mutex> window_mutex(windowMutex);
 	return exponentialMovingAverage;
 }
 

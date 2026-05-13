@@ -499,7 +499,7 @@ void FlexImageFilm::SetParameterValue(luxComponentParameters param, double value
 
 	// Reset the convergence test
 	if (convTest) {
-		boost::mutex::scoped_lock(write_mutex);
+		std::scoped_lock(write_mutex);
 		convTest->Reset();
 	}
 }
@@ -958,7 +958,7 @@ void FlexImageFilm::SetStringParameterValue(luxComponentParameters param, const 
 
 	// Reset the convergence test
 	if (convTest) {
-		boost::mutex::scoped_lock(write_mutex);
+		std::scoped_lock(write_mutex);
 		convTest->Reset();
 	}
 }
@@ -1090,7 +1090,7 @@ vector<RGBColor>& FlexImageFilm::ApplyPipeline(const ColorSystem &colorSpace, ve
 
 	// use local shared_ptr to keep reference to current cameraResponse
 	// so we can pass a regular pointer to ApplyImagingPipeline
-	boost::shared_ptr<CameraResponse> crf;
+	std::shared_ptr<CameraResponse> crf;
 	if (m_CameraResponseFile == "")
 		cameraResponse.reset();
 
@@ -1367,7 +1367,7 @@ bool FlexImageFilm::WriteImage(ImageType type)
 {
 	// ensure we dont try to perform multiple writes at once
 	// needed since we can't put the pool lock up here
-	boost::mutex::scoped_lock(write_mutex);
+	std::scoped_lock(write_mutex);
 	
 	// check if film is initialized
 	if (!contribPool)
@@ -1498,7 +1498,7 @@ bool FlexImageFilm::SaveEXR(const string &exrFilename, bool useHalfFloats, bool 
 	if (!contribPool)
 		return false;
 
-	//boost::mutex::scoped_lock(write_mutex);
+	//std::scoped_lock(write_mutex);
 	// don't need the write mutex since we're just protecting the buffers
 	ScopedPoolLock poolLock(contribPool);
 
@@ -1618,7 +1618,7 @@ static void allocate_framebuffer(T** framebuffer, u_int width, u_int height, u_i
 // GUI LDR framebuffer access methods
 void FlexImageFilm::createFrameBuffer()
 {
-	boost::mutex::scoped_lock lock(framebufferMutex);
+	std::scoped_lock<std::mutex> lock(framebufferMutex);
 
 	// allocate pixels and zero out
 	allocate_framebuffer(&framebuffer, xResolution, yResolution, 3);
@@ -1778,7 +1778,7 @@ void FlexImageFilm::ConvUpdateThreadImpl(FlexImageFilm *film, Context *ctx) {
 			bool noiseAwareMapUpdated = false;
 			{
 				// Lock the frame buffer
-				boost::mutex::scoped_lock(film->write_mutex);
+				std::scoped_lock(film->write_mutex);
 
 				bool convergenceInfoUpdated = false;
 				if (film->haltThreshold >= 0.f) {

@@ -69,7 +69,7 @@ private:
 
 // DistantLight Method Definitions
 DistantLight::DistantLight(const Transform &light2world,
-	const boost::shared_ptr<Texture<SWCSpectrum> > &L, 
+	const std::shared_ptr<Texture<SWCSpectrum> > &L, 
 	float g, float t, const Vector &dir, u_int ns)
 	: Light("DistantLight-" + boost::lexical_cast<string>(this), light2world, ns),
 	Lbase(L) {
@@ -269,7 +269,7 @@ bool DistantLight::SampleL(const Scene &scene, const Sample &sample,
 Light* DistantLight::CreateLight(const Transform &light2world,
 	const ParamSet &paramSet)
 {
-	boost::shared_ptr<Texture<SWCSpectrum> > L(paramSet.GetSWCSpectrumTexture("L", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > L(paramSet.GetSWCSpectrumTexture("L", RGBColor(1.f)));
 	float g = paramSet.FindOneFloat("gain", 1.f);
 	int nSamples = paramSet.FindOneInt("nsamples", 1);
 	float theta = Radians(paramSet.FindOneFloat("theta", 0.f));

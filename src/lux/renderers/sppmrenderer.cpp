@@ -104,7 +104,7 @@ SPPMRenderer::SPPMRenderer() : Renderer() {
 }
 
 SPPMRenderer::~SPPMRenderer() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 
 	delete rendererStatistics;
 
@@ -122,19 +122,19 @@ Renderer::RendererType SPPMRenderer::GetType() const {
 }
 
 Renderer::RendererState SPPMRenderer::GetState() const {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 
 	return state;
 }
 
 vector<RendererHostDescription *> &SPPMRenderer::GetHostDescs() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 
 	return hosts;
 }
 
 void SPPMRenderer::SuspendWhenDone(bool v) {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 	suspendThreadsWhenDone = v;
 }
 
@@ -156,7 +156,7 @@ static void writeIntervalCheck(Film *film) {
 void SPPMRenderer::Render(Scene *s) {
 	{
 		// Section under mutex
-		boost::mutex::scoped_lock lock(classWideMutex);
+		std::scoped_lock<std::mutex> lock(classWideMutex);
 
 		scene = s;
 
@@ -243,21 +243,21 @@ void SPPMRenderer::Render(Scene *s) {
 }
 
 void SPPMRenderer::Pause() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 	state = PAUSE;
 	scheduler->Pause();
 	rendererStatistics->stop();
 }
 
 void SPPMRenderer::Resume() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 	state = RUN;
 	scheduler->Resume();
 	rendererStatistics->start();
 }
 
 void SPPMRenderer::Terminate() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 	state = TERMINATE;
 }
 

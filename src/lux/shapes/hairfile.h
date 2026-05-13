@@ -41,14 +41,14 @@ public:
 			const string &accelType, const TessellationType tesselType,
 			const u_int adaptiveMaxDepth, const float adaptiveError, 
 			const u_int solidSideCount, const bool solidCapBottom, const bool solidCapTop,
-			const float colorGamma, boost::shared_ptr<luxrays::cyHairFile> &hairFile);
+			const float colorGamma, std::shared_ptr<luxrays::cyHairFile> &hairFile);
 	virtual ~HairFile();
 
 	virtual BBox ObjectBound() const;
 	virtual bool CanIntersect() const { return false; }
 	virtual bool CanSample() const { return false; }
 
-	virtual void Refine(vector<boost::shared_ptr<Shape> > &refined) const;
+	virtual void Refine(vector<std::shared_ptr<Shape> > &refined) const;
 
 	virtual void Tessellate(vector<luxrays::TriangleMesh *> *meshList,
 		vector<const Primitive *> *primitiveList) const;
@@ -90,10 +90,10 @@ protected:
 	u_int solidSideCount;
 	bool solidCapBottom, solidCapTop;
 
-	boost::shared_ptr<luxrays::cyHairFile> hairFile;
+	std::shared_ptr<luxrays::cyHairFile> hairFile;
 
 	// I need to keep alive refined Shapes for Tessellate() and ExtTessellate() methods
-	mutable vector<boost::shared_ptr<Shape> > refinedHairs;
+	mutable vector<std::shared_ptr<Shape> > refinedHairs;
 };
 
 }//namespace lux

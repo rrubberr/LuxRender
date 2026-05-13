@@ -202,7 +202,7 @@ BBox NURBS::WorldBound() const {
 	}
 }
 
-void NURBS::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
+void NURBS::Refine(vector<std::shared_ptr<Shape> > &refined) const {
 	// Compute NURBS dicing rates
 	u_int diceu = 30, dicev = 30;
 	float *ueval = new float[diceu];

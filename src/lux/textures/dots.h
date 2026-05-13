@@ -35,8 +35,8 @@ namespace lux
 class DotsTexture : public Texture<float> {
 public:
 	// DotsTexture Public Methods
-	DotsTexture(TextureMapping2D *m, boost::shared_ptr<Texture<float> > &c1,
-		boost::shared_ptr<Texture<float> > &c2) :
+	DotsTexture(TextureMapping2D *m, std::shared_ptr<Texture<float> > &c1,
+		std::shared_ptr<Texture<float> > &c2) :
 		Texture("DotsTexture-" + boost::lexical_cast<string>(this)),
 		outsideDot(c1), insideDot(c2), mapping(m) { }
 	virtual ~DotsTexture() { delete mapping; }
@@ -141,7 +141,7 @@ public:
 	
 private:
 	// DotsTexture Private Data
-	boost::shared_ptr<Texture<float> > outsideDot, insideDot;
+	std::shared_ptr<Texture<float> > outsideDot, insideDot;
 	TextureMapping2D *mapping;
 };
 
@@ -150,7 +150,7 @@ private:
 inline Texture<float> * DotsTexture::CreateFloatTexture(const Transform &tex2world,
 	const ParamSet &tp) {
 	// Initialize 2D texture mapping _map_ from _tp_
-	boost::shared_ptr<Texture<float> > in(tp.GetFloatTexture("inside", 1.f)),
+	std::shared_ptr<Texture<float> > in(tp.GetFloatTexture("inside", 1.f)),
 		out(tp.GetFloatTexture("outside", 0.f));
 	return new DotsTexture(TextureMapping2D::Create(tex2world, tp), in, out);
 }

@@ -80,7 +80,7 @@ private:
 
 // SpotLight Method Definitions
 SpotLight::SpotLight(const Transform &light2world,
-	const boost::shared_ptr< Texture<SWCSpectrum> > &L, 
+	const std::shared_ptr< Texture<SWCSpectrum> > &L, 
 	float g, float power, float efficacy, float width, float fall)
 	: Light("SpotLight-" + boost::lexical_cast<string>(this), light2world), Lbase(L), gain(g)
 {
@@ -148,7 +148,7 @@ bool SpotLight::SampleL(const Scene &scene, const Sample &sample,
 }
 Light* SpotLight::CreateLight(const Transform &l2w, const ParamSet &paramSet)
 {
-	boost::shared_ptr<Texture<SWCSpectrum> > L(paramSet.GetSWCSpectrumTexture("L", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > L(paramSet.GetSWCSpectrumTexture("L", RGBColor(1.f)));
 	float g = paramSet.FindOneFloat("gain", 1.f);
 	float p = paramSet.FindOneFloat("power", 0.f);		// Power/Lm in Watts
 	float e = paramSet.FindOneFloat("efficacy", 0.f);	// Efficacy Lm per Watt

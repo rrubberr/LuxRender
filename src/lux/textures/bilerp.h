@@ -143,10 +143,10 @@ class BilerpFresnelTexture : public Texture<FresnelGeneral> {
 public:
 	// BilerpTexture Public Methods
 	BilerpFresnelTexture(TextureMapping2D *m,
-		const boost::shared_ptr<Texture<FresnelGeneral> > &t00,
-		const boost::shared_ptr<Texture<FresnelGeneral> > &t01,
-		const boost::shared_ptr<Texture<FresnelGeneral> > &t10,
-		const boost::shared_ptr<Texture<FresnelGeneral> > &t11) :
+		const std::shared_ptr<Texture<FresnelGeneral> > &t00,
+		const std::shared_ptr<Texture<FresnelGeneral> > &t01,
+		const std::shared_ptr<Texture<FresnelGeneral> > &t10,
+		const std::shared_ptr<Texture<FresnelGeneral> > &t11) :
 		Texture("BilerpFresnelTexture-" + boost::lexical_cast<string>(this)) {
 		mapping = m;
 		v00 = t00;
@@ -191,7 +191,7 @@ public:
 private:
 	// BilerpTexture Private Data
 	TextureMapping2D *mapping;
-	boost::shared_ptr<Texture<FresnelGeneral> > v00, v01, v10, v11;
+	std::shared_ptr<Texture<FresnelGeneral> > v00, v01, v10, v11;
 };
 
 }//namespace lux

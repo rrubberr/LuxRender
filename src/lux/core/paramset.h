@@ -140,16 +140,16 @@ public:
 	const Normal *FindNormal(const string &, u_int *nItems) const;
 	const RGBColor *FindRGBColor(const string &, u_int *nItems) const;
 	const string *FindString(const string &, u_int *nItems) const;
-	boost::shared_ptr<Texture<SWCSpectrum> >
+	std::shared_ptr<Texture<SWCSpectrum> >
 		GetSWCSpectrumTexture(const string &name,
 		const RGBColor &def) const;
-	boost::shared_ptr<Texture<float> >
+	std::shared_ptr<Texture<float> >
 		GetFloatTexture(const string &name) const;
-	boost::shared_ptr<Texture<float> >
+	std::shared_ptr<Texture<float> >
 		GetFloatTexture(const string &name, float def) const;
-	boost::shared_ptr<Texture<FresnelGeneral> >
+	std::shared_ptr<Texture<FresnelGeneral> >
 		GetFresnelTexture(const string &name, float def) const;
-	boost::shared_ptr<Material> GetMaterial(const string &name) const;
+	std::shared_ptr<Material> GetMaterial(const string &name) const;
 	void MarkAllUsed() const;
 	void MarkUsed(const ParamSet &p2) const;
 	void ReportUnused() const;

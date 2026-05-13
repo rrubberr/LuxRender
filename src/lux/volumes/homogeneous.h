@@ -31,10 +31,10 @@ namespace lux
 // HomogeneousVolume Declarations
 class HomogeneousVolume : public Volume {
 public:
-	HomogeneousVolume(const boost::shared_ptr<Texture<FresnelGeneral> > &fr,
-		boost::shared_ptr<Texture<SWCSpectrum> > &a,
-		boost::shared_ptr<Texture<SWCSpectrum> > &s,
-		boost::shared_ptr<Texture<SWCSpectrum> > &g_) :
+	HomogeneousVolume(const std::shared_ptr<Texture<FresnelGeneral> > &fr,
+		std::shared_ptr<Texture<SWCSpectrum> > &a,
+		std::shared_ptr<Texture<SWCSpectrum> > &s,
+		std::shared_ptr<Texture<SWCSpectrum> > &g_) :
 		Volume("HomogeneousVolume-"  + boost::lexical_cast<string>(this)),
 		fresnel(fr), sigmaA(a), sigmaS(s), g(g_),
 		primitive(&material, this, this), material(this, g_) { }
@@ -129,8 +129,8 @@ public:
 	static Region *CreateVolumeRegion(const Transform &volume2world, const ParamSet &params);
 	// HomogeneousVolume Private Data
 private:
-	boost::shared_ptr<Texture<FresnelGeneral> > fresnel;
-	boost::shared_ptr<Texture<SWCSpectrum> > sigmaA, sigmaS, g;
+	std::shared_ptr<Texture<FresnelGeneral> > fresnel;
+	std::shared_ptr<Texture<SWCSpectrum> > sigmaA, sigmaS, g;
 	ScattererPrimitive primitive;
 	VolumeScatterMaterial material;
 };

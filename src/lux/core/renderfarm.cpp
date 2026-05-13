@@ -380,7 +380,7 @@ RenderFarm::~RenderFarm()
 
 // used to periodically update the film
 void RenderFarm::start(Scene *scene) {
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	// no need to start film update thread
 	// since we do not have any servers
@@ -398,7 +398,7 @@ void RenderFarm::start(Scene *scene) {
 
 // used to stop the periodic film updater and similar
 void RenderFarm::stop() {
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	if (doneRendering || serverInfoList.empty())
 		stopImpl();
@@ -597,7 +597,7 @@ RenderFarm::reconnect_status_t RenderFarm::reconnect(ExtRenderingServerInfo &ser
 
 bool RenderFarm::connect(const string &serverName) {
 	{
-		boost::mutex::scoped_lock lock(serverListMutex);
+		std::scoped_lock<std::mutex> lock(serverListMutex);
 
 		stringstream ss;
 		try {
@@ -628,7 +628,7 @@ bool RenderFarm::connect(const string &serverName) {
 }
 
 void RenderFarm::disconnectAll() {
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	for (size_t i = 0; i < serverInfoList.size(); i++)
 		disconnect(serverInfoList[i]);
@@ -636,7 +636,7 @@ void RenderFarm::disconnectAll() {
 }
 
 void RenderFarm::disconnect(const string &serverName) {
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	string name, port;
 	if (!decodeServerName(serverName, name, port))
@@ -682,7 +682,7 @@ void RenderFarm::disconnect(const ExtRenderingServerInfo &serverInfo) {
 }
 
 bool RenderFarm::sessionReset(const string &serverName, const string &password) {
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	string name, port;
 	if (!decodeServerName(serverName, name, port))
@@ -823,7 +823,7 @@ void RenderFarm::flushImpl() {
 }
 
 void RenderFarm::flush() {
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	flushImpl();
 }
@@ -866,7 +866,7 @@ void RenderFarm::reconnectFailed() {
 void RenderFarm::updateFilm(Scene *scene) {
 	// Using the mutex in order to not allow server disconnection while
 	// I'm downloading a film
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	// Dade - network rendering supports only FlexImageFilm
 	Film *film = scene->camera()->film;
@@ -958,7 +958,7 @@ void RenderFarm::updateFilm(Scene *scene) {
 void RenderFarm::updateLog() {
 	// Using the mutex in order to not allow server disconnection while
 	// I'm downloading a film
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	// first try to reconnect to failed servers which may be up now
 	reconnectFailed();
@@ -1142,7 +1142,7 @@ void RenderFarm::updateUserSamplingMap() {
 
 	// Using the mutex in order to not allow server disconnection while
 	// I'm downloading a film
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	// first try to reconnect to failed servers which may be up now
 	reconnectFailed();
@@ -1167,7 +1167,7 @@ void RenderFarm::updateNoiseAwareMap() {
 
 	// Using the mutex in order to not allow server disconnection while
 	// I'm downloading a film
-	boost::mutex::scoped_lock lock(serverListMutex);
+	std::scoped_lock<std::mutex> lock(serverListMutex);
 
 	// first try to reconnect to failed servers which may be up now
 	reconnectFailed();

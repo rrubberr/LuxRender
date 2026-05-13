@@ -190,7 +190,7 @@ cl::Program *oclKernelVolatileCache::Compile(cl::Context &context, cl::Device& d
 		const string &kernelsParameters, const string &kernelSource,
 		bool *cached, cl::STRING_CLASS *error) {
 	// Check if the kernel is available in the cache
-	boost::unordered_map<string, cl::Program::Binaries>::iterator it = kernelCache.find(kernelsParameters);
+	std::unordered_map<string, cl::Program::Binaries>::iterator it = kernelCache.find(kernelsParameters);
 
 	if (it == kernelCache.end()) {
 		// It isn't available, compile the source
@@ -248,14 +248,14 @@ static string SanitizeFileName(const string &name) {
 	return sanitizedName;
 }
 
-boost::filesystem::path oclKernelPersistentCache::GetCacheDir(const string &applicationName) const {
+std::filesystem::path oclKernelPersistentCache::GetCacheDir(const string &applicationName) const {
 #if defined(__linux__)
-	// boost::filesystem::temp_directory_path() is usually mapped to /tmp and
+	// std::filesystem::temp_directory_path() is usually mapped to /tmp and
 	// the content of the directory is often delete at each reboot
-	boost::filesystem::path kernelCacheDir(getenv("HOME"));
+	std::filesystem::path kernelCacheDir(getenv("HOME"));
 	kernelCacheDir = kernelCacheDir / ".config" / "luxrender.net";
 #else
-	boost::filesystem::path kernelCacheDir= boost::filesystem::temp_directory_path();
+	std::filesystem::path kernelCacheDir= std::filesystem::temp_directory_path();
 #endif
 
 	return kernelCacheDir / "kernel_cache" / SanitizeFileName(applicationName);
@@ -265,7 +265,7 @@ oclKernelPersistentCache::oclKernelPersistentCache(const string &applicationName
 	appName = applicationName;
 
 	// Crate the cache directory
-	boost::filesystem::create_directories(GetCacheDir(appName));
+	std::filesystem::create_directories(GetCacheDir(appName));
 }
 
 oclKernelPersistentCache::~oclKernelPersistentCache() {
@@ -309,12 +309,12 @@ cl::Program *oclKernelPersistentCache::Compile(cl::Context &context, cl::Device&
 	const string deviceName = boost::trim_copy(device.getInfo<CL_DEVICE_NAME>());
 	const string deviceUnits = ToString(device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>());
 	const string kernelName = HashString(kernelsParameters) + "-" + HashString(kernelSource) + ".ocl";
-	const boost::filesystem::path dirPath = GetCacheDir(appName) / SanitizeFileName(platformName) /
+	const std::filesystem::path dirPath = GetCacheDir(appName) / SanitizeFileName(platformName) /
 		SanitizeFileName(deviceName) / SanitizeFileName(deviceUnits);
-	const boost::filesystem::path filePath = dirPath / kernelName;
+	const std::filesystem::path filePath = dirPath / kernelName;
 	const string fileName = filePath.generic_string();
 	
-	if (!boost::filesystem::exists(filePath)) {
+	if (!std::filesystem::exists(filePath)) {
 		// It isn't available, compile the source
 		cl::Program *program = ForcedCompile(
 				context, device, kernelsParameters, kernelSource, error);
@@ -330,7 +330,7 @@ cl::Program *oclKernelPersistentCache::Compile(cl::Context &context, cl::Device&
 		// Create the file only if the binaries include something
 		if (sizes[0] > 0) {
 			// Add the kernel to the cache
-			boost::filesystem::create_directories(dirPath);
+			std::filesystem::create_directories(dirPath);
 			BOOST_OFSTREAM file(fileName.c_str(), ios_base::out | ios_base::binary);
 
 			// Write the binary hash
@@ -353,7 +353,7 @@ cl::Program *oclKernelPersistentCache::Compile(cl::Context &context, cl::Device&
 
 		return program;
 	} else {
-		const size_t fileSize = boost::filesystem::file_size(filePath);
+		const size_t fileSize = std::filesystem::file_size(filePath);
 
 		if (fileSize > 4) {
 			const size_t kernelSize = fileSize - 4;
@@ -379,7 +379,7 @@ cl::Program *oclKernelPersistentCache::Compile(cl::Context &context, cl::Device&
 			// Check the binary hash
 			if (hashBin != HashBin(kernelBin, kernelSize)) {
 				// Something wrong in the file, remove the file and retry
-				boost::filesystem::remove(filePath);
+				std::filesystem::remove(filePath);
 				return Compile(context, device, kernelsParameters, kernelSource, cached, error);
 			} else {
 				// Compile from the binaries
@@ -398,7 +398,7 @@ cl::Program *oclKernelPersistentCache::Compile(cl::Context &context, cl::Device&
 			}
 		} else {
 			// Something wrong in the file, remove the file and retry
-			boost::filesystem::remove(filePath);
+			std::filesystem::remove(filePath);
 			return Compile(context, device, kernelsParameters, kernelSource, cached, error);
 		}
 	}

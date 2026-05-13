@@ -31,12 +31,12 @@ namespace lux
 class ShinyMetal : public Material {
 public:
 	// ShinyMetal Public Methods
-	ShinyMetal(boost::shared_ptr<Texture<SWCSpectrum> > &ks,
-		boost::shared_ptr<Texture<float> > &u,
-		boost::shared_ptr<Texture<float> > &v,
-		boost::shared_ptr<Texture<float> > &flm,
-		boost::shared_ptr<Texture<float> > &flmindex, 
-		boost::shared_ptr<Texture<SWCSpectrum> > &kr,
+	ShinyMetal(std::shared_ptr<Texture<SWCSpectrum> > &ks,
+		std::shared_ptr<Texture<float> > &u,
+		std::shared_ptr<Texture<float> > &v,
+		std::shared_ptr<Texture<float> > &flm,
+		std::shared_ptr<Texture<float> > &flmindex, 
+		std::shared_ptr<Texture<SWCSpectrum> > &kr,
 		const ParamSet &mp) : Material("ShinyMetal-" + boost::lexical_cast<string>(this), mp),
 		Ks(ks), Kr(kr), nu(u), nv(v), film(flm), filmindex(flmindex) { }
 	virtual ~ShinyMetal() { }
@@ -48,9 +48,9 @@ public:
 		const ParamSet &mp);
 private:
 	// ShinyMetal Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks, Kr;
-	boost::shared_ptr<Texture<float> > nu, nv;
-	boost::shared_ptr<Texture<float> > film, filmindex;
+	std::shared_ptr<Texture<SWCSpectrum> > Ks, Kr;
+	std::shared_ptr<Texture<float> > nu, nv;
+	std::shared_ptr<Texture<float> > film, filmindex;
 };
 
 }//namespace lux

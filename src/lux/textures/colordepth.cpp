@@ -31,7 +31,7 @@ using namespace lux;
 Texture<SWCSpectrum> *ColorDepthTexture::CreateSWCSpectrumTexture(const Transform &tex2world,
 	const ParamSet &tp)
 {
-	boost::shared_ptr<Texture<SWCSpectrum> > kt(tp.GetSWCSpectrumTexture("Kt", RGBColor(0.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > kt(tp.GetSWCSpectrumTexture("Kt", RGBColor(0.f)));
 	return new ColorDepthTexture(tp.FindOneFloat("depth", 1.f), kt);
 }
 

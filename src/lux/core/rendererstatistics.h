@@ -123,7 +123,7 @@ public:
 
 protected:
 	Timer timer;
-	boost::mutex windowMutex;
+	std::mutex windowMutex;
 	double windowStartTime;
 	double windowCurrentTime;
 

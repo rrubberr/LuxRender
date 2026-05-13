@@ -32,12 +32,12 @@ using namespace luxrays;
 using namespace lux;
 
 // TaBRecKdTreeAccel Method Definitions
-TaBRecKdTreeAccel::TaBRecKdTreeAccel(const vector<boost::shared_ptr<Primitive> > &p,
+TaBRecKdTreeAccel::TaBRecKdTreeAccel(const vector<std::shared_ptr<Primitive> > &p,
         int icost, int tcost,
         float ebonus, int maxp, int maxDepth)
 : isectCost(icost), traversalCost(tcost),
         maxPrims(maxp), emptyBonus(ebonus) {
-    vector<boost::shared_ptr<Primitive> > vPrims;
+    vector<std::shared_ptr<Primitive> > vPrims;
     const PrimitiveRefinementHints refineHints(false);
     for (u_int i = 0; i < p.size(); ++i) {
     	if(p[i]->CanIntersect())
@@ -48,9 +48,9 @@ TaBRecKdTreeAccel::TaBRecKdTreeAccel(const vector<boost::shared_ptr<Primitive> >
 
     // Initialize primitives for _TaBRecKdTreeAccel_
     nPrims = vPrims.size();
-    prims = AllocAligned<boost::shared_ptr<Primitive> >(nPrims);
+    prims = AllocAligned<std::shared_ptr<Primitive> >(nPrims);
     for (u_int i = 0; i < nPrims; ++i)
-    	new (&prims[i]) boost::shared_ptr<Primitive>(vPrims[i]);
+    	new (&prims[i]) std::shared_ptr<Primitive>(vPrims[i]);
 
     // Build kd-tree for accelerator
     nextFreeNode = nAllocedNodes = 0;
@@ -477,14 +477,14 @@ bool TaBRecKdTreeAccel::IntersectP(const Ray &ray) const {
     return false;
 }
 
-void TaBRecKdTreeAccel::GetPrimitives(vector<boost::shared_ptr<Primitive> > &primitives) const {
+void TaBRecKdTreeAccel::GetPrimitives(vector<std::shared_ptr<Primitive> > &primitives) const {
 	primitives.reserve(nPrims);
 	for(u_int i=0; i<nPrims; i++) {
 		primitives.push_back(prims[i]);
 	}
 }
 
-Aggregate *TaBRecKdTreeAccel::CreateAccelerator(const vector<boost::shared_ptr<Primitive> > &prims,
+Aggregate *TaBRecKdTreeAccel::CreateAccelerator(const vector<std::shared_ptr<Primitive> > &prims,
         const ParamSet &ps) {
     int isectCost = ps.FindOneInt("intersectcost", 80);
     int travCost = ps.FindOneInt("traversalcost", 1);

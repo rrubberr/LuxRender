@@ -182,7 +182,7 @@ public:
     };
 };
 #else
-typedef boost::mutex fast_mutex;
+typedef std::mutex fast_mutex;
 #endif
 
 }//namespace lux

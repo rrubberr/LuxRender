@@ -39,15 +39,15 @@ NativeThreadIntersectionDevice::NativeThreadIntersectionDevice(
 	deviceName = std::string("NativeIntersect");
 	reportedPermissionError = false;
 	rayBufferQueue = NULL;
-	threadCount = boost::thread::hardware_concurrency();
+	threadCount = std::thread::hardware_concurrency();
 }
 
 NativeThreadIntersectionDevice::~NativeThreadIntersectionDevice() {
 	if (started)
 		Stop();
 
-	BOOST_FOREACH(boost::thread *intersectionThread, intersectionThreads)
-		delete intersectionThread;
+//	BOOST_FOREACH(std::thread *intersectionThread, intersectionThreads)
+//		delete intersectionThread;
 	delete rayBufferQueue;
 }
 
@@ -75,7 +75,7 @@ void NativeThreadIntersectionDevice::Start() {
 
 		// Create all threads for the rendering
 		for (u_int i = 0; i < threadCount; ++i) {
-			boost::thread *intersectionThread = new boost::thread(boost::bind(NativeThreadIntersectionDevice::IntersectionThread, this, i));
+			std::thread *intersectionThread = new std::thread(boost::bind(NativeThreadIntersectionDevice::IntersectionThread, this, i));
 
 			// Set intersectionThread priority
 			const bool res = SetThreadRRPriority(intersectionThread);
@@ -96,8 +96,8 @@ void NativeThreadIntersectionDevice::Interrupt() {
 	assert (started);
 
 	if (dataParallelSupport) {
-		BOOST_FOREACH(boost::thread *intersectionThread, intersectionThreads)
-			intersectionThread->interrupt();
+//		BOOST_FOREACH(std::thread *intersectionThread, intersectionThreads)
+//			intersectionThread->interrupt();
 	}
 }
 
@@ -105,11 +105,11 @@ void NativeThreadIntersectionDevice::Stop() {
 	IntersectionDevice::Stop();
 
 	if (dataParallelSupport) {
-		BOOST_FOREACH(boost::thread *intersectionThread, intersectionThreads) {
-			intersectionThread->interrupt();
-			intersectionThread->join();
-			delete intersectionThread;
-		}
+//		BOOST_FOREACH(std::thread *intersectionThread, intersectionThreads) {
+//			intersectionThread->interrupt();
+//			intersectionThread->join();
+//			delete intersectionThread;
+//		}
 		intersectionThreads.clear();
 		delete rayBufferQueue;
 		rayBufferQueue = NULL;
@@ -143,7 +143,7 @@ RayBuffer *NativeThreadIntersectionDevice::PopRayBuffer(const u_int queueIndex) 
 void NativeThreadIntersectionDevice::IntersectionThread(NativeThreadIntersectionDevice *renderDevice, const u_int threadIndex) {
 	//LR_LOG(renderDevice->deviceContext, "[NativeThread device::" << renderDevice->deviceName << "::" << threadIndex <<"] Rendering thread started");
 
-	try {
+	/*try {
 		RayBufferQueue *queue = renderDevice->rayBufferQueue;
 
 		const double startTime = WallClockTime();
@@ -169,7 +169,7 @@ void NativeThreadIntersectionDevice::IntersectionThread(NativeThreadIntersection
 		//LR_LOG(renderDevice->deviceContext, "[NativeThread device::" << renderDevice->deviceName << "::" << threadIndex <<"] Rendering thread halted");
 	} catch (boost::thread_interrupted) {
 		//LR_LOG(renderDevice->deviceContext, "[NativeThread device::" << renderDevice->deviceName << "::" << threadIndex <<"] Rendering thread halted");
-	}
+	}*/
 }
 
 //------------------------------------------------------------------------------

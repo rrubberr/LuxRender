@@ -266,7 +266,7 @@ private:
 	Context *ctx;
 
 	// Any operation on servers must be synchronized via this mutex
-	mutable boost::mutex serverListMutex;
+	mutable std::mutex serverListMutex;
 	std::vector<ExtRenderingServerInfo> serverInfoList;
 
 	// Dade - film update information

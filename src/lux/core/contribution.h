@@ -113,7 +113,7 @@ public:
 	void unlock();
 
 private:
-	boost::mutex::scoped_lock lock;
+	std::unique_lock<std::mutex> lock;
 };
 
 class ContributionPool {
@@ -166,7 +166,7 @@ public:
 	u_int GetFilmTileIndexes(const Contribution &contrib, u_int *tileIndex0, u_int *tileIndex1) const;
 
 private:
-	typedef boost::mutex tile_mutex;
+	typedef std::mutex tile_mutex;
 	//typedef fast_mutex tile_mutex;
 
 	float sampleCount;
@@ -178,7 +178,7 @@ private:
 	Film *film;
 	fast_mutex poolMutex;
 	boost::ptr_vector<tile_mutex> tileSplattingMutexes;
-	boost::mutex mainSplattingMutex;
+	std::mutex mainSplattingMutex;
 };
 
 inline void ContributionBuffer::Add(const Contribution &c, float weight)

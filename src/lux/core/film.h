@@ -424,7 +424,7 @@ private:
 	u_int m_zones[11];
 	float m_lowRange, m_highRange, m_bucketSize;
 	float m_displayGamma;
-	boost::mutex m_mutex;
+	std::mutex m_mutex;
 };
 
 //------------------------------------------------------------------------------
@@ -702,21 +702,21 @@ public:
 
 	virtual void EnableNoiseAwareMap();
 	virtual const bool GetNoiseAwareMap(u_int &version, boost::shared_array<float> &map,
-		boost::shared_ptr<luxrays::Distribution2D> &distrib);
+		std::shared_ptr<luxrays::Distribution2D> &distrib);
 	// NOTE: returns a copy of the map, it is up to the caller to free the allocated memory !
 	virtual float *GetNoiseAwareMap();
 	virtual void SetNoiseAwareMap(const float *map);
 	// Using a check on userSamplingMapVersion in order to avoid the usage of userSamplingMapMutex
 	virtual const bool HasUserSamplingMap() const { return (userSamplingMapVersion > 0); }
 	virtual const bool GetUserSamplingMap(u_int &version, boost::shared_array<float> &map,
-		boost::shared_ptr<luxrays::Distribution2D> &distrib);
+		std::shared_ptr<luxrays::Distribution2D> &distrib);
 	// NOTE: returns a copy of the map, it is up to the caller to free the allocated memory !
 	virtual float *GetUserSamplingMap();
 	virtual void SetUserSamplingMap(const float *map);
 
 	// Return noise-aware map * user sampling map
 	virtual const bool GetSamplingMap(u_int &naMapVersion, u_int &usMapVersion,
-		boost::shared_array<float> &map, boost::shared_ptr<luxrays::Distribution2D> &distrib);
+		boost::shared_array<float> &map, std::shared_ptr<luxrays::Distribution2D> &distrib);
 
 	/*
 	 * Accessor for samplePerPass
@@ -790,7 +790,7 @@ protected: // Put it here for better data alignment
 	std::vector<BufferConfig> bufferConfigs;
 	std::vector<BufferGroup> bufferGroups;
 
-	boost::mutex write_mutex; // WriteImage/ConvergenceTest (i.e. image pipeline) synchronization
+	std::mutex write_mutex; // WriteImage/ConvergenceTest (i.e. image pipeline) synchronization
 
 	// Enabled by haltthreshold
 	slg::ConvergenceTest *convTest;
@@ -802,17 +802,17 @@ protected: // Put it here for better data alignment
 	// gone)
 	boost::shared_array<float> noiseAwareMap;
 	u_int noiseAwareMapVersion;
-	boost::shared_ptr<luxrays::Distribution2D> noiseAwareDistribution2D;
+	std::shared_ptr<luxrays::Distribution2D> noiseAwareDistribution2D;
 
 	// May be enabled by the user
 	string userSamplingMapFileName;
 	boost::shared_array<float> userSamplingMap;
 	u_int userSamplingMapVersion;
-	boost::shared_ptr<luxrays::Distribution2D> userSamplingDistribution2D;
+	std::shared_ptr<luxrays::Distribution2D> userSamplingDistribution2D;
 	
 	// Noise-aware map * user sampling map
 	boost::shared_array<float> samplingMap;
-	boost::shared_ptr<luxrays::Distribution2D> samplingDistribution2D;
+	std::shared_ptr<luxrays::Distribution2D> samplingDistribution2D;
 	fast_mutex samplingMapMutex;
 
 	PerPixelNormalizedFloatBuffer *ZBuffer;
@@ -857,7 +857,7 @@ private:
 	// Gets a reference to the appropriate outlier row data for a given position and tile index.
 	std::vector<OutlierAccel>& GetOutlierAccelRow(u_int oY, u_int tileIndex, u_int tileStart, u_int tileEnd);
 	
-	boost::mutex histMutex;
+	std::mutex histMutex;
 };
 
 // Image Pipeline Declarations

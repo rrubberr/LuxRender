@@ -55,8 +55,8 @@ BSDF *ScatterMaterial::GetBSDF(MemoryArena &arena,
 Material* ScatterMaterial::CreateMaterial(const Transform &xform,
 	const ParamSet &mp)
 {
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(.9f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > g(mp.GetSWCSpectrumTexture("g", 0.f));
+	std::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(.9f)));
+	std::shared_ptr<Texture<SWCSpectrum> > g(mp.GetSWCSpectrumTexture("g", 0.f));
 	return new ScatterMaterial(Kd, g, mp);
 }
 

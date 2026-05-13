@@ -22,6 +22,7 @@
 #include "luxrays/luxrays.h"
 #include "luxrays/core/device.h"
 #include "luxrays/core/geometry/raybuffer.h"
+#include <thread>
 
 namespace luxrays {
 
@@ -178,7 +179,7 @@ private:
 			const u_int threadIndex);
 
 	u_int threadCount;
-	vector<boost::thread *> intersectionThreads;
+	vector<std::thread *> intersectionThreads;
 	RayBufferQueueM2M *rayBufferQueue;
 	
 	// Per thread statistics

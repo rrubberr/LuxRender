@@ -242,7 +242,7 @@ public:
 	   @param fst the threshold before switching to full sweep for split
 	   @param sf the skip factor during split determination
 	*/
-	QBVHAccel(const vector<boost::shared_ptr<Primitive> > &p, u_int mp, u_int fst, u_int sf);
+	QBVHAccel(const vector<std::shared_ptr<Primitive> > &p, u_int mp, u_int fst, u_int sf);
 
 	/**
 	   to free the memory.
@@ -279,14 +279,14 @@ public:
 	   Fills an array with the primitives
 	   @param prims vector to be filled
 	*/
-	virtual void GetPrimitives(vector<boost::shared_ptr<Primitive> > &prims) const;
+	virtual void GetPrimitives(vector<std::shared_ptr<Primitive> > &prims) const;
 
 	/**
 	   Read configuration parameters and create a new QBVH accelerator
 	   @param prims vector of primitives to store into the QBVH
 	   @param ps configuration parameters
 	*/
-	static Aggregate *CreateAccelerator(const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps);
+	static Aggregate *CreateAccelerator(const vector<std::shared_ptr<Primitive> > &prims, const ParamSet &ps);
 
 protected:
 	QBVHAccel() { }
@@ -362,7 +362,7 @@ protected:
 	   @param vPrims
 	*/
 	void PreSwizzle(int32_t nodeIndex, const u_int *primsIndexes,
-		const vector<boost::shared_ptr<Primitive> > &vPrims);
+		const vector<std::shared_ptr<Primitive> > &vPrims);
 
 	/**
 	   Create a leaf using the pre-swizzled layout,
@@ -374,7 +374,7 @@ protected:
 	   @param vPrims
 	*/
 	void CreateSwizzledLeaf(int32_t parentIndex, int32_t childIndex, 
-		const u_int *primsIndexes, const vector<boost::shared_ptr<Primitive> > &vPrims);
+		const u_int *primsIndexes, const vector<std::shared_ptr<Primitive> > &vPrims);
 
 	float CollectStatistics(const int32_t nodeIndex, const u_int depth,
 		const BBox &nodeBBox);
@@ -391,7 +391,7 @@ protected:
 	   test will be redone for the nearest triangle found, to
 	   fill the Intersection structure.
 	*/
-	boost::shared_ptr<QuadPrimitive> *prims;
+	std::shared_ptr<QuadPrimitive> *prims;
 	
 	/**
 	   The number of primitives

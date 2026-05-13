@@ -81,7 +81,7 @@ private:
 	BBox bbox;
 	BSphere bsphere;
 
-	boost::unordered_map<AcceleratorType, Accelerator *> accels;
+	std::unordered_map<AcceleratorType, Accelerator *> accels;
 
 	AcceleratorType accelType;
 	bool preprocessed;

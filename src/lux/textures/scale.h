@@ -40,8 +40,8 @@ template <class T1, class T2>
 class ScaleTexture : public Texture<T2> {
 public:
 	// ScaleTexture Public Methods
-	ScaleTexture(boost::shared_ptr<Texture<T1> > &t1,
-		boost::shared_ptr<Texture<T2> > &t2) :
+	ScaleTexture(std::shared_ptr<Texture<T1> > &t1,
+		std::shared_ptr<Texture<T2> > &t2) :
 		Texture<T2>("ScaleTexture-" + boost::lexical_cast<string>(this)),
 		tex1(t1), tex2(t2) { }
 	virtual ~ScaleTexture() { }
@@ -88,15 +88,15 @@ public:
 	static Texture<SWCSpectrum> * CreateSWCSpectrumTexture(const Transform &tex2world, const ParamSet &tp);
 
 private:
-	boost::shared_ptr<Texture<T1> > tex1;
-	boost::shared_ptr<Texture<T2> > tex2;
+	std::shared_ptr<Texture<T1> > tex1;
+	std::shared_ptr<Texture<T2> > tex2;
 };
 
 // ScaleTexture Method Definitions
 template <class T, class U> inline Texture<float> * ScaleTexture<T,U>::CreateFloatTexture(const Transform &tex2world,
 	const ParamSet &tp)
 {
-	boost::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("tex1", 1.f)),
+	std::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("tex1", 1.f)),
 		tex2(tp.GetFloatTexture("tex2", 1.f));
 	return new ScaleTexture<float, float>(tex1,tex2);
 }
@@ -104,13 +104,13 @@ template <class T, class U> inline Texture<float> * ScaleTexture<T,U>::CreateFlo
 template <class T,class U> inline Texture<SWCSpectrum> * ScaleTexture<T,U>::CreateSWCSpectrumTexture(const Transform &tex2world,
 	const ParamSet &tp)
 {
-	boost::shared_ptr<Texture<SWCSpectrum> > tex2(tp.GetSWCSpectrumTexture("tex2", RGBColor(1.f)));
-	map<string, boost::shared_ptr<Texture<float> > > *ft = Context::GetActiveFloatTextures();
+	std::shared_ptr<Texture<SWCSpectrum> > tex2(tp.GetSWCSpectrumTexture("tex2", RGBColor(1.f)));
+	map<string, std::shared_ptr<Texture<float> > > *ft = Context::GetActiveFloatTextures();
 	if (ft->find(string("tex1")) == ft->end()) {
-		boost::shared_ptr<Texture<SWCSpectrum> > tex1(tp.GetSWCSpectrumTexture("tex1", RGBColor(1.f)));
+		std::shared_ptr<Texture<SWCSpectrum> > tex1(tp.GetSWCSpectrumTexture("tex1", RGBColor(1.f)));
 		return new ScaleTexture<SWCSpectrum, SWCSpectrum>(tex1, tex2);
 	} else {
-		boost::shared_ptr<Texture<float> > ftex1(tp.GetFloatTexture("tex1", 1.f));
+		std::shared_ptr<Texture<float> > ftex1(tp.GetFloatTexture("tex1", 1.f));
 		return new ScaleTexture<float, SWCSpectrum>(ftex1, tex2);
 	}
 }

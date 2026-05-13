@@ -108,14 +108,14 @@ private:
 	// The shape bounding box express din local coordinate
 	BBox shapeBBox;
 
-	mutable boost::mutex loadMutex;
+	mutable std::mutex loadMutex;
 
 	// A copy of parsing parameters
 	mutable ParamSet *params;
 
 	// The deferred loaded shape
-	mutable boost::shared_ptr<Shape> shape;
-	mutable boost::shared_ptr<Aggregate> accelerator;
+	mutable std::shared_ptr<Shape> shape;
+	mutable std::shared_ptr<Aggregate> accelerator;
 	mutable Primitive *prim;
 };
 

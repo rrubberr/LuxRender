@@ -33,7 +33,7 @@ namespace lux
 struct TaBRecKdAccelNode {
     // TaBRecKdAccelNode Methods
     void initLeaf(int *primNums, int np,
-            boost::shared_ptr<Primitive> *prims, MemoryArena &arena) {
+            std::shared_ptr<Primitive> *prims, MemoryArena &arena) {
         // Update kd leaf node allocation statistics
         // radiance - disabled for threading // static StatsCounter numLeafMade("Kd-Tree Accelerator","Leaf kd-tree nodes made");
         // radiance - disabled for threading // static StatsCounter maxDepth("Kd-Tree Accelerator","Maximum kd-tree depth");
@@ -140,7 +140,7 @@ struct TaBRecInverseMailboxes {
 class  TaBRecKdTreeAccel : public Aggregate {
 public:
     // TaBRecKdTreeAccel Public Methods
-    TaBRecKdTreeAccel(const vector<boost::shared_ptr<Primitive> > &p,
+    TaBRecKdTreeAccel(const vector<std::shared_ptr<Primitive> > &p,
             int icost, int scost,
             float ebonus, int maxp, int maxDepth);
     virtual BBox WorldBound() const { return bounds; }
@@ -152,9 +152,9 @@ public:
 		return Transform();
 	}
 
-    virtual void GetPrimitives(vector<boost::shared_ptr<Primitive> > &prims) const;
+    virtual void GetPrimitives(vector<std::shared_ptr<Primitive> > &prims) const;
 
-    static Aggregate *CreateAccelerator(const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps);
+    static Aggregate *CreateAccelerator(const vector<std::shared_ptr<Primitive> > &prims, const ParamSet &ps);
 
 private:
     void buildTree(int nodeNum, const BBox &bounds,
@@ -168,7 +168,7 @@ private:
     float emptyBonus;
 
     u_int nPrims;
-    boost::shared_ptr<Primitive> *prims;
+    std::shared_ptr<Primitive> *prims;
     TaBRecKdAccelNode *nodes;
     int nAllocedNodes, nextFreeNode;
 

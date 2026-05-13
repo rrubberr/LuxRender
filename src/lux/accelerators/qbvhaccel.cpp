@@ -60,10 +60,10 @@ public:
 class QuadPrimitive : public Aggregate {
 public:
 	// Don't use references to force temporaries and increase use count
-	QuadPrimitive(boost::shared_ptr<Primitive> p1,
-		boost::shared_ptr<Primitive> p2,
-		boost::shared_ptr<Primitive> p3,
-		boost::shared_ptr<Primitive> p4) {
+	QuadPrimitive(std::shared_ptr<Primitive> p1,
+		std::shared_ptr<Primitive> p2,
+		std::shared_ptr<Primitive> p3,
+		std::shared_ptr<Primitive> p4) {
 		primitives[0] = p1;
 		primitives[1] = p2;
 		primitives[2] = p3;
@@ -94,7 +94,7 @@ public:
 	virtual Transform GetLocalToWorld(float time) const {
 		return Transform();
 	}
-	virtual void GetPrimitives(vector<boost::shared_ptr<Primitive> > &prims) const
+	virtual void GetPrimitives(vector<std::shared_ptr<Primitive> > &prims) const
 	{
 		prims.reserve(prims.size() + 4);
 		for (u_int i = 0; i < 4; ++i)
@@ -109,7 +109,7 @@ public:
 		return true;
 	}
 protected:
-	boost::shared_ptr<Primitive> primitives[4];
+	std::shared_ptr<Primitive> primitives[4];
 };
 
 static inline __m128 reciprocal(const __m128 x)
@@ -121,10 +121,10 @@ static inline __m128 reciprocal(const __m128 x)
 class QuadTriangle : public QuadPrimitive, public Aligned16
 {
 public:
-	QuadTriangle(const boost::shared_ptr<Primitive> &p1,
-		const boost::shared_ptr<Primitive> &p2,
-		const boost::shared_ptr<Primitive> &p3,
-		const boost::shared_ptr<Primitive> &p4) :
+	QuadTriangle(const std::shared_ptr<Primitive> &p1,
+		const std::shared_ptr<Primitive> &p2,
+		const std::shared_ptr<Primitive> &p3,
+		const std::shared_ptr<Primitive> &p4) :
 		QuadPrimitive(p1, p2, p3, p4)
 	{
 		for (u_int i = 0; i < 4; ++i) {
@@ -260,12 +260,12 @@ private:
 };
 
 /***************************************************/
-QBVHAccel::QBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
+QBVHAccel::QBVHAccel(const vector<std::shared_ptr<Primitive> > &p,
 	u_int mp, u_int fst, u_int sf) : fullSweepThreshold(fst),
 	skipFactor(sf), maxPrimsPerLeaf(mp)
 {
 	// Refine all primitives
-	vector<boost::shared_ptr<Primitive> > vPrims;
+	vector<std::shared_ptr<Primitive> > vPrims;
 	const PrimitiveRefinementHints refineHints(false);
 	for (u_int i = 0; i < p.size(); ++i) {
 		if(p[i]->CanIntersect())
@@ -329,7 +329,7 @@ QBVHAccel::QBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 	BuildTree(0, nPrims, primsIndexes, primsBboxes, primsCentroids,
 		worldBound, centroidsBbox, -1, 0, 0);
 
-	prims = AllocAligned<boost::shared_ptr<QuadPrimitive> >(nQuads);
+	prims = AllocAligned<std::shared_ptr<QuadPrimitive> >(nQuads);
 	nQuads = 0;
 	PreSwizzle(0, primsIndexes, vPrims);
 	LOG(LUX_DEBUG,LUX_NOERROR) << "QBVH completed with " << nNodes << "/" << maxNodes << " nodes";
@@ -620,7 +620,7 @@ void QBVHAccel::CreateTempLeaf(int32_t parentIndex, int32_t childIndex,
 }
 
 void QBVHAccel::PreSwizzle(int32_t nodeIndex, const u_int *primsIndexes,
-	const vector<boost::shared_ptr<Primitive> > &vPrims)
+	const vector<std::shared_ptr<Primitive> > &vPrims)
 {
 	for (int i = 0; i < 4; ++i) {
 		if (nodes[nodeIndex].ChildIsLeaf(i))
@@ -631,7 +631,7 @@ void QBVHAccel::PreSwizzle(int32_t nodeIndex, const u_int *primsIndexes,
 }
 
 void QBVHAccel::CreateSwizzledLeaf(int32_t parentIndex, int32_t childIndex,
-	const u_int *primsIndexes, const vector<boost::shared_ptr<Primitive> > &vPrims)
+	const u_int *primsIndexes, const vector<std::shared_ptr<Primitive> > &vPrims)
 {
 	QBVHNode &node = nodes[parentIndex];
 	if (node.LeafIsEmpty(childIndex))
@@ -647,11 +647,11 @@ void QBVHAccel::CreateSwizzledLeaf(int32_t parentIndex, int32_t childIndex,
 		for (u_int i = 0; i < 4; ++i)
 			allTri &= dynamic_cast<MeshBaryTriangle *>(vPrims[primsIndexes[primOffset + i]].get()) != NULL;
 		if (allTri) {
-			boost::shared_ptr<QuadPrimitive> p(new QuadTriangle(vPrims[primsIndexes[primOffset]], vPrims[primsIndexes[primOffset + 1]], vPrims[primsIndexes[primOffset + 2]], vPrims[primsIndexes[primOffset + 3]]));
-			new (&prims[primNum]) boost::shared_ptr<QuadPrimitive>(p);
+			std::shared_ptr<QuadPrimitive> p(new QuadTriangle(vPrims[primsIndexes[primOffset]], vPrims[primsIndexes[primOffset + 1]], vPrims[primsIndexes[primOffset + 2]], vPrims[primsIndexes[primOffset + 3]]));
+			new (&prims[primNum]) std::shared_ptr<QuadPrimitive>(p);
 		} else {
-			boost::shared_ptr<QuadPrimitive> p(new QuadPrimitive(vPrims[primsIndexes[primOffset]], vPrims[primsIndexes[primOffset + 1]], vPrims[primsIndexes[primOffset + 2]], vPrims[primsIndexes[primOffset + 3]]));
-			new (&prims[primNum]) boost::shared_ptr<QuadPrimitive>(p);
+			std::shared_ptr<QuadPrimitive> p(new QuadPrimitive(vPrims[primsIndexes[primOffset]], vPrims[primsIndexes[primOffset + 1]], vPrims[primsIndexes[primOffset + 2]], vPrims[primsIndexes[primOffset + 3]]));
+			new (&prims[primNum]) std::shared_ptr<QuadPrimitive>(p);
 		}
 		++primNum;
 		primOffset += 4;
@@ -828,7 +828,7 @@ BBox QBVHAccel::WorldBound() const
 	return worldBound;
 }
 
-void QBVHAccel::GetPrimitives(vector<boost::shared_ptr<Primitive> > &primitives) const
+void QBVHAccel::GetPrimitives(vector<std::shared_ptr<Primitive> > &primitives) const
 {
 	primitives.reserve(primitives.size() + nPrims);
 	for(u_int i = 0; i < nPrims; ++i)
@@ -837,7 +837,7 @@ void QBVHAccel::GetPrimitives(vector<boost::shared_ptr<Primitive> > &primitives)
 		prims[i]->GetPrimitives(primitives);
 }
 
-Aggregate* QBVHAccel::CreateAccelerator(const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps)
+Aggregate* QBVHAccel::CreateAccelerator(const vector<std::shared_ptr<Primitive> > &prims, const ParamSet &ps)
 {
 	int maxPrimsPerLeaf = ps.FindOneInt("maxprimsperleaf", 4);
 	int fullSweepThreshold = ps.FindOneInt("fullsweepthreshold", 4 * maxPrimsPerLeaf);

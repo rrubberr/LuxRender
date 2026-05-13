@@ -31,9 +31,9 @@ namespace lux
 class MatteTranslucent : public Material {
 public:
 	// MatteTranslucent Public Methods
-	MatteTranslucent(boost::shared_ptr<Texture<SWCSpectrum> > &kr,
-		boost::shared_ptr<Texture<SWCSpectrum> > &kt,
-		boost::shared_ptr<Texture<float> > &sig,
+	MatteTranslucent(std::shared_ptr<Texture<SWCSpectrum> > &kr,
+		std::shared_ptr<Texture<SWCSpectrum> > &kt,
+		std::shared_ptr<Texture<float> > &sig,
 		bool conserving,
 		const ParamSet &mp) : Material("MatteTranslucent-" + boost::lexical_cast<string>(this), mp), Kr(kr), Kt(kt), sigma(sig),
 		energyConserving(conserving) { }
@@ -50,8 +50,8 @@ public:
 		const ParamSet &mp);
 private:
 	// MatteTranslucent Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kr, Kt;
-	boost::shared_ptr<Texture<float> > sigma;
+	std::shared_ptr<Texture<SWCSpectrum> > Kr, Kt;
+	std::shared_ptr<Texture<float> > sigma;
 	bool energyConserving;
 };
 

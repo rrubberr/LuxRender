@@ -7,6 +7,7 @@
 #include <boost/bind.hpp>
 #include <boost/version.hpp>
 #include <boost/function.hpp>
+#include <condition_variable>
 
 #include <boost/interprocess/detail/atomic.hpp>
 
@@ -91,8 +92,8 @@ private:
 
 	TaskType current_task;
 
-	boost::mutex mutex;
-	boost::condition_variable condition;
+	std::mutex mutex;
+	std::condition_variable condition;
 	unsigned counter;
 
 	unsigned start;

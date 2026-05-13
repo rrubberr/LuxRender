@@ -125,19 +125,19 @@ BSDF *Glossy2::GetBSDF(MemoryArena &arena, const SpectrumWavelengths &sw,
 }
 Material* Glossy2::CreateMaterial(const Transform &xform,
 		const ParamSet &mp) {
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(1.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(.0f)));
-	boost::shared_ptr<Texture<float> > i(mp.GetFloatTexture("index", 0.0f));
-	boost::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", .0f));
-	boost::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", .1f));
-	boost::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", .1f));
+	std::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(.0f)));
+	std::shared_ptr<Texture<float> > i(mp.GetFloatTexture("index", 0.0f));
+	std::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", .0f));
+	std::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", .1f));
+	std::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", .1f));
 	bool mb = mp.FindOneBool("multibounce", false);
 
 	bool separable = mp.FindOneBool("separable", true);
 
 	if (separable) {
-		boost::shared_ptr<Texture<float> > sigma(mp.GetFloatTexture("sigma", .0f));
+		std::shared_ptr<Texture<float> > sigma(mp.GetFloatTexture("sigma", .0f));
 		return new Glossy2(Kd, Ks, Ka, i, d, uroughness, vroughness, sigma, mb, mp);
 	} else {
 		return new GlossyCombined(Kd, Ks, Ka, i, d, uroughness, vroughness, mb, mp);
@@ -187,17 +187,17 @@ BSDF *GlossyCoating::GetBSDF(MemoryArena &arena, const SpectrumWavelengths &sw,
 }
 Material* GlossyCoating::CreateMaterial(const Transform &xform,
 		const ParamSet &mp) {
-	boost::shared_ptr<Material> basemat(mp.GetMaterial("basematerial"));
+	std::shared_ptr<Material> basemat(mp.GetMaterial("basematerial"));
 	if (!basemat) {
 		LOG( LUX_ERROR,LUX_BADTOKEN)<<"Base material for glossycoating is incorrect";
 		return NULL;
 	}
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(.0f)));
-	boost::shared_ptr<Texture<float> > i(mp.GetFloatTexture("index", 0.0f));
-	boost::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", .0f));
-	boost::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", .1f));
-	boost::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", .1f));
+	std::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(.0f)));
+	std::shared_ptr<Texture<float> > i(mp.GetFloatTexture("index", 0.0f));
+	std::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", .0f));
+	std::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", .1f));
+	std::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", .1f));
 	bool mb = mp.FindOneBool("multibounce", false);
 
 	return new GlossyCoating(basemat, Ks, Ka, i, d, uroughness, vroughness, mb, mp);

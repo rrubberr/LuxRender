@@ -55,7 +55,7 @@ public:
 private:
 	std::map<std::string, Queryable*> queryableObjects;
 	std::string XMLOptionsString;
-	mutable boost::mutex classWideMutex;
+	mutable std::mutex classWideMutex;
 };
 
 }//namespace lux

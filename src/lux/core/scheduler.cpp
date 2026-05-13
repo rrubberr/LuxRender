@@ -59,7 +59,7 @@ Scheduler::~Scheduler()
 
 void Scheduler::Launch(TaskType new_task, unsigned b_min, unsigned b_max, unsigned force_step)
 {
-	boost::unique_lock<boost::mutex> lock(mutex);
+	std::unique_lock<std::mutex> lock(mutex);
 	current_task = new_task;
 	start = b_min;
 	end = b_max;
@@ -94,7 +94,7 @@ void Scheduler::Done()
 
 void Scheduler::AddThread(Thread *thread)
 {
-	boost::unique_lock<boost::mutex> lock(mutex);
+	std::unique_lock<std::mutex> lock(mutex);
 
 	threads.push_back(thread);
 
@@ -106,7 +106,7 @@ void Scheduler::AddThread(Thread *thread)
 
 void Scheduler::DelThread()
 {
-	boost::unique_lock<boost::mutex> lock(mutex);
+	std::unique_lock<std::mutex> lock(mutex);
 
 	// when deleting a thread, many cases
 	//
@@ -122,7 +122,7 @@ void Scheduler::DelThread()
 TaskType Scheduler::GetTask()
 {
 	// Wait for a task
-	boost::unique_lock<boost::mutex> lock(mutex);
+	std::unique_lock<std::mutex> lock(mutex);
 	if(!current_task)
 		condition.wait(lock);
 
@@ -134,7 +134,7 @@ TaskType Scheduler::GetTask()
 
 bool Scheduler::EndTask(Thread* thread)
 {
-	boost::unique_lock<boost::mutex> lock(mutex);
+	std::unique_lock<std::mutex> lock(mutex);
 	counter--;
 
 	if(!thread->active)
@@ -165,7 +165,7 @@ bool Scheduler::EndTask(Thread* thread)
 
 void Scheduler::FreeThreadLocalStorage()
 {
-	boost::unique_lock<boost::mutex> lock(mutex);
+	std::unique_lock<std::mutex> lock(mutex);
 
 	std::cout << "Deleting threads" << threads_finished.size() << std::endl;
 

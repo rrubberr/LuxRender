@@ -42,9 +42,9 @@ class  Scene {
 public:
 	// Scene Public Methods
 	Scene(Camera *c, SurfaceIntegrator *in, VolumeIntegrator *vi,
-		Sampler *s, vector<boost::shared_ptr<Primitive> >  &prims,
-		boost::shared_ptr<Primitive> &accel,
-		vector<boost::shared_ptr<Light> > &lts,
+		Sampler *s, vector<std::shared_ptr<Primitive> >  &prims,
+		std::shared_ptr<Primitive> &accel,
+		vector<std::shared_ptr<Light> > &lts,
 		const vector<string> &lg, Region *vr);
 	Scene(Camera *c);
 	~Scene();
@@ -143,8 +143,8 @@ public:
 	bool IsFilmOnly() const { return filmOnly; }
 
 	// Scene Data
-	boost::shared_ptr<Primitive> aggregate;
-	vector<boost::shared_ptr<Light> > lights;
+	std::shared_ptr<Primitive> aggregate;
+	vector<std::shared_ptr<Light> > lights;
 	vector<string> lightGroups;
 	SceneCamera camera;
 	Region *volumeRegion;
@@ -157,7 +157,7 @@ public:
 
 	// The following data are used when tracing rays with LuxRays
 	// The list of original primitives. It is required by LuxRays to build the DataSet.
-	vector<boost::shared_ptr<Primitive> > primitives;
+	vector<std::shared_ptr<Primitive> > primitives;
 	vector<const Primitive *> tessellatedPrimitives;
 	luxrays::DataSet *dataSet;
 

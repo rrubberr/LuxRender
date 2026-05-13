@@ -81,7 +81,7 @@ public:
 		bool *cached, cl::STRING_CLASS *error);
 
 private:
-	boost::unordered_map<std::string, cl::Program::Binaries> kernelCache;
+	std::unordered_map<std::string, cl::Program::Binaries> kernelCache;
 	std::vector<char *> kernels;
 };
 
@@ -99,7 +99,7 @@ public:
 	static u_int HashBin(const char *s, const size_t size);
 
 private:
-	boost::filesystem::path GetCacheDir(const std::string &applicationName) const;
+	std::filesystem::path GetCacheDir(const std::string &applicationName) const;
 
 	std::string appName;
 };

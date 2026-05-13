@@ -34,8 +34,8 @@ namespace lux
 // ClearVolume Declarations
 class ClearVolume : public Volume {
 public:
-	ClearVolume(const boost::shared_ptr<Texture<FresnelGeneral> > &fr,
-		boost::shared_ptr<Texture<SWCSpectrum> > &a) :
+	ClearVolume(const std::shared_ptr<Texture<FresnelGeneral> > &fr,
+		std::shared_ptr<Texture<SWCSpectrum> > &a) :
 		Volume("ClearVolume-"  + boost::lexical_cast<string>(this)),
 		fresnel(fr), absorption(a) { }
 	virtual ~ClearVolume() { }
@@ -98,8 +98,8 @@ public:
 	static Volume *CreateVolume(const Transform &volume2world, const ParamSet &params);
 
 private:
-	boost::shared_ptr<Texture<FresnelGeneral> > fresnel;
-	boost::shared_ptr<Texture<SWCSpectrum> > absorption;
+	std::shared_ptr<Texture<FresnelGeneral> > fresnel;
+	std::shared_ptr<Texture<SWCSpectrum> > absorption;
 };
 
 }//namespace lux

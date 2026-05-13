@@ -5,8 +5,8 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include "lux_api.h"
 
-typedef boost::shared_ptr<lux_instance> Instance;
-typedef boost::shared_ptr<lux_paramset> ParamSet;
+typedef std::shared_ptr<lux_instance> Instance;
+typedef std::shared_ptr<lux_paramset> ParamSet;
 
 // create a new instance with proper destruction
 Instance CreateInstance(const std::string name) {

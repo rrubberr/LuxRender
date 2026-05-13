@@ -31,9 +31,9 @@ using namespace luxrays;
 using namespace lux;
 
 // Primitive Method Definitions
-void Primitive::Refine(vector<boost::shared_ptr<Primitive> > &refined,
+void Primitive::Refine(vector<std::shared_ptr<Primitive> > &refined,
 	const PrimitiveRefinementHints& refineHints,
-	const boost::shared_ptr<Primitive> &thisPtr)
+	const std::shared_ptr<Primitive> &thisPtr)
 {
 	LOG( LUX_SEVERE,LUX_BUG)<< "Unimplemented Primitive::Refine method called!";
 }
@@ -95,15 +95,15 @@ bool Intersection::Le(const Sample &sample, const Ray &ray,
 }
 
 // AreaLightPrimitive Method Definitions
-void AreaLightPrimitive::Refine(vector<boost::shared_ptr<Primitive> > &refined,
+void AreaLightPrimitive::Refine(vector<std::shared_ptr<Primitive> > &refined,
 	const PrimitiveRefinementHints& refineHints,
-	const boost::shared_ptr<Primitive> &thisPtr)
+	const std::shared_ptr<Primitive> &thisPtr)
 {
 	// Refine the decorated primitive and add an arealight decorator to each result
-	vector<boost::shared_ptr<Primitive> > tmpRefined;
+	vector<std::shared_ptr<Primitive> > tmpRefined;
 	prim->Refine(tmpRefined, refineHints, prim);
 	for (u_int i = 0; i < tmpRefined.size(); ++i) {
-		boost::shared_ptr<Primitive> currPrim(
+		std::shared_ptr<Primitive> currPrim(
 			new AreaLightPrimitive(tmpRefined[i], areaLight));
 		refined.push_back(currPrim);
 	}

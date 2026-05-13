@@ -61,7 +61,7 @@ static inline float BBoxSurfaceArea(const BBox &b)
 // Constructor / Destructor.
 // ---------------------------------------------------------------------------
 
-MBVHAccel::MBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
+MBVHAccel::MBVHAccel(const vector<std::shared_ptr<Primitive> > &p,
 		int csamples, int icost, int tcost, float ebonus, int maxleafp)
 	: costSamples(csamples), isectCost(icost), traversalCost(tcost),
 	  maxLeafPrims(maxleafp < 1 ? 1 : maxleafp),
@@ -70,7 +70,7 @@ MBVHAccel::MBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 	// ------------------------------------------------------------------
 	// Collect intersectable primitives.
 	// ------------------------------------------------------------------
-	vector<boost::shared_ptr<Primitive> > vPrims;
+	vector<std::shared_ptr<Primitive> > vPrims;
 	const PrimitiveRefinementHints refineHints(false);
 	for (u_int i = 0; i < p.size(); ++i) {
 		if (p[i]->CanIntersect())
@@ -84,12 +84,12 @@ MBVHAccel::MBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 		return;
 
 	// Keep ownership of the original shared_ptr array.
-	prims = AllocAligned<boost::shared_ptr<Primitive> >(nPrims);
+	prims = AllocAligned<std::shared_ptr<Primitive> >(nPrims);
 	for (u_int i = 0; i < nPrims; ++i)
-		new (&prims[i]) boost::shared_ptr<Primitive>(vPrims[i]);
+		new (&prims[i]) std::shared_ptr<Primitive>(vPrims[i]);
 
 	// Create per-primitive leaf nodes for the binary build.
-	vector<boost::shared_ptr<BVHAccelTreeNode> > leafNodes(nPrims);
+	vector<std::shared_ptr<BVHAccelTreeNode> > leafNodes(nPrims);
 	for (u_int i = 0; i < nPrims; ++i) {
 		BVHAccelTreeNode *ln = new BVHAccelTreeNode();
 		ln->bbox      = prims[i]->WorldBound();
@@ -97,7 +97,7 @@ MBVHAccel::MBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
 		ln->isLeaf    = true;
 		ln->primitive = prims[i].get();
 		buildNodes.push_back(ln); // Non-owning shared_ptr: lifetime is managed by buildNodes.
-		leafNodes[i] = boost::shared_ptr<BVHAccelTreeNode>(ln, [](BVHAccelTreeNode *) {});
+		leafNodes[i] = std::shared_ptr<BVHAccelTreeNode>(ln, [](BVHAccelTreeNode *) {});
 	}
 
 	LOG(LUX_INFO, LUX_NOERROR) << "Building binary BVH with " << nPrims << " primitives, " 
@@ -229,7 +229,7 @@ MBVHAccel::~MBVHAccel()
 // CollapseToWide reads this range in O(1) to decide whether to inline the
 // node's whole subtree as a single fat leaf slot without recursing.
 BVHAccelTreeNode *MBVHAccel::BuildBinaryBVH(
-		vector<boost::shared_ptr<BVHAccelTreeNode> > &leaves,
+		vector<std::shared_ptr<BVHAccelTreeNode> > &leaves,
 		u_int begin, u_int end)
 {
 	assert(begin < end);
@@ -268,7 +268,7 @@ BVHAccelTreeNode *MBVHAccel::BuildBinaryBVH(
 	auto mid = std::partition(
 		leaves.begin() + begin,
 		leaves.begin() + end,
-		[bestAxis, splitValue](const boost::shared_ptr<BVHAccelTreeNode> &n) {
+		[bestAxis, splitValue](const std::shared_ptr<BVHAccelTreeNode> &n) {
 			return (n->bbox.pMax[bestAxis] + n->bbox.pMin[bestAxis]) < splitValue;
 		});
 
@@ -293,7 +293,7 @@ BVHAccelTreeNode *MBVHAccel::BuildBinaryBVH(
 }
 
 void MBVHAccel::FindBestSplit(
-		vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
+		vector<std::shared_ptr<BVHAccelTreeNode> > &list,
 		u_int begin, u_int end,
 		float *splitValue, u_int *bestAxis)
 {
@@ -491,7 +491,7 @@ void MBVHAccel::GatherChildren(BVHAccelTreeNode *node, int maxChildren,
 
 static void EmitSubtreeLeaves(
 		BVHAccelTreeNode *node,
-		const vector<boost::shared_ptr<BVHAccelTreeNode> > &leafNodes,
+		const vector<std::shared_ptr<BVHAccelTreeNode> > &leafNodes,
 		vector<Primitive *> &oPrims)
 {
 	if (node->isLeaf) {
@@ -561,7 +561,7 @@ static float LeafMergeGain(float saA, u_int nA,
 // ---------------------------------------------------------------------------
 
 u_int MBVHAccel::CollapseToWide(BVHAccelTreeNode *node,
-		const vector<boost::shared_ptr<BVHAccelTreeNode> > &leafNodes,
+		const vector<std::shared_ptr<BVHAccelTreeNode> > &leafNodes,
 		vector<MBVHNode> &wideNodes,
 		vector<Primitive *> &oPrims)
 {
@@ -930,7 +930,7 @@ bool MBVHAccel::IntersectP(const Ray &ray) const
 }
 
 // GetPrimitives / CreateAccelerator
-void MBVHAccel::GetPrimitives(vector<boost::shared_ptr<Primitive> > &primitives) const
+void MBVHAccel::GetPrimitives(vector<std::shared_ptr<Primitive> > &primitives) const
 {
 	primitives.reserve(nPrims);
 	for (u_int i = 0; i < nPrims; ++i)
@@ -938,7 +938,7 @@ void MBVHAccel::GetPrimitives(vector<boost::shared_ptr<Primitive> > &primitives)
 }
 
 Aggregate *MBVHAccel::CreateAccelerator(
-		const vector<boost::shared_ptr<Primitive> > &prims,
+		const vector<std::shared_ptr<Primitive> > &prims,
 		const ParamSet &ps)
 {
 	// costsamples: number of SAH candidate splits evaluated per binary split.

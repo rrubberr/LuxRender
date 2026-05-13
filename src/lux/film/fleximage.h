@@ -112,7 +112,7 @@ private:
 	// FlexImageFilm Private Data
 	// mutex is used for protecting the framebuffer pointer
 	// not reading/writing to the framebuffer
-	boost::mutex framebufferMutex;
+	std::mutex framebufferMutex;
 	unsigned char *framebuffer;
 	float *float_framebuffer;
 	float *alpha_buffer;
@@ -169,7 +169,7 @@ private:
 
 	bool m_CameraResponseEnabled, d_CameraResponseEnabled;
 	string m_CameraResponseFile, d_CameraResponseFile; // Path to the data file
-	boost::shared_ptr<CameraResponse> cameraResponse; // Actual data processor
+	std::shared_ptr<CameraResponse> cameraResponse; // Actual data processor
 
 	XYZColor * m_bloomImage; // Persisting bloom layer image 
 	float m_BloomRadius, d_BloomRadius;

@@ -1211,11 +1211,11 @@ extern "C" void luxErrorIgnore(int code, int severity, const char *message)
 	luxLastError = code;
 }
 
-boost::mutex stdout_mutex;
+std::mutex stdout_mutex;
 
 extern "C" void luxErrorPrint(int code, int severity, const char *message)
 {
-	boost::mutex::scoped_lock lock(stdout_mutex);
+	std::scoped_lock<std::mutex> lock(stdout_mutex);
 
 	luxLastError = code;
 	cerr<<"[";

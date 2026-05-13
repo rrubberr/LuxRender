@@ -29,6 +29,7 @@
 #include "lookupaccel.h"
 #include "reflection/bxdf.h"
 #include "scheduler.h"
+#include <mutex>
 
 namespace lux
 {
@@ -221,7 +222,7 @@ public:
 			size += n1D[i];
 		for (u_int i = 0; i < n2D.size(); ++i)
 			size += 2 * n2D[i];
-		boost::mutex::scoped_lock lock(initMutex);
+		std::unique_lock<std::mutex> lock(initMutex);
 		if (halton.size() == 0) {
 			for (u_int i = 0; i < nPixels; ++i) {
 				const_cast<vector<PermutedHalton *> &>(halton).push_back(new PermutedHalton(size + 4, *(sample->rng)));
@@ -286,7 +287,7 @@ private:
 	mutable u_int curIndex;
 	vector<PermutedHalton *> halton;
 	vector<float> haltonOffset;
-	mutable boost::mutex initMutex;
+	mutable std::mutex initMutex;
 
 	u_int offset;
 };

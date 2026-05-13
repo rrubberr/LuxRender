@@ -32,19 +32,19 @@ namespace lux
 class LayeredMaterial : public Material {
 public:
 	// LayeredMaterial Public Methods
-	LayeredMaterial(const ParamSet &mp, boost::shared_ptr<Material> &m1,
-		 boost::shared_ptr<Material> &m2,boost::shared_ptr<Material> &m3,
-		  boost::shared_ptr<Material> &m4,
-		  boost::shared_ptr<Texture<float> > &op1, boost::shared_ptr<Texture<float> > &op2,
-		  boost::shared_ptr<Texture<float> > &op3, boost::shared_ptr<Texture<float> > &op4
+	LayeredMaterial(const ParamSet &mp, std::shared_ptr<Material> &m1,
+		 std::shared_ptr<Material> &m2,std::shared_ptr<Material> &m3,
+		  std::shared_ptr<Material> &m4,
+		  std::shared_ptr<Texture<float> > &op1, std::shared_ptr<Texture<float> > &op2,
+		  std::shared_ptr<Texture<float> > &op3, std::shared_ptr<Texture<float> > &op4
 		  ) : Material("LayeredMaterial-" + boost::lexical_cast<string>(this), mp), mat1(m1),mat2(m2),
 		  mat3(m3),mat4(m4), opacity1(op1),opacity2(op2),opacity3(op3),opacity4(op4) {}
 
 	void addMat(MemoryArena &arena, const SpectrumWavelengths &sw, const Intersection &isect, 
-		const DifferentialGeometry &dgShading, boost::shared_ptr<Material> mat,
-		LayeredBSDF *lbsdf,boost::shared_ptr<Texture<float> > opacity) const;
+		const DifferentialGeometry &dgShading, std::shared_ptr<Material> mat,
+		LayeredBSDF *lbsdf,std::shared_ptr<Texture<float> > opacity) const;
 
-	//void LayeredMaterial::setMaterial(int slot, boost::shared_ptr<Material> &mat);
+	//void LayeredMaterial::setMaterial(int slot, std::shared_ptr<Material> &mat);
 	
 	virtual ~LayeredMaterial() { }
 	virtual BSDF *GetBSDF(MemoryArena &arena, const SpectrumWavelengths &sw,
@@ -56,8 +56,8 @@ public:
 
 private:
 	// LayeredMaterial Private Data
-	boost::shared_ptr<Material> mat1,mat2,mat3,mat4;
-	boost::shared_ptr<Texture<float> > opacity1,opacity2,opacity3,opacity4;
+	std::shared_ptr<Material> mat1,mat2,mat3,mat4;
+	std::shared_ptr<Texture<float> > opacity1,opacity2,opacity3,opacity4;
 };
 
 }//namespace lux

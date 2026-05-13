@@ -75,11 +75,11 @@ public:
 class MipMapSphericalFunction : public SphericalFunction {
 public:
 	MipMapSphericalFunction();
-	MipMapSphericalFunction(boost::shared_ptr<const MIPMap> &aMipMap,
+	MipMapSphericalFunction(std::shared_ptr<const MIPMap> &aMipMap,
 		bool flipZ);
 
-	void SetMipMap(boost::shared_ptr<const MIPMap> &aMipMap) {
-		boost::shared_ptr<const MIPMap> mm(aMipMap);
+	void SetMipMap(std::shared_ptr<const MIPMap> &aMipMap) {
+		std::shared_ptr<const MIPMap> mm(aMipMap);
 		mipMap = mm;
 	}
 
@@ -89,7 +89,7 @@ public:
 	const MIPMap *GetMipMap() const { return mipMap.get(); }
 
 private:
-	boost::shared_ptr<const MIPMap> mipMap;
+	std::shared_ptr<const MIPMap> mipMap;
 };
 
 /**
@@ -100,7 +100,7 @@ class CompositeSphericalFunction : public SphericalFunction {
 public:
 	CompositeSphericalFunction() { }
 
-	void Add(boost::shared_ptr<const SphericalFunction> &aFunc) {
+	void Add(std::shared_ptr<const SphericalFunction> &aFunc) {
 		funcs.push_back(aFunc);
 	}
 
@@ -116,7 +116,7 @@ public:
 	const SphericalFunction *GetFunc(const u_int index) const { return funcs[index].get(); }
 
 private:
-	vector<boost::shared_ptr<const SphericalFunction> > funcs;
+	vector<std::shared_ptr<const SphericalFunction> > funcs;
 };
 
 /**
@@ -124,7 +124,7 @@ private:
  */
 class SampleableSphericalFunction : public SphericalFunction {
 public:
-	SampleableSphericalFunction(boost::shared_ptr<const SphericalFunction> &aFunc, 
+	SampleableSphericalFunction(std::shared_ptr<const SphericalFunction> &aFunc, 
 		u_int xRes = 512, u_int yRes = 256);
 	~SampleableSphericalFunction();
 
@@ -165,7 +165,7 @@ public:
 
 private:
 	luxrays::Distribution2D* uvDistrib;
-	boost::shared_ptr<const SphericalFunction> func;
+	std::shared_ptr<const SphericalFunction> func;
 	float average;
 };
 

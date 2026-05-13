@@ -112,7 +112,7 @@ bool RandomSampler::GetNextSample(Sample *sample)
 			u_int sampPixelPosToUse;
 			// Move to the next pixel
 			{
-				fast_mutex::scoped_lock lock(sampPixelPosMutex);
+				std::scoped_lock<std::mutex> lock(sampPixelPosMutex);
 				sampPixelPosToUse = sampPixelPos;
 				sampPixelPos = (sampPixelPos + 1) % totalPixels;
 			}
@@ -131,7 +131,7 @@ bool RandomSampler::GetNextSample(Sample *sample)
 			u_int sampPixelPosToUse;
 			// Move to the next pixel
 			{
-				fast_mutex::scoped_lock lock(sampPixelPosMutex);
+				std::scoped_lock<std::mutex> lock(sampPixelPosMutex);
 				sampPixelPosToUse = sampPixelPos;
 				sampPixelPos = (sampPixelPos + 1) % totalPixels;
 			}

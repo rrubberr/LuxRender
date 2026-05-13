@@ -38,8 +38,8 @@ public:
 
 	// UVMaskFloatTexture Public Methods
 	UVMaskTexture(TextureMapping2D *m,
-	              boost::shared_ptr<Texture<T> > &_innerTex,
-	              boost::shared_ptr<Texture<T> > &_outerTex) :
+	              std::shared_ptr<Texture<T> > &_innerTex,
+	              std::shared_ptr<Texture<T> > &_outerTex) :
 		Texture<T>("UVMaskTexture-" + boost::lexical_cast<string>(this)),
 		innerTex(_innerTex), outerTex(_outerTex) { mapping = m; }
 
@@ -102,8 +102,8 @@ public:
 private:
 
 	TextureMapping2D               *mapping;
-	boost::shared_ptr<Texture<T> > innerTex;
-	boost::shared_ptr<Texture<T> > outerTex;
+	std::shared_ptr<Texture<T> > innerTex;
+	std::shared_ptr<Texture<T> > outerTex;
 };
 
 
@@ -112,8 +112,8 @@ Texture<float> * UVMaskTexture<T>::CreateFloatTexture(const Transform &tex2world
                                                       const ParamSet  &tp)
 {
 	// Initialize 2D texture mapping _map_ from _tp_
-	boost::shared_ptr<Texture<float> > innerTex(tp.GetFloatTexture("innertex", 1.f));
-	boost::shared_ptr<Texture<float> > outerTex(tp.GetFloatTexture("outertex", 0.f));
+	std::shared_ptr<Texture<float> > innerTex(tp.GetFloatTexture("innertex", 1.f));
+	std::shared_ptr<Texture<float> > outerTex(tp.GetFloatTexture("outertex", 0.f));
   return new UVMaskTexture(TextureMapping2D::Create(tex2world, tp), innerTex, outerTex);
 }
 

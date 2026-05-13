@@ -37,12 +37,12 @@ using namespace lux;
 //------------------------------------------------------------------------------
 
 unsigned int SRDeviceDescription::GetUsedUnitsCount() const {
-	boost::mutex::scoped_lock lock(host->renderer->renderThreadsMutex);
+	std::scoped_lock<std::mutex> lock(host->renderer->renderThreadsMutex);
 	return host->renderer->renderThreads.size();
 }
 
 void SRDeviceDescription::SetUsedUnitsCount(const unsigned int units) {
-	boost::mutex::scoped_lock lock(host->renderer->renderThreadsMutex);
+	std::scoped_lock<std::mutex> lock(host->renderer->renderThreadsMutex);
 
 	unsigned int target = max(units, 1u);
 	size_t current = host->renderer->renderThreads.size();
@@ -89,7 +89,7 @@ SamplerRenderer::SamplerRenderer() : Renderer() {
 }
 
 SamplerRenderer::~SamplerRenderer() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 
 	delete rendererStatistics;
 
@@ -108,19 +108,19 @@ Renderer::RendererType SamplerRenderer::GetType() const {
 }
 
 Renderer::RendererState SamplerRenderer::GetState() const {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 
 	return state;
 }
 
 vector<RendererHostDescription *> &SamplerRenderer::GetHostDescs() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 
 	return hosts;
 }
 
 void SamplerRenderer::SuspendWhenDone(bool v) {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 	suspendThreadsWhenDone = v;
 }
 
@@ -142,7 +142,7 @@ static void writeIntervalCheck(Film *film) {
 void SamplerRenderer::Render(Scene *s) {
 	{
 		// Section under mutex
-		boost::mutex::scoped_lock lock(classWideMutex);
+		std::scoped_lock<std::mutex> lock(classWideMutex);
 
 		scene = s;
 
@@ -209,7 +209,7 @@ void SamplerRenderer::Render(Scene *s) {
 
 		// rendering done, now I can remove all rendering threads
 		{
-			boost::mutex::scoped_lock lock(renderThreadsMutex);
+			std::scoped_lock<std::mutex> lock(renderThreadsMutex);
 
 			// wait for all threads to finish their job
 			for (u_int i = 0; i < renderThreads.size(); ++i) {
@@ -233,19 +233,19 @@ void SamplerRenderer::Render(Scene *s) {
 }
 
 void SamplerRenderer::Pause() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 	state = PAUSE;
 	rendererStatistics->stop();
 }
 
 void SamplerRenderer::Resume() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 	state = RUN;
 	rendererStatistics->start();
 }
 
 void SamplerRenderer::Terminate() {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 	state = TERMINATE;
 }
 
@@ -363,7 +363,7 @@ void SamplerRenderer::RenderThread::RenderImpl(RenderThread *myThread) {
 		{
 			const u_int nContribs = scene.surfaceIntegrator->Li(scene, sample);
 			// update samples statistics
-			fast_mutex::scoped_lock lockStats(myThread->statLock);
+			std::scoped_lock<std::mutex> lockStats(myThread->statLock);
 			myThread->blackSamples += nContribs;
 			if (nContribs > 0)
 				++(myThread->blackSamplePaths);

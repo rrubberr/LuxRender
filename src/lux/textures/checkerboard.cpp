@@ -35,8 +35,8 @@ Texture<float> * Checkerboard::CreateFloatTexture(const Transform &tex2world,
 		LOG( LUX_ERROR,LUX_UNIMPLEMENT) << dim << " dimensional checkerboard texture not supported";
 		return NULL;
 	}
-	boost::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("tex1", 1.f));
-	boost::shared_ptr<Texture<float> > tex2(tp.GetFloatTexture("tex2", 0.f));
+	std::shared_ptr<Texture<float> > tex1(tp.GetFloatTexture("tex1", 1.f));
+	std::shared_ptr<Texture<float> > tex2(tp.GetFloatTexture("tex2", 0.f));
 	if (dim == 2) {
 		// Initialize 2D texture mapping _map_ from _tp_
 		string aamode = tp.FindOneString("aamode", "none");

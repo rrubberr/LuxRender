@@ -60,9 +60,9 @@ public:
 	 * @param refineHints The hints for the refinement.
 	 * @param thisPtr     The shared pointer to this primitive.
 	 */
-	virtual void Refine(vector<boost::shared_ptr<Primitive> > &refined,
+	virtual void Refine(vector<std::shared_ptr<Primitive> > &refined,
 		const PrimitiveRefinementHints &refineHints,
-		const boost::shared_ptr<Primitive> &thisPtr);
+		const std::shared_ptr<Primitive> &thisPtr);
 
 	// Intersection
 	/**
@@ -251,17 +251,17 @@ public:
 class AreaLightPrimitive : public Primitive {
 public:
 	// AreaLightPrimitive Public Methods
-	AreaLightPrimitive(boost::shared_ptr<Primitive> &aPrim,
-		boost::shared_ptr<AreaLight> &aArealight) :
+	AreaLightPrimitive(std::shared_ptr<Primitive> &aPrim,
+		std::shared_ptr<AreaLight> &aArealight) :
 		prim(aPrim), areaLight(aArealight) { }
 	virtual ~AreaLightPrimitive() { }
 
 	virtual BBox WorldBound() const { return prim->WorldBound(); };
 	virtual const Volume *GetExterior() const { return prim->GetExterior(); }
 	virtual const Volume *GetInterior() const { return prim->GetInterior(); }
-	virtual void Refine(vector<boost::shared_ptr<Primitive> > &refined,
+	virtual void Refine(vector<std::shared_ptr<Primitive> > &refined,
 		const PrimitiveRefinementHints& refineHints,
-		const boost::shared_ptr<Primitive> &thisPtr);
+		const std::shared_ptr<Primitive> &thisPtr);
 
 	virtual bool CanIntersect() const { return prim->CanIntersect(); }
 	virtual bool Intersect(const Ray &r, Intersection *in) const;
@@ -288,11 +288,11 @@ public:
 		return prim->Pdf(p, dg);
 	}
 
-	const boost::shared_ptr<Primitive> &GetPrimitive() const {
+	const std::shared_ptr<Primitive> &GetPrimitive() const {
 		return prim;
 	}
 
-	const boost::shared_ptr<AreaLight> &GetAreaLight() const {
+	const std::shared_ptr<AreaLight> &GetAreaLight() const {
 		return areaLight;
 	}
 
@@ -327,8 +327,8 @@ public:
 
 private:
 	// AreaLightPrimitive Private Data
-	boost::shared_ptr<Primitive> prim;
-	boost::shared_ptr<AreaLight> areaLight;
+	std::shared_ptr<Primitive> prim;
+	std::shared_ptr<AreaLight> areaLight;
 };
 
 /**
@@ -348,10 +348,10 @@ public:
 	 * @param mat The material this instance or NULL to use the
 	 *            instanced primitive's material.
 	 */
-	InstancePrimitive(const vector<boost::shared_ptr<Primitive> > &instSources,
-		boost::shared_ptr<Primitive> &i, const Transform &i2w,
-		boost::shared_ptr<Material> &mat, boost::shared_ptr<Volume> &ex,
-		boost::shared_ptr<Volume> &in) : instanceSources(instSources), instance(i),
+	InstancePrimitive(const vector<std::shared_ptr<Primitive> > &instSources,
+		std::shared_ptr<Primitive> &i, const Transform &i2w,
+		std::shared_ptr<Material> &mat, std::shared_ptr<Volume> &ex,
+		std::shared_ptr<Volume> &in) : instanceSources(instSources), instance(i),
 		InstanceToWorld(i2w), material(mat), exterior(ex),
 		interior(in) { }
 	virtual ~InstancePrimitive() { }
@@ -415,17 +415,17 @@ public:
 		return InstanceToWorld * instance->GetLocalToWorld(time);
 	}
 
-	const vector<boost::shared_ptr<Primitive> > &GetInstanceSources() const { return instanceSources; }
+	const vector<std::shared_ptr<Primitive> > &GetInstanceSources() const { return instanceSources; }
 	const Transform &GetTransform() const { return InstanceToWorld; }
 	Material *GetMaterial() const { return material.get(); }
 
 private:
 	// InstancePrimitive Private Data
-	vector<boost::shared_ptr<Primitive> > instanceSources;
-	boost::shared_ptr<Primitive> instance;
+	vector<std::shared_ptr<Primitive> > instanceSources;
+	std::shared_ptr<Primitive> instance;
 	Transform InstanceToWorld;
-	boost::shared_ptr<Material> material;
-	boost::shared_ptr<Volume> exterior, interior;
+	std::shared_ptr<Material> material;
+	std::shared_ptr<Volume> exterior, interior;
 };
 
 class Aggregate : public Primitive {
@@ -439,7 +439,7 @@ public:
 	 * Gives all primitives in this aggregate.
 	 * @param prims The destination list for the primitives.
 	 */
-	virtual void GetPrimitives(vector<boost::shared_ptr<Primitive> > &prims) const = 0;
+	virtual void GetPrimitives(vector<std::shared_ptr<Primitive> > &prims) const = 0;
 };
 
 
@@ -458,10 +458,10 @@ public:
 	 * @param i   The primitive to instance.
 	 * @param i2w The instance to world motionsystem.
 	 */
-	MotionPrimitive(const vector<boost::shared_ptr<Primitive> > &instSources,
-		boost::shared_ptr<Primitive> &i,
-		const MotionSystem &i2w, boost::shared_ptr<Material> &mat,
-		boost::shared_ptr<Volume> &ex, boost::shared_ptr<Volume> &in) :
+	MotionPrimitive(const vector<std::shared_ptr<Primitive> > &instSources,
+		std::shared_ptr<Primitive> &i,
+		const MotionSystem &i2w, std::shared_ptr<Material> &mat,
+		std::shared_ptr<Volume> &ex, std::shared_ptr<Volume> &in) :
 		instanceSources(instSources), instance(i), motionPath(i2w),
 		material(mat), exterior(ex), interior(in) { }
 	virtual ~MotionPrimitive() { }
@@ -526,17 +526,17 @@ public:
 		return Transform(motionPath.Sample(time)) * instance->GetLocalToWorld(time);
 	}
 
-	const vector<boost::shared_ptr<Primitive> > &GetInstanceSources() const { return instanceSources; }
+	const vector<std::shared_ptr<Primitive> > &GetInstanceSources() const { return instanceSources; }
 	Material *GetMaterial() const { return material.get(); }
 	const MotionSystem &GetMotionSystem() const { return motionPath; } 
 
 private:
 	// MotionPrimitive Private Data
-	vector<boost::shared_ptr<Primitive> > instanceSources;
-	boost::shared_ptr<Primitive> instance;
+	vector<std::shared_ptr<Primitive> > instanceSources;
+	std::shared_ptr<Primitive> instance;
 	MotionSystem motionPath;
-	boost::shared_ptr<Material> material;
-	boost::shared_ptr<Volume> exterior, interior;
+	std::shared_ptr<Material> material;
+	std::shared_ptr<Volume> exterior, interior;
 };
 
 // ScattererPrimitive Declarations

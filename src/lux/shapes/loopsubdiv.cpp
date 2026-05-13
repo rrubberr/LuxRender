@@ -34,7 +34,7 @@ using namespace lux;
 LoopSubdiv::LoopSubdiv(u_int nfaces, u_int nvertices, const int *vertexIndices,
 	const Point *P, const float *uv, const Normal *n,
 	const float *cols, const float *alphas, u_int nl,
-	const boost::shared_ptr<Texture<float> > &dismap, float dmscale,
+	const std::shared_ptr<Texture<float> > &dismap, float dmscale,
 	float dmoffset, bool dmnormalsmooth, bool dmsharpboundary,
 	bool normalsplit, const string &sname)
 	: displacementMap(dismap),
@@ -193,11 +193,11 @@ static bool CheckDegenerate(SDFace *face)
 	return degenerate;
 }
 
-boost::shared_ptr<LoopSubdiv::SubdivResult> LoopSubdiv::Refine() const {
+std::shared_ptr<LoopSubdiv::SubdivResult> LoopSubdiv::Refine() const {
 
 	// check that we should do any subdivision
 	if (nLevels < 1) {
-		return boost::shared_ptr<LoopSubdiv::SubdivResult>();
+		return std::shared_ptr<LoopSubdiv::SubdivResult>();
 	}
 
 	SHAPE_LOG(name, LUX_INFO,LUX_NOERROR) << "Applying " << nLevels << " levels of loop subdivision to " << faces.size() << " triangles";
@@ -339,7 +339,7 @@ boost::shared_ptr<LoopSubdiv::SubdivResult> LoopSubdiv::Refine() const {
 				} else {
 					if (itEdge->first.f0edgeNum == 9999) {
 						SHAPE_LOG(name, LUX_ERROR, LUX_CONSISTENCY) << "Incorrect topology, more than 2 faces share the same edge, aborting subdivision";
-						return boost::shared_ptr<LoopSubdiv::SubdivResult>();
+						return std::shared_ptr<LoopSubdiv::SubdivResult>();
 					}
 					vert = itEdge->second;
 					// If UV are different on each side of the edge create a new vertex
@@ -495,7 +495,7 @@ boost::shared_ptr<LoopSubdiv::SubdivResult> LoopSubdiv::Refine() const {
 			Ns[i] = v[i]->n;
 	}
 
-	return boost::shared_ptr<SubdivResult>(new SubdivResult(ntris, nverts, verts, Plimit, Ns, UVLimit, colLimit, alphaLimit));
+	return std::shared_ptr<SubdivResult>(new SubdivResult(ntris, nverts, verts, Plimit, Ns, UVLimit, colLimit, alphaLimit));
 }
 
 void LoopSubdiv::GenerateNormals(const vector<SDVertex *> v) {

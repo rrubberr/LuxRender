@@ -32,14 +32,14 @@ namespace lux
 
 void QueryableRegistry::Insert(Queryable* object)
 {
-	boost::mutex::scoped_lock lock(classWideMutex);
+	std::scoped_lock<std::mutex> lock(classWideMutex);
 	std::map<std::string, Queryable*>::iterator it = queryableObjects.find(object->GetName());
 	queryableObjects.insert(std::pair<std::string,Queryable*>(object->GetName(),object));
 }
 
 void QueryableRegistry::Erase(Queryable* object)
 {
-    boost::mutex::scoped_lock lock(classWideMutex);
+    std::scoped_lock<std::mutex> lock(classWideMutex);
 
     const std::string &name = object->GetName();
 
@@ -71,7 +71,7 @@ const char * QueryableRegistry::GetContent()
 		XMLOutput << "  <object>"<<std::endl;
 		XMLOutput << "    <name>"<<pairQObject.first<<"</name>"<<std::endl;
 
-		std::pair<std::string, boost::shared_ptr<QueryableAttribute> > pairQAttribute;
+		std::pair<std::string, std::shared_ptr<QueryableAttribute> > pairQAttribute;
 		BOOST_FOREACH( pairQAttribute, *(pairQObject.second) )
 		{
 			XMLOutput<<"    <attribute>"<<std::endl;

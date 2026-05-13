@@ -73,9 +73,9 @@ BSDF *MatteTranslucent::GetBSDF(MemoryArena &arena,
 }
 Material* MatteTranslucent::CreateMaterial(const Transform &xform,
 		const ParamSet &mp) {
-	boost::shared_ptr<Texture<SWCSpectrum> > Kr(mp.GetSWCSpectrumTexture("Kr", RGBColor(1.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > Kt(mp.GetSWCSpectrumTexture("Kt", RGBColor(1.f)));
-	boost::shared_ptr<Texture<float> > sigma(mp.GetFloatTexture("sigma", 0.f));
+	std::shared_ptr<Texture<SWCSpectrum> > Kr(mp.GetSWCSpectrumTexture("Kr", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > Kt(mp.GetSWCSpectrumTexture("Kt", RGBColor(1.f)));
+	std::shared_ptr<Texture<float> > sigma(mp.GetFloatTexture("sigma", 0.f));
 	bool conserving = mp.FindOneBool("energyconserving", false);
 
 	return new MatteTranslucent(Kr, Kt, sigma, conserving, mp);

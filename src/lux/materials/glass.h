@@ -31,12 +31,12 @@ namespace lux
 class Glass : public Material {
 public:
 	// Glass Public Methods
-	Glass(boost::shared_ptr<Texture<SWCSpectrum> > &r,
-		boost::shared_ptr<Texture<SWCSpectrum> > &t,
-		boost::shared_ptr<Texture<float> > &i,
-		boost::shared_ptr<Texture<float> > &cbf,
-		boost::shared_ptr<Texture<float> > &flm,
-		boost::shared_ptr<Texture<float> > &flmindex,
+	Glass(std::shared_ptr<Texture<SWCSpectrum> > &r,
+		std::shared_ptr<Texture<SWCSpectrum> > &t,
+		std::shared_ptr<Texture<float> > &i,
+		std::shared_ptr<Texture<float> > &cbf,
+		std::shared_ptr<Texture<float> > &flm,
+		std::shared_ptr<Texture<float> > &flmindex,
 		bool archi, const ParamSet &mp) : Material("Glass-" + boost::lexical_cast<string>(this), mp),
 		Kr(r), Kt(t), index(i),
 		cauchyb(cbf), film(flm), filmindex(flmindex), architectural(archi) {
@@ -56,10 +56,10 @@ public:
 
 private:
 	// Glass Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kr, Kt;
-	boost::shared_ptr<Texture<float> > index;
-	boost::shared_ptr<Texture<float> > cauchyb;
-	boost::shared_ptr<Texture<float> > film, filmindex;
+	std::shared_ptr<Texture<SWCSpectrum> > Kr, Kt;
+	std::shared_ptr<Texture<float> > index;
+	std::shared_ptr<Texture<float> > cauchyb;
+	std::shared_ptr<Texture<float> > film, filmindex;
 	bool architectural;
 };
 

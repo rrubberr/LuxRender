@@ -41,7 +41,7 @@ public:
 	virtual BBox ObjectBound() const;
 	virtual BBox WorldBound() const;
 	virtual bool CanIntersect() const { return false; }
-	virtual void Refine(vector<boost::shared_ptr<Shape> > &refined) const;
+	virtual void Refine(vector<std::shared_ptr<Shape> > &refined) const;
 	
 	static Shape* CreateShape(const Transform &o2w, bool reverseOrientation, const ParamSet &params);
 private:

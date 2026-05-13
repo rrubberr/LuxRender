@@ -31,13 +31,13 @@ namespace lux
 class GlossyCombined : public Material {
 public:
 	// GlossyCombined Public Methods
-	GlossyCombined(boost::shared_ptr<Texture<SWCSpectrum> > &kd,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ks,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ka,
-		boost::shared_ptr<Texture<float> > &i,
-		boost::shared_ptr<Texture<float> > &d,
-		boost::shared_ptr<Texture<float> > &u,
-		boost::shared_ptr<Texture<float> > &v,
+	GlossyCombined(std::shared_ptr<Texture<SWCSpectrum> > &kd,
+		std::shared_ptr<Texture<SWCSpectrum> > &ks,
+		std::shared_ptr<Texture<SWCSpectrum> > &ka,
+		std::shared_ptr<Texture<float> > &i,
+		std::shared_ptr<Texture<float> > &d,
+		std::shared_ptr<Texture<float> > &u,
+		std::shared_ptr<Texture<float> > &v,
 		bool mb,
 		const ParamSet &mp) : Material("GlossyCombined-" + boost::lexical_cast<string>(this), mp),
 		Kd(kd), Ks(ks), Ka(ka),
@@ -49,23 +49,23 @@ public:
 	
 private:
 	// Glossy Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd, Ks, Ka;
-	boost::shared_ptr<Texture<float> > depth, index;
-	boost::shared_ptr<Texture<float> > nu, nv;
+	std::shared_ptr<Texture<SWCSpectrum> > Kd, Ks, Ka;
+	std::shared_ptr<Texture<float> > depth, index;
+	std::shared_ptr<Texture<float> > nu, nv;
 	bool multibounce;
 };
 
 class Glossy2 : public Material {
 public:
 	// Glossy Public Methods
-	Glossy2(boost::shared_ptr<Texture<SWCSpectrum> > &kd,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ks,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ka,
-		boost::shared_ptr<Texture<float> > &i,
-		boost::shared_ptr<Texture<float> > &d,
-		boost::shared_ptr<Texture<float> > &u,
-		boost::shared_ptr<Texture<float> > &v,
-		boost::shared_ptr<Texture<float> > &s,
+	Glossy2(std::shared_ptr<Texture<SWCSpectrum> > &kd,
+		std::shared_ptr<Texture<SWCSpectrum> > &ks,
+		std::shared_ptr<Texture<SWCSpectrum> > &ka,
+		std::shared_ptr<Texture<float> > &i,
+		std::shared_ptr<Texture<float> > &d,
+		std::shared_ptr<Texture<float> > &u,
+		std::shared_ptr<Texture<float> > &v,
+		std::shared_ptr<Texture<float> > &s,
 		bool mb,
 		const ParamSet &mp) : Material("Glossy2-" + boost::lexical_cast<string>(this), mp), Kd(kd), Ks(ks), Ka(ka),	
 		depth(d), index(i), nu(u), nv(v), sigma(s), 
@@ -88,23 +88,23 @@ public:
 		const ParamSet &mp);
 private:
 	// Glossy Private Data
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd, Ks, Ka;
-	boost::shared_ptr<Texture<float> > depth, index;
-	boost::shared_ptr<Texture<float> > nu, nv;
-	boost::shared_ptr<Texture<float> > sigma;
+	std::shared_ptr<Texture<SWCSpectrum> > Kd, Ks, Ka;
+	std::shared_ptr<Texture<float> > depth, index;
+	std::shared_ptr<Texture<float> > nu, nv;
+	std::shared_ptr<Texture<float> > sigma;
 	bool multibounce;
 };
 
 class GlossyCoating : public Material {
 public:
 	// GlossyCoating Public Methods
-	GlossyCoating(boost::shared_ptr<Material> &bmat,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ks,
-		boost::shared_ptr<Texture<SWCSpectrum> > &ka,
-		boost::shared_ptr<Texture<float> > &i,
-		boost::shared_ptr<Texture<float> > &d,
-		boost::shared_ptr<Texture<float> > &u,
-		boost::shared_ptr<Texture<float> > &v,
+	GlossyCoating(std::shared_ptr<Material> &bmat,
+		std::shared_ptr<Texture<SWCSpectrum> > &ks,
+		std::shared_ptr<Texture<SWCSpectrum> > &ka,
+		std::shared_ptr<Texture<float> > &i,
+		std::shared_ptr<Texture<float> > &d,
+		std::shared_ptr<Texture<float> > &u,
+		std::shared_ptr<Texture<float> > &v,
 		bool mb,
 		const ParamSet &mp) : Material("GlossyCoating-" + boost::lexical_cast<string>(this), mp),
 		basemat(bmat), Ks(ks), Ka(ka), depth(d), index(i), nu(u), nv(v), multibounce(mb) { }
@@ -126,10 +126,10 @@ public:
 		const ParamSet &mp);
 private:
 	// GlossyCoating Private Data
-	boost::shared_ptr<Material> basemat;
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks, Ka;
-	boost::shared_ptr<Texture<float> > depth, index;
-	boost::shared_ptr<Texture<float> > nu, nv;
+	std::shared_ptr<Material> basemat;
+	std::shared_ptr<Texture<SWCSpectrum> > Ks, Ka;
+	std::shared_ptr<Texture<float> > depth, index;
+	std::shared_ptr<Texture<float> > nu, nv;
 	bool multibounce;
 };
 

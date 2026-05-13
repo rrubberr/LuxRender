@@ -102,7 +102,7 @@ double SPPMRStatistics::getAveragePassesPerSecond() {
 }
 
 double SPPMRStatistics::getAveragePassesPerSecondWindow() {
-	boost::mutex::scoped_lock window_mutex(windowMutex);
+	std::scoped_lock window_mutex(windowMutex);
 	return exponentialMovingAveragePass;
 }
 
@@ -128,7 +128,7 @@ double SPPMRStatistics::getAveragePhotonsPerSecond() {
 }
 
 double SPPMRStatistics::getAveragePhotonsPerSecondWindow() {
-	boost::mutex::scoped_lock window_mutex(windowMutex);
+	std::scoped_lock window_mutex(windowMutex);
 	return exponentialMovingAveragePhotons;
 }
 

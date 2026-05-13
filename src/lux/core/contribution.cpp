@@ -91,7 +91,7 @@ ContributionPool::~ContributionPool() {
 
 void ContributionPool::End(ContributionBuffer *c)
 {
-	fast_mutex::scoped_lock poolAction(poolMutex);
+	std::scoped_lock poolAction(poolMutex);
 
 	for (u_int i = 0; i < c->buffers.size(); ++i) {
 		for (u_int j = 0; j < c->buffers[i].size(); ++j)
@@ -110,7 +110,7 @@ void ContributionPool::Next(ContributionBuffer::Buffer* volatile *b, float *sc,
 	// store the current Buffer pointer for later comparison
 	ContributionBuffer::Buffer* const buf = *b;
 
-	fast_mutex::scoped_lock pool_lock(poolMutex);
+	std::unique_lock pool_lock(poolMutex);
 
 	// If the Buffer* pointed to by b has changed
 	// while we waited for the lock then another thread 
@@ -168,7 +168,7 @@ void ContributionPool::Next(ContributionBuffer::Buffer* volatile *b, float *sc,
 	// until CFree is filled with free buffers again.
 	// This prevents a thread from trying to splat
 	// prematurely.
-	boost::mutex::scoped_lock main_splatting_lock(mainSplattingMutex);
+	std::unique_lock main_splatting_lock(mainSplattingMutex);
 
 	const float count = sampleCount;
 	sampleCount = 0.f;
@@ -180,7 +180,7 @@ void ContributionPool::Next(ContributionBuffer::Buffer* volatile *b, float *sc,
 
 	{
 		// aquire tile splatting lock
-		tile_mutex::scoped_lock tile_splatting_lock(tileSplattingMutexes[tileIndex]);
+		std::scoped_lock tile_splatting_lock(tileSplattingMutexes[tileIndex]);
 
 		// release main splatting lock
 		main_splatting_lock.unlock();
@@ -198,7 +198,7 @@ void ContributionPool::Next(ContributionBuffer::Buffer* volatile *b, float *sc,
 
 	{
 		// reaquire pool lock
-		fast_mutex::scoped_lock pool_lock_end(poolMutex);
+		std::scoped_lock pool_lock_end(poolMutex);
 
 		// put splatted buffers back
 		CFree.insert(CFree.end(), splat_buffers.begin(), splat_buffers.end());

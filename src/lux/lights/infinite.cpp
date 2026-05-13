@@ -118,7 +118,7 @@ public:
 		const Volume *exterior, const Volume *interior,
 		const InfiniteAreaLight &l, const Transform &LW,
 		const Point &p,
-		const vector<boost::shared_ptr<Primitive> > &portalList,
+		const vector<std::shared_ptr<Primitive> > &portalList,
 		u_int portal) :
 		BSDF(dgs, ngeom, exterior, interior), light(l),
 		LightToWorld(LW), ps(p), PortalShapes(portalList),
@@ -218,7 +218,7 @@ protected:
 	const InfiniteAreaLight &light;
 	const Transform &LightToWorld;
 	Point ps;
-	const vector<boost::shared_ptr<Primitive> > &PortalShapes;
+	const vector<std::shared_ptr<Primitive> > &PortalShapes;
 	u_int shapeIndex;
 };
 

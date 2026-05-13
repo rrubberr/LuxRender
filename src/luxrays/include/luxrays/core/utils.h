@@ -92,6 +92,7 @@ typedef unsigned int u_int;
 #endif
 
 #include "luxrays/core/geometry/matrix4x4.h"
+#include <thread>
 
 namespace luxrays {
 
@@ -329,7 +330,7 @@ inline unsigned int UIntLog2(unsigned int value) {
 	return l;
 }
 
-inline bool SetThreadRRPriority(boost::thread *thread, int pri = 0) {
+inline bool SetThreadRRPriority(std::thread *thread, int pri = 0) {
 #if defined (__linux__) || defined (__APPLE__) || defined(__CYGWIN__) || defined(__OpenBSD__) || defined(__FreeBSD__)
 	{
 		const pthread_t tid = (pthread_t)thread->native_handle();

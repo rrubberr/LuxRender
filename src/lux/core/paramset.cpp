@@ -1374,42 +1374,42 @@ string ParamSet::ToString() const {
 	return ret.str();
 }
 
-boost::shared_ptr<Texture<SWCSpectrum> >
+std::shared_ptr<Texture<SWCSpectrum> >
 	ParamSet::GetSWCSpectrumTexture(const string &n,
 	const RGBColor &def) const
 {
-	boost::shared_ptr<Texture<SWCSpectrum> > texture(
+	std::shared_ptr<Texture<SWCSpectrum> > texture(
 		Context::GetActive()->GetColorTexture(FindTexture(n)));
 	if (texture)
 		return texture;
 	RGBColor val = FindOneRGBColor(n, def);
-	return boost::shared_ptr<Texture<SWCSpectrum> >(new ConstantRGBColorTexture(val));
+	return std::shared_ptr<Texture<SWCSpectrum> >(new ConstantRGBColorTexture(val));
 }
-boost::shared_ptr<Texture<float> >
+std::shared_ptr<Texture<float> >
 	ParamSet::GetFloatTexture(const string &n) const
 {
 	return Context::GetActive()->GetFloatTexture(FindTexture(n));
 }
-boost::shared_ptr<Texture<float> >
+std::shared_ptr<Texture<float> >
 	ParamSet::GetFloatTexture(const string &n, float def) const
 {
-	boost::shared_ptr<Texture<float> > texture(GetFloatTexture(n));
+	std::shared_ptr<Texture<float> > texture(GetFloatTexture(n));
 	if (texture)
 		return texture;
 	float val = FindOneFloat(n, def);
-	return boost::shared_ptr<Texture<float> >(new ConstantFloatTexture(val));
+	return std::shared_ptr<Texture<float> >(new ConstantFloatTexture(val));
 }
-boost::shared_ptr<Texture<FresnelGeneral> >
+std::shared_ptr<Texture<FresnelGeneral> >
 	ParamSet::GetFresnelTexture(const string &n, float def) const
 {
-	boost::shared_ptr<Texture<FresnelGeneral> > texture(
+	std::shared_ptr<Texture<FresnelGeneral> > texture(
 		Context::GetActive()->GetFresnelTexture(FindTexture(n)));
 	if (texture)
 		return texture;
 	float val = FindOneFloat(n, def);
-	return boost::shared_ptr<Texture<FresnelGeneral> >(new ConstantFresnelTexture(val));
+	return std::shared_ptr<Texture<FresnelGeneral> >(new ConstantFresnelTexture(val));
 }
-boost::shared_ptr<Material> ParamSet::GetMaterial(const string &n) const
+std::shared_ptr<Material> ParamSet::GetMaterial(const string &n) const
 {
 	return Context::GetActive()->GetMaterial(FindOneString(n, ""));
 }

@@ -119,7 +119,7 @@ struct __attribute__((aligned(MBVH_ALIGN))) MBVHNode {
 class MBVHAccel : public Aggregate {
 public:
 	// MBVHAccel Public Methods.
-	MBVHAccel(const vector<boost::shared_ptr<Primitive> > &p,
+	MBVHAccel(const vector<std::shared_ptr<Primitive> > &p,
 		int csamples, int icost, int tcost, float ebonus, int maxleafp = 8);
 	virtual ~MBVHAccel();
 	virtual BBox WorldBound() const;
@@ -130,20 +130,20 @@ public:
 		return Transform();
 	}
 
-	virtual void GetPrimitives(vector<boost::shared_ptr<Primitive> > &prims) const;
+	virtual void GetPrimitives(vector<std::shared_ptr<Primitive> > &prims) const;
 
-	static Aggregate *CreateAccelerator(const vector<boost::shared_ptr<Primitive> > &prims, const ParamSet &ps);
+	static Aggregate *CreateAccelerator(const vector<std::shared_ptr<Primitive> > &prims, const ParamSet &ps);
 
 private:
 	// -----------------------------------------------------------------------
 	// Binary BVH construction surface-area heuristic.
 	// -----------------------------------------------------------------------
 	BVHAccelTreeNode *BuildBinaryBVH(
-		vector<boost::shared_ptr<BVHAccelTreeNode> > &leaves,
+		vector<std::shared_ptr<BVHAccelTreeNode> > &leaves,
 		u_int begin, u_int end);
 
 	void FindBestSplit(
-		vector<boost::shared_ptr<BVHAccelTreeNode> > &list,
+		vector<std::shared_ptr<BVHAccelTreeNode> > &list,
 		u_int begin, u_int end,
 		float *splitValue, u_int *bestAxis);
 
@@ -163,7 +163,7 @@ private:
 	// Recursively collapse the binary BVH into the flat array.
 	// Returns the index of the newly created MBVHNode.
 	u_int CollapseToWide(BVHAccelTreeNode *node,
-		const vector<boost::shared_ptr<BVHAccelTreeNode> > &leafNodes,
+		const vector<std::shared_ptr<BVHAccelTreeNode> > &leafNodes,
 		vector<MBVHNode> &wideNodes,
 		vector<Primitive *> &orderedPrims);
 
@@ -174,7 +174,7 @@ private:
 	float emptyBonus;
 
 	u_int nPrims;
-	boost::shared_ptr<Primitive> *prims; // Original prim array (aligned).
+	std::shared_ptr<Primitive> *prims; // Original prim array (aligned).
 
 	vector<Primitive *> orderedPrims; // Flat ordered primitive pointers for leaves.
 

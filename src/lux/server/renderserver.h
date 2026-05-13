@@ -79,7 +79,7 @@ public:
 	boost::thread *engineThread;
 	boost::thread *infoThread;
 	// used to prevent simultaneous initialization
-	boost::mutex initMutex;
+	std::mutex initMutex;
 
 
 	// Dade - used to send signals to the thread
@@ -142,7 +142,7 @@ public:
 
 	void errorHandler(int code, int severity, const char *msg);
 
-	boost::mutex errorMessageMutex;
+	std::mutex errorMessageMutex;
 	vector<ErrorMessage> errorMessages;
 
 	friend class NetworkRenderServerThread;

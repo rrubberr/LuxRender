@@ -34,7 +34,7 @@ class ProjectionLight : public Light {
 public:
 	// ProjectionLight Public Methods
 	ProjectionLight(const Transform &light2world, 
-		const boost::shared_ptr< Texture<SWCSpectrum> > &L, float gain,
+		const std::shared_ptr< Texture<SWCSpectrum> > &L, float gain,
 		const string &texname, float fov);
 	virtual ~ProjectionLight();
 	virtual bool IsDeltaLight() const { return true; }
@@ -61,7 +61,7 @@ private:
 	// ProjectionLight Private Data
 	MIPMap *projectionMap;
 	Point lightPos;
-	boost::shared_ptr<Texture<SWCSpectrum> > Lbase;
+	std::shared_ptr<Texture<SWCSpectrum> > Lbase;
 	float gain;
 	Transform lightProjection;
 	float fov, hither, yon;

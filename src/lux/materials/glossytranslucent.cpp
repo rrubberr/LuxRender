@@ -106,16 +106,16 @@ BSDF *GlossyTranslucent::GetBSDF(MemoryArena &arena, const SpectrumWavelengths &
 Material* GlossyTranslucent::CreateMaterial(const Transform &xform,
 	const ParamSet &mp)
 {
-	boost::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(1.f)));
-	boost::shared_ptr<Texture<SWCSpectrum> > Kt(mp.GetSWCSpectrumTexture("Kt", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > Kd(mp.GetSWCSpectrumTexture("Kd", RGBColor(1.f)));
+	std::shared_ptr<Texture<SWCSpectrum> > Kt(mp.GetSWCSpectrumTexture("Kt", RGBColor(1.f)));
 	bool ones = mp.FindOneBool("onesided", true);
 
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
-	boost::shared_ptr<Texture<float> > i(mp.GetFloatTexture("index", 0.0f));
-	boost::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(0.0f)));
-	boost::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", 0.0f));
-	boost::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", 0.1f));
-	boost::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", 0.1f));
+	std::shared_ptr<Texture<SWCSpectrum> > Ks(mp.GetSWCSpectrumTexture("Ks", RGBColor(1.f)));
+	std::shared_ptr<Texture<float> > i(mp.GetFloatTexture("index", 0.0f));
+	std::shared_ptr<Texture<SWCSpectrum> > Ka(mp.GetSWCSpectrumTexture("Ka", RGBColor(0.0f)));
+	std::shared_ptr<Texture<float> > d(mp.GetFloatTexture("d", 0.0f));
+	std::shared_ptr<Texture<float> > uroughness(mp.GetFloatTexture("uroughness", 0.1f));
+	std::shared_ptr<Texture<float> > vroughness(mp.GetFloatTexture("vroughness", 0.1f));
 	bool mb = mp.FindOneBool("multibounce", false);
 
 	if (ones) { // copy parameters from frontface to backface
@@ -124,12 +124,12 @@ Material* GlossyTranslucent::CreateMaterial(const Transform &xform,
 	}
 
 	// otherwise use backface parameters
-	boost::shared_ptr<Texture<SWCSpectrum> > Ks2(mp.GetSWCSpectrumTexture("backface_Ks", RGBColor(0.f)));
-	boost::shared_ptr<Texture<float> > i2(mp.GetFloatTexture("backface_index", 0.0f));
-	boost::shared_ptr<Texture<SWCSpectrum> > Ka2(mp.GetSWCSpectrumTexture("backface_Ka", RGBColor(0.0f)));
-	boost::shared_ptr<Texture<float> > d2(mp.GetFloatTexture("backface_d", 0.0f));
-	boost::shared_ptr<Texture<float> > uroughness2(mp.GetFloatTexture("backface_uroughness", 0.f));
-	boost::shared_ptr<Texture<float> > vroughness2(mp.GetFloatTexture("backface_vroughness", 0.f));
+	std::shared_ptr<Texture<SWCSpectrum> > Ks2(mp.GetSWCSpectrumTexture("backface_Ks", RGBColor(0.f)));
+	std::shared_ptr<Texture<float> > i2(mp.GetFloatTexture("backface_index", 0.0f));
+	std::shared_ptr<Texture<SWCSpectrum> > Ka2(mp.GetSWCSpectrumTexture("backface_Ka", RGBColor(0.0f)));
+	std::shared_ptr<Texture<float> > d2(mp.GetFloatTexture("backface_d", 0.0f));
+	std::shared_ptr<Texture<float> > uroughness2(mp.GetFloatTexture("backface_uroughness", 0.f));
+	std::shared_ptr<Texture<float> > vroughness2(mp.GetFloatTexture("backface_vroughness", 0.f));
 	bool mb2 = mp.FindOneBool("backface_multibounce", false);
 
 	return new GlossyTranslucent(Kd, Kt, Ks, Ks2, Ka, Ka2, i, i2, d, d2,

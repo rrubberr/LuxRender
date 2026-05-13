@@ -60,7 +60,7 @@ RendererStatistics::RendererStatistics()
 }
 
 void RendererStatistics::reset() {
-	boost::mutex::scoped_lock window_mutex(windowMutex);
+	std::scoped_lock window_mutex(windowMutex);
 	
 	resetDerived();
 
@@ -82,7 +82,7 @@ double RendererStatistics::elapsedTime() const {
 }
 
 void RendererStatistics::updateStatisticsWindow() {
-	boost::mutex::scoped_lock window_mutex(windowMutex);
+	std::scoped_lock window_mutex(windowMutex);
 
 	windowCurrentTime = getElapsedTime();
 	updateStatisticsWindowDerived();

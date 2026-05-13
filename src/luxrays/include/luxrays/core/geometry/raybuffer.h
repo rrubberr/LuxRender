@@ -24,6 +24,7 @@
 #include <cmath>
 #include <limits>
 #include <algorithm>
+#include <condition_variable>
 
 #include "luxrays/core/geometry/ray.h"
 
@@ -169,13 +170,13 @@ public:
 	}
 
 	void Clear() {
-		boost::unique_lock<boost::mutex> lock(queueMutex);
+		std::unique_lock<std::mutex> lock(queueMutex);
 
 		queue.clear();
 	}
 
 	size_t GetSize() {
-		boost::unique_lock<boost::mutex> lock(queueMutex);
+		std::unique_lock<std::mutex> lock(queueMutex);
 
 		return queue.size();
 	}
@@ -184,7 +185,7 @@ public:
 
 	void Push(RayBuffer *rayBuffer) {
 		{
-			boost::unique_lock<boost::mutex> lock(queueMutex);
+			std::unique_lock<std::mutex> lock(queueMutex);
 			queue.push_back(rayBuffer);
 		}
 
@@ -192,7 +193,7 @@ public:
 	}
 
 	RayBuffer *Pop() {
-		boost::unique_lock<boost::mutex> lock(queueMutex);
+		std::unique_lock<std::mutex> lock(queueMutex);
 
 		while (queue.size() < 1) {
 			// Wait for a new buffer to arrive
@@ -208,7 +209,7 @@ public:
 
 	void Push(RayBuffer *rayBuffer, const size_t queueIndex) {
 		{
-			boost::unique_lock<boost::mutex> lock(queueMutex);
+			std::unique_lock<std::mutex> lock(queueMutex);
 			rayBuffer->PushUserData(queueIndex);
 			queue.push_back(rayBuffer);
 		}
@@ -217,7 +218,7 @@ public:
 	}
 
 	RayBuffer *Pop(const size_t queueIndex) {
-		boost::unique_lock<boost::mutex> lock(queueMutex);
+		std::unique_lock<std::mutex> lock(queueMutex);
 
 		for (;;) {
 			for (size_t i = 0; i < queue.size(); ++i) {
@@ -240,7 +241,7 @@ public:
 
 	void Push(RayBuffer *rayBuffer, const size_t queueIndex, const size_t queueProgressive) {
 		{
-			boost::unique_lock<boost::mutex> lock(queueMutex);
+			std::unique_lock<std::mutex> lock(queueMutex);
 
 			rayBuffer->PushUserData(queueProgressive);
 			rayBuffer->PushUserData(queueIndex);
@@ -251,7 +252,7 @@ public:
 	}
 
 	RayBuffer *Pop(const size_t queueIndex, const size_t queueProgressive) {
-		boost::unique_lock<boost::mutex> lock(queueMutex);
+		std::unique_lock<std::mutex> lock(queueMutex);
 
 		for (;;) {
 			for (size_t i = 0; i < queue.size(); ++i) {
@@ -273,8 +274,8 @@ public:
 	}
 
 private:
-	boost::mutex queueMutex;
-	boost::condition_variable condition;
+	std::mutex queueMutex;
+	std::condition_variable condition;
 
 	std::deque<RayBuffer *> queue;
 };

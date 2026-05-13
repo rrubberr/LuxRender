@@ -132,7 +132,7 @@ void RenderServer::stop()
 }
 
 void RenderServer::errorHandler(int code, int severity, const char *msg) {
-	boost::mutex::scoped_lock lock(errorMessageMutex);
+	std::scoped_lock<std::mutex> lock(errorMessageMutex);
 	errorMessages.push_back(ErrorMessage(code, severity, msg));
 }
 
@@ -950,7 +950,7 @@ void cmd_luxGetLog(bool isLittleEndian, NetworkRenderServerThread *serverThread,
 
 		{
 			// ensure no logging is performed while we hold the lock
-			boost::mutex::scoped_lock lock(serverThread->renderServer->errorMessageMutex);
+			std::scoped_lock<std::mutex> lock(serverThread->renderServer->errorMessageMutex);
 
 			for (vector<RenderServer::ErrorMessage>::iterator it = serverThread->renderServer->errorMessages.begin(); it != serverThread->renderServer->errorMessages.end(); ++it) {
 				stringstream ss("");
@@ -1055,7 +1055,7 @@ void cmd_luxSetUserSamplingMap(bool isLittleEndian, NetworkRenderServerThread *s
 // Dade - TODO: support signals
 void NetworkRenderServerThread::run(int ipversion, NetworkRenderServerThread *serverThread)
 {
-	boost::mutex::scoped_lock initLock(serverThread->initMutex);
+	std::unique_lock<std::mutex> initLock(serverThread->initMutex);
 
 	const int listenPort = serverThread->renderServer->tcpPort;
 	const bool isLittleEndian = osIsLittleEndian();
