@@ -97,6 +97,7 @@ using namespace cimg_library;
 
 // Half library
 #include <Imath/half.h>
+#include <filesystem>
 
 using namespace lux;
 
@@ -134,10 +135,10 @@ namespace lux {
 	ImageData *ReadImage(const string &name)
 	{
 		try {
-			boost::filesystem::path imagePath(AdjustFilename(name));
-			// boost::filesystem::exists() can throw an exception under Windows
+			std::filesystem::path imagePath(AdjustFilename(name));
+			// std::filesystem::exists() can throw an exception under Windows
 			// if the drive in imagePath doesn't exist
-			if (!boost::filesystem::exists(imagePath)) {
+			if (!std::filesystem::exists(imagePath)) {
 				LOG(LUX_ERROR, LUX_NOFILE) <<
 					"Unable to open image file '" <<
 					imagePath.string() << "'";

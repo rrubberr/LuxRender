@@ -36,6 +36,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 
 #include <boost/filesystem.hpp>
 #include <boost/iostreams/copy.hpp>
@@ -1248,7 +1249,7 @@ Film::Film(u_int xres, u_int yres, Filter *filt, u_int filtRes, const float crop
 	//--------------------------------------------------------------------------
 
 	if (userSamplingMapFileName != "") {
-		if (boost::filesystem::exists(userSamplingMapFileName)) {
+		if (std::filesystem::exists(userSamplingMapFileName)) {
 			LOG(LUX_DEBUG, LUX_NOERROR) << "Loading user sampling map from file: " << userSamplingMapFileName;
 
 			ImageData *imgData = ReadImage(userSamplingMapFileName);
@@ -1334,8 +1335,8 @@ void Film::CreateBuffers()
 		const string fname = filename+".flm";
 		if (restartResumeFlm) {
 			const string oldfname = fname + "1";
-			if (boost::filesystem::exists(fname)) {
-				if (boost::filesystem::exists(oldfname))
+			if (std::filesystem::exists(fname)) {
+				if (std::filesystem::exists(oldfname))
 					remove(oldfname.c_str());
 				rename(fname.c_str(), oldfname.c_str());
 			}
@@ -2222,12 +2223,12 @@ bool Film::WriteFilmToFile(const string &filename)
 	if (writeSuccessful)
 	{
 		try {
-			std::string fullFilename = boost::filesystem::system_complete(filename).string();
-			//boost::filesystem::path fullFilenamePath(boost::filesystem::system_complete(filename).string());
+			std::string fullFilename = std::filesystem::absolute(filename).string();
+			//std::filesystem::path fullFilenamePath(std::filesystem::system_complete(filename).string());
 			//std::string fullFilename = fullFilenamePath.replace_extension("").string();
 			//fullFilename.append("-"+boost::lexical_cast<std::string>((int)luxGetDoubleAttribute("renderer_statistics", "elapsedTime"))+"s"+".flm");
 
-			boost::filesystem::rename(tempFilename, fullFilename);
+			std::filesystem::rename(tempFilename, fullFilename);
 			LOG(LUX_INFO, LUX_NOERROR) << "Resume film written to '" << fullFilename << "'";
 		} catch (std::runtime_error &e) {
 			LOG(LUX_ERROR, LUX_SYSTEM) << "Failed to rename new resume film, leaving new resume film as '" << tempFilename << "' (" << e.what() << ")";

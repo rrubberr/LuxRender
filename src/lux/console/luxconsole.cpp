@@ -24,7 +24,9 @@
 #include <iostream>
 #include <string>
 #include <vector>
-
+#include <filesystem>
+#include <thread>
+#include <chrono>
 #include "api.h"
 #include "error.h"
 #include "server/renderserver.h"
@@ -117,8 +119,8 @@ int main(int argc, char **argv) {
 			std::vector<std::string> queueSanitized;
 			for (std::vector<std::string>::iterator it = queue.begin(); it < queue.end(); it++) {
 				if (*it != "-") {
-					boost::filesystem::path sceneFileComplete(boost::filesystem::system_complete(*it));
-					if (!sceneFileComplete.empty() && boost::filesystem::exists(sceneFileComplete))
+					std::filesystem::path sceneFileComplete(std::filesystem::absolute(*it));
+					if (!sceneFileComplete.empty() && std::filesystem::exists(sceneFileComplete))
 						queueSanitized.push_back(sceneFileComplete.string());
 					else
 						LOG(LUX_ERROR,LUX_NOFILE) << "Could not find scene file '" << *it << "'";
@@ -136,10 +138,10 @@ int main(int argc, char **argv) {
 			sceneFileName = *it;
 			if (sceneFileName != "-") {
 				LOG(LUX_INFO,LUX_NOERROR) << "Loading scene file: '" << sceneFileName << "'...";
-				boost::filesystem::path workingDirectory = boost::filesystem::path(sceneFileName).parent_path();
+				std::filesystem::path workingDirectory = std::filesystem::path(sceneFileName).parent_path();
 				try {
-					boost::filesystem::current_path(workingDirectory);
-				} catch (boost::filesystem::filesystem_error &) {
+					std::filesystem::current_path(workingDirectory);
+				} catch (std::filesystem::filesystem_error &) {
 					LOG(LUX_SEVERE,LUX_NOFILE) << "Unable to change to directory '" << workingDirectory.string() << "'";
 					continue;
 				}
@@ -152,9 +154,10 @@ int main(int argc, char **argv) {
 			// add slaves, need to do this for each scene file
 			boost::thread addSlaves(boost::bind(addNetworkSlavesThread, config.slaveNodeList));
 
+			using namespace std::chrono_literals;
 			// wait the scene parsing to finish
 			while (!luxStatistics("sceneIsReady") && !parseError)
-				boost::this_thread::sleep(boost::posix_time::seconds(1));
+				std::this_thread::sleep_for(1000ms);
 
 			if (parseError) {
 				LOG(LUX_SEVERE,LUX_BADFILE) << "Skipping invalid scenefile '" << sceneFileName << "'";

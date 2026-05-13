@@ -27,6 +27,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 #ifndef Q_MOC_RUN
 #include <boost/program_options.hpp>
@@ -69,7 +70,7 @@ namespace featureSet {
 	};
 };
 
-boost::filesystem::path getDefaultWorkingDirectory();
+std::filesystem::path getDefaultWorkingDirectory();
 bool ProcessCommandLine(int argc, char** argv, clConfig& config, unsigned int features, std::streambuf* infoBuf = std::cout.rdbuf(), std::streambuf* warnBuf = std::cerr.rdbuf());
 
 #endif // LUXCOMMANDLINE_H

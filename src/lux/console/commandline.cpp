@@ -20,6 +20,7 @@
  *   Lux Renderer website : http://www.luxrender.net                       *
  ***************************************************************************/
 
+#include <filesystem>
 #include <iostream>
 #include <exception>
 #include <fstream>
@@ -39,12 +40,12 @@
 using namespace lux;
 namespace po = boost::program_options;
 
-boost::filesystem::path getDefaultWorkingDirectory()
+std::filesystem::path getDefaultWorkingDirectory()
 {
 #if defined(WIN32)
-	boost::filesystem::path workingDirectory = boost::filesystem::temp_directory_path() / "luxrender";
+	std::filesystem::path workingDirectory = std::filesystem::temp_directory_path() / "luxrender";
 #else
-	boost::filesystem::path workingDirectory = boost::filesystem::temp_directory_path() / std::string("luxrender-").append(boost::lexical_cast<std::string>(geteuid()));
+	std::filesystem::path workingDirectory = std::filesystem::temp_directory_path() / std::string("luxrender-").append(boost::lexical_cast<std::string>(geteuid()));
 #endif
 	return workingDirectory;
 }
@@ -281,8 +282,8 @@ bool ProcessCommandLine(int argc, char **argv, clConfig& config, unsigned int fe
 			if (vm.count("overrideresume")) {
 				std::string resumefile = vm["overrideresume"].as<std::string>();
 
-				boost::filesystem::path resumePath(resumefile);
-				if (boost::filesystem::exists(resumePath))
+				std::filesystem::path resumePath(resumefile);
+				if (std::filesystem::exists(resumePath))
 					luxOverrideResumeFLM(resumefile.c_str());
 				else
 					LOG(LUX_WARNING,LUX_NOFILE) << "Could not find resume file '" << resumefile << "', using filename in scene";
@@ -291,8 +292,8 @@ bool ProcessCommandLine(int argc, char **argv, clConfig& config, unsigned int fe
 			if (vm.count("output")) {
 				std::string outputFile = vm["output"].as<std::string>();
 
-				boost::filesystem::path outputPath(outputFile);
-				if (boost::filesystem::exists(outputPath.parent_path()))
+				std::filesystem::path outputPath(outputFile);
+				if (std::filesystem::exists(outputPath.parent_path()))
 					luxOverrideFilename(outputFile.c_str());
 				else
 					LOG(LUX_WARNING,LUX_NOFILE) << "Could not find output path '" << outputPath.parent_path() << "', using output path in scenefile";
@@ -304,8 +305,8 @@ bool ProcessCommandLine(int argc, char **argv, clConfig& config, unsigned int fe
 				{
 					if (*it != "-")
 					{
-						boost::filesystem::path queueFileComplete(boost::filesystem::system_complete(*it));
-						if (!queueFileComplete.empty() && boost::filesystem::exists(queueFileComplete))
+						std::filesystem::path queueFileComplete(std::filesystem::absolute(*it));
+						if (!queueFileComplete.empty() && std::filesystem::exists(queueFileComplete))
 							config.queueFiles.push_back(queueFileComplete.string());
 						else
 							LOG(LUX_ERROR,LUX_NOFILE) << "Could not find queue file '" << *it << "'";
@@ -321,8 +322,8 @@ bool ProcessCommandLine(int argc, char **argv, clConfig& config, unsigned int fe
 				{
 					if (*it != "-")
 					{
-						boost::filesystem::path inputFileComplete(boost::filesystem::system_complete(*it));
-						if (!inputFileComplete.empty() && boost::filesystem::exists(inputFileComplete))
+						std::filesystem::path inputFileComplete(std::filesystem::absolute(*it));
+						if (!inputFileComplete.empty() && std::filesystem::exists(inputFileComplete))
 							config.inputFiles.push_back(inputFileComplete.string());
 						else
 							LOG(LUX_ERROR,LUX_NOFILE) << "Could not find scene file '" << *it << "'";
@@ -351,12 +352,12 @@ bool ProcessCommandLine(int argc, char **argv, clConfig& config, unsigned int fe
 			config.writeFlmFile = vm.count("serverwriteflm") != 0;
 
 			std::string cachedir = vm["cachedir"].as<std::string>();
-			boost::filesystem::path cachePath(cachedir);
+			std::filesystem::path cachePath(cachedir);
 			try {
-				if (!boost::filesystem::is_directory(cachePath))
-					boost::filesystem::create_directories(cachePath);
+				if (!std::filesystem::is_directory(cachePath))
+					std::filesystem::create_directories(cachePath);
 
-				boost::filesystem::current_path(cachePath);
+				std::filesystem::current_path(cachePath);
 			} catch (std::exception &e) {
 				LOG(LUX_ERROR,LUX_NOFILE) << "Unable to use cache directory '" << cachedir << "': " << e.what();
 				return false;

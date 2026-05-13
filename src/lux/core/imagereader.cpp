@@ -23,7 +23,7 @@
 #include "imagereader.h"
 #include "texturecolor.h"
 #include "error.h"
-
+#include <filesystem>
 #include <boost/filesystem.hpp>
 
 namespace lux {
@@ -179,12 +179,12 @@ MIPMap *ImageData::createMIPMap(ImageTextureFilterType filterType,
 	return mipmap;
 }
 
-static bool FileExists(const boost::filesystem::path &path) {
+static bool FileExists(const std::filesystem::path &path) {
 	try {
-		// boost::filesystem::exists() can throw an exception under Windows
+		// std::filesystem::exists() can throw an exception under Windows
 		// if the drive in imagePath doesn't exist
-		return boost::filesystem::exists(path);
-	} catch (const boost::filesystem::filesystem_error &) {
+		return std::filesystem::exists(path);
+	} catch (const std::filesystem::filesystem_error &) {
 		return false;
 	}	
 }
@@ -195,10 +195,10 @@ static bool FileExists(const boost::filesystem::path &path) {
 // can't be in util.cpp due to error.h conflict
 string AdjustFilename(const string filename, bool silent) {
 
-	boost::filesystem::path filePath(filename);
+	std::filesystem::path filePath(filename);
 	string result = filePath.string();
 
-	// boost::filesystem::exists() can throw an exception under Windows
+	// std::filesystem::exists() can throw an exception under Windows
 	// if the drive in imagePath doesn't exist
 	if (FileExists(filePath))
 		return result;

@@ -38,6 +38,7 @@
 #include "luxrays/core/epsilon.h"
 using luxrays::MachineEpsilon;
 #include "renderers/samplerrenderer.h"
+#include <filesystem>
 
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
@@ -1266,7 +1267,7 @@ void lux::Context::OverrideFilename(const string &filename) {
 		filmOverrideParams = new ParamSet();
 	}
 	if (filename != "") {
-		boost::filesystem::path filePath(filename);
+		std::filesystem::path filePath(filename);
 
 		const string basename = filePath.replace_extension("").string();
 		filmOverrideParams->AddString("filename", &basename);
