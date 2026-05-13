@@ -180,6 +180,7 @@ SET(lux_accelerators_src
 	accelerators/bruteforce.cpp
 	accelerators/qbvhaccel.cpp
 	accelerators/tabreckdtree.cpp
+	accelerators/embree.cpp
 	)
 SOURCE_GROUP("Source Files\\Accelerators" FILES ${lux_accelerators_src})
 
@@ -599,6 +600,7 @@ SET(lux_accelerators_hdr
 	accelerators/bruteforce.h
 	accelerators/mbvhaccel.h
 	accelerators/qbvhaccel.h
+	accelerators/embree.h
 	accelerators/tabreckdtreeaccel.h
 	)
 SOURCE_GROUP("Header Files\\Accelerators" FILES ${lux_accelerators_hdr})
@@ -902,6 +904,7 @@ target_link_libraries(lux PRIVATE
 	FFTW3::fftw3
 	Threads::Threads
 	pystring::pystring
+	embree
 )
 
 target_compile_definitions(lux PRIVATE LUX_INTERNAL)
