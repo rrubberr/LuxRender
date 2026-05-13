@@ -1,0 +1,97 @@
+# Main Scene File
+
+Renderer "sampler"
+
+Sampler "random"
+
+Accelerator "qbvh"
+	"integer maxprimsperleaf" [4]
+	"integer fullsweepthreshold" [16]
+	"integer skipfactor" [1]
+
+SurfaceIntegrator "path"
+	"integer maxdepth" [8]
+	"float rrcontinueprob" [0.649999976158142]
+	"string rrstrategy" ["efficiency"]
+	"bool includeenvironment" ["true"]
+	"bool directlightsampling" ["true"]
+	"string lightstrategy" ["auto"]
+
+VolumeIntegrator "none"
+
+PixelFilter "blackmanharris"
+	"float xwidth" [3.299999952316284]
+	"float ywidth" [3.299999952316284]
+
+LookAt 0.000000 -4.000000 1.000000 0.000000 -3.000000 1.000000 0.000000 -0.000000 1.000000
+
+Camera "perspective"
+	"float fov" [39.597755335771296]
+	"float screenwindow" [-1.000000000000000 1.000000000000000 -1.000000000000000 1.000000000000000]
+	"bool autofocus" ["false"]
+	"float shutteropen" [0.000000000000000]
+	"float shutterclose" [0.041666666666667]
+
+Film "fleximage"
+	"integer xresolution" [500]
+	"integer yresolution" [500]
+	"float gamma" [2.200000000000000]
+	"float colorspace_white" [0.314275000000000 0.329411000000000]
+	"float colorspace_red" [0.630000000000000 0.340000000000000]
+	"float colorspace_green" [0.310000000000000 0.595000000000000]
+	"float colorspace_blue" [0.155000000000000 0.070000000000000]
+	"string filename" ["cornell_box.Scene.00001"]
+	"bool write_resume_flm" ["false"]
+	"bool restart_resume_flm" ["false"]
+	"bool write_flm_direct" ["false"]
+	"bool write_exr_halftype" ["false"]
+	"bool write_exr_applyimaging" ["true"]
+	"bool write_exr_ZBuf" ["false"]
+	"string write_exr_compressiontype" ["PIZ (lossless)"]
+	"string write_exr_zbuf_normalizationtype" ["None"]
+	"bool write_exr" ["false"]
+	"string write_exr_channels" ["RGB"]
+	"bool write_png" ["true"]
+	"string write_png_channels" ["RGB"]
+	"bool write_png_16bit" ["false"]
+	"bool write_tga" ["false"]
+	"string write_tga_channels" ["RGB"]
+	"string ldr_clamp_method" ["cut"]
+	"integer displayinterval" [10]
+	"integer writeinterval" [180]
+	"integer flmwriteinterval" [900]
+	"integer halttime" [10]
+	"integer tilecount" [0]
+	"string tonemapkernel" ["autolinear"]
+
+WorldBegin
+
+Include "cornell_box/Scene/00001/LuxRender-Materials.lxm"
+
+Include "cornell_box/Scene/00001/LuxRender-Geometry.lxo"
+
+AttributeBegin #  "Lamp"
+
+Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.899999976158142 1.000000000000000]
+
+LightGroup "default"
+
+NamedMaterial "Lamp"
+
+AreaLightSource "area"
+	"float importance" [1.000000000000000]
+	"color L" [1.00000000 1.00000000 1.00000000]
+	"bool flipz" ["true"]
+	"float power" [0.000000000000000]
+	"float efficacy" [0.000000000000000]
+	"float gain" [1.000000000000000]
+	"integer nsamples" [1]
+
+Scale 1.000000000000000 1.000000000000000 1.000000000000000
+
+Shape "sphere"
+	"float radius" [0.100000001490116]
+	"string name" ["Lamp"]
+
+AttributeEnd # ""
+WorldEnd

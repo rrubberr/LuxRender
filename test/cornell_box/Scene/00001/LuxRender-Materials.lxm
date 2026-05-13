@@ -1,0 +1,38 @@
+# Materials File
+
+MakeNamedMaterial "wall_white"
+	"color Kd" [0.69999999 0.69999999 0.69999999]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "wall_left_red"
+	"color Kd" [0.50000000 0.00000000 0.00000000]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+Texture "metal_cube_nk" "fresnel" "fresnelcolor"
+	"color Kr" [0.69999999 0.69999999 0.69999999]
+
+MakeNamedMaterial "metal_cube"
+	"float uroughness" [0.009999999776483]
+	"float vroughness" [0.009999999776483]
+	"texture fresnel" ["metal_cube_nk"]
+	"string type" ["metal2"]
+
+MakeNamedMaterial "glass_ball"
+	"bool architectural" ["false"]
+	"float cauchyb" [0.000000000000000]
+	"float film" [0.000000000000000]
+	"float filmindex" [1.333299994468689]
+	"float index" [1.500000000000000]
+	"color Kr" [0.80000001 0.80000001 0.80000001]
+	"color Kt" [0.80000001 0.80000001 0.80000001]
+	"string type" ["glass"]
+
+MakeNamedMaterial "wall_right_green"
+	"color Kd" [0.00000000 0.50000000 0.00000000]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Lamp"
+	"string type" ["null"]
