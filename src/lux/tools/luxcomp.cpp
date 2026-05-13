@@ -27,6 +27,7 @@
 #include <exception>
 #include <iostream>
 #include <limits>
+#include <filesystem>
 
 #include "api.h"
 #include "film/fleximage.h"
@@ -55,9 +56,9 @@ static inline double sqr(double a) {
 }
 
 void CheckFilePath(const std::string fileName) {
-	boost::filesystem::path fullPath(boost::filesystem::system_complete(fileName));
+	std::filesystem::path fullPath(std::filesystem::absolute(fileName));
 
-	if (!boost::filesystem::exists(fullPath)) {
+	if (!std::filesystem::exists(fullPath)) {
 		LOG(LUX_SEVERE,LUX_NOFILE) << "Unable to open file '" << fullPath.string() << "'";
 		exit(2);
 	}

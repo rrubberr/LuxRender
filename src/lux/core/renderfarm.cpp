@@ -43,6 +43,7 @@
 #include <fstream>
 #include <sstream>
 #include <exception> 
+#include <filesystem>
 #include <boost/asio.hpp>
 #include <boost/archive/text_oarchive.hpp>
 #include <boost/bind.hpp>
@@ -1231,7 +1232,7 @@ void RenderFarm::send(const string &command, const string &name,
 			file = params.FindOneString(paramName, "");
 			// usersamplingmap_filename can be ignored if the file doesn't exist
 			if (file == "" || FileData::present(params, paramName) ||
-					((paramName == "usersamplingmap_filename") && !boost::filesystem::exists(file)))
+					((paramName == "usersamplingmap_filename") && !std::filesystem::exists(file)))
 				continue;
 
 			// silent replacement, since relevant plugin will report replacement

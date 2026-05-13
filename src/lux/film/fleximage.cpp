@@ -45,6 +45,7 @@
 
 #include <boost/thread/xtime.hpp>
 #include <boost/filesystem.hpp>
+#include <filesystem>
 
 using namespace lux;
 
@@ -1679,7 +1680,7 @@ float* FlexImageFilm::getZBuffer()
 
 bool FlexImageFilm::WriteTGAImage(vector<RGBColor> &rgb, vector<float> &alpha, const string &filename)
 {
-	string fullpath = boost::filesystem::system_complete(filename).string();
+	string fullpath = std::filesystem::absolute(filename).string();
 	// Write Truevision Targa TGA image
 	LOG( LUX_INFO,LUX_NOERROR)<< "Writing Tonemapped TGA image to file '"<< fullpath << "'";
 	return WriteTargaImage(write_TGA_channels, write_TGA_ZBuf,
@@ -1691,7 +1692,7 @@ bool FlexImageFilm::WriteTGAImage(vector<RGBColor> &rgb, vector<float> &alpha, c
 
 bool FlexImageFilm::WritePNGImage(vector<RGBColor> &rgb, vector<float> &alpha, const string &filename)
 {
-	string fullpath = boost::filesystem::system_complete(filename).string();
+	string fullpath = std::filesystem::absolute(filename).string();
 	// Write Portable Network Graphics PNG image
 	// Assumes colors are "straight", ie not premultiplied
 	LOG( LUX_INFO,LUX_NOERROR)<< "Writing Tonemapped PNG image to file '"<< fullpath << "'";
@@ -1705,7 +1706,7 @@ bool FlexImageFilm::WritePNGImage(vector<RGBColor> &rgb, vector<float> &alpha, c
 
 bool FlexImageFilm::WriteEXRImage(vector<RGBColor> &rgb, vector<float> &alpha, const string &filename, vector<float> &zbuf)
 {
-	string fullpath = boost::filesystem::system_complete(filename).string();
+	string fullpath = std::filesystem::absolute(filename).string();
 	// Assumes colors are premultiplied	
 
 	if(write_EXR_ZBuf) {
@@ -1973,7 +1974,7 @@ Film* FlexImageFilm::CreateFilm(const ParamSet &params, Filter *filter)
 
 	// output filenames
 	string filename = params.FindOneString("filename", "luxout");
-	filename = boost::filesystem::path(filename).string();
+	filename = std::filesystem::path(filename).string();
 
 	// intervals
 	int writeInterval = params.FindOneInt("writeinterval", 60);
@@ -1996,7 +1997,7 @@ Film* FlexImageFilm::CreateFilm(const ParamSet &params, Filter *filter)
 	// User sampling map
 	string samplingmapfilename = params.FindOneString("usersamplingmap_filename", "");
 	if (samplingmapfilename != "")
-		samplingmapfilename = boost::filesystem::path(samplingmapfilename).string();
+		samplingmapfilename = std::filesystem::path(samplingmapfilename).string();
 
 	// Color space primaries and white point
 	// default is SMPTE
