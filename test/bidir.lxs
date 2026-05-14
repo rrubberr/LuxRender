@@ -1,6 +1,6 @@
 # Main Scene File
 
-Renderer "bidir"
+Renderer "sampler"
 
 Sampler "metropolis"
 	"float largemutationprob" [0.400000005960464]
@@ -13,22 +13,15 @@ Accelerator "qbvh"
 	"integer fullsweepthreshold" [16]
 	"integer skipfactor" [1]
 
-SurfaceIntegrator "bidir"
-	"integer maxeyedepth" [32]
-	"integer maxphotondepth" [8]
-	"integer photonperpass" [1000000]
-	"integer hitpointperpass" [0]
-	"float startradius" [2.000000000000000]
-	"float alpha" [0.699999988079071]
-	"bool includeenvironment" ["true"]
-	"bool directlightsampling" ["true"]
-	"bool storeglossy" ["false"]
-	"bool useproba" ["true"]
-	"integer wavelengthstratificationpasses" [8]
-	"string lookupaccel" ["parallelhashgrid"]
-	"float parallelhashgridspare" [1.000000000000000]
-	"string pixelsampler" ["hilbert"]
-	"string photonsampler" ["halton"]
+SurfaceIntegrator "bidirectional"
+	"integer eyedepth" [8]
+	"integer lightdepth" [8]
+	"integer lightraycount" [1]
+	"float eyerrthreshold" [0.000000000000000]
+	"float lightrrthreshold" [0.000000000000000]
+	"string lightpathstrategy" ["auto"]
+	"integer shadowraycount" [1]
+	"string lightstrategy" ["auto"]
 
 VolumeIntegrator "none"
 
