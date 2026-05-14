@@ -124,7 +124,7 @@ BBox EnvironmentCamera::Bounds() const
 bool EnvironmentCamera::GetSamplePosition(const Point &p, const Vector &wi,
 	float distance, float *x, float *y) const
 {
-	if (!isinf(distance) && (distance < ClipHither || distance > ClipYon))
+	if (!std::isinf(distance) && (distance < ClipHither || distance > ClipYon))
 		return false;
 	const Vector w(Inverse(CameraToWorld) * wi);
 	const float cosTheta = w.y;

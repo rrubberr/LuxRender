@@ -44,7 +44,7 @@ class SubtractTexture : public Texture<T2> {
 public:
 	// SubtractTexture Public Methods
 	SubtractTexture(std::shared_ptr<Texture<T1> > &t1, std::shared_ptr<Texture<T2> > &t2) :
-		Texture<T2>("SubtractTexture-" + boost::lexical_cast<string>(this)), tex1(t1), tex2(t2) { 
+		Texture<T2>("SubtractTexture-" + luxrays::lex::lexical_cast<string>(this)), tex1(t1), tex2(t2) { 
 		// Nothing
 	}
 	virtual ~SubtractTexture() { 

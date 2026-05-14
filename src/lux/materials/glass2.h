@@ -31,7 +31,7 @@ namespace lux
 class Glass2 : public Material {
 public:
 	// Glass Public Methods
-	Glass2(bool archi, bool disp, const ParamSet &mp) : Material("Glass2-" + boost::lexical_cast<string>(this), mp), 
+	Glass2(bool archi, bool disp, const ParamSet &mp) : Material("Glass2-" + luxrays::lex::lexical_cast<string>(this), mp), 
 		architectural(archi), dispersion(disp) {
 		AddBoolAttribute(*this, "architectural", "Glass architectural flag", &Glass2::architectural);
 	}

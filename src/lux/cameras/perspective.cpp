@@ -289,7 +289,7 @@ bool PerspectiveCamera::GetSamplePosition(const Point &p, const Vector &wi,
 	float distance, float *x, float *y) const
 {
 	const float cosi = Dot(wi, normal);
-	if (cosi <= 0.f || (!isinf(distance) && (distance * cosi < ClipHither ||
+	if (cosi <= 0.f || (!std::isinf(distance) && (distance * cosi < ClipHither ||
 		distance * cosi > ClipYon)))
 		return false;
 	const Point pO(Inverse(RasterToWorld) * (p + (LensRadius > 0.f ?

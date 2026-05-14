@@ -232,7 +232,7 @@ InfiniteAreaLight::~InfiniteAreaLight()
 InfiniteAreaLight::InfiniteAreaLight(const Transform &light2world,
 	const RGBColor &l, u_int ns, const string &texmap,
 	EnvironmentMapping *m, float g, float gm)
-	: Light("InfiniteAreaLight-" + boost::lexical_cast<string>(this), light2world, ns), SPDbase(l)
+	: Light("InfiniteAreaLight-" + luxrays::lex::lexical_cast<string>(this), light2world, ns), SPDbase(l)
 {
 	lightColor = l;
 	gain = g;

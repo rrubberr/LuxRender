@@ -33,7 +33,7 @@ public:
 	// Matte Public Methods
 	Matte(std::shared_ptr<Texture<SWCSpectrum> > &kd,
 		std::shared_ptr<Texture<float> > &sig,
-		const ParamSet &mp) : Material("Matte-" + boost::lexical_cast<string>(this), mp),
+		const ParamSet &mp) : Material("Matte-" + luxrays::lex::lexical_cast<string>(this), mp),
 			Kd(kd), sigma(sig) { }
 	virtual ~Matte() { }
 	virtual BSDF *GetBSDF(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,

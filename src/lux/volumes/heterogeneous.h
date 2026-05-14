@@ -37,7 +37,7 @@ public:
 		std::shared_ptr<Texture<SWCSpectrum> > &s,
 		std::shared_ptr<Texture<SWCSpectrum> > &g_,
 		float ss) :
-		Volume("HeterogeneousVolume-"  + boost::lexical_cast<string>(this)),
+		Volume("HeterogeneousVolume-"  + luxrays::lex::lexical_cast<string>(this)),
 		fresnel(fr), sigmaA(a), sigmaS(s), g(g_),
 		primitive(&material, this, this), material(this, g_),
 		stepSize(ss) { }

@@ -96,7 +96,7 @@ CloudVolume::CloudVolume(const RGBColor &sa, const RGBColor &ss,
 	const float &sharp, const float &v, const float &baseflatness,
 	const u_int &octaves, const float &o, const float &offSet,
 	const u_int &numspheres, const float &spheresize) :
-	DensityVolume<RGBVolume>("CloudVolume-"  + boost::lexical_cast<string>(this),
+	DensityVolume<RGBVolume>("CloudVolume-"  + luxrays::lex::lexical_cast<string>(this),
 		RGBVolume(sa, ss, emit, gg)),
 	VolumeToWorld(v2w), inputRadius(r), numSpheres(numspheres),
 	sphereSize(spheresize), sharpness(sharp), baseFlatness(baseflatness),

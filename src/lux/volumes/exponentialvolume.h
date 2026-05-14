@@ -34,7 +34,7 @@ public:
 			float gg, const RGBColor &emit, const BBox &e,
 			const Transform &v2w, float aa, float bb,
 			const Vector &up) :
-		DensityVolume<RGBVolume>("ExponentialDensity-"  + boost::lexical_cast<string>(this),
+		DensityVolume<RGBVolume>("ExponentialDensity-"  + luxrays::lex::lexical_cast<string>(this),
 			RGBVolume(sa, ss, emit, gg)),
 		base(v2w * e.pMin), dir(Normalize(v2w * up)), a(aa), b(bb) { }
 	virtual ~ExponentialDensity() { }

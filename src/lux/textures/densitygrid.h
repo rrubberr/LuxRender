@@ -39,7 +39,7 @@ public:
 	// DensityGridTexture Public Methods
 	DensityGridTexture(int x, int y, int z, const float *d,
 		enum WrapMode w, TextureMapping3D *map) :
-		Texture("DensityGridTexture-" + boost::lexical_cast<string>(this)),
+		Texture("DensityGridTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		nx(x), ny(y), nz(z), wrapMode(w), mapping(map) {
 		density.assign(d, d + nx * ny * nz);
 		dMin = *std::min_element(density.begin(), density.end());

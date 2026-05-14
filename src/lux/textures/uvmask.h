@@ -40,7 +40,7 @@ public:
 	UVMaskTexture(TextureMapping2D *m,
 	              std::shared_ptr<Texture<T> > &_innerTex,
 	              std::shared_ptr<Texture<T> > &_outerTex) :
-		Texture<T>("UVMaskTexture-" + boost::lexical_cast<string>(this)),
+		Texture<T>("UVMaskTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		innerTex(_innerTex), outerTex(_outerTex) { mapping = m; }
 
 	virtual ~UVMaskTexture() { delete mapping; }

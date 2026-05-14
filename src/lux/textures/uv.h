@@ -36,7 +36,7 @@ namespace lux
 class UVTexture : public Texture<SWCSpectrum> {
 public:
 	// UVTexture Public Methods
-	UVTexture(TextureMapping2D *m) : Texture("UVTexture-" + boost::lexical_cast<string>(this)) {
+	UVTexture(TextureMapping2D *m) : Texture("UVTexture-" + luxrays::lex::lexical_cast<string>(this)) {
 		mapping = m;
 	}
 	virtual ~UVTexture() {

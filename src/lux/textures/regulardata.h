@@ -36,7 +36,7 @@ class RegularDataTexture : public Texture<SWCSpectrum> {
 public:
 	// RegularDataSpectrumTexture Public Methods
 	RegularDataTexture(float s, float e, u_int n, const float *data)
-		: Texture("RegularDataTexture-" + boost::lexical_cast<string>(this)),
+		: Texture("RegularDataTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		SPD(data, s, e, n) { }
 	virtual ~RegularDataTexture() { }
 	virtual SWCSpectrum Evaluate(const SpectrumWavelengths &sw,

@@ -30,9 +30,10 @@
 #endif
 
 #include <boost/thread.hpp>
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 #include <boost/program_options.hpp>
-#include <boost/filesystem/operations.hpp>
+//#include <boost/filesystem/operations.hpp>
+#include <luxrays/utils/properties.h>
 
 #include "api.h"
 #include "error.h"
@@ -46,7 +47,7 @@ std::filesystem::path getDefaultWorkingDirectory()
 #if defined(WIN32)
 	std::filesystem::path workingDirectory = std::filesystem::temp_directory_path() / "luxrender";
 #else
-	std::filesystem::path workingDirectory = std::filesystem::temp_directory_path() / std::string("luxrender-").append(boost::lexical_cast<std::string>(geteuid()));
+	std::filesystem::path workingDirectory = std::filesystem::temp_directory_path() / std::string("luxrender-").append(luxrays::lex::lexical_cast<std::string>(geteuid()));
 #endif
 	return workingDirectory;
 }

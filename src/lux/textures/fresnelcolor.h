@@ -34,7 +34,7 @@ class FresnelColorTexture : public Texture<FresnelGeneral> {
 public:
 	// FresnelColorTexture Public Methods
 	FresnelColorTexture(const std::shared_ptr<Texture<SWCSpectrum> > &c) :
-		Texture("FresnelColorTexture-" + boost::lexical_cast<string>(this)),
+		Texture("FresnelColorTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		color(c) { }
 	virtual ~FresnelColorTexture() { }
 	virtual FresnelGeneral Evaluate(const SpectrumWavelengths &sw,

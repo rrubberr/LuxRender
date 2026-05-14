@@ -42,7 +42,7 @@ public:
 	// ScaleTexture Public Methods
 	ScaleTexture(std::shared_ptr<Texture<T1> > &t1,
 		std::shared_ptr<Texture<T2> > &t2) :
-		Texture<T2>("ScaleTexture-" + boost::lexical_cast<string>(this)),
+		Texture<T2>("ScaleTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		tex1(t1), tex2(t2) { }
 	virtual ~ScaleTexture() { }
 	virtual T2 Evaluate(const SpectrumWavelengths &sw,

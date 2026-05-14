@@ -37,7 +37,7 @@ public:
 		std::shared_ptr<Texture<float> > &flm,
 		std::shared_ptr<Texture<float> > &flmindex, 
 		std::shared_ptr<Texture<SWCSpectrum> > &kr,
-		const ParamSet &mp) : Material("ShinyMetal-" + boost::lexical_cast<string>(this), mp),
+		const ParamSet &mp) : Material("ShinyMetal-" + luxrays::lex::lexical_cast<string>(this), mp),
 		Ks(ks), Kr(kr), nu(u), nv(v), film(flm), filmindex(flmindex) { }
 	virtual ~ShinyMetal() { }
 	virtual BSDF *GetBSDF(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,

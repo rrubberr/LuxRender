@@ -234,7 +234,7 @@ Cloth::Cloth(std::shared_ptr<Texture<SWCSpectrum> > &warp_kd,
 			std::shared_ptr<Texture<SWCSpectrum> > &weft_kd,
 			std::shared_ptr<Texture<SWCSpectrum> > &weft_ks,
 			std::shared_ptr<WeavePattern> &pattern,
-			const ParamSet &mp, string presetname) : Material("Cloth-" + boost::lexical_cast<string>(this), mp), Pattern(pattern), presetName(presetname)
+			const ParamSet &mp, string presetname) : Material("Cloth-" + luxrays::lex::lexical_cast<string>(this), mp), Pattern(pattern), presetName(presetname)
 {
 	// Store warp and weft textures
 	Kds.push_back(warp_kd);

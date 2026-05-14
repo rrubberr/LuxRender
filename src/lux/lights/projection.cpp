@@ -104,7 +104,7 @@ ProjectionLight::ProjectionLight(const Transform &light2world,
 		const std::shared_ptr< Texture<SWCSpectrum> > &L, 
 		float g, const string &texname,
 		float foview)
-	: Light("ProjectionLight-" + boost::lexical_cast<string>(this), light2world),
+	: Light("ProjectionLight-" + luxrays::lex::lexical_cast<string>(this), light2world),
 	Lbase(L) {
 	lightPos = LightToWorld * Point(0,0,0);
 	Lbase->SetIlluminant();

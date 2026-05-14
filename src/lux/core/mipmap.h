@@ -879,7 +879,7 @@ MIPMapFastImpl<T>::~MIPMapFastImpl()
 
 template <class T>
 MIPMapFastImpl<T>::MIPMapFastImpl(ImageTextureFilterType type, u_int sres, u_int tres,
-	const T *img, float maxAniso, ImageWrap wm) : MIPMap("MIPMapFastImpl-" + boost::lexical_cast<string>(this))
+	const T *img, float maxAniso, ImageWrap wm) : MIPMap("MIPMapFastImpl-" + luxrays::lex::lexical_cast<string>(this))
 {
 	filterType = type;
 	maxAnisotropy = maxAniso;

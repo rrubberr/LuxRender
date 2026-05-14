@@ -28,15 +28,16 @@
 #include <sstream>
 #include <exception>
 #include <iostream>
+#include <filesystem>
 
 #include "api.h"
 #include "film/fleximage.h"
 
 #include <boost/program_options.hpp>
 #include <boost/thread.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/scoped_ptr.hpp>
+//#include <boost/date_time/posix_time/posix_time.hpp>
+//#include <boost/filesystem.hpp>
+//#include <boost/scoped_ptr.hpp>
 
 #if defined(WIN32) && !defined(__CYGWIN__) /* We need the following two to set stdout to binary */
 #include <io.h>
@@ -109,7 +110,7 @@ int main(int ac, char *av[]) {
 
 		string outputFileName = vm["output"].as<string>();
 
-		boost::scoped_ptr<FlexImageFilm> film;
+		std::unique_ptr<FlexImageFilm> film;
 		int mergedCount = 0;
 
 		luxInit();
@@ -117,9 +118,9 @@ int main(int ac, char *av[]) {
 		if (vm.count("input-file")) {
 			const std::vector<std::string> &v = vm["input-file"].as < vector<string> > ();
 			for (unsigned int i = 0; i < v.size(); i++) {
-				boost::filesystem::path fullPath(boost::filesystem::system_complete(v[i]));
+				std::filesystem::path fullPath(std::filesystem::absolute(v[i]));
 
-				if (!boost::filesystem::exists(fullPath) && v[i] != "-") {
+				if (!std::filesystem::exists(fullPath) && v[i] != "-") {
 					LOG(LUX_SEVERE,LUX_NOFILE) << "Unable to open file '" << fullPath.string() << "'";
 					continue;
 				}

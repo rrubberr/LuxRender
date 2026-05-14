@@ -141,13 +141,13 @@ PointLight::PointLight(const Transform &light2world,
 	const std::shared_ptr< Texture<SWCSpectrum> > &L,
 	float g, float power, float efficacy,
 	SampleableSphericalFunction *ssf) :
-	Light("PointLight-" + boost::lexical_cast<string>(this), light2world),
+	Light("PointLight-" + luxrays::lex::lexical_cast<string>(this), light2world),
 	Lbase(L), gain(g), func(ssf)
 {
 	lightPos = LightToWorld * Point(0,0,0);
 	Lbase->SetIlluminant(); // Illuminant must be set before calling Le->Y()
 	const float gainFactor = power * efficacy / (4.f * M_PI * Lbase->Y());
-	if (gainFactor > 0.f && !isinf(gainFactor))
+	if (gainFactor > 0.f && !std::isinf(gainFactor))
 		gain *= gainFactor;
 
 	AddFloatAttribute(*this, "gain", "PointLight gain", &PointLight::gain);

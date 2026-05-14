@@ -39,7 +39,7 @@ public:
 		std::shared_ptr<Texture<float> > &u,
 		std::shared_ptr<Texture<float> > &v,
 		bool mb,
-		const ParamSet &mp) : Material("GlossyCombined-" + boost::lexical_cast<string>(this), mp),
+		const ParamSet &mp) : Material("GlossyCombined-" + luxrays::lex::lexical_cast<string>(this), mp),
 		Kd(kd), Ks(ks), Ka(ka),
 		depth(d), index(i), nu(u), nv(v), multibounce(mb) { }
 	virtual ~GlossyCombined() { }
@@ -67,7 +67,7 @@ public:
 		std::shared_ptr<Texture<float> > &v,
 		std::shared_ptr<Texture<float> > &s,
 		bool mb,
-		const ParamSet &mp) : Material("Glossy2-" + boost::lexical_cast<string>(this), mp), Kd(kd), Ks(ks), Ka(ka),	
+		const ParamSet &mp) : Material("Glossy2-" + luxrays::lex::lexical_cast<string>(this), mp), Kd(kd), Ks(ks), Ka(ka),	
 		depth(d), index(i), nu(u), nv(v), sigma(s), 
 		multibounce(mb) { }
 	virtual ~Glossy2() { }
@@ -106,7 +106,7 @@ public:
 		std::shared_ptr<Texture<float> > &u,
 		std::shared_ptr<Texture<float> > &v,
 		bool mb,
-		const ParamSet &mp) : Material("GlossyCoating-" + boost::lexical_cast<string>(this), mp),
+		const ParamSet &mp) : Material("GlossyCoating-" + luxrays::lex::lexical_cast<string>(this), mp),
 		basemat(bmat), Ks(ks), Ka(ka), depth(d), index(i), nu(u), nv(v), multibounce(mb) { }
 	virtual ~GlossyCoating() { }
 	virtual BSDF *GetBSDF(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,

@@ -36,7 +36,7 @@ public:
 	// ExponentialTexture Public Methods
 	ExponentialTexture(const Point &o, const Vector &up, float d,
 		TextureMapping3D *map) :
-		Texture("ExponentialTexture-" + boost::lexical_cast<string>(this)),
+		Texture("ExponentialTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		origin(o), upDir(up), decay(d), mapping(map) { }
 	virtual ~ExponentialTexture() { delete mapping; }
 	virtual float Evaluate(const SpectrumWavelengths &sw,

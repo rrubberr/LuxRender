@@ -35,7 +35,7 @@ class CauchyTexture : public Texture<FresnelGeneral> {
 public:
 	// ConstantTexture Public Methods
 	CauchyTexture(float cauchya, float cauchyb) :
-		Texture("CauchyTexture-" + boost::lexical_cast<string>(this)),
+		Texture("CauchyTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		fresnel(cauchya, cauchyb, 0.f), index(cauchya + cauchyb * 1e6f /
 		(WAVELENGTH_END * WAVELENGTH_START)) { }
 	virtual ~CauchyTexture() { }

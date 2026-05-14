@@ -36,7 +36,7 @@ class GaussianTexture : public Texture<SWCSpectrum> {
 public:
 	// GaussianTexture Public Methods
 	GaussianTexture(float m, float w, float r) :
-		Texture("GaussianTexture-" + boost::lexical_cast<string>(this)),
+		Texture("GaussianTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		GSPD(m, w, r) { }
 	virtual ~GaussianTexture() { }
 	virtual SWCSpectrum Evaluate(const SpectrumWavelengths &sw,

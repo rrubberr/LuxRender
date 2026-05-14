@@ -20,6 +20,7 @@
 #define _LUXRAYS_POINT_H
 
 #include "luxrays/core/geometry/vector.h"
+#include <cmath>
 #include <iostream>
 using std::ostream;
 #include <boost/serialization/access.hpp>
@@ -123,11 +124,11 @@ public:
 	}
 
 	bool IsNaN() const {
-		return isnan(x) || isnan(y) || isnan(z);
+		return std::isnan(x) || std::isnan(y) || std::isnan(z);
 	}
 
 	bool IsInf() const {
-		return isinf(x) || isinf(y) || isinf(z);
+		return std::isinf(x) || std::isinf(y) || std::isinf(z);
 	}
 
 	// Point Public Data

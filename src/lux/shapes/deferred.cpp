@@ -82,7 +82,7 @@ Shape *DeferredLoadShape::CreateShape(const Transform &o2w, bool reverseOrientat
 	u_int count;
 	const float *bboxData = params.FindFloat("shapebbox", &count);
 	if (count != 6)
-		throw new std::runtime_error("Wrong number of components in a DeferredLoadShape bounding box: " + boost::lexical_cast<string>(count));
+		throw new std::runtime_error("Wrong number of components in a DeferredLoadShape bounding box: " + luxrays::lex::lexical_cast<string>(count));
 	BBox bbox(Point(bboxData[0], bboxData[1], bboxData[2]),
 			Point(bboxData[3], bboxData[4], bboxData[5]));
 

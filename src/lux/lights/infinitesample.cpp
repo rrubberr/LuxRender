@@ -119,7 +119,7 @@ InfiniteAreaLightIS::~InfiniteAreaLightIS() {
 InfiniteAreaLightIS::InfiniteAreaLightIS(const Transform &light2world,
 	const RGBColor &l, u_int ns, const string &texmap, u_int immaxres,
 	EnvironmentMapping *m, float g, float gm)
-	: Light("InfiniteAreaLightIS-" + boost::lexical_cast<string>(this), light2world, ns), SPDbase(l)
+	: Light("InfiniteAreaLightIS-" + luxrays::lex::lexical_cast<string>(this), light2world, ns), SPDbase(l)
 {
 	lightColor = l;
 	gain = g;

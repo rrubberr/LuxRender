@@ -42,9 +42,9 @@ MeshBaryTriangle::MeshBaryTriangle(const lux::Mesh *m, u_int n) :
 
 		Normal normalizedNormal(Normalize(Cross(e1, e2)));
 
-		if (isnan(normalizedNormal.x) ||
-			isnan(normalizedNormal.y) ||
-			isnan(normalizedNormal.z))
+		if (std::isnan(normalizedNormal.x) ||
+			std::isnan(normalizedNormal.y) ||
+			std::isnan(normalizedNormal.z))
 		{
 			is_Degenerate = true;
 			return;

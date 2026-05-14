@@ -16,6 +16,7 @@
  * limitations under the License.                                          *
  ***************************************************************************/
 
+#pragma once
 #ifndef _LUXRAYS_UTILS_H
 #define	_LUXRAYS_UTILS_H
 
@@ -25,16 +26,16 @@
 #include <pthread.h>
 #endif
 
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
 
 #if (defined(WIN32) && defined(_MSC_VER) && _MSC_VER < 1800)
 #include <float.h>
-#define isnan(a) _isnan(a)
-#define isinf(f) (!_finite((f)))
+//#define isnan(a) _isnan(a)
+//#define isinf(f) (!_finite((f)))
 #else
-#define isnan(a) std::isnan(a)
-#define isinf(f) std::isinf(f)
+//#define isnan(a) std::isnan(a)
+//#define isinf(f) std::isinf(f)
 #endif
 
 #if defined(WIN32)

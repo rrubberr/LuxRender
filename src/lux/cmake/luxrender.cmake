@@ -139,7 +139,7 @@ IF(Qt6_FOUND)
     	Qt6::Gui
     	Qt6::Widgets
     	Boost::program_options
-		Boost::filesystem
+		#Boost::filesystem
 		Boost::thread
 		lux
 	)

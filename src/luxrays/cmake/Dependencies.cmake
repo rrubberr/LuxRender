@@ -50,7 +50,7 @@ include_directories(${PYTHON_INCLUDE_DIRS})
 find_package(Boost REQUIRED COMPONENTS
     thread
     program_options
-    filesystem
+    #filesystem
     serialization
     iostreams
     regex

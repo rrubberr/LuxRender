@@ -26,7 +26,7 @@
 #include "dynload.h"
 #include "filedata.h"
 
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 #include <boost/regex.hpp>
 #include <fstream>
 
@@ -129,8 +129,8 @@ Texture<SWCSpectrum> *TabulatedDataTexture::CreateSWCSpectrumTexture(const Trans
 			tolambda = &nmtolambda;			
 		}
 
-		wl.push_back(tolambda(boost::lexical_cast<float>(m[1])));
-		data.push_back(boost::lexical_cast<float>(m[3]));
+		wl.push_back(tolambda(luxrays::lex::lexical_cast<float>(m[1])));
+		data.push_back(luxrays::lex::lexical_cast<float>(m[3]));
 		n++;
 	}
 

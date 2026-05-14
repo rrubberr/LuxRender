@@ -224,12 +224,12 @@ public:
 	}
 	bool IsNaN() const {
 		for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-			if (isnan(c[i])) return true;
+			if (std::isnan(c[i])) return true;
 		return false;
 	}
 	bool IsInf() const {
 		for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-			if (isinf(c[i])) return true;
+			if (std::isinf(c[i])) return true;
 		return false;
 	}
 	Scalar Y(const SpectrumWavelengths &sw) const;

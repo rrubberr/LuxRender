@@ -37,7 +37,7 @@ public:
 	// IrregularDataSpectrumTexture Public Methods
 	IrregularDataTexture(u_int n, const float *wl, const float *data,
 		float resolution = 5.f) :
-		Texture("IrregularDataTexture-" + boost::lexical_cast<string>(this)),
+		Texture("IrregularDataTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		SPD(wl, data, n, resolution) { }
 	virtual ~IrregularDataTexture() { }
 	virtual SWCSpectrum Evaluate(const SpectrumWavelengths &sw,

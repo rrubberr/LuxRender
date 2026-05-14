@@ -42,7 +42,7 @@ public:
 	Checkerboard2D(TextureMapping2D *m,
 		std::shared_ptr<Texture<float> > &c1,
 		std::shared_ptr<Texture<float> > &c2, const string &aa) :
-		Texture("Checkerboard2D-" + boost::lexical_cast<string>(this)),
+		Texture("Checkerboard2D-" + luxrays::lex::lexical_cast<string>(this)),
 		tex1(c1), tex2(c2), mapping(m) {
 		// Select anti-aliasing method for _Checkerboard2D_
 		if (aa == "none")
@@ -226,7 +226,7 @@ public:
 	Checkerboard3D(TextureMapping3D *m,
 		std::shared_ptr<Texture<float> > &c1,
 		std::shared_ptr<Texture<float> > &c2) :
-		Texture("Checkerboard3D-" + boost::lexical_cast<string>(this)),
+		Texture("Checkerboard3D-" + luxrays::lex::lexical_cast<string>(this)),
 		tex1(c1), tex2(c2), mapping(m) { }
 	virtual ~Checkerboard3D() { delete mapping; }
 	virtual float Evaluate(const SpectrumWavelengths &sw,

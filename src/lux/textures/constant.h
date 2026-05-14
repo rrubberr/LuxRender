@@ -38,7 +38,7 @@ class ConstantFloatTexture : public Texture<float> {
 public:
 	// ConstantTexture Public Methods
 	ConstantFloatTexture(float v) :
-		Texture("ConstantFloatTexture-" + boost::lexical_cast<string>(this)), value(v) {
+		Texture("ConstantFloatTexture-" + luxrays::lex::lexical_cast<string>(this)), value(v) {
 			AddFloatAttribute(*this, "value", "ConstantFloatTexture value", &ConstantFloatTexture::value);
 		}
 	virtual ~ConstantFloatTexture() { }
@@ -65,7 +65,7 @@ class ConstantRGBColorTexture : public Texture<SWCSpectrum> {
 public:
 	// ConstantTexture Public Methods
 	ConstantRGBColorTexture(const RGBColor &s) :
-		Texture("ConstantRGBColorTexture-" + boost::lexical_cast<string>(this)),
+		Texture("ConstantRGBColorTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		color(s) {
 		RGBSPD = new RGBReflSPD(color);
 
@@ -105,7 +105,7 @@ class ConstantFresnelTexture : public Texture<FresnelGeneral> {
 public:
 	// ConstantTexture Public Methods
 	ConstantFresnelTexture(float v) :
-		Texture("ConstantFresnelTexture-" + boost::lexical_cast<string>(this)),
+		Texture("ConstantFresnelTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		value(DIELECTRIC_FRESNEL, SWCSpectrum(v), 0.f), val(v) {
 		AddFloatAttribute(*this, "value", "ConstantFresnelTexture value", &ConstantFresnelTexture::val);
 	}

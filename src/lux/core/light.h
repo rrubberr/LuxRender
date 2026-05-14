@@ -152,7 +152,7 @@ class  InstanceLight : public Light {
 public:
 	// Light Interface
 	InstanceLight(const Transform &l2w, std::shared_ptr<Light> &l)
-		: Light("InstanceLight-" + boost::lexical_cast<string>(this),
+		: Light("InstanceLight-" + luxrays::lex::lexical_cast<string>(this),
 		l2w, l->nSamples), light(l) { group = light->group; }
 	virtual ~InstanceLight() { }
 	virtual float Power(const Scene &scene) const {
@@ -187,7 +187,7 @@ class  MotionLight : public Light {
 public:
 	// Light Interface
 	MotionLight(const MotionSystem &mp, std::shared_ptr<Light> &l)
-		: Light("MotionLight-" + boost::lexical_cast<string>(this),
+		: Light("MotionLight-" + luxrays::lex::lexical_cast<string>(this),
 		Transform(), l->nSamples), light(l), motionPath(mp) { group = light->group; }
 	virtual ~MotionLight() { }
 	virtual float Power(const Scene &scene) const {
@@ -224,7 +224,7 @@ class  InstanceAreaLight : public AreaLight {
 public:
 	// Light Interface
 	InstanceAreaLight(const Transform &l2w, std::shared_ptr<AreaLight> &l) :
-		AreaLight("InstanceAreaLight-" + boost::lexical_cast<string>(this),
+		AreaLight("InstanceAreaLight-" + luxrays::lex::lexical_cast<string>(this),
 		l2w, l->nSamples), light(l) { group = light->group; }
 	virtual ~InstanceAreaLight() { }
 	virtual float Power(const Scene &scene) const {
@@ -269,7 +269,7 @@ class  MotionAreaLight : public AreaLight {
 public:
 	// Light Interface
 	MotionAreaLight(const MotionSystem &mp, std::shared_ptr<AreaLight> &l) :
-		AreaLight("MotionAreaLight-" + boost::lexical_cast<string>(this),
+		AreaLight("MotionAreaLight-" + luxrays::lex::lexical_cast<string>(this),
 		Transform(), l->nSamples), light(l), motionPath(mp) { group = light->group; }
 	virtual ~MotionAreaLight() { }
 	virtual float Power(const Scene &scene) const {

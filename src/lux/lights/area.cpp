@@ -160,7 +160,7 @@ AreaLightImpl::AreaLightImpl(const Transform &light2world,
 	std::shared_ptr<Texture<SWCSpectrum> > &le, float g, float pow,
 	float e, SampleableSphericalFunction *ssf, u_int ns,
 	const std::shared_ptr<Primitive> &p) :
-	AreaLight("AreaLight-" + boost::lexical_cast<string>(this),
+	AreaLight("AreaLight-" + luxrays::lex::lexical_cast<string>(this),
 	light2world, ns), Le(le), paramGain(g), gain(g), power(pow),
 	efficacy(e), func(ssf)
 {
@@ -183,7 +183,7 @@ AreaLightImpl::AreaLightImpl(const Transform &light2world,
 	Le->SetIlluminant(); // Illuminant must be set before calling Le->Y()
 	const float gainFactor = power * efficacy /
 		(area * M_PI * Le->Y());
-	if (gainFactor > 0.f && !isinf(gainFactor))
+	if (gainFactor > 0.f && !std::isinf(gainFactor))
 		gain *= gainFactor;
 
 	AddFloatAttribute(*this, "gain", "AreaLight gain", &AreaLightImpl::paramGain);

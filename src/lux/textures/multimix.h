@@ -41,7 +41,7 @@ public:
 	// MultiMixTexture Public Methods
 	MultiMixTexture(u_int n, const float *w,
 			vector<std::shared_ptr<Texture<T> > > &t) :
-			Texture<T>("MultiMixTexture-" + boost::lexical_cast<string>(this)),
+			Texture<T>("MultiMixTexture-" + luxrays::lex::lexical_cast<string>(this)),
 			weights(w, w + n),
 			tex(t) { }
 	virtual ~MultiMixTexture() { }

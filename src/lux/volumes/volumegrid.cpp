@@ -35,7 +35,7 @@ using namespace lux;
 VolumeGrid::VolumeGrid(const RGBColor &sa, const RGBColor &ss, float gg,
 	const RGBColor &emit, const BBox &e, const Transform &v2w,
 	int x, int y, int z, const float *d) :
-	DensityVolume<RGBVolume>("VolumeGrid-"  + boost::lexical_cast<string>(this),
+	DensityVolume<RGBVolume>("VolumeGrid-"  + luxrays::lex::lexical_cast<string>(this),
 		RGBVolume(sa, ss, emit, gg)),
 	nx(x), ny(y), nz(z), extent(e), VolumeToWorld(v2w)
 {

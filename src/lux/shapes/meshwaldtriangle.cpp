@@ -55,8 +55,8 @@ MeshWaldTriangle::MeshWaldTriangle(const lux::Mesh *m, u_int n)
 
 	normalizedNormal = Normal(Normalize(Cross(e1, e2)));
 	// Dade - check for degenerate triangle
-	if (isnan(normalizedNormal.x) || isnan(normalizedNormal.y) ||
-		isnan(normalizedNormal.z)) {
+	if (std::isnan(normalizedNormal.x) || std::isnan(normalizedNormal.y) ||
+		std::isnan(normalizedNormal.z)) {
 		intersectionType = DEGENERATE;
 		return;
 	}

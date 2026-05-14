@@ -36,7 +36,7 @@ public:
 		std::shared_ptr<Texture<float> > &p2,
 		std::shared_ptr<Texture<float> > &p3,
 		std::shared_ptr<Texture<float> > &thickness,
-		const ParamSet &mp) : Material("Velvet-" + boost::lexical_cast<string>(this), mp),
+		const ParamSet &mp) : Material("Velvet-" + luxrays::lex::lexical_cast<string>(this), mp),
 		Kd(kd), P1(p1), P2(p2), P3(p3), Thickness(thickness) { }
 	virtual ~Velvet() { }
 	virtual BSDF *GetBSDF(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,

@@ -26,7 +26,8 @@
 #include <string>
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
-#include <boost/lexical_cast.hpp>
+#include "luxrays/utils/properties.h"
+//#include <boost/lexical_cast.hpp>
 #include "error.h"
 
 
@@ -240,7 +241,7 @@ public:
 	virtual ~GenericQueryableAttribute<D>() {}
 
 	virtual std::string Value() const {
-		return boost::lexical_cast<std::string>(getFunc());
+		return luxrays::lex::lexical_cast<std::string>(getFunc());
 	}
 
 	virtual bool HasDefaultValue() const {
@@ -248,7 +249,7 @@ public:
 	}
 
 	virtual std::string DefaultValue() const {
-		return boost::lexical_cast<std::string>(defaultValue);
+		return luxrays::lex::lexical_cast<std::string>(defaultValue);
 	}
 
 	virtual bool HasMinValue() const {

@@ -35,7 +35,7 @@ namespace lux
 class BlackBodyTexture : public Texture<SWCSpectrum> {
 public:
 	// BlackBodyTexture Public Methods
-	BlackBodyTexture(float t) : Texture("BlackBodyTexture-" + boost::lexical_cast<string>(this)),
+	BlackBodyTexture(float t) : Texture("BlackBodyTexture-" + luxrays::lex::lexical_cast<string>(this)),
 			BBSPD(t) { }
 	virtual ~BlackBodyTexture() { }
 	virtual SWCSpectrum Evaluate(const SpectrumWavelengths &sw,

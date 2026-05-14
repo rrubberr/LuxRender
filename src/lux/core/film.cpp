@@ -43,7 +43,7 @@
 #include <boost/iostreams/stream_buffer.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
 #include <boost/filesystem.hpp>
 //#include <boost/math/special_functions/bessel.hpp>
@@ -1656,7 +1656,7 @@ void Film::AddTileSamples(const Contribution* const contribs, u_int num_contribs
 		const float alpha = contrib.alpha;
 
 		// Issue warning if unexpected radiance value returned
-		if (!(xyz.Y() >= 0.f) || isinf(xyz.Y())) {
+		if (!(xyz.Y() >= 0.f) || std::isinf(xyz.Y())) {
 			if(debug_mode) {
 				LOG(LUX_WARNING,LUX_LIMIT) << "Out of bound intensity in Film::AddTileSamples: "
 				   << xyz.Y() << ", sample discarded";
@@ -1664,7 +1664,7 @@ void Film::AddTileSamples(const Contribution* const contribs, u_int num_contribs
 			continue;
 		}
 
-		if (!(alpha >= 0.f) || isinf(alpha)) {
+		if (!(alpha >= 0.f) || std::isinf(alpha)) {
 			if(debug_mode) {
 				LOG(LUX_WARNING,LUX_LIMIT) << "Out of bound  alpha in Film::AddTileSamples: "
 				   << alpha << ", sample discarded";
@@ -1680,7 +1680,7 @@ void Film::AddTileSamples(const Contribution* const contribs, u_int num_contribs
 		const float weight = contrib.variance;
 
 		// negative weight means sample was rejected
-		if (!(weight >= 0.f) || isinf(weight)) {
+		if (!(weight >= 0.f) || std::isinf(weight)) {
 			if(debug_mode && (weight >= 0.f)) {
 				LOG(LUX_WARNING,LUX_LIMIT) << "Out of bound  weight in Film::AddTileSamples: "
 				   << weight << ", sample discarded";
@@ -1765,7 +1765,7 @@ void Film::SetSample(const Contribution *contrib) {
 	}
 
 	// Issue warning if unexpected radiance value returned
-	if (!(xyz.Y() >= 0.f) || isinf(xyz.Y())) {
+	if (!(xyz.Y() >= 0.f) || std::isinf(xyz.Y())) {
 		if(debug_mode) {
 			LOG(LUX_WARNING, LUX_LIMIT) << "Out of bound intensity in Film::SetSample: "
 			   << xyz.Y() << ", sample discarded";
@@ -1773,7 +1773,7 @@ void Film::SetSample(const Contribution *contrib) {
 		return;
 	}
 
-	if (!(alpha >= 0.f) || isinf(alpha)) {
+	if (!(alpha >= 0.f) || std::isinf(alpha)) {
 		if(debug_mode) {
 			LOG(LUX_WARNING, LUX_LIMIT) << "Out of bound  alpha in Film::SetSample: "
 			   << alpha << ", sample discarded";
@@ -1781,7 +1781,7 @@ void Film::SetSample(const Contribution *contrib) {
 		return;
 	}
 
-	if (!(weight >= 0.f) || isinf(weight)) {
+	if (!(weight >= 0.f) || std::isinf(weight)) {
 		if(debug_mode) {
 			LOG(LUX_WARNING, LUX_LIMIT) << "Out of bound  weight in Film::SetSample: "
 			   << weight << ", sample discarded";
@@ -1835,7 +1835,7 @@ void Film::AddSampleNoFiltering(const Contribution *contrib) {
 	}
 
 	// Issue warning if unexpected radiance value returned
-	if (!(xyz.Y() >= 0.f) || isinf(xyz.Y())) {
+	if (!(xyz.Y() >= 0.f) || std::isinf(xyz.Y())) {
 		if(debug_mode) {
 			LOG(LUX_WARNING, LUX_LIMIT) << "Out of bound intensity in Film::SetSample: "
 			   << xyz.Y() << ", sample discarded";
@@ -1843,7 +1843,7 @@ void Film::AddSampleNoFiltering(const Contribution *contrib) {
 		return;
 	}
 
-	if (!(alpha >= 0.f) || isinf(alpha)) {
+	if (!(alpha >= 0.f) || std::isinf(alpha)) {
 		if(debug_mode) {
 			LOG(LUX_WARNING, LUX_LIMIT) << "Out of bound  alpha in Film::SetSample: "
 			   << alpha << ", sample discarded";
@@ -1851,7 +1851,7 @@ void Film::AddSampleNoFiltering(const Contribution *contrib) {
 		return;
 	}
 
-	if (!(weight >= 0.f) || isinf(weight)) {
+	if (!(weight >= 0.f) || std::isinf(weight)) {
 		if(debug_mode) {
 			LOG(LUX_WARNING, LUX_LIMIT) << "Out of bound  weight in Film::SetSample: "
 			   << weight << ", sample discarded";
@@ -2226,7 +2226,7 @@ bool Film::WriteFilmToFile(const string &filename)
 			std::string fullFilename = std::filesystem::absolute(filename).string();
 			//std::filesystem::path fullFilenamePath(std::filesystem::system_complete(filename).string());
 			//std::string fullFilename = fullFilenamePath.replace_extension("").string();
-			//fullFilename.append("-"+boost::lexical_cast<std::string>((int)luxGetDoubleAttribute("renderer_statistics", "elapsedTime"))+"s"+".flm");
+			//fullFilename.append("-"+luxrays::lex::lexical_cast<std::string>((int)luxGetDoubleAttribute("renderer_statistics", "elapsedTime"))+"s"+".flm");
 
 			std::filesystem::rename(tempFilename, fullFilename);
 			LOG(LUX_INFO, LUX_NOERROR) << "Resume film written to '" << fullFilename << "'";
@@ -2287,7 +2287,7 @@ double Film::MergeFilmFromFile(const std::string& filename)
 
 double Film::MergeFilmFromStream(std::basic_istream<char> &stream) {
 	const bool isLittleEndian = osIsLittleEndian();
-	LOG(LUX_DEBUG, LUX_NOERROR) << "Receiving film (little endian=" << boost::lexical_cast<std::string>(isLittleEndian) << ")";
+	LOG(LUX_DEBUG, LUX_NOERROR) << "Receiving film (little endian=" << luxrays::lex::lexical_cast<std::string>(isLittleEndian) << ")";
 
 	// Enable compression
 	// TODO Move this below header when implementing FILM VERSION 2
@@ -2395,7 +2395,7 @@ bool Film::WriteFilmDataToStream(
 		bool transmitParams)
 {
 	const bool isLittleEndian = osIsLittleEndian();
-	LOG(LUX_DEBUG, LUX_NOERROR) << "Transmitting film (little endian=" << boost::lexical_cast<std::string>(isLittleEndian) << ")";
+	LOG(LUX_DEBUG, LUX_NOERROR) << "Transmitting film (little endian=" << luxrays::lex::lexical_cast<std::string>(isLittleEndian) << ")";
 
 	std::streampos osStartPosition = os.tellp();
 
@@ -2555,7 +2555,7 @@ bool Film::WriteFilmDataToStream(
 bool Film::LoadResumeFilm(const string &filename)
 {
 	const bool isLittleEndian = osIsLittleEndian();
-	LOG(LUX_DEBUG,LUX_NOERROR) << "Loading film (little endian=" << boost::lexical_cast<std::string>(isLittleEndian) << ")";
+	LOG(LUX_DEBUG,LUX_NOERROR) << "Loading film (little endian=" << luxrays::lex::lexical_cast<std::string>(isLittleEndian) << ")";
 	std::ifstream is(filename.c_str(), std::ios_base::in | std::ios_base::binary);
 
 	// Enable compression

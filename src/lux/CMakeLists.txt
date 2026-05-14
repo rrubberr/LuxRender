@@ -184,7 +184,7 @@ set(LUX_DEPS
 	Imath::Imath
 	Boost::thread
 	Boost::program_options
-	Boost::filesystem
+	#Boost::filesystem
 	Boost::serialization
 	Boost::iostreams
 	Boost::regex

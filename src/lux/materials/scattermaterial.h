@@ -37,7 +37,7 @@ public:
 	// ScatterMaterial Public Methods
 	ScatterMaterial(std::shared_ptr<Texture<SWCSpectrum> > &kd,
 		std::shared_ptr<Texture<SWCSpectrum> > &g,
-		const ParamSet &mp) : Material("ScatterMaterial-" + boost::lexical_cast<string>(this), mp, false),
+		const ParamSet &mp) : Material("ScatterMaterial-" + luxrays::lex::lexical_cast<string>(this), mp, false),
 		Kd(kd), G(g) { }
 	virtual ~ScatterMaterial() { }
 	virtual BSDF *GetBSDF(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
@@ -56,7 +56,7 @@ class UniformRGBScatterMaterial : public Material {
 public:
 	// UniformRGBScatterMaterial Public Methods
 	UniformRGBScatterMaterial(const RGBColor &ks, const RGBColor &ka,
-		float &g_) : Material("UniformRGBScatterMaterial-" + boost::lexical_cast<string>(this), ParamSet(), false),
+		float &g_) : Material("UniformRGBScatterMaterial-" + luxrays::lex::lexical_cast<string>(this), ParamSet(), false),
 		kS(ks), kA(ka), g(g_) { }
 	virtual ~UniformRGBScatterMaterial() { }
 	virtual BSDF *GetBSDF(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,
@@ -74,7 +74,7 @@ public:
 	// VolumeScatterMaterial Public Methods
 	VolumeScatterMaterial(const Volume *v,
 		std::shared_ptr<Texture<SWCSpectrum> > &g)
-		: Material("VolumeScatterMaterial-" + boost::lexical_cast<string>(this), ParamSet(), false),
+		: Material("VolumeScatterMaterial-" + luxrays::lex::lexical_cast<string>(this), ParamSet(), false),
 		volume(v), G(g) { }
 	virtual ~VolumeScatterMaterial() { }
 	virtual BSDF *GetBSDF(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,

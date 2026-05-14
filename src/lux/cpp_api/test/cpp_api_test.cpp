@@ -1,9 +1,9 @@
 #include <iostream>
 #include <vector>
-#include <boost/shared_ptr.hpp>
 #include <boost/thread/thread.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include "lux_api.h"
+#include "cpp_api/lux_api.h"
+#include "cpp_api/lux_instance.h"
+//#include "lux_api.h"
 
 typedef std::shared_ptr<lux_instance> Instance;
 typedef std::shared_ptr<lux_paramset> ParamSet;
@@ -177,7 +177,7 @@ void render()
 	std::cout << "Render done" << std::endl;
 }
 
-void main()
+int main()
 {
 	std::cout << "Starting render" << std::endl;
 

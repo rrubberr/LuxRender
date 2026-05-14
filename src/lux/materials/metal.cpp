@@ -48,7 +48,7 @@ Metal::Metal(const std::string &metalName,
 	std::shared_ptr<SPD > &n, std::shared_ptr<SPD > &k, 
 	std::shared_ptr<Texture<float> > &u,
 	std::shared_ptr<Texture<float> > &v,
-	const ParamSet &mp) : Material("Metal-" + boost::lexical_cast<string>(this), mp),
+	const ParamSet &mp) : Material("Metal-" + luxrays::lex::lexical_cast<string>(this), mp),
 	N(n), K(k), nu(u), nv(v) {
 	AddStringConstant(*this, "metalName", " Name of the metal", metalName);
 }
@@ -128,29 +128,29 @@ bool ReadSOPRAData(std::ifstream &fs, vector<float> &wl, vector<float> &n, vecto
 	if (m[1] == "1") {
 		// lambda in eV
 		// low eV -> high lambda
-		lambda_last = boost::lexical_cast<float>(m[2]);
-		lambda_first = boost::lexical_cast<float>(m[3]);
+		lambda_last = luxrays::lex::lexical_cast<float>(m[2]);
+		lambda_first = luxrays::lex::lexical_cast<float>(m[3]);
 		tolambda = &eVtolambda;
 	} else if (m[1] == "2") {
 		// lambda in um
-		lambda_first = boost::lexical_cast<float>(m[2]);
-		lambda_last = boost::lexical_cast<float>(m[3]);
+		lambda_first = luxrays::lex::lexical_cast<float>(m[2]);
+		lambda_last = luxrays::lex::lexical_cast<float>(m[3]);
 		tolambda = &umtolambda;
 	} else if (m[1] == "3") {
 		// lambda in cm-1
-		lambda_last = boost::lexical_cast<float>(m[2]);
-		lambda_first = boost::lexical_cast<float>(m[3]);
+		lambda_last = luxrays::lex::lexical_cast<float>(m[2]);
+		lambda_first = luxrays::lex::lexical_cast<float>(m[3]);
 		tolambda = &invcmtolambda;
 	} else if (m[1] == "4") {
 		// lambda in nm
-		lambda_first = boost::lexical_cast<float>(m[2]);
-		lambda_last = boost::lexical_cast<float>(m[3]);
+		lambda_first = luxrays::lex::lexical_cast<float>(m[2]);
+		lambda_last = luxrays::lex::lexical_cast<float>(m[3]);
 		tolambda = &nmtolambda;
 	} else
 		return false;
 
 	// number of lines of nk data
-	int count = boost::lexical_cast<int>(m[4]);  
+	int count = luxrays::lex::lexical_cast<int>(m[4]);  
 
 	// read nk data
 	boost::regex sample_expr("(\\d*\\.?\\d+)\\s+(\\d*\\.?\\d+)");
@@ -177,8 +177,8 @@ bool ReadSOPRAData(std::ifstream &fs, vector<float> &wl, vector<float> &n, vecto
 		// linearly interpolate units in file
 		// then convert to wavelength in nm
 		wl[i] = tolambda(lambda_first + (lambda_last - lambda_first) * i / static_cast<float>(count));
-		n[i] = boost::lexical_cast<float>(m[1]);
-		k[i] = boost::lexical_cast<float>(m[2]);
+		n[i] = luxrays::lex::lexical_cast<float>(m[1]);
+		k[i] = luxrays::lex::lexical_cast<float>(m[2]);
 	}
 
 	return true;
@@ -208,9 +208,9 @@ bool ReadLuxpopData(std::ifstream &fs, vector<float> &wl, vector<float> &n, vect
 			return false;
 
 		// wavelength in data file is in Angstroms, we want nm
-		wl.push_back(boost::lexical_cast<float>(m[1]) * 0.1f);
-		n.push_back(boost::lexical_cast<float>(m[2]));
-		k.push_back(boost::lexical_cast<float>(m[3]));
+		wl.push_back(luxrays::lex::lexical_cast<float>(m[1]) * 0.1f);
+		n.push_back(luxrays::lex::lexical_cast<float>(m[2]));
+		k.push_back(luxrays::lex::lexical_cast<float>(m[3]));
 	}
 
 	return fs.eof();

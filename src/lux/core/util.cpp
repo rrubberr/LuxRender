@@ -140,7 +140,9 @@ std::streamsize multibuffer_device::write(const char* s, std::streamsize n)
 	return static_cast<std::streamsize>(io::position_to_offset(pos) - start);
 }
 
-boost::iostreams::stream_offset multibuffer_device::seek(boost::iostreams::stream_offset off, std::ios_base::seekdir way)
+boost::iostreams::stream_offset multibuffer_device::seek(
+	boost::iostreams::stream_offset off, std::ios_base::seekdir way
+)
 {
 	namespace io = boost::iostreams;
 	// Seek to position off and return the new stream 

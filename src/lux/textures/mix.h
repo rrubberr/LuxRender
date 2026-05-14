@@ -39,7 +39,7 @@ public:
 	MixTexture(std::shared_ptr<Texture<T> > &t1,
 		std::shared_ptr<Texture<T> > &t2,
 		std::shared_ptr<Texture<float> > &amt) :
-		Texture<T>("MixTexture-" + boost::lexical_cast<string>(this)),
+		Texture<T>("MixTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		tex1(t1), tex2(t2),	amount(amt) { }
 	virtual ~MixTexture() { }
 	virtual T Evaluate(const SpectrumWavelengths &sw,

@@ -34,7 +34,7 @@ class ColorDepthTexture : public Texture<SWCSpectrum> {
 public:
 	// ColorDepthTexture Public Methods
 	ColorDepthTexture(float t, std::shared_ptr<Texture<SWCSpectrum> > &c) :
-		Texture("ColorDepthTexture-" + boost::lexical_cast<string>(this)),
+		Texture("ColorDepthTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		d(-max(1e-3f, t)), color(c) { }
 	virtual ~ColorDepthTexture() { }
 	virtual SWCSpectrum Evaluate(const SpectrumWavelengths &sw,

@@ -37,7 +37,7 @@ public:
 		  std::shared_ptr<Material> &m4,
 		  std::shared_ptr<Texture<float> > &op1, std::shared_ptr<Texture<float> > &op2,
 		  std::shared_ptr<Texture<float> > &op3, std::shared_ptr<Texture<float> > &op4
-		  ) : Material("LayeredMaterial-" + boost::lexical_cast<string>(this), mp), mat1(m1),mat2(m2),
+		  ) : Material("LayeredMaterial-" + luxrays::lex::lexical_cast<string>(this), mp), mat1(m1),mat2(m2),
 		  mat3(m3),mat4(m4), opacity1(op1),opacity2(op2),opacity3(op3),opacity4(op4) {}
 
 	void addMat(MemoryArena &arena, const SpectrumWavelengths &sw, const Intersection &isect, 

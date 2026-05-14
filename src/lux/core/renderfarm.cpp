@@ -58,7 +58,7 @@
 #include <boost/iostreams/positioning.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/thread/xtime.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
+//#include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/filesystem.hpp>
 
 using namespace boost::iostreams;
@@ -427,14 +427,14 @@ bool RenderFarm::decodeServerName(const string &serverName, string &name, string
 	if (idx != string::npos && idx != idx_v6+1) {
 		// Dade - the server name includes the port number
 
-		try {
+		//try {
 			name = serverName.substr(0, idx);
 			// convert to int and back to get a standardized representation for comparison
-			port = boost::lexical_cast<std::string>(boost::lexical_cast<int>(serverName.substr(idx + 1)));
-		} catch (boost::bad_lexical_cast &) {
-			LOG(LUX_ERROR, LUX_SYSTEM) << "Unable to decode server name: '" << serverName << "'";
-			return false;
-		}
+			port = luxrays::lex::lexical_cast<std::string>(luxrays::lex::lexical_cast<int>(serverName.substr(idx + 1)));
+		//} catch (boost::bad_lexical_cast &) {
+		//	LOG(LUX_ERROR, LUX_SYSTEM) << "Unable to decode server name: '" << serverName << "'";
+		//	return false;
+		//}
 	} else {
 		name = serverName;
 		port = "18018";

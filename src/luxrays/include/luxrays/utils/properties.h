@@ -25,7 +25,7 @@
 #include <istream>
 #include <cstdarg>
 
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 #include <boost/variant.hpp>
 #include <boost/unordered_map.hpp>
 #include <boost/type_traits.hpp>
@@ -94,6 +94,283 @@ typedef boost::variant<bool, int, u_int, float, double, u_longlong, std::string,
  * \brief A vector of values that can be stored in a Property.
  */
 typedef std::vector<PropertyValue> PropertyValues;
+
+namespace lex
+{
+	template <typename T>
+	inline T lexical_cast(const bool &b) {return b;};
+
+	template <typename T>
+	inline T lexical_cast(const int &i) {return i;};
+
+	template <typename T>
+	inline T lexical_cast(const u_int &u) {return u;};
+
+	template <typename T>
+	inline T lexical_cast(const float &f) {return f;};
+
+	template <typename T>
+	inline T lexical_cast(const double &d) {return d;};
+
+	template <typename T>
+	inline T lexical_cast(const u_longlong &l) {return l;};
+
+	template <typename T>
+	inline T lexical_cast(const std::string &str)
+	{
+		try
+		{return std::stof(str);}
+		catch(const std::invalid_argument)
+		{return 0.0f;}
+	};
+
+	template <typename T>
+	inline T lexical_cast(const Blob &b) {return lexical_cast<T>(b.ToString());};
+
+	//bool
+
+	template <>
+	inline bool lexical_cast(const bool &b) {return b;};
+
+	template <>
+	inline bool lexical_cast(const int &i) {return i;};
+
+	template <>
+	inline bool lexical_cast(const u_int &u) {return u;};
+
+	template <>
+	inline bool lexical_cast(const float &f) {return f;};
+
+	template <>
+	inline bool lexical_cast(const double &d) {return d;};
+
+	template <>
+	inline bool lexical_cast(const u_longlong &l) {return l;};
+
+	template <>
+	inline bool lexical_cast(const std::string &str)
+	{
+		std::string s;
+		for(size_t i = 0; i < str.size(); i++)
+			s.push_back(std::tolower((unsigned char)str[i]));
+		
+		if(s == "true" || s == "t" || s == "on" || s == "yes" || s == "y")
+		{
+			return true;
+		}
+		else if(s == "false" || s == "f" || s == "off" || s == "no" || s == "n")
+		{
+			return false;
+		}
+		else
+		{
+			float f = 0.0f;
+			bool valid = false;
+			try
+			{
+				f = std::stof(s);
+				valid = true;
+			}
+			catch(const std::invalid_argument)
+			{
+				return false;
+			}
+
+			return f == 0.0f;
+		}
+	};
+
+	template <>
+	inline bool lexical_cast(const Blob &b) {return lexical_cast<bool>(b.ToString());};
+
+	//int
+
+	template <>
+	inline int lexical_cast(const bool &b) {return b;};
+
+	template <>
+	inline int lexical_cast(const int &i) {return i;};
+
+	template <>
+	inline int lexical_cast(const u_int &u) {return u;};
+
+	template <>
+	inline int lexical_cast(const float &f) {return f;};
+
+	template <>
+	inline int lexical_cast(const double &d) {return d;};
+
+	template <>
+	inline int lexical_cast(const u_longlong &l) {return l;};
+
+	template <>
+	inline int lexical_cast(const std::string &str)
+	{
+		try
+		{return std::stoi(str);}
+		catch(const std::invalid_argument)
+		{return 0.0f;}
+	};
+
+	template <>
+	inline int lexical_cast(const Blob &b) {return lexical_cast<int>(b.ToString());};
+
+	//uint
+
+	template <>
+	inline u_int lexical_cast(const bool &b) {return b;};
+
+	template <>
+	inline u_int lexical_cast(const int &i) {return i;};
+
+	template <>
+	inline u_int lexical_cast(const u_int &u) {return u;};
+
+	template <>
+	inline u_int lexical_cast(const float &f) {return f;};
+
+	template <>
+	inline u_int lexical_cast(const double &d) {return d;};
+
+	template <>
+	inline u_int lexical_cast(const u_longlong &l) {return l;};
+
+	template <>
+	inline u_int lexical_cast(const std::string &str)
+	{
+		try
+		{return std::stoul(str);}
+		catch(const std::invalid_argument)
+		{return 0.0f;}
+	};
+
+	template <>
+	inline u_int lexical_cast(const Blob &b) {return lexical_cast<u_int>(b.ToString());};
+
+	//float
+
+	template <>
+	inline float lexical_cast(const bool &b) {return b;};
+
+	template <>
+	inline float lexical_cast(const int &i) {return i;};
+
+	template <>
+	inline float lexical_cast(const u_int &u) {return u;};
+
+	template <>
+	inline float lexical_cast(const float &f) {return f;};
+
+	template <>
+	inline float lexical_cast(const double &d) {return d;};
+
+	template <>
+	inline float lexical_cast(const u_longlong &l) {return l;};
+
+	template <>
+	inline float lexical_cast(const std::string &str)
+	{
+		try
+		{return std::stof(str);}
+		catch(const std::invalid_argument)
+		{return 0.0f;}
+	};
+
+	template <>
+	inline float lexical_cast(const Blob &b) {return lexical_cast<float>(b.ToString());};
+
+	//double
+
+	template <>
+	inline double lexical_cast(const bool &b) {return b;};
+
+	template <>
+	inline double lexical_cast(const int &i) {return i;};
+
+	template <>
+	inline double lexical_cast(const u_int &u) {return u;};
+
+	template <>
+	inline double lexical_cast(const float &f) {return f;};
+
+	template <>
+	inline double lexical_cast(const double &d) {return d;};
+
+	template <>
+	inline double lexical_cast(const u_longlong &l) {return l;};
+
+	template <>
+	inline double lexical_cast(const std::string &str)
+	{
+		try
+		{return std::stod(str);}
+		catch(const std::invalid_argument)
+		{return 0.0;}
+	};
+
+	template <>
+	inline double lexical_cast(const Blob &b) {return lexical_cast<double>(b.ToString());};
+
+	//u_longlong
+
+	template <>
+	inline u_longlong lexical_cast(const bool &b) {return b;};
+
+	template <>
+	inline u_longlong lexical_cast(const int &i) {return i;};
+
+	template <>
+	inline u_longlong lexical_cast(const u_int &u) {return u;};
+
+	template <>
+	inline u_longlong lexical_cast(const float &f) {return f;};
+
+	template <>
+	inline u_longlong lexical_cast(const double &d) {return d;};
+
+	template <>
+	inline u_longlong lexical_cast(const u_longlong &l) {return l;};
+
+	template <>
+	inline u_longlong lexical_cast(const std::string &str)
+	{
+		try
+		{return std::stoull(str);}
+		catch(const std::invalid_argument)
+		{return 0.0;}
+	};
+
+	template <>
+	inline u_longlong lexical_cast(const Blob &b) {return lexical_cast<u_longlong>(b.ToString());};
+
+	//string
+
+	template <>
+	inline std::string lexical_cast(const bool &b) {return std::to_string(b);};
+
+	template <>
+	inline std::string lexical_cast(const int &i) {return std::to_string(i);};
+
+	template <>
+	inline std::string lexical_cast(const u_int &u) {return std::to_string(u);};
+
+	template <>
+	inline std::string lexical_cast(const float &f) {return std::to_string(f);};
+
+	template <>
+	inline std::string lexical_cast(const double &d) {return std::to_string(d);};
+
+	template <>
+	inline std::string lexical_cast(const u_longlong &l) {return std::to_string(l);};
+
+	template <>
+	inline std::string lexical_cast(const std::string &str) {return str;};
+
+	template <>
+	inline std::string lexical_cast(const Blob &b) {b.ToString();};
+
+	//i don't think blob is needed
+};
 
 /*!
  * \brief A generic container for values.
@@ -444,35 +721,35 @@ private:
 	template<class T> class GetValueVistor : public boost::static_visitor<T> {
 	public:
 		T operator()(const bool v) const {
-			return boost::lexical_cast<T>(v);
+			return lex::lexical_cast<T>(v);
 		}
 
 		T operator()(const int v) const {
-			return boost::lexical_cast<T>(v);
+			return lex::lexical_cast<T>(v);
 		}
 
 		T operator()(const u_int v) const {
-			return boost::lexical_cast<T>(v);
+			return lex::lexical_cast<T>(v);
 		}
 
 		T operator()(const float v) const {
-			return boost::lexical_cast<T>(v);
+			return lex::lexical_cast<T>(v);
 		}
 
 		T operator()(const double v) const {
-			return boost::lexical_cast<T>(v);
+			return lex::lexical_cast<T>(v);
 		}
 
 		T operator()(const u_longlong v) const {
-			return boost::lexical_cast<T>(v);
+			return lex::lexical_cast<T>(v);
 		}
 
 		T operator()(const std::string &v) const {
-			return boost::lexical_cast<T>(v);
+			return lex::lexical_cast<T>(v);
 		}
 
 		T operator()(const Blob &v) const {
-			return boost::lexical_cast<T>(v);
+			return lex::lexical_cast<T>(v);
 		}
 	};
 

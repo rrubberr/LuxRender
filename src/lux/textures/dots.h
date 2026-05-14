@@ -37,7 +37,7 @@ public:
 	// DotsTexture Public Methods
 	DotsTexture(TextureMapping2D *m, std::shared_ptr<Texture<float> > &c1,
 		std::shared_ptr<Texture<float> > &c2) :
-		Texture("DotsTexture-" + boost::lexical_cast<string>(this)),
+		Texture("DotsTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		outsideDot(c1), insideDot(c2), mapping(m) { }
 	virtual ~DotsTexture() { delete mapping; }
 	virtual float Evaluate(const SpectrumWavelengths &sw,

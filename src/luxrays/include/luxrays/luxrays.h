@@ -36,7 +36,7 @@
 
 #if defined(ENABLE_UNICODE_SUPPORT)
 #include <boost/locale.hpp>
-#include <boost/filesystem/fstream.hpp>
+//#include <boost/filesystem/fstream.hpp>
 
 //#define BOOST_IFSTREAM std::filesystem::ifstream
 //#define BOOST_OFSTREAM std::filesystem::ofstream

@@ -26,6 +26,6 @@ target_link_libraries(luxcomp PRIVATE
     lux
     Threads::Threads
     Boost::program_options
-    Boost::filesystem
+    #Boost::filesystem
     Boost::thread
 )

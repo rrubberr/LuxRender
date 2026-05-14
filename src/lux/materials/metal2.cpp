@@ -37,7 +37,7 @@ using namespace lux;
 Metal2::Metal2(std::shared_ptr<Texture<FresnelGeneral> > &fr, 
 	std::shared_ptr<Texture<float> > &u,
 	std::shared_ptr<Texture<float> > &v,
-	const ParamSet &mp) : Material("Metal2-" + boost::lexical_cast<string>(this), mp),
+	const ParamSet &mp) : Material("Metal2-" + luxrays::lex::lexical_cast<string>(this), mp),
 	fresnel(fr), nu(u), nv(v)
 {
 }

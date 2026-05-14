@@ -36,7 +36,7 @@ class ClearVolume : public Volume {
 public:
 	ClearVolume(const std::shared_ptr<Texture<FresnelGeneral> > &fr,
 		std::shared_ptr<Texture<SWCSpectrum> > &a) :
-		Volume("ClearVolume-"  + boost::lexical_cast<string>(this)),
+		Volume("ClearVolume-"  + luxrays::lex::lexical_cast<string>(this)),
 		fresnel(fr), absorption(a) { }
 	virtual ~ClearVolume() { }
 	virtual SWCSpectrum SigmaA(const SpectrumWavelengths &sw,

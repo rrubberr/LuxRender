@@ -36,7 +36,7 @@ ADD_EXECUTABLE(luxconsole ${LUXCONSOLE_SRCS} ${LUXCONSOLE_HDRS})
 target_link_libraries(luxconsole PRIVATE
     lux
     Threads::Threads
-	Boost::filesystem
+	#Boost::filesystem
 	Boost::program_options
 	Boost::thread
     Boost::chrono

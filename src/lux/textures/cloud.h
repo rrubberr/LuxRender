@@ -47,7 +47,7 @@ public:
 		const u_int octaves, const float o, const float offset,
 		const u_int numspheres, const float spheresize,
 		TextureMapping3D *map) :
-		Texture("CloudTexture-" + boost::lexical_cast<string>(this)),
+		Texture("CloudTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		radius(r), numSpheres(numspheres), sphereSize(spheresize),
 		sharpness(sharp), baseFlatness(baseflatness), variability(v),
 		omega(o), firstNoiseScale(noiseScale), noiseOffset(offset),

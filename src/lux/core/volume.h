@@ -75,7 +75,7 @@ public:
 class RGBVolume : public Volume {
 public:
 	RGBVolume(const RGBColor &sA, const RGBColor &sS, const RGBColor &l,
-		float gg) : Volume("RGBVolume-" + boost::lexical_cast<string>(this)), sigA(sA), sigS(sS), le(l), g(gg),
+		float gg) : Volume("RGBVolume-" + luxrays::lex::lexical_cast<string>(this)), sigA(sA), sigS(sS), le(l), g(gg),
 		material(sS, sA, gg), primitive(&material, this, this) { }
 	virtual ~RGBVolume() { }
 	virtual SWCSpectrum SigmaA(const SpectrumWavelengths &sw,
@@ -144,7 +144,7 @@ protected:
 template<class T> class VolumeRegion : public Region {
 public:
 	VolumeRegion(const Transform &v2w, const BBox &b, const T &v) :
-		Region("VolumeRegion-" + boost::lexical_cast<string>(this), v2w * b),
+		Region("VolumeRegion-" + luxrays::lex::lexical_cast<string>(this), v2w * b),
 		VolumeToWorld(v2w), region(b), volume(v) { }
 	virtual ~VolumeRegion() { }
 	virtual bool IntersectP(const Ray &ray, float *t0, float *t1) const {

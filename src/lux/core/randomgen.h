@@ -35,6 +35,7 @@
 #ifndef LUX_RANDOM_H
 #define LUX_RANDOM_H
 
+#include "lux.h"
 #include "luxrays/utils/memory.h"
 #include <boost/noncopyable.hpp>
 
@@ -48,7 +49,7 @@ namespace lux
 
 static const float invUI = (1.f / (FLOATMASK + 1UL));
 
-class RandomGenerator : boost::noncopyable
+class RandomGenerator
 {
 public:
 	RandomGenerator() {
@@ -61,7 +62,11 @@ public:
 		taus113_set(tn);
 	}
 
-	~RandomGenerator() { FreeAligned(buf); }
+	~RandomGenerator() { luxrays::FreeAligned(buf); }
+
+	RandomGenerator(const RandomGenerator &) = delete; //make non copyable via construction
+
+	RandomGenerator& operator=(const RandomGenerator &) = delete; //make non copyable via assign
 
 	inline void init(unsigned long tn) {
 		taus113_set(tn);

@@ -417,7 +417,7 @@ void QBVHAccel::BuildTree(u_int start, u_int end, u_int *primsIndexes,
 	float splitPos = BuildObjectSplit(start, end, primsIndexes, primsBboxes,
 		primsCentroids, centroidsBbox, axis);
 	
-	if (isnan(splitPos)) {
+	if (std::isnan(splitPos)) {
 		if (end - start > 64) {
 			LOG(LUX_ERROR, LUX_LIMIT) << "QBVH unable to handle geometry, too many primitives with the same centroid";
 			end = start + 64;
@@ -492,7 +492,7 @@ float QBVHAccel::BuildObjectSplit(const u_int start, const u_int end,
 	const float k1 = OBJECT_SPLIT_BINS / (centroidsBbox.pMax[axis] - k0);
 	
 	// If the bbox is a point
-	if (isinf(k1))
+	if (std::isinf(k1))
 		return std::numeric_limits<float>::quiet_NaN();
 
 	// Number of primitives in each bin

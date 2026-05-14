@@ -41,7 +41,7 @@ public:
 	// BilerpTexture Public Methods
 	BilerpFloatTexture(TextureMapping2D *m,
 		float t00, float t01, float t10, float t11) :
-		Texture("BilerpFloatTexture-" + boost::lexical_cast<string>(this)) {
+		Texture("BilerpFloatTexture-" + luxrays::lex::lexical_cast<string>(this)) {
 		mapping = m;
 		v00 = t00;
 		v01 = t01;
@@ -89,7 +89,7 @@ public:
 	BilerpSpectrumTexture(TextureMapping2D *m,
 		const RGBColor &t00, const RGBColor &t01,
 		const RGBColor &t10, const RGBColor &t11) :
-		Texture("BilerpSpectrumTexture-" + boost::lexical_cast<string>(this)) {
+		Texture("BilerpSpectrumTexture-" + luxrays::lex::lexical_cast<string>(this)) {
 		mapping = m;
 		v00 = t00;
 		v01 = t01;
@@ -147,7 +147,7 @@ public:
 		const std::shared_ptr<Texture<FresnelGeneral> > &t01,
 		const std::shared_ptr<Texture<FresnelGeneral> > &t10,
 		const std::shared_ptr<Texture<FresnelGeneral> > &t11) :
-		Texture("BilerpFresnelTexture-" + boost::lexical_cast<string>(this)) {
+		Texture("BilerpFresnelTexture-" + luxrays::lex::lexical_cast<string>(this)) {
 		mapping = m;
 		v00 = t00;
 		v01 = t01;

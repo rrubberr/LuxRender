@@ -27,13 +27,14 @@
 #include <filesystem>
 #include <thread>
 #include <chrono>
+#include <format>
 #include "api.h"
 #include "error.h"
 #include "server/renderserver.h"
 #include "commandline.h"
 
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/filesystem.hpp>
+//#include <boost/date_time/posix_time/posix_time.hpp>
+//#include <boost/filesystem.hpp>
 
 #if defined(WIN32) && !defined(__CYGWIN__) /* We need the following two to set stdout to binary */
 #include <io.h>
@@ -185,8 +186,13 @@ int main(int argc, char **argv) {
 
 			luxExit();
 
+			using namespace std::chrono_literals;
+
 			// Dade - print the total rendering time
-			boost::posix_time::time_duration td(0, 0, (int)luxStatistics("secElapsed"), 0);
+			//std::chrono::durationtime_duration td(0, 0, (int)luxStatistics("secElapsed"), 0);
+			
+			std::string td = std::format("{:%T}",std::chrono::seconds((int)luxStatistics("secElapsed")));
+
 			LOG(LUX_INFO,LUX_NOERROR) << "100% rendering done [" << config.threadCount << " threads] " << td;
 
 			if (config.binDump) {

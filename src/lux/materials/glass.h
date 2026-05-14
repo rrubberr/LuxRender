@@ -37,7 +37,7 @@ public:
 		std::shared_ptr<Texture<float> > &cbf,
 		std::shared_ptr<Texture<float> > &flm,
 		std::shared_ptr<Texture<float> > &flmindex,
-		bool archi, const ParamSet &mp) : Material("Glass-" + boost::lexical_cast<string>(this), mp),
+		bool archi, const ParamSet &mp) : Material("Glass-" + luxrays::lex::lexical_cast<string>(this), mp),
 		Kr(r), Kt(t), index(i),
 		cauchyb(cbf), film(flm), filmindex(flmindex), architectural(archi) {
 		AddBoolAttribute(*this, "architectural", "Glass architectural flag", &Glass::architectural);

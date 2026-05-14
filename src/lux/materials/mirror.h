@@ -34,7 +34,7 @@ public:
 	Mirror(std::shared_ptr<Texture<SWCSpectrum> > &r, 
 		std::shared_ptr<Texture<float> > &flm,
 		std::shared_ptr<Texture<float> > &flmindex, 
-		const ParamSet &mp) : Material("Mirror-" + boost::lexical_cast<string>(this), mp),
+		const ParamSet &mp) : Material("Mirror-" + luxrays::lex::lexical_cast<string>(this), mp),
 		Kr(r), film(flm),
 		filmindex(flmindex) { }
 	virtual ~Mirror() { }

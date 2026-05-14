@@ -37,7 +37,7 @@ class FBmTexture : public Texture<float> {
 public:
 	// FBmTexture Public Methods
 	FBmTexture(int oct, float roughness, TextureMapping3D *map) :
-		Texture("FBmTexture-" + boost::lexical_cast<string>(this)) {
+		Texture("FBmTexture-" + luxrays::lex::lexical_cast<string>(this)) {
 		omega = roughness;
 		octaves = oct;
 		mapping = map;

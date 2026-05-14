@@ -71,7 +71,7 @@ private:
 DistantLight::DistantLight(const Transform &light2world,
 	const std::shared_ptr<Texture<SWCSpectrum> > &L, 
 	float g, float t, const Vector &dir, u_int ns)
-	: Light("DistantLight-" + boost::lexical_cast<string>(this), light2world, ns),
+	: Light("DistantLight-" + luxrays::lex::lexical_cast<string>(this), light2world, ns),
 	Lbase(L) {
 	lightDir = Normalize(LightToWorld * dir);
 	theta = t;

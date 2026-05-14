@@ -26,7 +26,7 @@
 #include <vector>
 
 #include <boost/bind.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
+//#include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <QApplication>
 #include <QClipboard>
@@ -203,7 +203,10 @@ QString retrieveStringParam(bool useDefault, luxComponent comp, luxComponentPara
 QWidget *MainWindow::instance;
 MainWindow::MainWindow(QWidget *parent, bool copylog2console)
 	: QMainWindow(parent), ui(new Ui::MainWindow), m_copyLog2Console(copylog2console),
-	  renderQueue(boost::bind(&MainWindow::beginRenderingSession, this, _1), boost::bind(&MainWindow::endRenderingSession, this, false))
+	  renderQueue(
+		boost::bind(&MainWindow::beginRenderingSession, this, _1),
+		boost::bind(&MainWindow::endRenderingSession, this, false)
+	)
 {
 	MainWindow::instance = this;
 
@@ -1919,7 +1922,7 @@ void MainWindow::updateStatistics()
 		double updateTimeRemaining = luxGetDoubleAttribute("render_farm", "updateTimeRemaining");
 		if (updateTimeRemaining > 0)
 		{
-			std::string timeRemaining(boost::posix_time::to_simple_string(boost::posix_time::time_duration(0, 0, updateTimeRemaining, 0)));
+			std::string timeRemaining(std::format("{:%T}",std::chrono::seconds((int)updateTimeRemaining)));
 			ui->label_serversStatus->setText(QString::fromStdString(timeRemaining).prepend("Next update in "));
 		}
 		else

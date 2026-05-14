@@ -82,7 +82,7 @@ private:
 SpotLight::SpotLight(const Transform &light2world,
 	const std::shared_ptr< Texture<SWCSpectrum> > &L, 
 	float g, float power, float efficacy, float width, float fall)
-	: Light("SpotLight-" + boost::lexical_cast<string>(this), light2world), Lbase(L), gain(g)
+	: Light("SpotLight-" + luxrays::lex::lexical_cast<string>(this), light2world), Lbase(L), gain(g)
 {
 	lightPos = LightToWorld * Point(0,0,0);
 
@@ -95,7 +95,7 @@ SpotLight::SpotLight(const Transform &light2world,
 	const float gainFactor = power * efficacy /
 		(2.f * M_PI * Lbase->Y() *
 		(1.f - .5f * (cosFalloffStart + cosTotalWidth)));
-	if (gainFactor > 0.f && !isinf(gainFactor))
+	if (gainFactor > 0.f && !std::isinf(gainFactor))
 		gain *= gainFactor;
 
 	AddFloatAttribute(*this, "gain", "SpotLight gain", &SpotLight::gain);

@@ -353,7 +353,7 @@ void MetropolisSampler::AddSample(const Sample &sample)
 		for(u_int i = 0; i < newContributions.size(); ++i) {
 			const float ly = newContributions[i].color.Y();
 
-			if (ly > 0.f && !isinf(ly)) {
+			if (ly > 0.f && !std::isinf(ly)) {
 				const u_int xPixelCount = film->GetXPixelCount();
 				const u_int yPixelCount = film->GetYPixelCount();
 				const u_int x = min(xPixelCount - 1, Floor2UInt(data->currentImage[0] - xPixelStart));
@@ -372,7 +372,7 @@ void MetropolisSampler::AddSample(const Sample &sample)
 	} else {
 		for(u_int i = 0; i < newContributions.size(); ++i) {
 			const float ly = newContributions[i].color.Y();
-			if (ly > 0.f && !isinf(ly)) {
+			if (ly > 0.f && !std::isinf(ly)) {
 				if (useVariance && newContributions[i].variance > 0.f)
 					newLY += ly * newContributions[i].variance;
 				else

@@ -25,12 +25,10 @@
 
 #include <algorithm>
 #include <limits>
+#include <format>
 
 #include <boost/regex.hpp>
-#include <boost/format.hpp>
 #include <boost/thread/mutex.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-using boost::posix_time::time_duration;
 
 using namespace luxrays;
 
@@ -187,19 +185,19 @@ std::string RendererStatistics::Formatted::getRecommendedString() {
 }
 
 std::string RendererStatistics::Formatted::getElapsedTime() {
-	return boost::posix_time::to_simple_string(time_duration(0, 0, Round2UInt(rs->getElapsedTime()), 0));
+	return std::format("{:%T}",std::chrono::seconds(Round2UInt(rs->getElapsedTime())));
 }
 
 std::string RendererStatistics::Formatted::getRemainingTime() {
-	return boost::posix_time::to_simple_string(time_duration(0, 0, Round2UInt(rs->getRemainingTime()), 0));
+	return std::format("{:%T}",std::chrono::seconds(Round2UInt(rs->getRemainingTime())));
 }
 
 std::string RendererStatistics::Formatted::getHaltTime() {
-	return boost::posix_time::to_simple_string(time_duration(0, 0, Round2UInt(rs->getHaltTime()), 0));
+	return std::format("{:%T}",std::chrono::seconds(Round2UInt(rs->getHaltTime())));
 }
 
 std::string RendererStatistics::Formatted::getHaltThreshold() {
-	return boost::str(boost::format("%1$0.0f%%") % rs->getHaltThreshold());
+	return std::format("%1$0.0f%%",rs->getHaltThreshold());
 }
 
 RendererStatistics::FormattedLong::FormattedLong(RendererStatistics* rs)
@@ -235,37 +233,37 @@ std::string RendererStatistics::FormattedLong::getRecommendedStringTemplate() {
 }
 
 std::string RendererStatistics::FormattedLong::getPercentComplete() {
-	return boost::str(boost::format("%1$0.0f%%") % rs->getPercentComplete());
+	return std::format("%1$0.0f%%",rs->getPercentComplete());
 }
 
 std::string RendererStatistics::FormattedLong::getPercentHaltTimeComplete() {
-	return boost::str(boost::format("%1$0.0f%% Time") % rs->getPercentHaltTimeComplete());
+	return std::format("%1$0.0f%% Time",rs->getPercentHaltTimeComplete());
 }
 
 std::string RendererStatistics::FormattedLong::getPercentHaltThresholdComplete() {
-	return boost::str(boost::format("%1$0.0f%% Threshold") % rs->getPercentHaltThresholdComplete());
+	return std::format("%1$0.0f%% Threshold",rs->getPercentHaltThresholdComplete());
 }
 
 std::string RendererStatistics::FormattedLong::getPercentConvergence() {
-	return boost::str(boost::format("%1$0f%% Convergence") % rs->getPercentConvergence());
+	return std::format("%1$0f%% Convergence",rs->getPercentConvergence());
 }
 
 std::string RendererStatistics::FormattedLong::getEfficiency() {
-	return boost::str(boost::format("%1$0.0f%% Efficiency") % rs->getEfficiency());
+	return std::format("%1$0.0f%% Efficiency",rs->getEfficiency());
 }
 
 std::string RendererStatistics::FormattedLong::getEfficiencyWindow() {
-	return boost::str(boost::format("%1$0.0f%% Efficiency") % rs->getEfficiencyWindow());
+	return std::format("%1$0.0f%% Efficiency",rs->getEfficiencyWindow());
 }
 
 std::string RendererStatistics::FormattedLong::getThreadCount() {
 	u_int tc = rs->getThreadCount();
-	return boost::str(boost::format("%1% %2%") % tc % Pluralize("Thread", tc));
+	return std::format("%1% %2% ",tc) + Pluralize("Thread", tc);
 }
 
 std::string RendererStatistics::FormattedLong::getSlaveNodeCount() {
 	u_int snc = rs->getSlaveNodeCount();
-	return boost::str(boost::format("%1% %2%") % snc % Pluralize("Node", snc));
+	return std::format("%1% %2% ",snc) + Pluralize("Node", snc);
 }
 
 RendererStatistics::FormattedShort::FormattedShort(RendererStatistics* rs)
@@ -304,31 +302,31 @@ std::string RendererStatistics::FormattedShort::getRecommendedStringTemplate() {
 }
 
 std::string RendererStatistics::FormattedShort::getPercentHaltTimeComplete() {
-	return boost::str(boost::format("%1$0.0f%% T") % rs->getPercentHaltTimeComplete());
+	return std::format("%1$0.0f%% T",rs->getPercentHaltTimeComplete());
 }
 
 std::string RendererStatistics::FormattedShort::getPercentHaltThresholdComplete() {
-	return boost::str(boost::format("%1$0.0f%% Thld") % rs->getPercentHaltThresholdComplete());
+	return std::format("%1$0.0f%% Thld",rs->getPercentHaltThresholdComplete());
 }
 
 std::string RendererStatistics::FormattedShort::getPercentConvergence() {
-	return boost::str(boost::format("%1$0f%% Conv") % rs->getPercentConvergence());
+	return std::format("%1$0f%% Conv",rs->getPercentConvergence());
 }
 
 std::string RendererStatistics::FormattedShort::getEfficiency() {
-	return boost::str(boost::format("%1$0.0f%% Eff") % rs->getEfficiency());
+	return std::format("%1$0.0f%% Eff",rs->getEfficiency());
 }
 
 std::string RendererStatistics::FormattedShort::getEfficiencyWindow() {
-	return boost::str(boost::format("%1$0.0f%% Eff") % rs->getEfficiencyWindow());
+	return std::format("%1$0.0f%% Eff",rs->getEfficiencyWindow());
 }
 
 std::string RendererStatistics::FormattedShort::getThreadCount() {
-	return boost::str(boost::format("%1% T") % rs->getThreadCount());
+	return std::format("%1% T",rs->getThreadCount());
 }
 
 std::string RendererStatistics::FormattedShort::getSlaveNodeCount() {
-	return boost::str(boost::format("%1% N") % rs->getSlaveNodeCount());
+	return std::format("%1% N",rs->getSlaveNodeCount());
 }
 
 // Generic functions
@@ -337,7 +335,7 @@ std::string Pluralize(const std::string& l, u_int v) {
 }
 
 double MagnitudeReduce(double number) {
-	if (isnan(number) || isinf(number))
+	if (std::isnan(number) ||std::isinf(number))
 		return number;
 
 	if (fabs(number) < 1e3)
@@ -356,7 +354,7 @@ double MagnitudeReduce(double number) {
 }
 
 const char* MagnitudePrefix(double number) {
-	if (isnan(number) || isinf(number))
+	if (std::isnan(number) || std::isinf(number))
 		return "";
 
 	if (fabs(number) < 1e3)

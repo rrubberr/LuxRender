@@ -28,7 +28,7 @@
 
 #include "film/data/cameraresponsefunctions.h"
 
-#include <boost/lexical_cast.hpp> // used to convert string to float
+//#include <boost/lexical_cast.hpp> // used to convert string to float
 #include <boost/regex.hpp>
 // #include <boost/iterator.hpp>
 #include <iterator>
@@ -267,11 +267,11 @@ bool CameraResponse::loadFile() {
 
 		// parse functions
 		for (boost::sregex_iterator rit(Istr.begin(), Istr.end(), float_expr); rit != rend; ++rit) {
-			I->push_back(boost::lexical_cast<float>(rit->str(0)));
+			I->push_back(luxrays::lex::lexical_cast<float>(rit->str(0)));
 		}
 
 		for (boost::sregex_iterator rit(Bstr.begin(), Bstr.end(), float_expr); rit != rend; ++rit) {
-			B->push_back(boost::lexical_cast<float>(rit->str(0)));
+			B->push_back(luxrays::lex::lexical_cast<float>(rit->str(0)));
 		}
 
 		*channel_flag = I->size() == B->size();

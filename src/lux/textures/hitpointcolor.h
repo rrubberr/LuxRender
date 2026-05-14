@@ -31,7 +31,7 @@ namespace lux
 class HitPointAlphaTexture : public Texture<float> {
 public:
 	HitPointAlphaTexture() :
-		Texture("HitPointAlphaTexture-" + boost::lexical_cast<string>(this)) { }
+		Texture("HitPointAlphaTexture-" + luxrays::lex::lexical_cast<string>(this)) { }
 	virtual ~HitPointAlphaTexture() { }
 	virtual float Evaluate(const SpectrumWavelengths &sw,
 		const DifferentialGeometry &dgs) const {
@@ -55,7 +55,7 @@ public:
 class HitPointRGBColorTexture : public Texture<SWCSpectrum> {
 public:
 	HitPointRGBColorTexture() :
-		Texture("HitPointRGBColorTexture-" + boost::lexical_cast<string>(this)) { }
+		Texture("HitPointRGBColorTexture-" + luxrays::lex::lexical_cast<string>(this)) { }
 	virtual ~HitPointRGBColorTexture() { }
 	virtual SWCSpectrum Evaluate(const SpectrumWavelengths &sw,
 		const DifferentialGeometry &dgs) const {
@@ -80,7 +80,7 @@ public:
 class HitPointGreyTexture : public Texture<float> {
 public:
 	HitPointGreyTexture(const u_int ch) :
-		Texture("HitPointGreyTexture-" + boost::lexical_cast<string>(this)), channel(ch) { }
+		Texture("HitPointGreyTexture-" + luxrays::lex::lexical_cast<string>(this)), channel(ch) { }
 	virtual ~HitPointGreyTexture() { }
 	virtual float Evaluate(const SpectrumWavelengths &sw,
 		const DifferentialGeometry &dgs) const {

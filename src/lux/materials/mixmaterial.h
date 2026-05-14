@@ -34,7 +34,7 @@ public:
 	MixMaterial(std::shared_ptr<Texture<float> > &a,
 		std::shared_ptr<Material> &m1,
 		std::shared_ptr<Material> &m2,
-		const ParamSet &mp) : Material("MixMaterial-" + boost::lexical_cast<string>(this), mp, false),
+		const ParamSet &mp) : Material("MixMaterial-" + luxrays::lex::lexical_cast<string>(this), mp, false),
 		amount(a), mat1(m1), mat2(m2) { }
 	virtual ~MixMaterial() { }
 	virtual BSDF *GetBSDF(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,

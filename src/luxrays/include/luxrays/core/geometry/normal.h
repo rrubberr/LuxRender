@@ -115,11 +115,11 @@ public:
 	}
 
 	bool IsNaN() const {
-		return isnan(x) || isnan(y) || isnan(z);
+		return std::isnan(x) || std::isnan(y) || std::isnan(z);
 	}
 
 	bool IsInf() const {
-		return isinf(x) || isinf(y) || isinf(z);
+		return std::isinf(x) || std::isinf(y) || std::isinf(z);
 	}
 
 	// Normal Public Data

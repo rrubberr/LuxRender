@@ -22,7 +22,7 @@
 #include <cassert>
 #include <cstdlib>
 
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 #include <boost/foreach.hpp>
 
 #include "luxrays/luxrays.h"
@@ -57,7 +57,7 @@ public:
 	ExtMesh() { }
 	virtual ~ExtMesh() { }
 
-	virtual std::string GetName() const { return "extmesh-" + boost::lexical_cast<std::string>(this); }
+	virtual std::string GetName() const { return "extmesh-" + lex::lexical_cast<std::string>(this); }
 
 	virtual bool HasNormals() const = 0;
 	virtual bool HasUVs() const = 0;

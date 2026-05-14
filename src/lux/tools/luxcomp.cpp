@@ -34,9 +34,9 @@
 
 #include <boost/program_options.hpp>
 #include <boost/thread.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/scoped_ptr.hpp>
+//#include <boost/date_time/posix_time/posix_time.hpp>
+//#include <boost/filesystem.hpp>
+//#include <boost/scoped_ptr.hpp>
 
 #if defined(WIN32) && !defined(__CYGWIN__) /* We need the following two to set stdout to binary */
 #include <io.h>

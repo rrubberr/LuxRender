@@ -230,15 +230,15 @@ public:
 		return ret;
 	}
 	bool IsNaN() const {
-		if (isnan(c[0])) return true;
-		if (isnan(c[1])) return true;
-		if (isnan(c[2])) return true;
+		if (std::isnan(c[0])) return true;
+		if (std::isnan(c[1])) return true;
+		if (std::isnan(c[2])) return true;
 		return false;
 	}
 	bool IsInf() const {
-		if (isinf(c[0])) return true;
-		if (isinf(c[1])) return true;
-		if (isinf(c[2])) return true;
+		if (std::isinf(c[0])) return true;
+		if (std::isinf(c[1])) return true;
+		if (std::isinf(c[2])) return true;
 		return false;
 	}
 	bool IsNeg() const {

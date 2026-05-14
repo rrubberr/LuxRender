@@ -98,9 +98,9 @@ MeshMicroDisplacementTriangle::MeshMicroDisplacementTriangle(const lux::Mesh *m,
 
 	normalizedNormal = Normalize(Cross(e1, e2));
 
-	if (isnan(normalizedNormal.x) || 
-		isnan(normalizedNormal.y) ||
-		isnan(normalizedNormal.z))
+	if (std::isnan(normalizedNormal.x) || 
+		std::isnan(normalizedNormal.y) ||
+		std::isnan(normalizedNormal.z))
 	{
 		is_Degenerate = true;
 		return;

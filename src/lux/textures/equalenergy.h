@@ -36,7 +36,7 @@ class EqualEnergyTexture : public Texture<SWCSpectrum> {
 public:
 	// EqualEnergyTexture Public Methods
 	EqualEnergyTexture(float t) :
-		Texture("EqualEnergyTexture-" + boost::lexical_cast<string>(this)), e(t) { }
+		Texture("EqualEnergyTexture-" + luxrays::lex::lexical_cast<string>(this)), e(t) { }
 	virtual ~EqualEnergyTexture() { }
 	virtual SWCSpectrum Evaluate(const SpectrumWavelengths &sw,
 		const DifferentialGeometry &) const {

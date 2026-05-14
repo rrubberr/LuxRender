@@ -36,7 +36,7 @@ class FrequencyTexture : public Texture<SWCSpectrum> {
 public:
 	// FrequencyTexture Public Methods
 	FrequencyTexture(float w, float p, float r)
-		: Texture("FrequencyTexture-" + boost::lexical_cast<string>(this)),
+		: Texture("FrequencyTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		FSPD(w, p, r) { }
 	virtual ~FrequencyTexture() { }
 	virtual SWCSpectrum Evaluate(const SpectrumWavelengths &sw,

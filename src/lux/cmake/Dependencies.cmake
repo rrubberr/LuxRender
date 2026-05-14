@@ -87,7 +87,7 @@ ENDIF (NOT FLEX_NOT_AVAILABLE)
 find_package(Boost REQUIRED COMPONENTS
     thread
     program_options
-    filesystem
+    #filesystem
     serialization
     iostreams
     regex

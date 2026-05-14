@@ -34,7 +34,7 @@ public:
 		std::shared_ptr<Material> &frontm,
 		std::shared_ptr<Material> &backm,
 		const bool ufront, const bool uback,
-		const ParamSet &mp) : Material("DoubleSideMaterial-" + boost::lexical_cast<string>(this), mp, false),
+		const ParamSet &mp) : Material("DoubleSideMaterial-" + luxrays::lex::lexical_cast<string>(this), mp, false),
 		frontMat(frontm), backMat(backm), useFrontForFrontMat(ufront), useFrontForBackMat(uback) { }
 	virtual ~DoubleSideMaterial() { }
 	virtual BSDF *GetBSDF(luxrays::MemoryArena &arena, const SpectrumWavelengths &sw,

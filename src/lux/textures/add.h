@@ -45,7 +45,7 @@ class AddTexture : public Texture<T2> {
 public:
 	// AddTexture Public Methods
 	AddTexture(std::shared_ptr<Texture<T1> > &t1, std::shared_ptr<Texture<T2> > &t2) :
-		Texture<T2>("AddTexture-" + boost::lexical_cast<string>(this)), tex1(t1), tex2(t2) { 
+		Texture<T2>("AddTexture-" + luxrays::lex::lexical_cast<string>(this)), tex1(t1), tex2(t2) { 
 		// Nothing
 	}
 	virtual ~AddTexture() { 

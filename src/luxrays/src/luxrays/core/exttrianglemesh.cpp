@@ -469,7 +469,7 @@ void ExtTriangleMesh::WritePly(const string &fileName) const {
 	plyFile << "ply\n"
 			"format " + string(ply_storage_mode_list[ply_arch_endian()]) + " 1.0\n"
 			"comment Created by LuxRays v" LUXRAYS_VERSION_MAJOR "." LUXRAYS_VERSION_MINOR "\n"
-			"element vertex " + boost::lexical_cast<string>(vertCount) + "\n"
+			"element vertex " + lex::lexical_cast<string>(vertCount) + "\n"
 			"property float x\n"
 			"property float y\n"
 			"property float z\n";
@@ -491,7 +491,7 @@ void ExtTriangleMesh::WritePly(const string &fileName) const {
 	if (HasAlphas())
 		plyFile << "property float alpha\n";
 
-	plyFile << "element face " + boost::lexical_cast<string>(triCount) + "\n"
+	plyFile << "element face " + lex::lexical_cast<string>(triCount) + "\n"
 				"property list uchar uint vertex_indices\n"
 				"end_header\n";
 

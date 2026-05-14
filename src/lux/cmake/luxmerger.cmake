@@ -25,7 +25,7 @@ ADD_EXECUTABLE(luxmerger tools/luxmerger.cpp)
 target_link_libraries(luxmerger PRIVATE
     lux
     Threads::Threads
-    Boost::filesystem
+    #Boost::filesystem
     Boost::program_options
     Boost::thread
 )

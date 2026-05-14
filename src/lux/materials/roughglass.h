@@ -38,7 +38,7 @@ public:
 		std::shared_ptr<Texture<float> > &i,
 		std::shared_ptr<Texture<float> > &cbf,
 		bool disp,
-		const ParamSet &mp) : Material("RoughGlass-" + boost::lexical_cast<string>(this), mp),
+		const ParamSet &mp) : Material("RoughGlass-" + luxrays::lex::lexical_cast<string>(this), mp),
 		Kr(r), Kt(t), index(i),
 		cauchyb(cbf), uroughness(urough), vroughness(vrough),
 		dispersion(disp) { }

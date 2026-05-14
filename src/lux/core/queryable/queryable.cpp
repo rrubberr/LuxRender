@@ -28,7 +28,7 @@ namespace lux
 {
 
 Queryable::Queryable(const Queryable &q) : attributes(q.attributes),
-		name(q.name + "-copied-to-" + boost::lexical_cast<string>(this)),
+		name(q.name + "-copied-to-" + luxrays::lex::lexical_cast<string>(this)),
 		nullAttribute(q.nullAttribute) {
 	// Add this object to the registry
 	if (Context::GetActive())

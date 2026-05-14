@@ -113,7 +113,7 @@ class ImageFloatTexture : public Texture<float>, public ImageTexture {
 public:
 	// ImageFloatTexture Public Methods
 	ImageFloatTexture(const TexInfo &texInfo, TextureMapping2D *m, Channel ch) :
-		Texture("ImageFloatTexture-" + boost::lexical_cast<string>(this)),
+		Texture("ImageFloatTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		ImageTexture(texInfo, m) { channel = ch; }
 
 	virtual ~ImageFloatTexture() { }
@@ -155,7 +155,7 @@ class ImageSpectrumTexture : public Texture<SWCSpectrum>, public ImageTexture {
 public:
 	// ImageSpectrumTexture Public Methods
 	ImageSpectrumTexture(const TexInfo &texInfo, TextureMapping2D *m) :
-		Texture("ImageSpectrumTexture-" + boost::lexical_cast<string>(this)),
+		Texture("ImageSpectrumTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		ImageTexture(texInfo, m), isIlluminant(false) { }
 
 	virtual ~ImageSpectrumTexture() { }
@@ -203,7 +203,7 @@ class NormalMapTexture : public Texture<float>, public ImageTexture {
 public:
 	// NormalMapTexture Public Methods
 	NormalMapTexture(const TexInfo &texInfo, TextureMapping2D *m) :
-		Texture("NormalMapTexture-" + boost::lexical_cast<string>(this)),
+		Texture("NormalMapTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		ImageTexture(texInfo, m) { }
 
 	virtual ~NormalMapTexture() { }

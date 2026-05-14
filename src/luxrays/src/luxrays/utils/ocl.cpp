@@ -24,7 +24,7 @@
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/trim.hpp>
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 
 #include "luxrays/luxrays.h"
 #include "luxrays/core/utils.h"
@@ -137,7 +137,7 @@ string luxrays::oclErrorString(cl_int error) {
 		case CL_INVALID_GLOBAL_WORK_SIZE:
 			return "CL_INVALID_GLOBAL_WORK_SIZE";
 		default:
-			return boost::lexical_cast<string > (error);
+			return lex::lexical_cast<string > (error);
 	}
 }
 

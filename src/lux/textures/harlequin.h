@@ -40,7 +40,7 @@ namespace lux
 class HarlequinTexture : public Texture<SWCSpectrum> {
 public:
 	// Harlequin Public Methods
-	HarlequinTexture() : Texture("HarlequinTexture-" + boost::lexical_cast<string>(this)) {
+	HarlequinTexture() : Texture("HarlequinTexture-" + luxrays::lex::lexical_cast<string>(this)) {
 		float c[3];
 		for (int i = 0; i < HARLEQUIN_TEXTURE_PALETTE_SIZE; i++) {
 			c[0] = RadicalInverse(i * COLOR_SAMPLES + 1, 2);

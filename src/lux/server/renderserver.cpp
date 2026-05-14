@@ -53,11 +53,11 @@
 #include <boost/thread/thread.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 
 using namespace lux;
 using namespace boost::iostreams;
-using namespace boost::filesystem;
+//using namespace boost::filesystem;
 using namespace std;
 using boost::asio::ip::tcp;
 
@@ -262,7 +262,7 @@ static bool receiveFile(const std::string &filename, const std::string &filehash
 	string slen;
 	getline(stream, slen);
 
-	uint64_t len = boost::lexical_cast<uint64_t>(slen);
+	uint64_t len = luxrays::lex::lexical_cast<uint64_t>(slen);
 
 	LOG( LUX_INFO,LUX_NOERROR) << "Receiving file: '" << fname << "' as '" << filename << "', size: " << (len / 1000) << " Kbytes";
 
@@ -318,7 +318,7 @@ static bool receiveFile(const std::string &filename, const std::string &filehash
 }
 
 //static void processFiles(ParamSet &params, std::set<string> &tmpFiles, std::iostream &stream) {
-static void processFiles(ParamSet &params, socket_stream_t &stream) {
+static void processFiles(ParamSet &params, socket_stream_t &stream, std::vector<std::string> pathRefs) {
 	LOG(LUX_DEBUG,LUX_NOERROR) << "Receiving file index";
 
 	string s = get_response(stream);
@@ -371,9 +371,11 @@ static void processFiles(ParamSet &params, socket_stream_t &stream) {
 		} else {
 			LOG( LUX_DEBUG,LUX_NOERROR) << "Using existing file  '" << filename << "' (as '" << tfile.string() << "')";
 		}
-		
+
+		pathRefs.push_back(tfile.string());
+
 		// replace parameter
-		params.AddString(paramName, &tfile.string()); //TODO: fix this, it isn't safe
+		params.AddString(paramName, &pathRefs.back());
 	}
 
 	stream << "END FILE INDEX OK" << "\n";
@@ -416,7 +418,8 @@ static void processCommandFilm(bool isLittleEndian,
 	ParamSet params;
 	processCommandParams(isLittleEndian, params, stream);
 
-	processFiles(params, stream);
+	std::vector<std::string> pathRefs = {};
+	processFiles(params, stream, pathRefs);
 
 	// Dade - overwrite some option for the servers
 
@@ -467,7 +470,8 @@ static void processCommand(bool isLittleEndian,
 	//processFile("iesname", params, tmpFileList, stream);
 	//processFile("configfile", params, tmpFileList, stream);
 	//processFile("filename", params, tmpFileList, stream);
-	processFiles(params, stream);
+	std::vector<std::string> pathRefs = {};
+	processFiles(params, stream, pathRefs);
 
 	(Context::GetActive()->*f)(type, params);
 }
@@ -541,7 +545,7 @@ static void cleanupSession(NetworkRenderServerThread *serverThread, vector<strin
 
 	// Dade - remove all temporary files
 	for (size_t i = 1; i < tmpFileList.size(); i++)
-		remove(tmpFileList[i]);
+		std::filesystem::remove(tmpFileList[i]);
 
 	serverThread->renderServer->setServerState(RenderServer::READY);
 	LOG( LUX_INFO,LUX_NOERROR) << "Server ready";
@@ -627,7 +631,8 @@ void cmd_ServerReset(bool isLittleEndian, NetworkRenderServerThread *serverThrea
 //case CMD_SERVER_RESET:
 	if (serverThread->renderServer->getServerState() == RenderServer::BUSY) {
 		LOG( LUX_INFO,LUX_NOERROR) << "Master requested a server reset, authenticating";
-		std::string salt = boost::lexical_cast<std::string>(boost::uuids::random_generator()());
+		auto thing = boost::uuids::random_generator()();
+		std::string salt = luxrays::lex::lexical_cast<std::string>(boost::uuids::to_string(thing));
 		stream << "CHALLENGE" << endl;
 		stream << salt << endl << flush;
 
@@ -785,7 +790,8 @@ void cmd_luxTexture(bool isLittleEndian, NetworkRenderServerThread *serverThread
 	processCommandParams(isLittleEndian, params, stream);
 
 	//processFile("filename", params, tmpFileList, stream);
-	processFiles(params, stream);
+	std::vector<std::string> pathRefs = {};
+	processFiles(params, stream, pathRefs);
 
 	Context::GetActive()->Texture(name, type, texname, params);
 }
@@ -834,7 +840,8 @@ void cmd_luxMakeNamedVolume(bool isLittleEndian, NetworkRenderServerThread *serv
 
 	processCommandParams(isLittleEndian,
 		params, stream);
-	processFiles(params, stream); // expected due to presence of ParamSet
+	std::vector<std::string> pathRefs = {};
+	processFiles(params, stream, pathRefs); // expected due to presence of ParamSet
 
 	Context::GetActive()->MakeNamedVolume(id, name, params);
 }

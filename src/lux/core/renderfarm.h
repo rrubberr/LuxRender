@@ -25,6 +25,7 @@
 
 #include "osfunc.h"
 #include "queryable.h"
+#include "scene.h"
 #include "timer.h"
 
 #include <vector>
@@ -32,36 +33,40 @@
 #include <sstream>
 
 #include <boost/thread.hpp>
-#include <boost/date_time/posix_time/posix_time.hpp>
+//#include <boost/date_time/posix_time/posix_time.hpp>
 
 namespace lux
 {
 
 class RenderFarm;
 
-class FilmUpdaterThread : public boost::noncopyable {
+class FilmUpdaterThread {
 public:
-    FilmUpdaterThread(RenderFarm *rFarm, Scene *scn) :
-        renderFarm(rFarm), scene(scn), thread(NULL) { }
+	FilmUpdaterThread(RenderFarm *rFarm, Scene *scn) :
+		renderFarm(rFarm), scene(scn), thread(NULL) { }
 
-    ~FilmUpdaterThread() {
-        delete thread;
-    }
+	~FilmUpdaterThread() {
+		delete thread;
+	}
+
+	FilmUpdaterThread(const FilmUpdaterThread &) = delete;
+
+	FilmUpdaterThread& operator=(const FilmUpdaterThread &) = delete;
 
 	double getUpdateTimeRemaining();
 
-    void stop() {
-        thread->interrupt();
-        thread->join();
-    }
+	void stop() {
+		thread->interrupt();
+		thread->join();
+	}
 
-    friend class RenderFarm;
+	friend class RenderFarm;
 private:
-    static void updateFilm(FilmUpdaterThread *filmUpdaterThread);
+	static void updateFilm(FilmUpdaterThread *filmUpdaterThread);
 
-    RenderFarm *renderFarm;
-    Scene *scene;
-    boost::thread *thread; // keep pointer to delete the thread object
+	RenderFarm *renderFarm;
+	Scene *scene;
+	boost::thread *thread; // keep pointer to delete the thread object
 	Timer timer;
 };
 

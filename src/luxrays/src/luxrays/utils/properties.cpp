@@ -25,7 +25,7 @@
 #include <stdexcept>
 
 #include <boost/foreach.hpp>
-#include <boost/lexical_cast.hpp>
+//#include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string.hpp>
@@ -291,6 +291,15 @@ template<> Property &Property::Add<Matrix4x4>(const Matrix4x4 &m) {
 	return *this;
 }
 
+//trims leading and trailing zeros from a string in place
+void trim_spaces(std::string &str)
+{
+	while(str.front() == ' ')
+		str.erase(str.begin());
+	while(str.back() == ' ')
+		str.pop_back();
+};
+
 //------------------------------------------------------------------------------
 
 void Property::FromString(string &line) {
@@ -300,7 +309,7 @@ void Property::FromString(string &line) {
 
 	// Check if it is a valid name
 	name = line.substr(0, idx);
-	boost::trim(name);
+	trim_spaces(name);
 
 	values.clear();
 
@@ -309,7 +318,7 @@ void Property::FromString(string &line) {
 	// a DOS file read under Linux/MacOS)
 	if ((value.size() > 0) && ((value[value.size() - 1] == '\n') || (value[value.size() - 1] == '\r')))
 		value.resize(value.size() - 1);
-	boost::trim(value);
+	trim_spaces(value);
 
 	// Iterate over value and extract all field (handling quotes)
 	u_int first = 0;
@@ -490,7 +499,7 @@ Properties &Properties::SetFromStream(istream &stream) {
 		if (line[0] == '#')
 			continue;
 
-		boost::trim(line);
+		trim_spaces(line);
 
 		// Ignore empty lines
 		if (line.length() == 0)

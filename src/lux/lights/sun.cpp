@@ -110,7 +110,7 @@ protected:
 // SunLight Method Definitions
 SunLight::SunLight(const Transform &light2world, const float sunscale,
 	const Vector &lightDir, float turb , float relS, u_int ns)
-	: Light("SunLight-" + boost::lexical_cast<string>(this), light2world, ns) {
+	: Light("SunLight-" + luxrays::lex::lexical_cast<string>(this), light2world, ns) {
 	dir = lightDir;
 	turbidity = turb;
 	relSize = relS;

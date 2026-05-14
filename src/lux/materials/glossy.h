@@ -38,7 +38,7 @@ public:
 		std::shared_ptr<Texture<float> > &d,
 		std::shared_ptr<Texture<float> > &u,
 		std::shared_ptr<Texture<float> > &v,
-		const ParamSet &mp) : Material("Glossy-" + boost::lexical_cast<string>(this), mp),
+		const ParamSet &mp) : Material("Glossy-" + luxrays::lex::lexical_cast<string>(this), mp),
 		Kd(kd), Ks(ks), Ka(ka),
 		depth(d), index(i), nu(u), nv(v) { }
 	virtual ~Glossy() { }

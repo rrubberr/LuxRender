@@ -35,8 +35,8 @@ class  Anisotropic : public MicrofacetDistribution {
 public:
 	// Anisotropic Public Methods
 	Anisotropic(float x, float y) { ex = x; ey = y;
-		if (ex > 100000.f || isnan(ex)) ex = 100000.f;
-		if (ey > 100000.f || isnan(ey)) ey = 100000.f;
+		if (ex > 100000.f || std::isnan(ex)) ex = 100000.f;
+		if (ey > 100000.f || std::isnan(ey)) ey = 100000.f;
 	}
 	virtual ~Anisotropic() { }
 	virtual float D(const Vector &wh) const {

@@ -26,6 +26,7 @@
 #include "lux.h"
 #include "api.h"
 
+#include <filesystem>
 #include <boost/serialization/split_member.hpp>
 
 #include <map>

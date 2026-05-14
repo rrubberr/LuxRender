@@ -52,7 +52,7 @@ CarPaint::CarPaint(std::shared_ptr<Texture<SWCSpectrum> > &kd,
 	std::shared_ptr<Texture<float> > &m1,
 	std::shared_ptr<Texture<float> > &m2,
 	std::shared_ptr<Texture<float> > &m3,
-	const ParamSet &mp) : Material("CarPaint-" + boost::lexical_cast<string>(this), mp),
+	const ParamSet &mp) : Material("CarPaint-" + luxrays::lex::lexical_cast<string>(this), mp),
 	Kd(kd), Ka(ka), Ks1(ks1), Ks2(ks2), Ks3(ks3), depth(d), R1(r1), R2(r2),
 	R3(r3), M1(m1), M2(m2), M3(m3)
 {

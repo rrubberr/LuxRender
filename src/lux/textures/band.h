@@ -43,7 +43,7 @@ public:
 	BandTexture(u_int n, const float *o,
 		vector<std::shared_ptr<Texture<T> > > &t,
 		std::shared_ptr<Texture<float> > &a) :
-		Texture<T>("BandTexture-" + boost::lexical_cast<string>(this)),
+		Texture<T>("BandTexture-" + luxrays::lex::lexical_cast<string>(this)),
 		offsets(o, o + n),
 		tex(t), amount(a) { }
 	virtual ~BandTexture() { }

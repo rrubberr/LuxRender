@@ -90,7 +90,7 @@ bool RGBVolume::Scatter(const Sample &sample, bool scatteredStart,
 	return scatter;
 }
 AggregateRegion::AggregateRegion(const vector<Region *> &r) :
-	Region("AggregateRegion-" + boost::lexical_cast<string>(this)) {
+	Region("AggregateRegion-" + luxrays::lex::lexical_cast<string>(this)) {
 	regions = r;
 	for (u_int i = 0; i < regions.size(); ++i)
 		bound = Union(bound, regions[i]->WorldBound());

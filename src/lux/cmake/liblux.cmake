@@ -892,7 +892,7 @@ target_link_libraries(lux PRIVATE
 	OpenEXR::Iex
 	Imath::Imath
 	Boost::thread
-	Boost::filesystem
+	#Boost::filesystem
 	Boost::iostreams
 	Boost::serialization
 	Boost::python
