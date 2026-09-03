@@ -46,6 +46,8 @@ Scheduler::Scheduler(unsigned step)
 	current_task = NULL;
 	default_step = step;
 	state = RUNNING;
+	threadsInitialized = false;
+	counter = 0;
 
 	class NullTask
 	{
@@ -88,35 +90,30 @@ void Scheduler::Resume()
 void Scheduler::Done()
 {
 	Launch(NullTask, 0, 0);
-	for(unsigned i = 0; i < threads.size(); i++)
+	for(unsigned i = 0; i < threads.size(); i++) {
 		threads[i]->thread.join();
+		delete threads[i];
+	}
+	threads.clear();
 }
 
-void Scheduler::AddThread(Thread *thread)
+void Scheduler::InitThreads(unsigned n, const boost::function<Thread*()> &factory)
 {
 	boost::unique_lock<boost::mutex> lock(mutex);
 
-	threads.push_back(thread);
+	// Threads are fixed at render start.
+	if (threadsInitialized)
+		return;
+	threadsInitialized = true;
 
-	// if task is running, we need to wait for one new thread
-	counter++;
-	thread->active = true;
-	thread->thread = boost::thread(boost::bind(Thread::Body, thread, this));
-}
+	for (unsigned i = 0; i < n; ++i) {
+		Thread *thread = factory();
+		threads.push_back(thread);
 
-void Scheduler::DelThread()
-{
-	boost::unique_lock<boost::mutex> lock(mutex);
-
-	// when deleting a thread, many cases
-	//
-	// a) threads are waiting for a task in the critical section
-	// b) threads are running outside of critical section
-	// c) threads are done with their task
-	Thread* deleted_thread = threads.back();
-	threads.pop_back();
-	deleted_thread->active = false;
-	threads_finished.push_back(deleted_thread);
+		// if task is running, we need to wait for one new thread
+		counter++;
+		thread->thread = boost::thread(boost::bind(Thread::Body, thread, this));
+	}
 }
 
 TaskType Scheduler::GetTask()
@@ -137,19 +134,6 @@ bool Scheduler::EndTask(Thread* thread)
 	boost::unique_lock<boost::mutex> lock(mutex);
 	counter--;
 
-	if(!thread->active)
-	{
-		// TODO: Here I'm guessing that the thread will ends before the end
-		// of the Scheduler, it may be wrong and normally a thread should
-		// be stored in a vector for join in Done()
-		//
-		// But it is mainly safe to assume so.
-		//
-		// TODO: lifespan of threads ? They are allocated outside of the
-		// Scheduler, but should be freed inside the scheduler ?
-		return true;
-	}
-
 	if(counter == 0)
 	{
 		current_task = NULL;
@@ -160,21 +144,5 @@ bool Scheduler::EndTask(Thread* thread)
 		condition.wait(lock);
 	}
 	return false;
-}
-
-
-void Scheduler::FreeThreadLocalStorage()
-{
-	boost::unique_lock<boost::mutex> lock(mutex);
-
-	std::cout << "Deleting threads" << threads_finished.size() << std::endl;
-
-	for(unsigned int i = 0; i < threads_finished.size(); ++i)
-	{
-		threads_finished[i]->thread.join();
-		delete threads_finished[i];
-	}
-
-	threads_finished.clear();
 }
 }

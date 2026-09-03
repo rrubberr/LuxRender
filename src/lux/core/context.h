@@ -166,8 +166,10 @@ public:
 	Renderer::RendererType GetRendererType() const;
 
 	//controlling number of threads
-	u_int AddThread();
-	void RemoveThread();
+	// The thread count is fixed at render start: SetThreadCount is safe
+	// to call anytime, but changes only take effect on the next render.
+	void SetThreadCount(unsigned int n);
+	unsigned int GetThreadCount() const { return threadCount; }
 
 
 	//framebuffer access
@@ -358,6 +360,7 @@ private:
 	bool startRenderingAfterParse;
 	bool terminated;
 	bool aborted; // abort rendering
+	unsigned int threadCount;
 };
 
 }

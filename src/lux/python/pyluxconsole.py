@@ -290,6 +290,7 @@ if __name__ == '__main__':
 				'lux_context': ctx
 			})
 			
+			ctx.setThreadCount(threads)
 			ctx.parse(scene_file, True) # asynchronous parse (ie. don't wait)
 			
 			# wait here for parsing to complete
@@ -303,9 +304,6 @@ if __name__ == '__main__':
 			yres = ctx.getAttribute('film', 'yResolution')
 			
 			# TODO: add support to pylux for reporting parse errors after async parse
-			
-			for i in range(threads-1):
-				ctx.addThread()
 			
 			# Render wait loop
 			while ctx.statistics('filmIsReady') != 1.0 and \

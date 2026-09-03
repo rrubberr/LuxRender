@@ -20,9 +20,6 @@ using boost::interprocess::ipcdetail::atomic_inc32;
  * TODO:
  *
  * - Better documentation of API
- * - deleting of ended thread:local memory
- *   - by mean of Done function
- *   - by DelThread
  * - Pause/Resume function
  *   - use a barrier instead of a crappy sleep
  *   - should this code move at the end of each blocks ?
@@ -49,7 +46,6 @@ private:
 	static void Body(Thread* thread, Scheduler *scheduler);
 
 	boost::thread thread;
-	bool active;
 };
 
 typedef boost::function<void(Range *range)> TaskType;
@@ -67,14 +63,12 @@ public:
 	void Stop();
 	void Done();
 
-	void AddThread(Thread *thread);
-	void DelThread();
+	// Spawn n worker threads before the first Launch().
+	void InitThreads(unsigned n, const boost::function<Thread*()> &factory);
 	unsigned ThreadCount() const
 	{
 		return threads.size();
 	}
-
-	void FreeThreadLocalStorage();
 
 friend class Thread;
 friend class Range;
@@ -87,7 +81,7 @@ private:
 	bool EndTask(Thread* thread);
 
 	std::vector<Thread*> threads;
-	std::vector<Thread*> threads_finished;
+	bool threadsInitialized;
 
 	TaskType current_task;
 
@@ -137,9 +131,6 @@ friend class Thread;
 private:
 	unsigned atomic_init()
 	{
-		if(!thread->active)
-			return end();
-
 		unsigned new_value = scheduler->step * atomic_inc32(&scheduler->current);
 
 		if(new_value < scheduler->end)

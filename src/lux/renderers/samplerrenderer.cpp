@@ -33,52 +33,11 @@
 using namespace lux;
 
 //------------------------------------------------------------------------------
-// SRDeviceDescription
-//------------------------------------------------------------------------------
-
-unsigned int SRDeviceDescription::GetUsedUnitsCount() const {
-	boost::mutex::scoped_lock lock(host->renderer->renderThreadsMutex);
-	return host->renderer->renderThreads.size();
-}
-
-void SRDeviceDescription::SetUsedUnitsCount(const unsigned int units) {
-	boost::mutex::scoped_lock lock(host->renderer->renderThreadsMutex);
-
-	unsigned int target = max(units, 1u);
-	size_t current = host->renderer->renderThreads.size();
-
-	if (current > target) {
-		for (unsigned int i = 0; i < current - target; ++i)
-			host->renderer->RemoveRenderThread();
-	} else if (current < target) {
-		for (unsigned int i = 0; i < target - current; ++i)
-			host->renderer->CreateRenderThread();
-	}
-}
-
-//------------------------------------------------------------------------------
-// SRHostDescription
-//------------------------------------------------------------------------------
-
-SRHostDescription::SRHostDescription(SamplerRenderer *r, const string &n) : renderer(r), name(n) {
-	SRDeviceDescription *desc = new SRDeviceDescription(this, "CPUs");
-	devs.push_back(desc);
-}
-
-SRHostDescription::~SRHostDescription() {
-	for (size_t i = 0; i < devs.size(); ++i)
-		delete devs[i];
-}
-
-//------------------------------------------------------------------------------
 // SamplerRenderer
 //------------------------------------------------------------------------------
 
 SamplerRenderer::SamplerRenderer() : Renderer() {
 	state = INIT;
-
-	SRHostDescription *host = new SRHostDescription(this, "Localhost");
-	hosts.push_back(host);
 
 	preprocessDone = false;
 	suspendThreadsWhenDone = false;
@@ -98,9 +57,6 @@ SamplerRenderer::~SamplerRenderer() {
 
 	if (renderThreads.size() > 0)
 		throw std::runtime_error("Internal error: called SamplerRenderer::~SamplerRenderer() while list of renderThread sis not empty.");
-
-	for (size_t i = 0; i < hosts.size(); ++i)
-		delete hosts[i];
 }
 
 Renderer::RendererType SamplerRenderer::GetType() const {
@@ -111,12 +67,6 @@ Renderer::RendererState SamplerRenderer::GetState() const {
 	boost::mutex::scoped_lock lock(classWideMutex);
 
 	return state;
-}
-
-vector<RendererHostDescription *> &SamplerRenderer::GetHostDescs() {
-	boost::mutex::scoped_lock lock(classWideMutex);
-
-	return hosts;
 }
 
 void SamplerRenderer::SuspendWhenDone(bool v) {
@@ -192,8 +142,10 @@ void SamplerRenderer::Render(Scene *s) {
 		preprocessDone = true;
 		scene->SetReady();
 
-		// add a thread
-		CreateRenderThread();
+		// Add all render threads.
+		const unsigned int nThreads = Context::GetActive()->GetThreadCount();
+		for (unsigned int i = 0; i < nThreads; ++i)
+			CreateRenderThread();
 	}
 
 	if (renderThreads.size() > 0) {
@@ -265,16 +217,6 @@ void SamplerRenderer::CreateRenderThread() {
 		renderThreads.push_back(rt);
 		rt->thread = new boost::thread(boost::bind(RenderThread::RenderImpl, rt));
 	}
-}
-
-void SamplerRenderer::RemoveRenderThread() {
-	if (renderThreads.size() == 0)
-		return;
-
-	renderThreads.back()->thread->interrupt();
-	renderThreads.back()->thread->join();
-	delete renderThreads.back();
-	renderThreads.pop_back();
 }
 
 //------------------------------------------------------------------------------

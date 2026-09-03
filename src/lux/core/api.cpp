@@ -673,14 +673,14 @@ extern "C" void luxSetHaltSamplesPerPixel(int haltspp,
 		haveEnoughSamplesPerPixel, suspendThreadsWhenDone);
 }
 //controlling number of threads
-extern "C" unsigned int luxAddThread()
+extern "C" void luxSetThreadCount(unsigned int n)
 {
-	return Context::GetActive()->AddThread();
+	Context::GetActive()->SetThreadCount(n);
 }
 
-extern "C" void luxRemoveThread()
+extern "C" unsigned int luxGetThreadCount()
 {
-	Context::GetActive()->RemoveThread();
+	return Context::GetActive()->GetThreadCount();
 }
 
 //framebuffer access

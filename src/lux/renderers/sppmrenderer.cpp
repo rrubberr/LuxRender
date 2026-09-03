@@ -47,49 +47,11 @@ using namespace luxrays;
 using namespace lux;
 
 //------------------------------------------------------------------------------
-// SPPMRDeviceDescription
-//------------------------------------------------------------------------------
-
-unsigned int SPPMRDeviceDescription::GetUsedUnitsCount() const {
-	return host->renderer->scheduler->ThreadCount();
-}
-
-void SPPMRDeviceDescription::SetUsedUnitsCount(const unsigned int units) {
-	unsigned int target = max(units, 1u);
-	size_t current = host->renderer->scheduler->ThreadCount();
-
-	if (current > target) {
-		for (unsigned int i = 0; i < current - target; ++i)
-			host->renderer->scheduler->DelThread();
-	} else if (current < target) {
-		for (unsigned int i = 0; i < target - current; ++i)
-			host->renderer->scheduler->AddThread(new SPPMRenderer::RenderThread(host->renderer));
-	}
-}
-
-//------------------------------------------------------------------------------
-// SPPMRHostDescription
-//------------------------------------------------------------------------------
-
-SPPMRHostDescription::SPPMRHostDescription(SPPMRenderer *r, const string &n) : renderer(r), name(n) {
-	SPPMRDeviceDescription *desc = new SPPMRDeviceDescription(this, "CPUs");
-	devs.push_back(desc);
-}
-
-SPPMRHostDescription::~SPPMRHostDescription() {
-	for (size_t i = 0; i < devs.size(); ++i)
-		delete devs[i];
-}
-
-//------------------------------------------------------------------------------
 // SPPMRenderer
 //------------------------------------------------------------------------------
 
 SPPMRenderer::SPPMRenderer() : Renderer() {
 	state = INIT;
-
-	SPPMRHostDescription *host = new SPPMRHostDescription(this, "Localhost");
-	hosts.push_back(host);
 
 	preprocessDone = false;
 	suspendThreadsWhenDone = false;
@@ -111,9 +73,6 @@ SPPMRenderer::~SPPMRenderer() {
 	if ((state != TERMINATE) && (state != INIT))
 		throw std::runtime_error("Internal error: called SPPMRenderer::~SPPMRenderer() while not in TERMINATE or INIT state.");
 
-	for (size_t i = 0; i < hosts.size(); ++i)
-		delete hosts[i];
-
 	delete scheduler; // TODO: ask Done ?
 }
 
@@ -125,12 +84,6 @@ Renderer::RendererState SPPMRenderer::GetState() const {
 	boost::mutex::scoped_lock lock(classWideMutex);
 
 	return state;
-}
-
-vector<RendererHostDescription *> &SPPMRenderer::GetHostDescs() {
-	boost::mutex::scoped_lock lock(classWideMutex);
-
-	return hosts;
 }
 
 void SPPMRenderer::SuspendWhenDone(bool v) {
@@ -226,8 +179,9 @@ void SPPMRenderer::Render(Scene *s) {
 		Context::GetActive()->SceneReady();
 	}
 
-	// Add the first thread // TODO: why
-	scheduler->AddThread(new RenderThread(this));
+	// Spawn the configured number of render threads
+	scheduler->InitThreads(Context::GetActive()->GetThreadCount(),
+		[this]() -> scheduling::Thread * { return new RenderThread(this); });
 
 	// thread for checking write interval
 	boost::thread writeIntervalThread = boost::thread(boost::bind(writeIntervalCheck, scene->camera()->film));

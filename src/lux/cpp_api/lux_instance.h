@@ -47,8 +47,8 @@ public:
 	virtual void pause() = 0;
 	virtual void start() = 0;
 	virtual void setHaltSamplesPerPixel(int haltspp, bool haveEnoughSamplesPerPixel, bool suspendThreadsWhenDone) = 0;
-	virtual unsigned int addThread() = 0;
-	virtual void removeThread() = 0;
+	virtual void setThreadCount(unsigned int n) = 0;
+	virtual unsigned int getThreadCount() = 0;
 	virtual void abort() = 0;
 	virtual void wait() = 0;
 	virtual void exit() = 0;

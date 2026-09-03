@@ -880,16 +880,16 @@ public:
 		context->SetHaltSamplesPerPixel(haltspp, haveEnoughSamplesPerPixel, suspendThreadsWhenDone);
 	}
 
-	unsigned int addThread()
+	void setThreadCount(unsigned int n)
 	{
 		checkActiveContext();
-		return context->AddThread();
+		context->SetThreadCount(n);
 	}
 
-	void removeThread()
+	unsigned int getThreadCount()
 	{
 		checkActiveContext();
-		context->RemoveThread();
+		return context->GetThreadCount();
 	}
 
 	void setEpsilon(const float minValue, const float maxValue)
@@ -1414,10 +1414,15 @@ void export_PyContext()
 			args("Context", "address"),
 			ds_pylux_Context_addServer
 		)
-		.def("addThread",
-			&lux::PyContext::addThread,
+		.def("setThreadCount",
+			&lux::PyContext::setThreadCount,
+			args("Context", "n"),
+			ds_pylux_Context_setThreadCount
+		)
+		.def("getThreadCount",
+			&lux::PyContext::getThreadCount,
 			args("Context"),
-			ds_pylux_Context_addThread
+			ds_pylux_Context_getThreadCount
 		)
 		.def("areaLightSource",
 			&lux::PyContext::areaLightSource,
@@ -1692,11 +1697,6 @@ void export_PyContext()
 			&lux::PyContext::removeServer,
 			args("Context", "address"),
 			ds_pylux_Context_removeServer
-		)
-		.def("removeThread",
-			&lux::PyContext::removeThread,
-			args("Context"),
-			ds_pylux_Context_removeThread
 		)
 		.def("resetServer",
 			&lux::PyContext::resetServer,

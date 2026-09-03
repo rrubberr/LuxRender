@@ -46,8 +46,12 @@ const char * ds_pylux_Context_accelerator =
 const char * ds_pylux_Context_addServer =
 "Add a (remote) rendering server to the context";
 
-const char * ds_pylux_Context_addThread =
-"Add a local rendering thread to the context";
+const char * ds_pylux_Context_setThreadCount =
+"Set the number of local rendering threads. The value is applied at\n"
+"the next render start.";
+
+const char * ds_pylux_Context_getThreadCount =
+"Return the configured number of local rendering threads.";
 
 const char * ds_pylux_Context_areaLightSource =
 "Attach a light source to the current geometry definition. (See: RiSpec 3.2 p.43)";
@@ -263,9 +267,6 @@ const char * ds_pylux_Context_portalInstance =
 
 const char * ds_pylux_Context_removeServer =
 "Remote a remote rendering slave from the current rendering process.";
-
-const char * ds_pylux_Context_removeThread =
-"Remove a local rendering thread from the current rendering process.";
 
 const char * ds_pylux_Context_resetServer =
 "Reset the state of a remote rendering slave.";

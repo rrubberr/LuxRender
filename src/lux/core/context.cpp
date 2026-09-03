@@ -44,6 +44,7 @@ using luxrays::MachineEpsilon;
 #include <boost/iostreams/copy.hpp>
 #include <boost/iostreams/filter/zlib.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/thread/thread.hpp>
 
 using namespace boost::iostreams;
 using namespace lux;
@@ -125,6 +126,10 @@ void lux::Context::Init() {
 	// Dade - reinitialize
 	aborted = false;
 	terminated = false;
+	{
+		const unsigned int hw = boost::thread::hardware_concurrency();
+		threadCount = (hw == 0) ? 1 : hw;
+	}
 	currentApiState = STATE_OPTIONS_BLOCK;
 	startRenderingAfterParse = true;
 	inMotionBlock = false;
@@ -1329,20 +1334,19 @@ void lux::Context::Abort() {
 }
 
 //controlling number of threads
-u_int lux::Context::AddThread() {
-	const vector<RendererHostDescription *> &hosts = luxCurrentRenderer->GetHostDescs();
+void lux::Context::SetThreadCount(unsigned int n) {
+	if (n == 0) {
+		LOG(LUX_WARNING, LUX_CONSISTENCY) << "Thread count of 0 requested, using 1";
+		n = 1;
+	}
 
-	RendererDeviceDescription *desc = hosts[0]->GetDeviceDescs()[0];
-	desc->SetUsedUnitsCount(desc->GetUsedUnitsCount() + 1);
+	if (luxCurrentRenderer && !terminated) {
+		const Renderer::RendererState rstate = luxCurrentRenderer->GetState();
+		if (rstate == Renderer::RUN || rstate == Renderer::PAUSE)
+			LOG(LUX_INFO, LUX_NOERROR) << "Thread count change will take effect at the next render";
+	}
 
-	return desc->GetUsedUnitsCount();
-}
-
-void lux::Context::RemoveThread() {
-	const vector<RendererHostDescription *> &hosts = luxCurrentRenderer->GetHostDescs();
-
-	RendererDeviceDescription *desc = hosts[0]->GetDeviceDescs()[0];
-	desc->SetUsedUnitsCount(max(desc->GetUsedUnitsCount() - 1, 1u));
+	threadCount = n;
 }
 
 //framebuffer access

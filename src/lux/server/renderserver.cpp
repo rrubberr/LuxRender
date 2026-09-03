@@ -890,6 +890,9 @@ void cmd_luxMotionInstance(bool isLittleEndian, NetworkRenderServerThread *serve
 }
 void cmd_luxWorldEnd(bool isLittleEndian, NetworkRenderServerThread *serverThread, socket_stream_t &stream, vector<string> &tmpFileList) {
 //case CMD_LUXWORLDEND:
+	// Set the thread count before the render starts.
+	luxSetThreadCount(serverThread->renderServer->getThreadCount());
+
 	serverThread->engineThread = new boost::thread(&luxWorldEnd);
 
 	// Wait the scene parsing to finish
@@ -900,11 +903,6 @@ void cmd_luxWorldEnd(bool isLittleEndian, NetworkRenderServerThread *serverThrea
 	// Dade - start the info thread only if it is not already running
 	if(!serverThread->infoThread)
 		serverThread->infoThread = new boost::thread(&printInfoThread);
-
-	// Add rendering threads
-	int threadsToAdd = serverThread->renderServer->getThreadCount();
-	while (--threadsToAdd)
-		luxAddThread();
 }
 void cmd_luxGetFilm(bool isLittleEndian, NetworkRenderServerThread *serverThread, socket_stream_t &stream, vector<string> &tmpFileList) {
 //case CMD_LUXGETFILM:

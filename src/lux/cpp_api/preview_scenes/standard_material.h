@@ -42,6 +42,7 @@ void mythread::run()
 	// Then finish creating the scene and objects.
 	// Takes arguments: pointer to paramset create function, context object, preview material name, interior volume name, exterior volume name
 	// This function will close the World block, and rendering will start shortly afterwards
+	context->setThreadCount(4);
 	render_paramsets = lux::scenes::standard_material_render(CreateLuxParamSet, context, preview_material_name, "", "");
 
 	// Scene setup is finished
@@ -53,10 +54,6 @@ void mythread::run()
 	while (!context->statistics("sceneIsReady")) {
 		sleep( .. some appropriate value, perhaps 0.1 seconds? .. );
 	}
-
-	// You can add more threads to the renderer here
-	for(int i=0; i<3; i++)	// Add 3 more rendering threads
-		context->addThread();
 
 	// Here, you can wait in a loop to get statistics ...
 	while (!context->statistics("terminated") && !context->statistics("enoughSamples"))

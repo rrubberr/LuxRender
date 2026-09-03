@@ -1306,6 +1306,10 @@ void MainWindow::beginRenderingSession(const QPersistentModelIndex& sceneIndex)
 	ui->tree_queue->resizeColumnToContents(renderQueue.COLUMN_STATUS);
 	ui->tree_queue->resizeColumnToContents(renderQueue.COLUMN_PROGRESS);
 
+	// Apply the cached thread count for this render session
+	if (m_numThreads > 0)
+		luxSetThreadCount(m_numThreads);
+
 	if (m_fixedSeed)
 		luxDisableRandomMode();
 
@@ -1667,17 +1671,9 @@ void MainWindow::NetworkAddRemoveSlavesThread::run() {
 
 void MainWindow::SetRenderThreads(int num)
 {
-	if(luxStatistics("sceneIsReady")) {
-		if(num > m_numThreads) {
-			for(; num > m_numThreads; m_numThreads++)
-				luxAddThread();
-		} else {
-			for(; num < m_numThreads; m_numThreads--)
-				luxRemoveThread();
-		}
-	} else {
-		m_numThreads = num;
-	}
+	m_numThreads = qMax(1, num);
+	// Safe anytime; effective at the next render start.
+	luxSetThreadCount(m_numThreads);
 
 	ui->label_threadCount->setText(QString("Threads:"));
 	updateWidgetValue(ui->spinBox_Threads, m_numThreads);
@@ -1996,6 +1992,7 @@ void MainWindow::changeRenderState(LuxGuiRenderState state)
 			ui->action_outputBufferGroupsTonemapped->setEnabled (false);
 			ui->action_outputBufferGroupsHDR->setEnabled (false);
 			ui->action_batchProcess->setEnabled (true);
+			ui->spinBox_Threads->setEnabled(true);
 			activityMessage->setText("Idle");
 			showRenderresolution();
 			statusProgress->setRange(0, 100);
@@ -2017,6 +2014,7 @@ void MainWindow::changeRenderState(LuxGuiRenderState state)
 			ui->action_outputBufferGroupsHDR->setEnabled (false);
 			ui->action_batchProcess->setEnabled (false);
 			//m_viewerToolBar->Disable();
+			ui->spinBox_Threads->setEnabled(false);
 			activityMessage->setText("Parsing scenefile");
 			renderView->setLogoMode();
 			break;
@@ -2036,6 +2034,7 @@ void MainWindow::changeRenderState(LuxGuiRenderState state)
 			ui->action_outputBufferGroupsTonemapped->setEnabled (true);
 			ui->action_outputBufferGroupsHDR->setEnabled (true);
 			ui->action_batchProcess->setEnabled (true);
+			ui->spinBox_Threads->setEnabled(false);
 			activityMessage->setText("Rendering...");
 			break;
 		case TONEMAPPING:
@@ -2054,6 +2053,7 @@ void MainWindow::changeRenderState(LuxGuiRenderState state)
 			ui->action_outputBufferGroupsTonemapped->setEnabled (true);
 			ui->action_outputBufferGroupsHDR->setEnabled (true);
 			ui->action_batchProcess->setEnabled (true);
+			ui->spinBox_Threads->setEnabled(true);
 			showRenderresolution();
 			activityMessage->setText("Render is finished");
 			break;
@@ -2073,6 +2073,7 @@ void MainWindow::changeRenderState(LuxGuiRenderState state)
 			ui->action_outputBufferGroupsTonemapped->setEnabled (true);
 			ui->action_outputBufferGroupsHDR->setEnabled (true);
 			ui->action_batchProcess->setEnabled (false);
+			ui->spinBox_Threads->setEnabled(false);
 			break;
 		case STOPPED:
 			// Rendering is stopped (terminal - cannot be resumed).
@@ -2108,6 +2109,7 @@ void MainWindow::changeRenderState(LuxGuiRenderState state)
 			ui->action_outputBufferGroupsTonemapped->setEnabled (true);
 			ui->action_outputBufferGroupsHDR->setEnabled (true);
 			ui->action_batchProcess->setEnabled (false);
+			ui->spinBox_Threads->setEnabled(false);
 			break;
 		case ENDED:
 			// Rendering has ended.
@@ -2143,6 +2145,7 @@ void MainWindow::changeRenderState(LuxGuiRenderState state)
 			ui->action_outputBufferGroupsTonemapped->setEnabled (true);
 			ui->action_outputBufferGroupsHDR->setEnabled (true);
 			ui->action_batchProcess->setEnabled (true);
+			ui->spinBox_Threads->setEnabled(false);
 			activityMessage->setText("Render is paused");
 			break;
 	}
@@ -2442,14 +2445,6 @@ void MainWindow::loadTimeout()
 		if (luxStatistics("sceneIsReady")) {
 			// addRemoveSlaves(QVector<QString>::fromList(networkSlaves.keys()), AddSlaves);
 			addRemoveSlaves(QVector<QString>(networkSlaves.keys()), AddSlaves);
-
-			// Scene file loaded
-			// Add other render threads if necessary
-			int curThreads = 1;
-			while(curThreads < m_numThreads) {
-				luxAddThread();
-				curThreads++;
-			}
 
 			updateWidgetValue(ui->spinBox_overrideDisplayInterval, luxGetIntAttribute("film", "displayInterval"));
 			updateWidgetValue(ui->spinBox_overrideWriteInterval, luxGetIntAttribute("film", "writeInterval"));

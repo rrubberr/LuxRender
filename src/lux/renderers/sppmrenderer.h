@@ -40,56 +40,7 @@ namespace lux
 
 class PhotonSampler;
 class SPPMRenderer;
-class SPPMRHostDescription;
 class SPPMIntegrator;
-
-//------------------------------------------------------------------------------
-// SPPMRDeviceDescription
-//------------------------------------------------------------------------------
-
-class SPPMRDeviceDescription : protected RendererDeviceDescription {
-public:
-	const string &GetName() const { return name; }
-
-	u_int GetAvailableUnitsCount() const {
-		return max(boost::thread::hardware_concurrency(), 1u);
-	}
-	u_int GetUsedUnitsCount() const;
-	void SetUsedUnitsCount(const u_int units);
-
-	friend class SPPMRenderer;
-	friend class SPPMRHostDescription;
-
-private:
-	SPPMRDeviceDescription(SPPMRHostDescription *h, const string &n) :
-		host(h), name(n) { }
-	~SPPMRDeviceDescription() { }
-
-	SPPMRHostDescription *host;
-	string name;
-};
-
-//------------------------------------------------------------------------------
-// SPPMRHostDescription
-//------------------------------------------------------------------------------
-
-class SPPMRHostDescription : protected RendererHostDescription {
-public:
-	const string &GetName() const { return name; }
-
-	vector<RendererDeviceDescription *> &GetDeviceDescs() { return devs; }
-
-	friend class SPPMRenderer;
-	friend class SPPMRDeviceDescription;
-
-private:
-	SPPMRHostDescription(SPPMRenderer *r, const string &n);
-	~SPPMRHostDescription();
-
-	SPPMRenderer *renderer;
-	string name;
-	vector<RendererDeviceDescription *> devs;
-};
 
 //------------------------------------------------------------------------------
 // SPPMRenderer
@@ -102,7 +53,6 @@ public:
 	RendererType GetType() const;
 
 	RendererState GetState() const;
-	vector<RendererHostDescription *> &GetHostDescs();
 	void SuspendWhenDone(bool v);
 
 	void Render(Scene *scene);
@@ -112,26 +62,11 @@ public:
 	void Resume();
 	void Terminate();
 
-	friend class SPPMRDeviceDescription;
-	friend class SPPMRHostDescription;
-
 	static Renderer *CreateRenderer(const ParamSet &params);
 
 	friend class HitPoints;
 	friend class PhotonSampler;
 	friend class SPPMRStatistics;
-
-	// loop if renderer is in pause and return true if renderer is terminate
-	bool paused()
-	{
-		while (state == PAUSE && !boost::this_thread::interruption_requested()) {
-			boost::xtime xt;
-			boost::xtime_get(&xt, boost::TIME_UTC_);
-			xt.sec += 1;
-			boost::thread::sleep(xt);
-		}
-		return ((state == TERMINATE) || boost::this_thread::interruption_requested());
-	}
 
 	float GetScaleFactor(double const scale) const;
 
@@ -180,10 +115,8 @@ private:
 	//--------------------------------------------------------------------------
 
 	mutable boost::mutex classWideMutex;
-	mutable boost::mutex renderThreadsMutex;
 
 	RendererState state;
-	vector<RendererHostDescription *> hosts;
 
 	Scene *scene;
 	SPPMIntegrator *sppmi;

@@ -31,34 +31,6 @@
 namespace lux
 {
 
-/*! \brief The interface for accessing to a device information.
- */
-class RendererDeviceDescription {
-public:
-	virtual ~RendererDeviceDescription() { }
-
-	/*! \brief return the name of the device.
-	*/
-	virtual const string &GetName() const = 0;
-
-	virtual unsigned int GetAvailableUnitsCount() const = 0;
-	virtual unsigned int GetUsedUnitsCount() const = 0;
-	virtual void SetUsedUnitsCount(const unsigned int units) = 0;
-};
-
-/*! \brief The interface for accessing to an host information.
- */
-class RendererHostDescription {
-public:
-	virtual ~RendererHostDescription() { }
-
-	/*! \brief return the name of the host.
-	 */
-	virtual const string &GetName() const = 0;
-
-	virtual vector<RendererDeviceDescription *> &GetDeviceDescs() = 0;
-};
-
 /*! \brief The interface for rendering a scene.
  */
 class Renderer : public Queryable {
@@ -72,7 +44,7 @@ public:
 	/*! The type of known renderers.
 	 */
 	typedef enum {
-		SAMPLER_TYPE, HYBRIDSAMPLER_TYPE, SPPM_TYPE
+		SAMPLER_TYPE, SPPM_TYPE
 	} RendererType;
 
 	Renderer() : Queryable("renderer") { }
@@ -89,12 +61,6 @@ public:
 	 * Must be thread-safe. Can be called in any state.
 	 */
 	virtual RendererState GetState() const = 0;
-
-	/*! \brief Return the list of available renderer hosts.
-	 *
-	 * Must be thread-safe. Can be called in any state.
-	 */
-	virtual vector<RendererHostDescription *> &GetHostDescs() = 0;
 
 	/*! \brief Tell the Renderer what to when an halt condition has been met.
 	 *

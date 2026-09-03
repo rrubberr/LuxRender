@@ -36,55 +36,6 @@ namespace lux
 {
 
 class SamplerRenderer;
-class SRHostDescription;
-
-//------------------------------------------------------------------------------
-// SRDeviceDescription
-//------------------------------------------------------------------------------
-
-class SRDeviceDescription : protected RendererDeviceDescription {
-public:
-	const string &GetName() const { return name; }
-
-	unsigned int GetAvailableUnitsCount() const {
-		return max(boost::thread::hardware_concurrency(), 1u);
-	}
-	unsigned int GetUsedUnitsCount() const;
-	void SetUsedUnitsCount(const unsigned int units);
-
-	friend class SamplerRenderer;
-	friend class SRHostDescription;
-
-private:
-	SRDeviceDescription(SRHostDescription *h, const string &n) :
-		host(h), name(n) { }
-	~SRDeviceDescription() { }
-
-	SRHostDescription *host;
-	string name;
-};
-
-//------------------------------------------------------------------------------
-// SRHostDescription
-//------------------------------------------------------------------------------
-
-class SRHostDescription : protected RendererHostDescription {
-public:
-	const string &GetName() const { return name; }
-
-	vector<RendererDeviceDescription *> &GetDeviceDescs() { return devs; }
-
-	friend class SamplerRenderer;
-	friend class SRDeviceDescription;
-
-private:
-	SRHostDescription(SamplerRenderer *r, const string &n);
-	~SRHostDescription();
-
-	SamplerRenderer *renderer;
-	string name;
-	vector<RendererDeviceDescription *> devs;
-};
 
 //------------------------------------------------------------------------------
 // SamplerRenderer
@@ -98,7 +49,6 @@ public:
 	RendererType GetType() const;
 
 	RendererState GetState() const;
-	vector<RendererHostDescription *> &GetHostDescs();
 	void SuspendWhenDone(bool v);
 
 	void Render(Scene *scene);
@@ -107,8 +57,6 @@ public:
 	void Resume();
 	void Terminate();
 
-	friend class SRDeviceDescription;
-	friend class SRHostDescription;
 	friend class SRStatistics;
 
 	static Renderer *CreateRenderer(const ParamSet &params);
@@ -133,7 +81,6 @@ private:
 	};
 
 	void CreateRenderThread();
-	void RemoveRenderThread();
 
 	//--------------------------------------------------------------------------
 
@@ -141,7 +88,6 @@ private:
 	mutable boost::mutex renderThreadsMutex;
 
 	RendererState state;
-	vector<RendererHostDescription *> hosts;
 	vector<RenderThread *> renderThreads;
 	Scene *scene;
 

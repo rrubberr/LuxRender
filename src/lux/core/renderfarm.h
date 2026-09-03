@@ -272,9 +272,6 @@ private:
 	// Dade - film update information
 	FilmUpdaterThread *filmUpdateThread;
 
-	// for async flushing
-	boost::thread *flushThread;
-
 	CompiledCommands compiledCommands;
 	CompiledFiles compiledFiles;
 

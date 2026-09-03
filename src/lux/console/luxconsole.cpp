@@ -144,6 +144,11 @@ int main(int argc, char **argv) {
 				LOG(LUX_INFO,LUX_NOERROR) << "Loading piped scene...";
 
 			parseError = false;
+
+			// Set the thread count before parsing so WorldEnd
+			// (render start) sees it.
+			luxSetThreadCount(config.threadCount);
+
 			boost::thread engine(&engineThread);
 
 			// add slaves, need to do this for each scene file
@@ -157,11 +162,6 @@ int main(int argc, char **argv) {
 				LOG(LUX_SEVERE,LUX_BADFILE) << "Skipping invalid scenefile '" << sceneFileName << "'";
 				continue;
 			}
-
-			// add rendering threads
-			int threadsToAdd = config.threadCount;
-			while (--threadsToAdd)
-				luxAddThread();
 
 			// launch info printing thread
 			boost::thread info(&infoThread);

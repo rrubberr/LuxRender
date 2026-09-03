@@ -55,8 +55,8 @@ public:
 	void pause();
 	void start();
 	void setHaltSamplesPerPixel(int haltspp, bool haveEnoughSamplesPerPixel, bool suspendThreadsWhenDone);
-	unsigned int addThread();
-	void removeThread();
+	void setThreadCount(unsigned int n);
+	unsigned int getThreadCount();
 	void abort();
 	void wait();
 	void exit();

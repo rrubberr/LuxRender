@@ -146,17 +146,17 @@ void lux_wrapped_context::setHaltSamplesPerPixel(int haltspp, bool haveEnoughSam
 	checkContext();
 	ctx->SetHaltSamplesPerPixel(haltspp, haveEnoughSamplesPerPixel, suspendThreadsWhenDone);
 }
-unsigned int lux_wrapped_context::addThread()
+void lux_wrapped_context::setThreadCount(unsigned int n)
 {
 	boost::mutex::scoped_lock lock(ctxMutex);
 	checkContext();
-	return ctx->AddThread();
+	ctx->SetThreadCount(n);
 }
-void lux_wrapped_context::removeThread()
+unsigned int lux_wrapped_context::getThreadCount()
 {
 	boost::mutex::scoped_lock lock(ctxMutex);
 	checkContext();
-	ctx->RemoveThread();
+	return ctx->GetThreadCount();
 }
 void lux_wrapped_context::abort()
 {

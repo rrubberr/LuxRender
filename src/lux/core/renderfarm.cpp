@@ -364,7 +364,7 @@ RenderFarm::CompiledCommand& RenderFarm::CompiledCommands::add(const std::string
 }
 
 RenderFarm::RenderFarm(Context *c) : Queryable("render_farm"), ctx(c),
-		filmUpdateThread(NULL), flushThread(NULL), netBufferComplete(false), doneRendering(false),
+		filmUpdateThread(NULL), netBufferComplete(false), doneRendering(false),
 		isLittleEndian(osIsLittleEndian()), pollingInterval(3 * 60), defaultTcpPort(18018)
 {
 	AddIntAttribute(*this, "defaultTcpPort", "Default TCP port", &RenderFarm::defaultTcpPort, ReadWriteAccess);
@@ -409,13 +409,6 @@ void RenderFarm::stopImpl() {
 		filmUpdateThread->stop();
 		delete filmUpdateThread;
 		filmUpdateThread = NULL;
-	}
-
-	if (flushThread) {
-		flushThread->interrupt();
-		flushThread->join();
-		delete flushThread;
-		flushThread = NULL;
 	}
 }
 
@@ -1184,14 +1177,6 @@ double RenderFarm::getUpdateTimeRemaining()
 	return filmUpdateThread ? filmUpdateThread->getUpdateTimeRemaining() : 0;
 }
 
-// to catch the interrupted exception
-//static void flush_thread_func(RenderFarm *renderFarm) {
-//	try {
-//		renderFarm->flush();
-//	} catch (boost::thread_interrupted&) {
-//	}
-//}
-
 void RenderFarm::send(const string &command) {
 	compiledCommands.add(command);
 
@@ -1199,7 +1184,6 @@ void RenderFarm::send(const string &command) {
 	if (command == "luxWorldEnd") {
 		netBufferComplete = true;
 		// perform async flush
-		//flushThread = new boost::thread(boost::bind(flush_thread_func, this));
 		// synch flush
 		flush();
 	}

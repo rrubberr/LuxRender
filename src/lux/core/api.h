@@ -143,9 +143,9 @@ LUX_EXPORT void luxWait();
 
 LUX_EXPORT void luxSetHaltSamplesPerPixel(int haltspp, bool haveEnoughSamplesPerPixel, bool suspendThreadsWhenDone);
 
-/* Controlling number of threads */
-LUX_EXPORT unsigned int luxAddThread();
-LUX_EXPORT void luxRemoveThread();
+/* Controlling number of threads (effective at the next render start) */
+LUX_EXPORT void luxSetThreadCount(unsigned int n);
+LUX_EXPORT unsigned int luxGetThreadCount();
 
 /* Set the minimum and maximum value used for epsilon */
 LUX_EXPORT void luxSetEpsilon(const float minValue, const float maxValue);
