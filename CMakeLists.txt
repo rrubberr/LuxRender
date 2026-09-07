@@ -64,6 +64,21 @@ PROJECT(lux)
 
 include(ExternalProject)
 
+#######################
+# Validate Build Type #
+#######################
+
+if(NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type (Release or Debug)" FORCE)
+endif()
+
+string(TOUPPER "${CMAKE_BUILD_TYPE}" UPPER_BUILD_TYPE)
+if(NOT UPPER_BUILD_TYPE STREQUAL "RELEASE" AND NOT UPPER_BUILD_TYPE STREQUAL "DEBUG")
+	message(FATAL_ERROR
+		"Invalid build type '${CMAKE_BUILD_TYPE}'. "
+		"Only 'Release' and 'Debug' are allowed.")
+endif()
+
 # Forwarded to the inner LuxRender build to enable/disable the TBB render backends.
 option(LUX_USE_TBB "Use Intel TBB instead of Boost.Thread for the render path" ON)
 
@@ -73,7 +88,7 @@ option(LUX_USE_TBB "Use Intel TBB instead of Boost.Thread for the render path" O
 
 set(
 	COMMON_LUX_PROJECT_ARGS
-    -DCMAKE_CXX_STANDARD=17
+    -DCMAKE_CXX_STANDARD=20
 	-DCMAKE_POSITION_INDEPENDENT_CODE=TRUE
     -DCMAKE_PREFIX_PATH=${BUILD_DIR}
     -DBoost_LIBRARY_DIRS=${LIB_DIR}
@@ -107,7 +122,7 @@ add_subdirectory(ext)
 set(LUX_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBOOST_BIND_GLOBAL_PLACEHOLDERS -w -I${INC_DIR}/Imath -I${INC_DIR}/OpenEXR")
 
 # Where the finished binaries are collected.
-set(RELEASE_DIR "${CMAKE_BINARY_DIR}/release" CACHE PATH
+set(RELEASE_DIR "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}" CACHE PATH
     "Directory the LuxRender binaries are copied to after the build")
 
 # The inner project's build directory.

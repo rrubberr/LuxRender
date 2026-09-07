@@ -27,6 +27,7 @@
 #include "samplerrenderer.h"
 #include "randomgen.h"
 #include "context.h"
+#include "core/tbbrendercommon.h"
 #include "renderers/statistics/samplerstatistics.h"
 
 using namespace lux;
@@ -75,21 +76,6 @@ Renderer::RendererState SamplerRenderer::GetState() const {
 void SamplerRenderer::SuspendWhenDone(bool v) {
 	boost::mutex::scoped_lock lock(classWideMutex);
 	suspendThreadsWhenDone = v;
-}
-
-static void writeIntervalCheck(Film *film) {
-	if (!film)
-		return;
-
-	while (!boost::this_thread::interruption_requested()) {
-		try {
-			boost::this_thread::sleep(boost::posix_time::seconds(1));
-
-			film->CheckWriteOuputInterval();
-		} catch(boost::thread_interrupted&) {
-			break;
-		}
-	}
 }
 
 void SamplerRenderer::Render(Scene *s) {
@@ -173,32 +159,29 @@ void SamplerRenderer::Render(Scene *s) {
 	// Bound the arena to nThreads so current_thread_index() is in [0, nThreads].
 	tbb::task_arena arena(nThreads);
 
-	// Thread for checking write interval.
-	boost::thread writeIntervalThread(boost::bind(writeIntervalCheck, scene->camera()->film));
+	{
+		// Thread for checking write interval.
+		WriteIntervalGuard writeIntervalGuard(scene->camera()->film);
 
-	arena.execute([&]{
-		while (cancelState.load() != TERMINATE) {
-			if (cancelState.load() == PAUSE) {
-				// Idle between chunks (on the render thread, not the GUI thread).
-				boost::this_thread::sleep(boost::posix_time::milliseconds(200));
-				continue;
+		arena.execute([&]{
+			while (cancelState.load() != TERMINATE) {
+				if (cancelState.load() == PAUSE) {
+					// Idle between chunks (on the render thread, not the GUI thread).
+					boost::this_thread::sleep(boost::posix_time::milliseconds(200));
+					continue;
+				}
+
+				tbb::parallel_for(tbb::blocked_range<u_int>(0, chunk),
+					[this](const tbb::blocked_range<u_int> &r) {
+						RenderChunk(r);
+					});
+
+				// Halt condition, checked after the barrier.
+				if (scene->camera()->film->enoughSamplesPerPixel)
+					break;
 			}
-
-			tbb::parallel_for(tbb::blocked_range<u_int>(0, chunk),
-				[this](const tbb::blocked_range<u_int> &r) {
-					RenderChunk(r);
-				});
-
-			// Halt condition, checked after the barrier.
-			if (scene->camera()->film->enoughSamplesPerPixel)
-				break;
-		}
-	});
-
-	// Stop write interval checking.
-	writeIntervalThread.interrupt();
-	// Possibly wait for write to finish.
-	writeIntervalThread.join();
+		});
+	}
 
 	{
 		boost::mutex::scoped_lock lock(renderThreadsMutex);

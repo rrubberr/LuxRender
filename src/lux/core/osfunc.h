@@ -33,22 +33,7 @@ using boost::uint32_t;
 #include <sys/time.h>
 
 #include <boost/version.hpp>
-#include <boost/interprocess/detail/atomic.hpp>
 #include <atomic>
-
-#if (BOOST_VERSION < 104800)
-using boost::interprocess::detail::atomic_cas32;
-using boost::interprocess::detail::atomic_inc32;
-using boost::interprocess::detail::atomic_read32;
-using boost::interprocess::detail::atomic_write32;
-using boost::interprocess::detail::atomic_add32;
-#else
-using boost::interprocess::ipcdetail::atomic_cas32;
-using boost::interprocess::ipcdetail::atomic_inc32;
-using boost::interprocess::ipcdetail::atomic_read32;
-using boost::interprocess::ipcdetail::atomic_write32;
-using boost::interprocess::ipcdetail::atomic_add32;
-#endif // BOOST_VERSION >= 104800
 
 
 namespace lux
@@ -82,49 +67,26 @@ inline double osWallClockTime() {
 }
 
 //------------------------------------------------------------------------------
-// Atomic ops
+// Atomic ops  (std::atomic_ref, C++20)
 //------------------------------------------------------------------------------
 
 inline void osAtomicAdd(float *val, const float delta) {
-#ifdef LUX_USE_TBB
 	union bits {
 		float f;
 		uint32_t i;
 	};
-
-	std::atomic<uint32_t> *a = reinterpret_cast<std::atomic<uint32_t>*>(val);
+	std::atomic_ref<uint32_t> a(*reinterpret_cast<uint32_t*>(val));
 	bits oldVal, newVal;
-	oldVal.i = a->load(std::memory_order_seq_cst);
+	oldVal.i = a.load(std::memory_order_seq_cst);
 	do {
 		newVal.f = oldVal.f + delta;
-	} while (!a->compare_exchange_weak(oldVal.i, newVal.i,
+	} while (!a.compare_exchange_weak(oldVal.i, newVal.i,
 				std::memory_order_seq_cst, std::memory_order_seq_cst));
-#else
-	union bits {
-		float f;
-		uint32_t i;
-	};
-
-	bits oldVal, newVal;
-
-	do {
-#if (defined(__i386__) || defined(__amd64__))
-		__asm__ __volatile__("pause\n");
-#endif
-
-		oldVal.f = *val;
-		newVal.f = oldVal.f + delta;
-	} while (atomic_cas32(reinterpret_cast<uint32_t*>(val), newVal.i, oldVal.i) != oldVal.i);
-#endif
 }
 
 inline void osAtomicAdd(unsigned int *val, const unsigned int delta) {
-#ifdef LUX_USE_TBB
-	reinterpret_cast<std::atomic<uint32_t>*>(val)
-		->fetch_add((uint32_t)delta, std::memory_order_seq_cst);
-#else
-	atomic_add32(((uint32_t *)val), (uint32_t)delta);
-#endif
+	std::atomic_ref<uint32_t>(*val)
+		.fetch_add((uint32_t)delta, std::memory_order_seq_cst);
 }
 
 /**
@@ -132,12 +94,8 @@ inline void osAtomicAdd(unsigned int *val, const unsigned int delta) {
  * @return Previous value, before increment
  */
 inline unsigned int osAtomicInc(unsigned int *val) {
-#ifdef LUX_USE_TBB
-	return reinterpret_cast<std::atomic<uint32_t>*>(val)
-		->fetch_add(1u, std::memory_order_seq_cst);
-#else
-	return atomic_inc32(reinterpret_cast<uint32_t*>(val));
-#endif
+	return std::atomic_ref<uint32_t>(*val)
+		.fetch_add(1u, std::memory_order_seq_cst);
 }
 
 /**
@@ -145,24 +103,16 @@ inline unsigned int osAtomicInc(unsigned int *val) {
  * @return Value read
  */
 inline unsigned int osAtomicRead(unsigned int *val) {
-#ifdef LUX_USE_TBB
-	return reinterpret_cast<std::atomic<uint32_t>*>(val)
-		->load(std::memory_order_seq_cst);
-#else
-	return atomic_read32(reinterpret_cast<uint32_t*>(val));
-#endif
+	return std::atomic_ref<uint32_t>(*val)
+		.load(std::memory_order_seq_cst);
 }
 
 /**
  * Atomically writes a 32bit variable
  */
 inline void osAtomicWrite(unsigned int *val, unsigned int newVal) {
-#ifdef LUX_USE_TBB
-	reinterpret_cast<std::atomic<uint32_t>*>(val)
-		->store((uint32_t)newVal, std::memory_order_seq_cst);
-#else
-	atomic_write32(reinterpret_cast<uint32_t*>(val), static_cast<uint32_t>(newVal));
-#endif
+	std::atomic_ref<uint32_t>(*val)
+		.store((uint32_t)newVal, std::memory_order_seq_cst);
 }
 
 /**
@@ -172,15 +122,10 @@ inline void osAtomicWrite(unsigned int *val, unsigned int newVal) {
  */
 inline uint32_t osAtomicCas32(volatile uint32_t *p, uint32_t desired,
 		uint32_t comparand) {
-#ifdef LUX_USE_TBB
-	std::atomic<uint32_t> *a =
-			reinterpret_cast<std::atomic<uint32_t>*>(const_cast<uint32_t*>(p));
-	a->compare_exchange_strong(comparand, desired,
+	std::atomic_ref<uint32_t> a(*const_cast<uint32_t*>(p));
+	a.compare_exchange_strong(comparand, desired,
 			std::memory_order_seq_cst, std::memory_order_seq_cst);
 	return comparand;
-#else
-	return atomic_cas32(p, desired, comparand);
-#endif
 }
 
 // Floating point exception debuging

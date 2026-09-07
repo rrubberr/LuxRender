@@ -83,21 +83,6 @@ void SPPMRenderer::SuspendWhenDone(bool v) {
 	suspendThreadsWhenDone = v;
 }
 
-static void writeIntervalCheck(Film *film) {
-	if (!film)
-		return;
-
-	while (!boost::this_thread::interruption_requested()) {
-		try {
-			boost::this_thread::sleep(boost::posix_time::seconds(1));
-
-			film->CheckWriteOuputInterval();
-		} catch(boost::thread_interrupted&) {
-			break;
-		}
-	}
-}
-
 void SPPMRenderer::Render(Scene *s) {
 	// Establish a single tbb::global_control for the process
 	// before Embree device init, and destroyed after the render.
@@ -177,22 +162,18 @@ void SPPMRenderer::Render(Scene *s) {
 	scheduler->InitThreads(Context::GetActive()->GetThreadCount(),
 		[this]() -> scheduling::Thread * { return new RenderThread(this); });
 
-	// Thread for checking write interval.
-	boost::thread writeIntervalThread = boost::thread(boost::bind(writeIntervalCheck, scene->camera()->film));
+	{
+		// Thread for checking write interval.
+		WriteIntervalGuard writeIntervalGuard(scene->camera()->film);
 
-	RenderMain(scene);
+		RenderMain(scene);
 
-	scheduler->Done();
+		scheduler->Done();
 
-	// Safe to free hitpoints here.
-	delete hitPoints;
-	hitPoints = NULL;
-
-	// Stop write interval checking.
-	writeIntervalThread.interrupt();
-
-	// Possibly wait for writing to finish.
-	writeIntervalThread.join();
+		// Safe to free hitpoints here.
+		delete hitPoints;
+		hitPoints = NULL;
+	}
 }
 
 void SPPMRenderer::Pause() {

@@ -31,6 +31,10 @@
 
 #include <atomic>
 
+#include <boost/thread.hpp>
+#include <boost/bind.hpp>
+#include "film.h"
+
 namespace lux {
 
 // Establish a single tbb::global_control for the process
@@ -46,6 +50,38 @@ public:
 
 private:
 	tbb::global_control control;
+};
+
+namespace detail {
+	inline void WriteIntervalCheck(Film *film) {
+		if (!film)
+			return;
+		while (!boost::this_thread::interruption_requested()) {
+			try {
+				boost::this_thread::sleep(boost::posix_time::seconds(1));
+				film->CheckWriteOuputInterval();
+			} catch (boost::thread_interrupted&) {
+				break;
+			}
+		}
+	}
+}
+
+class WriteIntervalGuard {
+public:
+	explicit WriteIntervalGuard(Film *film)
+		: m_thread(detail::WriteIntervalCheck, film) {
+	}
+	~WriteIntervalGuard() {
+		if (m_thread.joinable()) {
+			m_thread.interrupt();
+			m_thread.join();
+		}
+	}
+	WriteIntervalGuard(const WriteIntervalGuard &) = delete;
+	WriteIntervalGuard &operator=(const WriteIntervalGuard &) = delete;
+private:
+	boost::thread m_thread;
 };
 
 }//namespace lux
