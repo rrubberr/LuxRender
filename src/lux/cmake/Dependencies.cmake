@@ -144,3 +144,16 @@ IF(embree_FOUND)
 ELSE(embree_FOUND)
 	MESSAGE(STATUS "Warning : could not find Embree headers.")
 ENDIF(embree_FOUND)
+
+############
+# Find TBB #
+############
+
+IF(LUX_USE_TBB)
+	FIND_PACKAGE(TBB CONFIG REQUIRED)
+	IF(TBB_FOUND)
+		MESSAGE(STATUS "TBB found")
+	ELSE(TBB_FOUND)
+		MESSAGE(STATUS "Warning : could not find TBB.")
+	ENDIF(TBB_FOUND)
+ENDIF()

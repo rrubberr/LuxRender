@@ -363,7 +363,10 @@ embree_accel::embree_accel(
 
 embree_accel::~embree_accel()
 {
-
+    if (m_scene)
+        rtcReleaseScene(m_scene);
+    if (m_dev)
+        rtcReleaseDevice(m_dev);
 }
 
 RTCRay embree_accel::fill_rtc_ray(const Ray &ray) const

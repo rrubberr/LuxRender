@@ -64,6 +64,11 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
 	"${LUX_CMAKE_DIR}/SpecializedConfig"
 )
 option(LUX_DOCUMENTATION "Generate project documentation" OFF)
+option(LUX_USE_TBB "Use Intel TBB instead of Boost.Thread for the render path" ON)
+IF(LUX_USE_TBB)
+	ADD_DEFINITIONS(-DLUX_USE_TBB)
+ENDIF()
+
 
 ############################
 # Use LTO on Clang configs #

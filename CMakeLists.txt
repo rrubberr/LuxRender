@@ -64,6 +64,9 @@ PROJECT(lux)
 
 include(ExternalProject)
 
+# Forwarded to the inner LuxRender build to enable/disable the TBB render backends.
+option(LUX_USE_TBB "Use Intel TBB instead of Boost.Thread for the render path" ON)
+
 ##############################
 # Set the default build args #
 ##############################
@@ -141,6 +144,7 @@ ExternalProject_Add(
     INSTALL_DIR ${BUILD_DIR}
     CMAKE_ARGS
         ${COMMON_LUX_PROJECT_ARGS}
+        -DLUX_USE_TBB=${LUX_USE_TBB}
         -DCMAKE_FIND_ROOT_PATH=${BUILD_DIR}
         -DCMAKE_PREFIX_PATH=${BUILD_DIR}
         -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER

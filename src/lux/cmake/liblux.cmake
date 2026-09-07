@@ -79,6 +79,19 @@ SET(LUX_LIB_EXCLUDE_REGEXES
 	"/cpp_api/preview_scenes/"
 )
 
+# Logic to include/exclude the TBB renderer variants.
+IF(LUX_USE_TBB)
+	LIST(APPEND LUX_LIB_EXCLUDE_REGEXES
+		"/core/scheduler\.cpp$"
+		"/renderers/samplerrenderer\.cpp$"
+		"/renderers/sppmrenderer\.cpp$")
+ELSE()
+	LIST(APPEND LUX_LIB_EXCLUDE_REGEXES
+		"/core/tbbscheduler\.cpp$"
+		"/renderers/tbbsamplerrenderer\.cpp$"
+		"/renderers/tbbsppmrenderer\.cpp$")
+ENDIF()
+
 SET(lux_lib_src "")
 SET(lux_lib_hdr "")
 
@@ -185,6 +198,10 @@ target_link_libraries(lux PRIVATE
 	pystring::pystring
 	embree
 )
+
+IF(LUX_USE_TBB)
+	target_link_libraries(lux PRIVATE TBB::tbb)
+ENDIF()
 
 target_compile_definitions(lux PRIVATE LUX_INTERNAL)
 

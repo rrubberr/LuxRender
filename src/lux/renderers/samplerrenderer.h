@@ -1,23 +1,22 @@
 /***************************************************************************
- *   Copyright (C) 1998-2013 by authors (see AUTHORS.txt)                  *
+ *   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  *
  *                                                                         *
  *   This file is part of LuxRender.                                       *
  *                                                                         *
- *   Lux Renderer is free software; you can redistribute it and/or modify  *
+ *   LuxRender is free software; you can redistribute it and/or modify     *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 3 of the License, or     *
- *   (at your option) any later version.                                   *
+ *   any later version                                                     *
  *                                                                         *
- *   Lux Renderer is distributed in the hope that it will be useful,       *
+ *   LuxRender is distributed in the hope that it will be useful,          *
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
  *   GNU General Public License for more details.                          *
  *                                                                         *
  *   You should have received a copy of the GNU General Public License     *
- *   along with this program.  If not, see <http://www.gnu.org/licenses/>. *
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>  *
  *                                                                         *
- *   This project is based on PBRT ; see http://www.pbrt.org               *
- *   Lux Renderer website : http://www.luxrender.net                       *
+ *   This project is based on PBRT; see http://www.pbrt.org                *
  ***************************************************************************/
 
 #ifndef LUX_SAMPLERRENDERER_H
@@ -31,6 +30,11 @@
 #include "fastmutex.h"
 #include "timer.h"
 #include "dynload.h"
+#ifdef LUX_USE_TBB
+#include <atomic>
+#include "core/tbbrendercommon.h"
+#include "sampling.h"
+#endif
 
 namespace lux
 {
@@ -98,6 +102,29 @@ private:
 	// used to suspend render threads until the preprocessing phase is done
 	bool preprocessDone;
 	bool suspendThreadsWhenDone;
+
+#ifdef LUX_USE_TBB
+public:
+	// Cooperative cancellation state (RUN/PAUSE/TERMINATE) read by the render
+	// worker between samples; written by Pause/Resume/Terminate.
+	std::atomic<unsigned int> cancelState;
+
+private:
+	unsigned int nThreads;
+	int chunkSizeParam;   // 0 => default (Xres * Yres, one sample per pixel)
+
+	// Per-worker persistent state. Indexed by the TBB worker slot
+	// (tbb::this_task_arena::current_thread_index()), which is guaranteed to be
+	// in [0, nThreads) because the loop runs inside an explicit task_arena.
+	struct SlotState {
+		RandomGenerator *rng;
+		Sample sample;
+		bool inited;
+	};
+	std::vector<SlotState> slots;
+
+	void RenderChunk(const tbb::blocked_range<unsigned int> &r);
+#endif
 };
 
 }//namespace lux
