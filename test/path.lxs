@@ -4,10 +4,7 @@ Renderer "sampler"
 
 Sampler "random"
 
-Accelerator "qbvh"
-	"integer maxprimsperleaf" [4]
-	"integer fullsweepthreshold" [16]
-	"integer skipfactor" [1]
+Accelerator "embree"
 
 SurfaceIntegrator "path"
 	"integer maxdepth" [8]

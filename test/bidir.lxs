@@ -8,10 +8,7 @@ Sampler "metropolis"
 	"integer maxconsecrejects" [512]
 	"bool usecooldown" ["true"]
 
-Accelerator "qbvh"
-	"integer maxprimsperleaf" [4]
-	"integer fullsweepthreshold" [16]
-	"integer skipfactor" [1]
+Accelerator "embree"
 
 SurfaceIntegrator "bidirectional"
 	"integer eyedepth" [8]
