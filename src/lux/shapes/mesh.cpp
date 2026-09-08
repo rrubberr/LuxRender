@@ -451,7 +451,7 @@ void Mesh::Refine(vector<boost::shared_ptr<Primitive> > &refined,
 	MeshAccelType concreteAccelType = accelType;
 #ifdef LUX_USE_TBB
 	// When TBB is enabled, always use Embree.
-	concreteAccelType = ACCEL_EMBREE;
+	concreteAccelType = ACCEL_NONE;
 #else
 	if (accelType == ACCEL_AUTO) {
 		concreteAccelType = ACCEL_QBVH;
