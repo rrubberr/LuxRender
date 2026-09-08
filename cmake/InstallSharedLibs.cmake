@@ -31,11 +31,13 @@ file(MAKE_DIRECTORY "${RELEASE_DIR}")
 
 # The exact runtime dependencies, by SONAME:
 #   liblux.so        -> libembree4.so.4
-#   libembree4.so.4  -> libtbb.so.12
-#   libtbbmalloc.so.2 (TBB allocator backend)
+#   libembree4.so.4  -> libtbb.so.12  (Release) or libtbb_debug.so.12 (Debug)
+#   libtbbmalloc.so.2  (Release) or libtbbmalloc_debug.so.2 (Debug)
 file(GLOB _runtime_shared_libs
     "${LIB_DIR}/libtbb.so.*"
+    "${LIB_DIR}/libtbb_debug.so.*"
     "${LIB_DIR}/libtbbmalloc.so.*"
+    "${LIB_DIR}/libtbbmalloc_debug.so.*"
     "${LIB_DIR}/libembree4.so.*")
 
 if(NOT _runtime_shared_libs)
