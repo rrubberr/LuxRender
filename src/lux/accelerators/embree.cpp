@@ -130,7 +130,8 @@ void embree_accel::CollectLeafInfos(const boost::shared_ptr<Primitive> &prim,
 		return;
 	}
 
-	if (!prim->CanIntersect()) {
+	const Shape *asShape = dynamic_cast<const Shape *>(prim.get());
+	if (!prim->CanIntersect() || (asShape && asShape->CanRefine())) {
 		// Not yet in an intersectable form! Refine it and recurse
 		// into whatever comes out...
 		vector<boost::shared_ptr<Primitive>> refined;
@@ -350,15 +351,19 @@ embree_accel::embree_accel(
 
 	rtcCommitScene(m_scene);
 
-	LOG(LUX_INFO, LUX_NOERROR) << "Using Embree for ray intersection.";
+	// The accelerator may be constructed several times; report only the first build.
+	static std::atomic<bool> loggedConfig(false);
+	if (!loggedConfig.exchange(true)) {
+		LOG(LUX_INFO, LUX_NOERROR) << "Using Embree for ray intersection.";
 
-	const bool robustConfirmed =
-		(rtcGetSceneFlags(m_scene) & RTC_SCENE_FLAG_ROBUST) != 0;
-	LOG(LUX_INFO, LUX_NOERROR) << "Using "
-		<< (highQuality ? "HIGH" : "MEDIUM")
-		<< " scene builder quality. Robust scene build "
-		<< (robustConfirmed ? "ENABLED" : "DISABLED")
-		<< ". " << motionGeomCount << " motion-blurred geometry group(s).";
+		const bool robustConfirmed =
+			(rtcGetSceneFlags(m_scene) & RTC_SCENE_FLAG_ROBUST) != 0;
+		LOG(LUX_INFO, LUX_NOERROR) << "Using "
+			<< (highQuality ? "HIGH" : "MEDIUM")
+			<< " scene builder quality. Robust scene build "
+			<< (robustConfirmed ? "ENABLED" : "DISABLED")
+			<< ". " << motionGeomCount << " motion-blurred geometry group(s).";
+	}
 }
 
 embree_accel::~embree_accel()

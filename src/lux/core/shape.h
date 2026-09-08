@@ -86,6 +86,9 @@ public:
 	}
 
 	virtual bool CanIntersect() const { return true; }
+	// Returns true if this shape can be tessellated into intersectable
+	// primitives via Refine().
+	virtual bool CanRefine() const { return false; }
 	virtual bool Intersect(const Ray &r, Intersection *isect) const {
 		float thit;
 		if (!Intersect(r, &thit, &isect->dg))

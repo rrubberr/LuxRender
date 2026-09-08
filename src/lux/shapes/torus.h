@@ -39,6 +39,8 @@ public:
 	               DifferentialGeometry *dg) const;
 	virtual bool IntersectP(const Ray &ray) const;
 	virtual float Area() const;
+	virtual void Refine(vector<boost::shared_ptr<Shape> > &refined) const;
+	virtual bool CanRefine() const { return true; }
 	virtual Point Sample(float u1, float u2, float u3, Normal *ns) const {
 
 		float phi = u1 * phiMax;

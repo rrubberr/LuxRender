@@ -38,6 +38,8 @@ public:
 	                  DifferentialGeometry *dg) const;
 	virtual bool IntersectP(const Ray &ray) const;
 	virtual float Area() const;
+	virtual void Refine(vector<boost::shared_ptr<Shape> > &refined) const;
+	virtual bool CanRefine() const { return true; }
 	
 	static Shape* CreateShape(const Transform &o2w, bool reverseOrientation, const ParamSet &params);
 protected:

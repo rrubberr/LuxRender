@@ -156,6 +156,66 @@ float Sphere::Area() const
 {
 	return phiMax * radius * (zMax - zMin);
 }
+void Sphere::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
+	const u_int NU = 64;
+	const u_int NV = 32;
+	const u_int nVerts = NU * NV;
+
+	Point *P = new Point[nVerts];
+	float *uvs = new float[2 * nVerts];
+	Normal *N = new Normal[nVerts];
+
+	for (u_int v = 0; v < NV; ++v) {
+		for (u_int u = 0; u < NU; ++u) {
+			const float uu = static_cast<float>(u) / static_cast<float>(NU - 1);
+			const float vv = static_cast<float>(v) / static_cast<float>(NV - 1);
+			const float phi = uu * phiMax;
+			const float theta = thetaMin + vv * (thetaMax - thetaMin);
+			const float sinTheta = sinf(theta);
+			const float cosTheta = cosf(theta);
+			const float cosPhi = cosf(phi);
+			const float sinPhi = sinf(phi);
+			const int idx = v * NU + u;
+			P[idx] = Point(radius * sinTheta * cosPhi,
+			               radius * sinTheta * sinPhi,
+			               radius * cosTheta);
+			N[idx] = Normalize(Normal(P[idx].x, P[idx].y, P[idx].z));
+			uvs[2 * idx] = uu;
+			uvs[2 * idx + 1] = vv;
+		}
+	}
+
+	const u_int nTris = 2 * (NU - 1) * (NV - 1);
+	int *verts = new int[3 * nTris];
+	int *vp = verts;
+	for (u_int v = 0; v < NV - 1; ++v) {
+		for (u_int u = 0; u < NU - 1; ++u) {
+#define VERT(u,v) static_cast<int>((v)*NU+(u))
+			*vp++ = VERT(u, v);
+			*vp++ = VERT(u+1, v);
+			*vp++ = VERT(u+1, v+1);
+
+			*vp++ = VERT(u, v);
+			*vp++ = VERT(u+1, v+1);
+			*vp++ = VERT(u, v+1);
+		}
+#undef VERT
+	}
+
+	ParamSet paramSet;
+	paramSet.AddInt("indices", verts, 3 * nTris);
+	paramSet.AddFloat("uv", uvs, 2 * nVerts);
+	paramSet.AddPoint("P", P, nVerts);
+	paramSet.AddNormal("N", N, nVerts);
+	refined.push_back(MakeShape("trianglemesh",
+			ObjectToWorld, reverseOrientation, paramSet));
+
+	delete[] P;
+	delete[] uvs;
+	delete[] N;
+	delete[] verts;
+}
+
 Shape* Sphere::CreateShape(const Transform &o2w, bool reverseOrientation,
 	const ParamSet &params)
 {

@@ -172,6 +172,70 @@ float Paraboloid::Area() const {
 	return phiMax/12.0f *
 		(powf(1+4*zmin, 1.5f) - powf(1+4*zmax, 1.5f));
 }
+void Paraboloid::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
+	const u_int NU = 64;
+	const u_int NV = 32;
+	const u_int nVerts = NU * NV;
+
+	Point *P = new Point[nVerts];
+	float *uvs = new float[2 * nVerts];
+	Normal *N = new Normal[nVerts];
+
+	for (u_int v = 0; v < NV; ++v) {
+		for (u_int u = 0; u < NU; ++u) {
+			const float uu = static_cast<float>(u) / static_cast<float>(NU - 1);
+			const float vv = static_cast<float>(v) / static_cast<float>(NV - 1);
+			const float phi = uu * phiMax;
+			const float z = zmin + vv * (zmax - zmin);
+			const float r = radius * sqrtf(z / zmax);
+			const int idx = v * NU + u;
+			P[idx] = Point(r * cosf(phi), r * sinf(phi), z);
+			// Compute normal from dpdu x dpdv (object space)
+			Vector dpdu(-phiMax * P[idx].y, phiMax * P[idx].x, 0.f);
+			Vector dpdv;
+			if (fabsf(P[idx].z) < 1e-7f) {
+				N[idx] = Normal(0.f, 0.f, 1.f);
+			}
+			else {
+				dpdv = (zmax - zmin) * Vector(P[idx].x / (2.f * P[idx].z),
+				                              P[idx].y / (2.f * P[idx].z), 1.f);
+				N[idx] = Normalize(Normal(Cross(dpdu, dpdv)));
+			}
+			uvs[2 * idx] = uu;
+			uvs[2 * idx + 1] = vv;
+		}
+	}
+
+	const u_int nTris = 2 * (NU - 1) * (NV - 1);
+	int *verts = new int[3 * nTris];
+	int *vp = verts;
+	for (u_int v = 0; v < NV - 1; ++v) {
+		for (u_int u = 0; u < NU - 1; ++u) {
+#define VERT(u,v) static_cast<int>((v)*NU+(u))
+			*vp++ = VERT(u, v);
+			*vp++ = VERT(u+1, v);
+			*vp++ = VERT(u+1, v+1);
+
+			*vp++ = VERT(u, v);
+			*vp++ = VERT(u+1, v+1);
+			*vp++ = VERT(u, v+1);
+		}
+#undef VERT
+	}
+
+	ParamSet paramSet;
+	paramSet.AddInt("indices", verts, 3 * nTris);
+	paramSet.AddFloat("uv", uvs, 2 * nVerts);
+	paramSet.AddPoint("P", P, nVerts);
+	paramSet.AddNormal("N", N, nVerts);
+	refined.push_back(MakeShape("trianglemesh",
+			ObjectToWorld, reverseOrientation, paramSet));
+
+	delete[] P;
+	delete[] uvs;
+	delete[] N;
+	delete[] verts;
+}
 Shape* Paraboloid::CreateShape(const Transform &o2w,
 		bool reverseOrientation, const ParamSet &params) {
 	string name = params.FindOneString("name", "'paraboloid'");

@@ -109,7 +109,10 @@ public:
 		return UniformConePdf(cosThetaMax) * AbsDot(w, dg.p - Pcenter) /
 			(d2 * sqrtf(d2) * radius);*/
 	}
-	
+
+	virtual void Refine(vector<boost::shared_ptr<Shape> > &refined) const;
+	virtual bool CanRefine() const { return true; }
+
 	static Shape* CreateShape(const Transform &o2w, bool reverseOrientation, const ParamSet &params);
 private:
 	// Sphere Private Data

@@ -218,6 +218,67 @@ float Hyperboloid::Area() const {
 }
 #undef SQR
 #undef QUAD
+void Hyperboloid::Refine(vector<boost::shared_ptr<Shape> > &refined) const {
+	const u_int NU = 64;
+	const u_int NV = 32;
+	const u_int nVerts = NU * NV;
+
+	Point *P = new Point[nVerts];
+	float *uvs = new float[2 * nVerts];
+	Normal *N = new Normal[nVerts];
+
+	for (u_int v = 0; v < NV; ++v) {
+		for (u_int u = 0; u < NU; ++u) {
+			const float uu = static_cast<float>(u) / static_cast<float>(NU - 1);
+			const float vv = static_cast<float>(v) / static_cast<float>(NV - 1);
+			const float phi = uu * phiMax;
+			const Point pr = (1.f - vv) * p1 + vv * p2;
+			const float cosphi = cosf(phi), sinphi = sinf(phi);
+			const int idx = v * NU + u;
+			P[idx] = Point(pr.x * cosphi - pr.y * sinphi,
+			               pr.x * sinphi + pr.y * cosphi,
+			               pr.z);
+			// Compute normal from dpdu x dpdv (object space)
+			Vector dpdu(-phiMax * P[idx].y, phiMax * P[idx].x, 0.f);
+			Vector dpdv((p2.x - p1.x) * cosphi - (p2.y - p1.y) * sinphi,
+			            (p2.x - p1.x) * sinphi + (p2.y - p1.y) * cosphi,
+			            p2.z - p1.z);
+			N[idx] = Normalize(Normal(Cross(dpdu, dpdv)));
+			uvs[2 * idx] = uu;
+			uvs[2 * idx + 1] = vv;
+		}
+	}
+
+	const u_int nTris = 2 * (NU - 1) * (NV - 1);
+	int *verts = new int[3 * nTris];
+	int *vp = verts;
+	for (u_int v = 0; v < NV - 1; ++v) {
+		for (u_int u = 0; u < NU - 1; ++u) {
+#define VERT(u,v) static_cast<int>((v)*NU+(u))
+			*vp++ = VERT(u, v);
+			*vp++ = VERT(u+1, v);
+			*vp++ = VERT(u+1, v+1);
+
+			*vp++ = VERT(u, v);
+			*vp++ = VERT(u+1, v+1);
+			*vp++ = VERT(u, v+1);
+		}
+#undef VERT
+	}
+
+	ParamSet paramSet;
+	paramSet.AddInt("indices", verts, 3 * nTris);
+	paramSet.AddFloat("uv", uvs, 2 * nVerts);
+	paramSet.AddPoint("P", P, nVerts);
+	paramSet.AddNormal("N", N, nVerts);
+	refined.push_back(MakeShape("trianglemesh",
+			ObjectToWorld, reverseOrientation, paramSet));
+
+	delete[] P;
+	delete[] uvs;
+	delete[] N;
+	delete[] verts;
+}
 Shape* Hyperboloid::CreateShape(const Transform &o2w,
 		bool reverseOrientation, const ParamSet &params) {
 	string name = params.FindOneString("name", "'hyperboloid'");
