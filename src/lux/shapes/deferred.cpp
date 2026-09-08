@@ -63,7 +63,11 @@ void DeferredLoadShape::LoadShape() const {
 			if (!shape->CanIntersect()) {
 				vector<boost::shared_ptr<Primitive> > refined;
 				shape->Refine(refined, PrimitiveRefinementHints(false), shape);
+#ifdef LUX_USE_TBB
+				accelerator = MakeAccelerator("embree", refined, ParamSet());
+#else
 				accelerator = MakeAccelerator("qbvh", refined, ParamSet());
+#endif
 				prim = accelerator.get();
 			} else
 				prim = shape.get();

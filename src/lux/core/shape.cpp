@@ -65,10 +65,17 @@ PrimitiveSet::PrimitiveSet(const vector<boost::shared_ptr<Primitive> > &p) :
 		worldbound.pMin -= (worldbound.pMax - worldbound.pMin) * 0.01f;
 		worldbound.pMax += (worldbound.pMax - worldbound.pMin) * 0.01f;
 	} else {
+#ifdef LUX_USE_TBB
+		accelerator = boost::shared_ptr<Primitive>(
+			MakeAccelerator("embree", primitives, ParamSet()));
+		if (!accelerator)
+			LOG( LUX_SEVERE,LUX_BUG)<<"Unable to find \"embree\" accelerator";
+#else
 		accelerator = boost::shared_ptr<Primitive>(
 			MakeAccelerator("kdtree", primitives, ParamSet()));
 		if (!accelerator)
 			LOG( LUX_SEVERE,LUX_BUG)<<"Unable to find \"kdtree\" accelerator";
+#endif
 	}
 }
 

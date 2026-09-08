@@ -84,7 +84,10 @@ IF(LUX_USE_TBB)
 	LIST(APPEND LUX_LIB_EXCLUDE_REGEXES
 		"/core/scheduler\.cpp$"
 		"/renderers/samplerrenderer\.cpp$"
-		"/renderers/sppmrenderer\.cpp$")
+		"/renderers/sppmrenderer\.cpp$"
+		"/accelerators/bruteforce\.cpp$"
+		"/accelerators/qbvhaccel\.cpp$"
+		"/accelerators/tabreckdtree\.cpp$")
 ELSE()
 	LIST(APPEND LUX_LIB_EXCLUDE_REGEXES
 		"/core/tbbscheduler\.cpp$"

@@ -449,9 +449,14 @@ void Mesh::Refine(vector<boost::shared_ptr<Primitive> > &refined,
 
 	// Select best acceleration structure
 	MeshAccelType concreteAccelType = accelType;
+#ifdef LUX_USE_TBB
+	// When TBB is enabled, always use Embree.
+	concreteAccelType = ACCEL_EMBREE;
+#else
 	if (accelType == ACCEL_AUTO) {
 		concreteAccelType = ACCEL_QBVH;
 	}
+#endif
 
 	// Report selections used
 	std::stringstream ss;
@@ -502,11 +507,19 @@ void Mesh::Refine(vector<boost::shared_ptr<Primitive> > &refined,
 		for(u_int i = 0; i < refinedPrims.size(); ++i)
 			refined[offset+i].swap(refinedPrims[i]);
 	} else  {
+		ParamSet paramset;
+		boost::shared_ptr<Aggregate> accel;
+#ifdef LUX_USE_TBB
+		// When TBB is enabled, always use Embree
+		accel = MakeAccelerator("embree", refinedPrims, paramset);
+		if (refineHints.forSampling)
+			refined.push_back(boost::shared_ptr<Primitive>(new PrimitiveSet(accel)));
+		else
+			refined.push_back(accel);
+#else
 		//FIXME: QBVH doesn't play well with PrimitiveSet
 		if (refineHints.forSampling && concreteAccelType == ACCEL_QBVH)
 			concreteAccelType = ACCEL_KDTREE;
-		ParamSet paramset;
-		boost::shared_ptr<Aggregate> accel;
 		switch (concreteAccelType) {
 			case ACCEL_EMBREE:
 				accel = MakeAccelerator("embree", refinedPrims, paramset);
@@ -528,6 +541,7 @@ void Mesh::Refine(vector<boost::shared_ptr<Primitive> > &refined,
 			refined.push_back(boost::shared_ptr<Primitive>(new PrimitiveSet(accel)));
 		else
 			refined.push_back(accel);
+#endif
 	}
 }
 
