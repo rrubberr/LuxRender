@@ -346,6 +346,7 @@ const char * ds_pylux_Context_update_statistics_window =
 
 const char * ds_pylux_Context_surfaceIntegrator =
 "Initialise the surface integrator to use for rendering. Valid types are:\n"
+"- bdpt\n"
 "- bidirectional\n"
 "- directlighting\n"
 "- exphotonmap\n"
