@@ -22,7 +22,8 @@ SurfaceIntegrator "sppm"
 	"bool storeglossy" ["false"]
 	"bool useproba" ["true"]
 	"integer wavelengthstratificationpasses" [8]
-	"string lookupaccel" ["embree"]
+	"string lookupaccel" ["parallelhashgrid"]
+	"float parallelhashgridspare" [8.000000000000000]
 	"string pixelsampler" ["hilbert"]
 	"string photonsampler" ["halton"]
 
