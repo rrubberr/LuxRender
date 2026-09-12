@@ -1,0 +1,15 @@
+luxrays snapshot
+================
+
+Source:       src/lux/luxrays (upstream LuxRender luxrays tree)
+Git SHA:      146789c524c4bd068c3d8c7f278d2b1014a1c5e7
+Date:         2026-09-12
+
+To re-sync:
+  rm -rf src/lux2/luxrays/include src/lux2/luxrays/src
+  cp -a src/lux/luxrays/include src/lux2/luxrays/include
+  cp -a src/lux/luxrays/src src/lux2/luxrays/src
+  Update this file with the new git SHA and date.
+
+Local patches:
+  (none)
