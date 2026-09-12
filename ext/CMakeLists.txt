@@ -145,6 +145,16 @@ lux_external_project_add(cpython
 		CXXFLAGS=-O2\ -w\ -fPIC\ -std=c++17
 	BUILD_COMMAND make INSTALL_COMMAND make install)
 
+###############
+# Stage Enoki #
+###############
+
+lux_external_project_add(enoki
+	SOURCE_DIR ${EXT_DIR}/enoki PREFIX ${PFX_DIR}/enoki INSTALL_DIR ${BUILD_DIR}
+	CONFIGURE_COMMAND ${CMAKE_COMMAND} -E echo "Enoki: header-only, skipping configure"
+	BUILD_COMMAND ${CMAKE_COMMAND} -E echo "Enoki: header-only, skipping build"
+	INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_directory ${EXT_DIR}/enoki/include ${INC_DIR})
+
 ###################
 # Argument Arrays #
 ###################

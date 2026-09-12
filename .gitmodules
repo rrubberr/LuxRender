@@ -82,3 +82,6 @@
 [submodule "ext/tbb"]
 	path = ext/tbb
 	url = https://github.com/uxlfoundation/oneTBB
+[submodule "ext/enoki"]
+	path = ext/enoki
+	url = https://github.com/mitsuba-renderer/enoki.git
