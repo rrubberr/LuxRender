@@ -19,17 +19,51 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_LUX2_H
-#define LUX2_LUX2_H
+#ifndef LUX2_LIGHT_H
+#define LUX2_LIGHT_H
 
-// lux2 core headers.
+// Abstract light source interface for NEE and photon emission.
 
 #include "core/vecp.h"
 #include "core/geometry.h"
 #include "core/spectrum.h"
-#include "core/bbox.h"
-#include "core/transform.h"
+#include "core/bsdf.h"
+#include "core/bsdf_type.h"
 #include "core/ray.h"
-#include "core/rng.h"
 
-#endif // LUX2_LUX2_H
+namespace lux2 {
+
+// Abstract light source.
+class Light {
+public:
+    virtual ~Light() = default;
+
+    // Lobe types this light emits into. Used for MIS weighting.
+    virtual BSDFType flags() const = 0;
+
+    // Infinite lights have no finite sample position.
+    virtual bool IsInfinite() const = 0;
+
+    // Light group index.
+    virtual UInt group() const = 0;
+
+    // Radiance emitted along `ray` (used for infinite light and
+    // area-light).
+    virtual SWCSpectrumP Le(const RayP& ray, MaskP active = MaskP(true)) const = 0;
+
+    // NEE / photon-emission position sampler.
+    virtual MaskP Sample_L(const Point3fP& p, const Normal3fP& n,
+                           const FloatP& u0, const FloatP& u1,
+                           Point3fP* lightP, Vector3fP* wi,
+                           FloatP* pdf, SWCSpectrumP* Le,
+                           MaskP active = MaskP(true)) const = 0;
+
+    // PDF of sampling direction wi from p. Used for MIS.
+    virtual FloatP Pdf_L(const Point3fP& p, const Normal3fP& n,
+                         const Vector3fP& wi,
+                         MaskP active = MaskP(true)) const = 0;
+};
+
+} // namespace lux2
+
+#endif // LUX2_LIGHT_H

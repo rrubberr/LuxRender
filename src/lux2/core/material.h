@@ -1,6 +1,8 @@
 /***************************************************************************
  *   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  *
  *                                                                         *
+ *   This file is part of LuxRender.                                       *
+ *                                                                         *
  *   LuxRender is free software; you can redistribute it and/or modify     *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 3 of the License, or     *
@@ -17,50 +19,27 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_RNG_H
-#define LUX2_RNG_H
+#ifndef LUX2_MATERIAL_H
+#define LUX2_MATERIAL_H
 
-// lux2 uses Enoki's PCG32
-
-#include "core/vecp.h"
-
-#include <enoki/random.h>
+#include "core/bsdf.h"
+#include "core/bsdf_type.h"
 
 namespace lux2 {
 
-// =======================================================================
-// RNGP
-// =======================================================================
-
-class RNGP {
+// Abstract material.
+class Material {
 public:
-    using FloatDist = enoki::PCG32<FloatP>;
+    virtual ~Material() = default;
 
-    // Seed with a base state. Each lane gets its own stream id so
-    // PACKET_WIDTH lanes produce independent sequences.
-    explicit RNGP(UInt64 initstate = 0x853c49e6748fea9bULL)
-        : gen(FloatDist(UInt64P(initstate))) { }
+    // Union of lobe types this BSDF can produce. The integrator
+    // uses this to decide NEE and specular handling.
+    virtual BSDFType flags() const = 0;
 
-    // Uniform float in [0, 1), one value per lane.
-    FloatP NextFloat() { return gen.template next_float<FloatP>(); }
-
-    // Uniform float in [0, 1) for active lanes only (inactive lanes keep
-    // their state).
-    FloatP NextFloat(const MaskP &mask) { return gen.template next_float<FloatP>(mask); }
-
-    // Uniform integer in [0, n) per lane (used to pick a light / BSDF lobe).
-    UInt32P NextUInt32() { return gen.next_uint32(); }
-
-    // Re-seed every lane from a scalar base state (e.g. per pixel).
-    void Seed(UInt64 initstate) {
-        gen.seed(UInt64P(initstate),
-                 enoki::arange<UInt64P>() + 0xda3e39cb94b95bdbULL);
-    }
-
-private:
-    FloatDist gen;
+    // Return the BSDF to use at a shading point.
+    virtual const BSDF* GetBSDF(const DifferentialGeometryP& dg) const = 0;
 };
 
 } // namespace lux2
 
-#endif // LUX2_RNG_H
+#endif // LUX2_MATERIAL_H

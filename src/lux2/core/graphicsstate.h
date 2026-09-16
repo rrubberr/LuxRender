@@ -19,17 +19,59 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_LUX2_H
-#define LUX2_LUX2_H
+#ifndef LUX2_GRAPHICSSTATE_H
+#define LUX2_GRAPHICSSTATE_H
 
-// lux2 core headers.
+// Parser graphics state.
 
-#include "core/vecp.h"
-#include "core/geometry.h"
-#include "core/spectrum.h"
-#include "core/bbox.h"
-#include "core/transform.h"
-#include "core/ray.h"
-#include "core/rng.h"
+#include "core/paramset.h"
 
-#endif // LUX2_LUX2_H
+#include <map>
+#include <string>
+
+namespace lux2 {
+
+// A named texture binding recorded by the Texture statement.
+struct TextureDesc {
+    std::string textureType;   // "float" | "color" | "fresnel"
+    std::string pluginName;    // e.g. "fresnelcolor", "constant"
+    ParamSet params;
+};
+
+// A material binding on a shape.
+struct MaterialBinding {
+    bool isNamed = false;      // True when namedRef is a namedMaterial.
+    std::string namedRef;      // When isNamed.
+    std::string pluginName;    // When inline.
+    ParamSet params;           // When inline.
+
+    bool valid() const { return isNamed || !pluginName.empty(); }
+};
+
+// The scoped graphics state.
+struct GraphicsState {
+    // Named texture tables.
+    std::map<std::string, TextureDesc> floatTextures;
+    std::map<std::string, TextureDesc> colorTextures;
+    std::map<std::string, TextureDesc> fresnelTextures;
+
+    // Named materials visible in this scope.
+    std::map<std::string, ParamSet> namedMaterials;
+
+    // Current material binding applied to subsequently declared shapes.
+    MaterialBinding material;
+
+    // Pending area light: set by AreaLightSource.
+    bool areaLightActive = false;
+    std::string areaLightName;
+    ParamSet areaLightParams;
+
+    // Current light group name.
+    std::string currentLightGroup;
+
+    bool reverseOrientation = false;
+};
+
+} // namespace lux2
+
+#endif // LUX2_GRAPHICSSTATE_H

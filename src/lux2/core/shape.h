@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  *
+ * Copyright 1998-2026 by authors (see AUTHORS.txt)                        *
+ *                                                                         *
+ *   This file is part of LuxRender.                                       *
  *                                                                         *
  *   LuxRender is free software; you can redistribute it and/or modify     *
  *   it under the terms of the GNU General Public License as published by  *
@@ -17,50 +19,40 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_RNG_H
-#define LUX2_RNG_H
+#ifndef LUX2_SHAPE_H
+#define LUX2_SHAPE_H
 
-// lux2 uses Enoki's PCG32
+#include "core/geometry.h"
+#include "core/bbox.h"
+#include "core/transform.h"
 
-#include "core/vecp.h"
-
-#include <enoki/random.h>
+#include <vector>
+#include <cstdint>
 
 namespace lux2 {
 
-// =======================================================================
-// RNGP
-// =======================================================================
+// One world space triangle produced by tessellation.
+struct TriangleDesc {
+    Point3f   v0, v1, v2;               // World space vertices.
+    Normal3f  n0, n1, n2;               // Per-vertex shading normals.
+    UV        uv0, uv1, uv2;            // Per-vertex texture coords.
+    std::uint32_t   matID;              // Resolved material index.
+    std::int32_t    lightID;            // Area light index, or -1.
+};
 
-class RNGP {
+// Abstract shape.
+class Shape {
 public:
-    using FloatDist = enoki::PCG32<FloatP>;
+    virtual ~Shape() = default;
 
-    // Seed with a base state. Each lane gets its own stream id so
-    // PACKET_WIDTH lanes produce independent sequences.
-    explicit RNGP(UInt64 initstate = 0x853c49e6748fea9bULL)
-        : gen(FloatDist(UInt64P(initstate))) { }
+    // Append world space triangles to output.
+    virtual void Tessellate(const Transform& worldToCamera,
+                            std::vector<TriangleDesc>& out) const = 0;
 
-    // Uniform float in [0, 1), one value per lane.
-    FloatP NextFloat() { return gen.template next_float<FloatP>(); }
-
-    // Uniform float in [0, 1) for active lanes only (inactive lanes keep
-    // their state).
-    FloatP NextFloat(const MaskP &mask) { return gen.template next_float<FloatP>(mask); }
-
-    // Uniform integer in [0, n) per lane (used to pick a light / BSDF lobe).
-    UInt32P NextUInt32() { return gen.next_uint32(); }
-
-    // Re-seed every lane from a scalar base state (e.g. per pixel).
-    void Seed(UInt64 initstate) {
-        gen.seed(UInt64P(initstate),
-                 enoki::arange<UInt64P>() + 0xda3e39cb94b95bdbULL);
-    }
-
-private:
-    FloatDist gen;
+    // Axis aligned world-space bound of the shape.
+    virtual BBox WorldBound() const = 0;
 };
 
 } // namespace lux2
 
-#endif // LUX2_RNG_H
+#endif // LUX2_SHAPE_H

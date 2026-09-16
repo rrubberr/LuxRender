@@ -158,6 +158,37 @@ TARGET_INCLUDE_DIRECTORIES(lux2corecheck PRIVATE
 # Run the check automatically after each build of the check target.
 add_test(NAME lux2corecheck COMMAND lux2corecheck)
 
+# lux2 foundation sources.
+set(LUX2_FOUNDATION_SRC
+	core/paramset.cpp
+	core/context2.cpp
+	core/scene.cpp
+	core/dynload.cpp
+)
+
+set(LUX2_FOUNDATION_HEADERS
+	core/scene.h
+	core/paramset.h
+	core/context2.h
+	core/graphicsstate.h
+	core/transform_stack.h
+	core/transform.h
+	core/dynload.h
+)
+
+# Build lux2foundationcheck.
+ADD_EXECUTABLE(lux2foundationcheck
+	tests/foundation_check.cpp
+	${LUX2_FOUNDATION_SRC}
+	${LUX2_FOUNDATION_HEADERS}
+)
+
+TARGET_INCLUDE_DIRECTORIES(lux2foundationcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_test(NAME lux2foundationcheck COMMAND lux2foundationcheck)
+
 # luxrays2check tests luxrays scalar types to verify core APIs work.
 ADD_EXECUTABLE(luxrays2check
 	tests/luxrays_check.cpp

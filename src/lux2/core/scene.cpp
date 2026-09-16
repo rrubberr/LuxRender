@@ -1,6 +1,8 @@
 /***************************************************************************
  *   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  *
  *                                                                         *
+ *   This file is part of LuxRender.                                       *
+ *                                                                         *
  *   LuxRender is free software; you can redistribute it and/or modify     *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 3 of the License, or     *
@@ -17,50 +19,45 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_RNG_H
-#define LUX2_RNG_H
-
-// lux2 uses Enoki's PCG32
-
-#include "core/vecp.h"
-
-#include <enoki/random.h>
+#include "core/scene.h"
 
 namespace lux2 {
 
-// =======================================================================
-// RNGP
-// =======================================================================
+void Scene::Commit(SceneDescription& desc) {
+    m_summary = Summary{};
 
-class RNGP {
-public:
-    using FloatDist = enoki::PCG32<FloatP>;
+    // Merge named materials so bindings resolve against the full table.
+    for (const auto& kv : desc.namedMaterials)
+        m_summary.namedMaterialCount++;
 
-    // Seed with a base state. Each lane gets its own stream id so
-    // PACKET_WIDTH lanes produce independent sequences.
-    explicit RNGP(UInt64 initstate = 0x853c49e6748fea9bULL)
-        : gen(FloatDist(UInt64P(initstate))) { }
+    for (const auto& shape : desc.shapes) {
+        m_summary.shapeCount++;
 
-    // Uniform float in [0, 1), one value per lane.
-    FloatP NextFloat() { return gen.template next_float<FloatP>(); }
+        // Validate the material binding resolves.
+        if (shape.material.valid()) {
+            if (shape.material.isNamed) {
+                if (desc.namedMaterials.find(shape.material.namedRef) ==
+                    desc.namedMaterials.end()) {
+                    LOG(LUX_ERROR) << "Shape references unknown named material '"
+                                   << shape.material.namedRef << "'";
+                }
+            }
+        }
 
-    // Uniform float in [0, 1) for active lanes only (inactive lanes keep
-    // their state).
-    FloatP NextFloat(const MaskP &mask) { return gen.template next_float<FloatP>(mask); }
-
-    // Uniform integer in [0, n) per lane (used to pick a light / BSDF lobe).
-    UInt32P NextUInt32() { return gen.next_uint32(); }
-
-    // Re-seed every lane from a scalar base state (e.g. per pixel).
-    void Seed(UInt64 initstate) {
-        gen.seed(UInt64P(initstate),
-                 enoki::arange<UInt64P>() + 0xda3e39cb94b95bdbULL);
+        if (shape.isAreaLight) {
+            m_summary.areaLightShapeCount++;
+            if (shape.areaLightName.empty())
+                LOG(LUX_ERROR) << "Area-light shape has no light plugin name";
+        }
     }
 
-private:
-    FloatDist gen;
-};
+    for (const auto& light : desc.lights) {
+        m_summary.lightCount++;
+        if (light.name.empty())
+            LOG(LUX_ERROR) << "Light source has no plugin name";
+    }
+
+    m_committed = true;
+}
 
 } // namespace lux2
-
-#endif // LUX2_RNG_H

@@ -1,6 +1,8 @@
 /***************************************************************************
  *   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  *
  *                                                                         *
+ *   This file is part of LuxRender.                                       *
+ *                                                                         *
  *   LuxRender is free software; you can redistribute it and/or modify     *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 3 of the License, or     *
@@ -17,50 +19,57 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_RNG_H
-#define LUX2_RNG_H
+#ifndef LUX2_TILEQUEUE_H
+#define LUX2_TILEQUEUE_H
 
-// lux2 uses Enoki's PCG32
-
-#include "core/vecp.h"
-
-#include <enoki/random.h>
+#include <deque>
+#include <mutex>
 
 namespace lux2 {
 
-// =======================================================================
-// RNGP
-// =======================================================================
+// A rectangular tile of pixels.
+struct Tile {
+    int x0, y0, x1, y1;
+};
 
-class RNGP {
+// Thread-safe tile queue.
+class TileQueue {
 public:
-    using FloatDist = enoki::PCG32<FloatP>;
-
-    // Seed with a base state. Each lane gets its own stream id so
-    // PACKET_WIDTH lanes produce independent sequences.
-    explicit RNGP(UInt64 initstate = 0x853c49e6748fea9bULL)
-        : gen(FloatDist(UInt64P(initstate))) { }
-
-    // Uniform float in [0, 1), one value per lane.
-    FloatP NextFloat() { return gen.template next_float<FloatP>(); }
-
-    // Uniform float in [0, 1) for active lanes only (inactive lanes keep
-    // their state).
-    FloatP NextFloat(const MaskP &mask) { return gen.template next_float<FloatP>(mask); }
-
-    // Uniform integer in [0, n) per lane (used to pick a light / BSDF lobe).
-    UInt32P NextUInt32() { return gen.next_uint32(); }
-
-    // Re-seed every lane from a scalar base state (e.g. per pixel).
-    void Seed(UInt64 initstate) {
-        gen.seed(UInt64P(initstate),
-                 enoki::arange<UInt64P>() + 0xda3e39cb94b95bdbULL);
-    }
+    
+    bool Next(Tile* t);         // Next tile; false when the queue is empty.
+    void Push(const Tile& t);   // Push a tile onto the queue.
+    bool Empty() const;         // True if no tiles remain.
+    int Remaining() const;      // Tiles remaining.
 
 private:
-    FloatDist gen;
+    mutable std::mutex m_mutex;
+    std::deque<Tile> m_tiles;
 };
+
+// Inline definitions.
+inline bool TileQueue::Next(Tile* t) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_tiles.empty()) return false;
+    *t = m_tiles.front();
+    m_tiles.pop_front();
+    return true;
+}
+
+inline void TileQueue::Push(const Tile& t) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_tiles.push_back(t);
+}
+
+inline bool TileQueue::Empty() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_tiles.empty();
+}
+
+inline int TileQueue::Remaining() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return (int)m_tiles.size();
+}
 
 } // namespace lux2
 
-#endif // LUX2_RNG_H
+#endif // LUX2_TILEQUEUE_H

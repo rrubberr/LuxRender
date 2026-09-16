@@ -37,39 +37,39 @@ namespace lux2 {
 // =======================================================================
 
 struct RayP {
-    Point3fP o;         ///< Ray origin (3 x FloatP)
-    Vector3fP d;        ///< Ray direction (3 x FloatP)
-    Vector3fP d_rcp;    ///< Component-wise reciprocal of d (for slab tests)
-    FloatP mint;        ///< Minimum distance on the ray segment
-    FloatP maxt;        ///< Maximum distance on the ray segment
-    FloatP time;        ///< Motion-blur time
-    FloatP wavelengths; ///< SWA wavelengths (4 samples handled by SWCSpectrumP)
+    Point3fP o;         // Ray origin (3*FloatP).
+    Vector3fP d;        // Ray direction (3*FloatP).
+    Vector3fP d_rcp;    // Component-wise reciprocal of d (for slab tests).
+    FloatP mint;        // Minimum distance on the ray segment.
+    FloatP maxt;        // Maximum distance on the ray segment.
+    FloatP time;        // Motion blur time.
+    FloatP wavelengths; // SWA wavelengths.
 
     // Integrator payload
-    SWCSpectrumP throughput; ///< Accumulated spectral throughput
-    FloatP pdf;              ///< PDF of the current direction
-    Int32P depth;            ///< Bounce count
-    MaskP specularBounce;    ///< Previous vertex was a specular interaction
-    MaskP alive;             ///< Lane activity mask
+    SWCSpectrumP throughput; // Accumulated spectral throughput.
+    FloatP pdf;              // PDF of the current direction.
+    Int32P depth;            // Bounce count.
+    MaskP specularBounce;    // Previous vertex was a specular interaction.
+    MaskP alive;             // Lane activity mask.
 
     RayP() = default;
 
-    /// Construct a ray packet from SoA origin/direction, computing d_rcp.
+    // Construct a ray packet from origin/direction.
     RayP(const Point3fP &o, const Vector3fP &d,
          const FloatP &mint, const FloatP &maxt, const FloatP &time)
         : o(o), d(d), d_rcp(enoki::rcp(d)), mint(mint), maxt(maxt), time(time) { }
 
-    /// Recompute d_rcp after mutating d.
+    // Recompute d_rcp after mutating d.
     void UpdateReciprocalDirection() { d_rcp = enoki::rcp(d); }
 
-    /// Position along the ray at parameter t: o + d * t.
+    // Position along the ray at parameter t: o + d * t.
     Point3fP operator()(const FloatP &t) const {
         return Point3fP(fmadd(d.x(), t, o.x()),
                         fmadd(d.y(), t, o.y()),
                         fmadd(d.z(), t, o.z()));
     }
 
-    /// Initialize the payload for a fresh primary-ray batch.
+    // Initialize the payload for a primary ray batch.
     void InitPayload() {
         throughput = SWCSpectrumP(1.f);
         pdf = FloatP(0.f);
@@ -84,15 +84,14 @@ struct RayP {
 // =======================================================================
 
 // The result of tracing a RayP packet against the Embree scene.
-// b1/b2 are the barycentric coordinates.
 struct HitP {
-    UInt32P geomID;  ///< Mesh / geometry index
-    UInt32P primID;  ///< Triangle index within the geometry
-    FloatP t;        ///< Hit distance along the ray
-    FloatP b1;       ///< First barycentric coordinate
-    FloatP b2;       ///< Second barycentric coordinate
+    UInt32P geomID;  // Mesh/geometry index.
+    UInt32P primID;  // Triangle index within the geometry.
+    FloatP t;        // Hit distance along the ray.
+    FloatP b1;       // First barycentric coordinate.
+    FloatP b2;       // Second barycentric coordinate.
 
-    /// True where the packet ray actually hit something (t < maxt).
+    // True where the packet ray hit something.
     MaskP IsValid(const FloatP &maxt) const {
         return (t >= FloatP(0.f)) & (t < maxt);
     }

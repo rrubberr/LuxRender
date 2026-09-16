@@ -70,19 +70,19 @@ struct Normal : enoki::StaticArrayImpl<Value_, Size_, false, Normal<Value_, Size
     ENOKI_ARRAY_IMPORT(Base, Normal)
 };
 
-/// Subtracting two points always yields a vector.
+// Subtracting two points always yields a vector.
 template <typename T1, size_t S1, typename T2, size_t S2>
 auto operator-(const Point<T1, S1> &p1, const Point<T2, S2> &p2) {
     return Vector<T1, S1>(p1) - Vector<T2, S2>(p2);
 }
 
-/// Subtracting a vector from a point yields a point.
+// Subtracting a vector from a point yields a point.
 template <typename T1, size_t S1, typename T2, size_t S2>
 auto operator-(const Point<T1, S1> &p1, const Vector<T2, S2> &v2) {
     return p1 - Point<T2, S2>(v2);
 }
 
-/// Adding a vector to a point yields a point.
+// Adding a vector to a point yields a point.
 template <typename T1, size_t S1, typename T2, size_t S2>
 auto operator+(const Point<T1, S1> &p1, const Vector<T2, S2> &v2) {
     return p1 + Point<T2, S2>(v2);
@@ -120,6 +120,29 @@ struct Normal<enoki::detail::MaskedArray<Value_>, Size_>
 };
 
 // =======================================================================
+// Scalar typedefs
+// =======================================================================
+
+using Point2f = Point<Float, 2>;
+using Point3f = Point<Float, 3>;
+using Point4f = Point<Float, 4>;
+
+using Vector2f = Vector<Float, 2>;
+using Vector3f = Vector<Float, 3>;
+using Vector4f = Vector<Float, 4>;
+
+using Normal3f = Normal<Float, 3>;
+
+// Texture coordinate.
+struct UV {
+    Float u = 0.f;
+    Float v = 0.f;
+
+    UV() = default;
+    UV(Float u, Float v) : u(u), v(v) { }
+};
+
+// =======================================================================
 // 3D packet typedefs
 // =======================================================================
 
@@ -127,9 +150,8 @@ using Point3fP = Point<FloatP, 3>;
 using Vector3fP = Vector<FloatP, 3>;
 using Normal3fP = Normal<FloatP, 3>;
 
-/// Complete the unit vector 'n' into an orthonormal basis {b, c, n}.
-/// Duff et al., "Building an Orthonormal Basis, Revisited" (JCGT 2017),
-/// From mitsuba2 (core/vector.h).
+// Complete the unit vector 'n' into an orthonormal basis {b, c, n}.
+// Duff et al., "Building an Orthonormal Basis, Revisited" (JCGT 2017),
 template <typename Vector3fP_>
 std::pair<Vector3fP_, Vector3fP_> coordinate_system(const Vector3fP_ &n) {
     static_assert(Vector3fP_::Size == 3,

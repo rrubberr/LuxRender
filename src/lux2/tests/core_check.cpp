@@ -48,6 +48,23 @@ bool AllClose(const FloatP &a, float b, float eps = 1e-4f) {
 	return enoki::all(enoki::abs(a - FloatP(b)) < FloatP(eps));
 }
 
+// True if scalars 'a' and 'b' are within 'eps'.
+bool Close(float a, float b, float eps = 1e-4f) {
+	return std::fabs(a - b) < eps;
+}
+
+// True if two 3D points agree component-wise within 'eps'.
+bool Close(const Point3f &a, const Point3f &b, float eps = 1e-4f) {
+	return Close(a.x(), b.x(), eps) && Close(a.y(), b.y(), eps) &&
+	       Close(a.z(), b.z(), eps);
+}
+
+// True if two 3D vectors agree component-wise within 'eps'.
+bool Close(const Vector3f &a, const Vector3f &b, float eps = 1e-4f) {
+	return Close(a.x(), b.x(), eps) && Close(a.y(), b.y(), eps) &&
+	       Close(a.z(), b.z(), eps);
+}
+
 // vecp.h: packet width and basic arithmetic.
 void CheckVecP() {
 	std::cout << "[vecp] PACKET_WIDTH=" << PACKET_WIDTH << std::endl;
@@ -98,9 +115,9 @@ void CheckGeometry() {
 // spectrum.h: SWCSpectrumP arithmetic and reductions.
 void CheckSpectrum() {
 	const float a = float(std::rand() % 50 + 1) / 50.f;
-	SWCSpectrumP s{FloatP(a)};              // brace-init avoids the vexing parse
-	SWCSpectrumP t = s * s;                 // a^2 per sample
-	SWCSpectrumP u = s + t;                 // a + a^2
+	SWCSpectrumP s{FloatP(a)};              // Brace-init avoids the vexing parse.
+	SWCSpectrumP t = s * s;                 // a^2 per sample.
+	SWCSpectrumP u = s + t;                 // a + a^2.
 	Check(AllClose(u.c[0], a + a * a), "spectrum mul/add");
 
 	Check(AllClose(s.MaxComponent(), a), "spectrum MaxComponent");
@@ -133,7 +150,7 @@ void CheckRay() {
 	// d_rcp.y should be 1 (reciprocal of 1).
 	Check(AllClose(ray.d_rcp.y(), 1.f), "d_rcp computed");
 
-	// ray(2) == o + d*2 -> (a, 2, 0)
+	// ray(2) == o + d*2 -> (a, 2, 0).
 	Point3fP pos = ray(FloatP(2.f));
 	Check(AllClose(pos.x(), a), "ray(t).x");
 	Check(AllClose(pos.y(), 2.f), "ray(t).y");
@@ -173,6 +190,128 @@ void CheckRNG() {
 		"masked rng float in [0,1)");
 }
 
+// geometry.h: scalar Point/Vector/Normal and UV.
+void CheckGeometryScalar() {
+	const Point3f p(1.f, 2.f, 3.f);
+	const Point3f q(0.f, 0.f, 0.f);
+	const Vector3f d = p - q;
+	Check(Close(d, Vector3f(1.f, 2.f, 3.f)), "scalar point-point == vector");
+
+	const Point3f r = q + Vector3f(1.f, 1.f, 1.f);
+	Check(Close(r, Point3f(1.f, 1.f, 1.f)), "scalar point+vector");
+
+	const UV uv(0.25f, 0.75f);
+	Check(Close(uv.u, 0.25f) && Close(uv.v, 0.75f), "scalar uv fields");
+}
+
+// spectrum.h: scalar SWCSpectrum arithmetic and reductions.
+void CheckSpectrumScalar() {
+	const SWCSpectrum s(2.f);
+	const SWCSpectrum t = s * s;            // 4 per sample.
+	const SWCSpectrum u = s + t;            // 6 per sample.
+	Check(Close(u.c[0], 6.f), "scalar spectrum mul/add");
+
+	Check(Close(s.MaxComponent(), 2.f), "scalar spectrum MaxComponent");
+	Check(Close(s.Average(), 2.f), "scalar spectrum Average");
+
+	const SWCSpectrum black(0.f);
+	Check(black.IsBlack(), "scalar black IsBlack");
+	Check(!s.IsBlack(), "scalar non-black !IsBlack");
+
+	const SWCSpectrum neg = (s * -1.f).Clamped();
+	Check(Close(neg.c[0], 0.f), "scalar Clamped to zero");
+
+	const RGBColor rgb(1.f, 0.5f, 0.f);
+	Check(Close(rgb.r, 1.f) && Close(rgb.g, 0.5f) && Close(rgb.b, 0.f),
+		"scalar RGBColor fields");
+}
+
+// bbox.h: BBox construction, queries, and unions.
+void CheckBBox() {
+	const BBox unit(Point3f(0.f, 0.f, 0.f), Point3f(1.f, 1.f, 1.f));
+	Check(unit.IsValid(), "bbox valid");
+	Check(Close(unit.Volume(), 1.f), "bbox volume");
+	Check(Close(unit.SurfaceArea(), 6.f), "bbox surface area");
+	Check(Close(unit.Center(), Point3f(.5f, .5f, .5f)), "bbox center");
+
+	// A box elongated along X reports axis 0 as the largest extent.
+	const BBox wide(Point3f(0.f, 0.f, 0.f), Point3f(2.f, 1.f, 1.f));
+	Check(wide.MaximumExtent() == 0, "bbox maximum extent == X");
+
+	Check(unit.Inside(Point3f(.5f, .5f, .5f)), "bbox inside point");
+	Check(!unit.Inside(Point3f(2.f, .5f, .5f)), "bbox outside point");
+
+	const BBox a(Point3f(0.f, 0.f, 0.f), Point3f(2.f, 2.f, 2.f));
+	const BBox b(Point3f(1.f, 1.f, 1.f), Point3f(3.f, 3.f, 3.f));
+	const BBox c(Point3f(5.f, 5.f, 5.f), Point3f(6.f, 6.f, 6.f));
+	Check(a.Overlaps(b), "bbox overlaps");
+	Check(!a.Overlaps(c), "bbox disjoint");
+
+	const BBox u = Union(a, b);
+	Check(Close(u.pMin, Point3f(0.f, 0.f, 0.f)) &&
+	      Close(u.pMax, Point3f(3.f, 3.f, 3.f)), "bbox union");
+
+	BBox grown(Point3f(0.f, 0.f, 0.f), Point3f(1.f, 1.f, 1.f));
+	grown.Expand(1.f);
+	Check(Close(grown.pMin, Point3f(-1.f, -1.f, -1.f)) &&
+	      Close(grown.pMax, Point3f(2.f, 2.f, 2.f)), "bbox expand");
+}
+
+// transform.h: apply, concat, inverse, look_at, and the normal rule.
+void CheckTransform() {
+	// Translate moves points but not vectors.
+	const Transform t = Transform::translate(Vector3f(1.f, 2.f, 3.f));
+	Check(Close(t * Point3f(0.f, 0.f, 0.f), Point3f(1.f, 2.f, 3.f)),
+		"translate point");
+	Check(Close(t * Vector3f(0.f, 0.f, 0.f), Vector3f(0.f, 0.f, 0.f)),
+		"translate ignores vector");
+
+	// Scale stretches vectors.
+	const Transform s = Transform::scale(Vector3f(2.f, 3.f, 4.f));
+	Check(Close(s * Vector3f(1.f, 1.f, 1.f), Vector3f(2.f, 3.f, 4.f)),
+		"scale vector");
+
+	// Rotate 90 deg about +Z maps +X to +Y.
+	const Transform rz = Transform::rotate(Vector3f(0.f, 0.f, 1.f), 90.f);
+	Check(Close(rz * Vector3f(1.f, 0.f, 0.f), Vector3f(0.f, 1.f, 0.f)),
+		"rotate Z 90: +X -> +Y");
+
+	// Normals transform by the inverse transpose: the scale (2,3,4) maps the
+	// normal (1,1,0) to (1/2, 1/3, 0). Getting this wrong silently corrupts
+	// every shading normal.
+	const Normal3f n = s * Normal3f(1.f, 1.f, 0.f);
+	Check(Close(n.x(), 0.5f) && Close(n.y(), 1.f / 3.f) && Close(n.z(), 0.f),
+		"normal uses inverse transpose under non-uniform scale");
+
+	// Concatenation: translate then scale, applied to a point.
+	const Transform ts = s * t;
+	Check(Close(ts * Point3f(0.f, 0.f, 0.f), Point3f(2.f, 6.f, 12.f)),
+		"transform concat (scale*translate)");
+
+	// Inverse round-trips a point.
+	const Transform m = ts.inverse();
+	Check(Close(m * (ts * Point3f(1.5f, -2.f, 0.25f)),
+	            Point3f(1.5f, -2.f, 0.25f)),
+		"transform inverse round-trip");
+
+	// Hand-computed look_at: camera at origin looking down -Z with +Y up.
+	// The camera-to-world basis is left=(-1,0,0), up=(0,1,0), dir=(0,0,-1),
+	// so a camera-space point (1,0,0) maps to world (-1,0,0), and the inverse
+	// (world-to-camera) maps it back.
+	const Transform c2w = Transform::look_at(Point3f(0.f, 0.f, 0.f),
+		Point3f(0.f, 0.f, -1.f), Vector3f(0.f, 1.f, 0.f));
+	Check(Close(c2w * Point3f(1.f, 0.f, 0.f), Point3f(-1.f, 0.f, 0.f)),
+		"look_at camera->world");
+	Check(Close(c2w.inverse() * Point3f(-1.f, 0.f, 0.f), Point3f(1.f, 0.f, 0.f)),
+		"look_at world->camera");
+
+	// LookAt composed with a translation: moving the camera along its own +X
+	// (which is world -X) shifts the world image accordingly.
+	const Transform moved = c2w * Transform::translate(Vector3f(1.f, 0.f, 0.f));
+	Check(Close(moved * Point3f(0.f, 0.f, 0.f), Point3f(-1.f, 0.f, 0.f)),
+		"look_at * translate");
+}
+
 } // anonymous namespace
 
 int main() {
@@ -181,7 +320,11 @@ int main() {
 
 	CheckVecP();
 	CheckGeometry();
+	CheckGeometryScalar();
 	CheckSpectrum();
+	CheckSpectrumScalar();
+	CheckBBox();
+	CheckTransform();
 	CheckRay();
 	CheckRNG();
 
