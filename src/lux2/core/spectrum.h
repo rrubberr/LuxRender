@@ -37,6 +37,9 @@ using namespace enoki;
 // luxrays::WAVELENGTH_SAMPLES.
 constexpr int WAVELENGTH_SAMPLES = 4;
 
+// Number of components in an RGBColor.
+constexpr int RGB_SAMPLES = 3;
+
 // =======================================================================
 // SWCSpectrum Templates
 // =======================================================================
@@ -213,6 +216,8 @@ struct RGBColor {
     RGBColor() = default;
     RGBColor(Float v) : r(v), g(v), b(v) { }
     RGBColor(Float r, Float g, Float b) : r(r), g(g), b(b) { }
+    // Read three contiguous floats.
+    explicit RGBColor(const Float *v) : r(v[0]), g(v[1]), b(v[2]) { }
 
     RGBColor operator+(const RGBColor &c) const { return {r + c.r, g + c.g, b + c.b}; }
     RGBColor operator-(const RGBColor &c) const { return {r - c.r, g - c.g, b - c.b}; }

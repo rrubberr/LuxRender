@@ -42,12 +42,8 @@ public:
     BBox(const Point3f &p) : pMin(p), pMax(p) { }
 
     BBox(const Point3f &p1, const Point3f &p2) {
-        pMin = Point3f(enoki::min(p1.x(), p2.x()),
-                       enoki::min(p1.y(), p2.y()),
-                       enoki::min(p1.z(), p2.z()));
-        pMax = Point3f(enoki::max(p1.x(), p2.x()),
-                       enoki::max(p1.y(), p2.y()),
-                       enoki::max(p1.z(), p2.z()));
+        pMin = enoki::min(p1, p2);
+        pMax = enoki::max(p1, p2);
     }
 
     bool IsValid() const {
@@ -106,23 +102,15 @@ public:
 
     friend BBox Union(const BBox &b, const Point3f &p) {
         BBox r;
-        r.pMin = Point3f(enoki::min(b.pMin.x(), p.x()),
-                         enoki::min(b.pMin.y(), p.y()),
-                         enoki::min(b.pMin.z(), p.z()));
-        r.pMax = Point3f(enoki::max(b.pMax.x(), p.x()),
-                         enoki::max(b.pMax.y(), p.y()),
-                         enoki::max(b.pMax.z(), p.z()));
+        r.pMin = enoki::min(b.pMin, p);
+        r.pMax = enoki::max(b.pMax, p);
         return r;
     }
 
     friend BBox Union(const BBox &b, const BBox &b2) {
         BBox r;
-        r.pMin = Point3f(enoki::min(b.pMin.x(), b2.pMin.x()),
-                         enoki::min(b.pMin.y(), b2.pMin.y()),
-                         enoki::min(b.pMin.z(), b2.pMin.z()));
-        r.pMax = Point3f(enoki::max(b.pMax.x(), b2.pMax.x()),
-                         enoki::max(b.pMax.y(), b2.pMax.y()),
-                         enoki::max(b.pMax.z(), b2.pMax.z()));
+        r.pMin = enoki::min(b.pMin, b2.pMin);
+        r.pMax = enoki::max(b.pMax, b2.pMax);
         return r;
     }
 

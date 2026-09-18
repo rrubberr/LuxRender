@@ -77,6 +77,10 @@ public:
     ParamSet(const ParamSet &p);
     ParamSet &operator=(const ParamSet &p);
 
+    // Build a ParamSet from (token, value) pairs.
+    ParamSet(std::uint32_t n, const char *pluginName,
+             const char *const tokens[], const char *const params[]);
+
     // Add methods.
     void AddFloat(const std::string &name, const float *v, std::uint32_t n = 1);
     void AddInt(const std::string &name, const int *v, std::uint32_t n = 1);

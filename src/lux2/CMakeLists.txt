@@ -79,6 +79,16 @@ MESSAGE(STATUS "lux2: Embree found (${LUX2_EMBREE_TARGET})")
 
 FIND_PACKAGE(Threads REQUIRED)
 
+# Bison/Flex for the .lxs parser.
+FIND_PACKAGE(BISON REQUIRED)
+FIND_PACKAGE(FLEX REQUIRED)
+
+BISON_TARGET(Lux2Parser ${CMAKE_CURRENT_SOURCE_DIR}/core/luxparse.y
+	${CMAKE_CURRENT_BINARY_DIR}/luxparse.cpp)
+FLEX_TARGET(Lux2Lexer ${CMAKE_CURRENT_SOURCE_DIR}/core/luxlex.l
+	${CMAKE_CURRENT_BINARY_DIR}/luxlex.cpp)
+ADD_FLEX_BISON_DEPENDENCY(Lux2Lexer Lux2Parser)
+
 #####################
 # Configure LuxRays #
 #####################
@@ -164,6 +174,7 @@ set(LUX2_FOUNDATION_SRC
 	core/context2.cpp
 	core/scene.cpp
 	core/dynload.cpp
+	core/plymesh.cpp
 )
 
 set(LUX2_FOUNDATION_HEADERS
@@ -174,18 +185,35 @@ set(LUX2_FOUNDATION_HEADERS
 	core/transform_stack.h
 	core/transform.h
 	core/dynload.h
+	core/plymesh.h
+)
+
+# lux2core: foundation + C API + generated parser.
+set(LUX2_CORE_SRC
+	${LUX2_FOUNDATION_SRC}
+	core/api.cpp
+	${BISON_Lux2Parser_OUTPUTS}
+	${FLEX_Lux2Lexer_OUTPUTS}
+)
+
+ADD_LIBRARY(lux2core STATIC ${LUX2_CORE_SRC})
+
+TARGET_INCLUDE_DIRECTORIES(lux2core PUBLIC
+	${CMAKE_CURRENT_SOURCE_DIR}
+	${CMAKE_CURRENT_BINARY_DIR}
 )
 
 # Build lux2foundationcheck.
 ADD_EXECUTABLE(lux2foundationcheck
 	tests/foundation_check.cpp
-	${LUX2_FOUNDATION_SRC}
 	${LUX2_FOUNDATION_HEADERS}
 )
 
 TARGET_INCLUDE_DIRECTORIES(lux2foundationcheck PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+TARGET_LINK_LIBRARIES(lux2foundationcheck PRIVATE lux2core)
 
 add_test(NAME lux2foundationcheck COMMAND lux2foundationcheck)
 
@@ -214,6 +242,7 @@ TARGET_INCLUDE_DIRECTORIES(lux2console PRIVATE
 )
 
 TARGET_LINK_LIBRARIES(lux2console PRIVATE
+	lux2core
 	${LUX2_EMBREE_TARGET}
 	Threads::Threads
 )

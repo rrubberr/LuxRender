@@ -102,6 +102,12 @@ public:
     void WorldEnd();
     void ParseEnd();
 
+    // Parse control.
+    void Free() { Cleanup(); }
+    void MarkParseFail() { m_state = LUX2_STATE_PARSE_FAIL; }
+    void StartRenderingAfterParse(bool start) { m_startRenderingAfterParse = start; }
+    bool ShouldStartRenderingAfterParse() const { return m_startRenderingAfterParse; }
+
     // No-op / unsupported in B.15
     void Volume(const std::string &name, const ParamSet &params);
     void MakeNamedVolume(const std::string &id, const std::string &name,
@@ -133,6 +139,7 @@ private:
     GraphicsState &gs() { return m_gs.back(); }
 
     unsigned int m_shapeNo = 0;   // Anonymous shape counter.
+    bool m_startRenderingAfterParse = true;
 };
 
 } // namespace lux2

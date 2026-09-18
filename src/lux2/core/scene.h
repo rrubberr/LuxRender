@@ -105,6 +105,9 @@ struct SceneDescription {
     // plugin).
     std::map<std::string, ParamSet> namedMaterials;
 
+    // Textures declared in the world block: name -> descriptor.
+    std::map<std::string, TextureDesc> textures;
+
     // Commit-output (P3): tessellated meshes and resolved materials.
     std::vector<MeshDesc> meshes;
     std::vector<std::shared_ptr<Material>> materials;

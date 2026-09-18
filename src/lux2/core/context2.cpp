@@ -45,7 +45,7 @@ void Context2::Cleanup() {
 
 bool Context2::RequireWorld(const char *what) {
     if (m_state != LUX2_STATE_WORLD_BLOCK) {
-        LOG(LUX_ERROR) << what << " must be called between WorldBegin and WorldEnd";
+        LOG(LUX_ERROR, LUX_NOTPRIMS) << what << " must be called between WorldBegin and WorldEnd";
         return false;
     }
     return true;
@@ -53,7 +53,7 @@ bool Context2::RequireWorld(const char *what) {
 
 bool Context2::RequireOptions(const char *what) {
     if (m_state != LUX2_STATE_OPTIONS_BLOCK) {
-        LOG(LUX_ERROR) << what << " must be called before WorldBegin";
+        LOG(LUX_ERROR, LUX_NOTOPTIONS) << what << " must be called before WorldBegin";
         return false;
     }
     return true;
@@ -61,7 +61,7 @@ bool Context2::RequireOptions(const char *what) {
 
 bool Context2::RequireInitialized(const char *what) {
     if (m_state == LUX2_STATE_UNINITIALIZED || m_state == LUX2_STATE_PARSE_FAIL) {
-        LOG(LUX_ERROR) << what << " called on an uninitialized context";
+        LOG(LUX_ERROR, LUX_NOTSTARTED) << what << " called on an uninitialized context";
         return false;
     }
     return true;
@@ -137,7 +137,7 @@ void Context2::MakeNamedMaterial(const std::string &name, const ParamSet &params
         // First definition in this scope: record into the scene-wide table too.
         m_desc.namedMaterials[name] = params;
     } else {
-        LOG(LUX_WARNING) << "Named material '" << name << "' being redefined";
+        LOG(LUX_WARNING, LUX_NOERROR) << "Named material '" << name << "' being redefined";
     }
     gs().namedMaterials[name] = params;
 }
@@ -146,7 +146,7 @@ void Context2::NamedMaterial(const std::string &name) {
     if (!RequireWorld("NamedMaterial")) return;
     if (gs().namedMaterials.find(name) == gs().namedMaterials.end() &&
         m_desc.namedMaterials.find(name) == m_desc.namedMaterials.end()) {
-        LOG(LUX_ERROR) << "Named material '" << name << "' unknown";
+        LOG(LUX_ERROR, LUX_BADHANDLE) << "Named material '" << name << "' unknown";
         return;
     }
     MaterialBinding b;
@@ -159,6 +159,7 @@ void Context2::Texture(const std::string &texName, const std::string &texType,
                        const std::string &pluginName, const ParamSet &params) {
     if (!RequireWorld("Texture")) return;
     TextureDesc d{texType, pluginName, params};
+    m_desc.textures[texName] = d;
     if (texType == "float")
         gs().floatTextures[texName] = d;
     else if (texType == "color")
@@ -166,7 +167,7 @@ void Context2::Texture(const std::string &texName, const std::string &texType,
     else if (texType == "fresnel")
         gs().fresnelTextures[texName] = d;
     else
-        LOG(LUX_ERROR) << "Unknown texture type '" << texType << "'";
+        LOG(LUX_ERROR, LUX_SYNTAX) << "Unknown texture type '" << texType << "'";
 }
 
 void Context2::LightSource(const std::string &name, const ParamSet &params) {
@@ -225,7 +226,7 @@ void Context2::AttributeEnd() {
     if (m_gs.size() > 1)
         m_gs.pop_back();
     else
-        LOG(LUX_ERROR) << "AttributeEnd without matching AttributeBegin";
+        LOG(LUX_ERROR, LUX_NESTING) << "AttributeEnd without matching AttributeBegin";
 }
 
 void Context2::TransformBegin() {
@@ -283,7 +284,7 @@ void Context2::CoordinateSystem(const std::string &name) {
 void Context2::CoordSysTransform(const std::string &name) {
     if (!RequireInitialized("CoordSysTransform")) return;
     if (!m_xform.useCoordinateSystem(name))
-        LOG(LUX_ERROR) << "Named coordinate system '" << name << "' unknown";
+        LOG(LUX_ERROR, LUX_BADHANDLE) << "Named coordinate system '" << name << "' unknown";
 }
 
 void Context2::ReverseOrientation() {
@@ -318,51 +319,51 @@ void Context2::ParseEnd() {
 // ---------------------------------------------------------------------------
 void Context2::Volume(const std::string &name, const ParamSet &params) {
     (void)name; (void)params;
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " Volume";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " Volume";
 }
 
 void Context2::MakeNamedVolume(const std::string &id, const std::string &name,
                                const ParamSet &params) {
     (void)id; (void)name; (void)params;
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " MakeNamedVolume";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " MakeNamedVolume";
 }
 
 void Context2::Exterior(const std::string &name) {
     (void)name;
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " Exterior";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " Exterior";
 }
 
 void Context2::Interior(const std::string &name) {
     (void)name;
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " Interior";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " Interior";
 }
 
 void Context2::PortalShape(const std::string &name, const ParamSet &params) {
     (void)name; (void)params;
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " PortalShape";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " PortalShape";
 }
 
 void Context2::MotionBegin(unsigned int n, const float *times) {
     (void)n; (void)times;
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " MotionBegin";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " MotionBegin";
 }
 
 void Context2::MotionEnd() {
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " MotionEnd";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " MotionEnd";
 }
 
 void Context2::ObjectBegin(const std::string &name) {
     (void)name;
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " ObjectBegin";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " ObjectBegin";
 }
 
 void Context2::ObjectEnd() {
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " ObjectEnd";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " ObjectEnd";
 }
 
 void Context2::ObjectInstance(const std::string &name) {
     (void)name;
-    LOG(LUX_WARNING) << LUX2_UNSUPPORTED_TAG << " ObjectInstance";
+    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " ObjectInstance";
 }
 
 } // namespace lux2

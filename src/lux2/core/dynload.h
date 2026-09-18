@@ -79,135 +79,34 @@ public:
         virtual ~RegisterLoader() = default;
     };
 
-    // Shape.
-    typedef std::shared_ptr<Shape> (*CreateShape)(const PluginContext&);
-    static std::map<std::string, CreateShape> &registeredShapes();
-    template <class T>
-    class RegisterShape : public RegisterLoader<CreateShape> {
-    public:
-        RegisterShape(const std::string &name)
-            : RegisterLoader<CreateShape>(registeredShapes(), name, &T::CreateShape) {}
+    // Each plugin kind needs: a Create function-pointer typedef, a registry
+    // accessor, and a Register<Kind> helper.
+#define LUX2_REGISTER_PLUGIN(Kind)                                         \
+    typedef std::shared_ptr<Kind> (*Create##Kind)(const PluginContext&);   \
+    static std::map<std::string, Create##Kind> &registered##Kind##s();     \
+    template <class T>                                                     \
+    class Register##Kind : public RegisterLoader<Create##Kind> {           \
+    public:                                                                \
+        Register##Kind(const std::string &name)                            \
+            : RegisterLoader<Create##Kind>(registered##Kind##s(), name,    \
+                  &T::Create##Kind) {}                                     \
     };
 
-    // Material.
-    typedef std::shared_ptr<Material> (*CreateMaterial)(const PluginContext&);
-    static std::map<std::string, CreateMaterial> &registeredMaterials();
-    template <class T>
-    class RegisterMaterial : public RegisterLoader<CreateMaterial> {
-    public:
-        RegisterMaterial(const std::string &name)
-            : RegisterLoader<CreateMaterial>(registeredMaterials(), name, &T::CreateMaterial) {}
-    };
+    LUX2_REGISTER_PLUGIN(Shape)
+    LUX2_REGISTER_PLUGIN(Material)
+    LUX2_REGISTER_PLUGIN(Light)
+    LUX2_REGISTER_PLUGIN(FloatTexture)
+    LUX2_REGISTER_PLUGIN(ColorTexture)
+    LUX2_REGISTER_PLUGIN(FresnelTexture)
+    LUX2_REGISTER_PLUGIN(Camera)
+    LUX2_REGISTER_PLUGIN(Sampler)
+    LUX2_REGISTER_PLUGIN(Filter)
+    LUX2_REGISTER_PLUGIN(Film)
+    LUX2_REGISTER_PLUGIN(SurfaceIntegrator)
+    LUX2_REGISTER_PLUGIN(VolumeIntegrator)
+    LUX2_REGISTER_PLUGIN(Renderer)
 
-    // Light.
-    typedef std::shared_ptr<Light> (*CreateLight)(const PluginContext&);
-    static std::map<std::string, CreateLight> &registeredLights();
-    template <class T>
-    class RegisterLight : public RegisterLoader<CreateLight> {
-    public:
-        RegisterLight(const std::string &name)
-            : RegisterLoader<CreateLight>(registeredLights(), name, &T::CreateLight) {}
-    };
-
-    // FloatTexture.
-    typedef std::shared_ptr<FloatTexture> (*CreateFloatTexture)(const PluginContext&);
-    static std::map<std::string, CreateFloatTexture> &registeredFloatTextures();
-    template <class T>
-    class RegisterFloatTexture : public RegisterLoader<CreateFloatTexture> {
-    public:
-        RegisterFloatTexture(const std::string &name)
-            : RegisterLoader<CreateFloatTexture>(registeredFloatTextures(), name, &T::CreateFloatTexture) {}
-    };
-
-    // ColorTexture.
-    typedef std::shared_ptr<ColorTexture> (*CreateColorTexture)(const PluginContext&);
-    static std::map<std::string, CreateColorTexture> &registeredColorTextures();
-    template <class T>
-    class RegisterColorTexture : public RegisterLoader<CreateColorTexture> {
-    public:
-        RegisterColorTexture(const std::string &name)
-            : RegisterLoader<CreateColorTexture>(registeredColorTextures(), name, &T::CreateColorTexture) {}
-    };
-
-    // FresnelTexture.
-    typedef std::shared_ptr<FresnelTexture> (*CreateFresnelTexture)(const PluginContext&);
-    static std::map<std::string, CreateFresnelTexture> &registeredFresnelTextures();
-    template <class T>
-    class RegisterFresnelTexture : public RegisterLoader<CreateFresnelTexture> {
-    public:
-        RegisterFresnelTexture(const std::string &name)
-            : RegisterLoader<CreateFresnelTexture>(registeredFresnelTextures(), name, &T::CreateFresnelTexture) {}
-    };
-
-    // Camera.
-    typedef std::shared_ptr<Camera> (*CreateCamera)(const PluginContext&);
-    static std::map<std::string, CreateCamera> &registeredCameras();
-    template <class T>
-    class RegisterCamera : public RegisterLoader<CreateCamera> {
-    public:
-        RegisterCamera(const std::string &name)
-            : RegisterLoader<CreateCamera>(registeredCameras(), name, &T::CreateCamera) {}
-    };
-
-    // Sampler.
-    typedef std::shared_ptr<Sampler> (*CreateSampler)(const PluginContext&);
-    static std::map<std::string, CreateSampler> &registeredSamplers();
-    template <class T>
-    class RegisterSampler : public RegisterLoader<CreateSampler> {
-    public:
-        RegisterSampler(const std::string &name)
-            : RegisterLoader<CreateSampler>(registeredSamplers(), name, &T::CreateSampler) {}
-    };
-
-    // Filter.
-    typedef std::shared_ptr<Filter> (*CreateFilter)(const PluginContext&);
-    static std::map<std::string, CreateFilter> &registeredFilters();
-    template <class T>
-    class RegisterFilter : public RegisterLoader<CreateFilter> {
-    public:
-        RegisterFilter(const std::string &name)
-            : RegisterLoader<CreateFilter>(registeredFilters(), name, &T::CreateFilter) {}
-    };
-
-    // Film.
-    typedef std::shared_ptr<Film> (*CreateFilm)(const PluginContext&);
-    static std::map<std::string, CreateFilm> &registeredFilms();
-    template <class T>
-    class RegisterFilm : public RegisterLoader<CreateFilm> {
-    public:
-        RegisterFilm(const std::string &name)
-            : RegisterLoader<CreateFilm>(registeredFilms(), name, &T::CreateFilm) {}
-    };
-
-    // SurfaceIntegrator.
-    typedef std::shared_ptr<SurfaceIntegrator> (*CreateSurfaceIntegrator)(const PluginContext&);
-    static std::map<std::string, CreateSurfaceIntegrator> &registeredSurfaceIntegrators();
-    template <class T>
-    class RegisterSurfaceIntegrator : public RegisterLoader<CreateSurfaceIntegrator> {
-    public:
-        RegisterSurfaceIntegrator(const std::string &name)
-            : RegisterLoader<CreateSurfaceIntegrator>(registeredSurfaceIntegrators(), name, &T::CreateSurfaceIntegrator) {}
-    };
-
-    // VolumeIntegrator.
-    typedef std::shared_ptr<VolumeIntegrator> (*CreateVolumeIntegrator)(const PluginContext&);
-    static std::map<std::string, CreateVolumeIntegrator> &registeredVolumeIntegrators();
-    template <class T>
-    class RegisterVolumeIntegrator : public RegisterLoader<CreateVolumeIntegrator> {
-    public:
-        RegisterVolumeIntegrator(const std::string &name)
-            : RegisterLoader<CreateVolumeIntegrator>(registeredVolumeIntegrators(), name, &T::CreateVolumeIntegrator) {}
-    };
-
-    // Renderer.
-    typedef std::shared_ptr<Renderer> (*CreateRenderer)(const PluginContext&);
-    static std::map<std::string, CreateRenderer> &registeredRenderers();
-    template <class T>
-    class RegisterRenderer : public RegisterLoader<CreateRenderer> {
-    public:
-        RegisterRenderer(const std::string &name)
-            : RegisterLoader<CreateRenderer>(registeredRenderers(), name, &T::CreateRenderer) {}
-    };
+#undef LUX2_REGISTER_PLUGIN
 
     // Human-readable list of every registered plugin, grouped by kind.
     static std::vector<std::string> GetRegisteredPlugins();

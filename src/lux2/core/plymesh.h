@@ -19,45 +19,29 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "core/scene.h"
+#ifndef LUX2_PLYMESH_H
+#define LUX2_PLYMESH_H
+
+#include "core/bbox.h"
+#include "core/error.h"
+#include "core/geometry.h"
+
+#include <cstdint>
+#include <string>
+#include <vector>
 
 namespace lux2 {
 
-void Scene::Commit(SceneDescription& desc) {
-    m_summary = Summary{};
+// Summary of a .ply file read from its header.
+struct PlySummary {
+    bool ok = false;
+    std::uint64_t faceCount = 0;
+    BBox bound; // Object-space bound from vertex positions.
+};
 
-    // Merge named materials so bindings resolve against the full table.
-    for (const auto& kv : desc.namedMaterials)
-        m_summary.namedMaterialCount++;
-
-    for (const auto& shape : desc.shapes) {
-        m_summary.shapeCount++;
-
-        // Validate the material binding resolves.
-        if (shape.material.valid()) {
-            if (shape.material.isNamed) {
-                if (desc.namedMaterials.find(shape.material.namedRef) ==
-                    desc.namedMaterials.end()) {
-                    LOG(LUX_ERROR, LUX_BADHANDLE) << "Shape references unknown named material '"
-                                   << shape.material.namedRef << "'";
-                }
-            }
-        }
-
-        if (shape.isAreaLight) {
-            m_summary.areaLightShapeCount++;
-            if (shape.areaLightName.empty())
-                LOG(LUX_ERROR, LUX_SYNTAX) << "Area-light shape has no light plugin name";
-        }
-    }
-
-    for (const auto& light : desc.lights) {
-        m_summary.lightCount++;
-        if (light.name.empty())
-            LOG(LUX_ERROR, LUX_SYNTAX) << "Light source has no plugin name";
-    }
-
-    m_committed = true;
-}
+// Read a .ply file's face count and object-space bound.
+PlySummary ReadPlySummary(const std::string &path);
 
 } // namespace lux2
+
+#endif // LUX2_PLYMESH_H
