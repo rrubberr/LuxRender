@@ -38,6 +38,7 @@ struct TriangleDesc {
     UV        uv0, uv1, uv2;            // Per-vertex texture coords.
     std::uint32_t   matID;              // Resolved material index.
     std::int32_t    lightID;            // Area light index, or -1.
+    std::uint32_t   groupMask = 0xFFFFFFFFu; // Visibility-group mask.
 };
 
 // Abstract shape.

@@ -19,37 +19,41 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_PLYMESH_H
-#define LUX2_PLYMESH_H
+#ifndef LUX2_SHAPE_SPHERE_H
+#define LUX2_SHAPE_SPHERE_H
 
+#include "core/shape.h"
 #include "core/bbox.h"
-#include "core/error.h"
-#include "core/geometry.h"
+#include "core/transform.h"
 
-#include <array>
-#include <cstdint>
-#include <string>
-#include <vector>
+#include <memory>
 
 namespace lux2 {
 
-// Summary of a .ply file read from its header.
-struct PlySummary {
-    bool ok = false;
-    std::uint64_t faceCount = 0;
-    BBox bound; // Object-space bound from vertex positions.
+class PluginContext;
+
+// Analytic sphere tessellated to triangles on a lat/long grid.
+class SphereShape : public Shape {
+public:
+    SphereShape(const Transform &toWorld, float radius, float zMin,
+                float zMax, float phiMaxDeg, int phiSegments,
+                int thetaSegments);
+
+    void Tessellate(const Transform &worldToCamera,
+                    std::vector<TriangleDesc> &out) const override;
+    BBox WorldBound() const override;
+
+    static std::shared_ptr<Shape> CreateShape(const PluginContext &ctx);
+
+private:
+    Transform m_toWorld;
+    float m_radius;
+    float m_zMin, m_zMax;
+    float m_thetaMin, m_thetaMax; // radians
+    float m_phiMax;               // radians
+    int m_nu, m_nv;               // grid resolution (phi, theta)
 };
-
-// Read a .ply file's face count and object-space bound.
-PlySummary ReadPlySummary(const std::string &path);
-
-// Full object-space geometry read via rply.
-bool ReadPlyGeometry(const std::string &path,
-                     std::vector<Point3f> &P,
-                     std::vector<Normal3f> &N,
-                     std::vector<UV> &uv,
-                     std::vector<std::array<int, 3>> &tris);
 
 } // namespace lux2
 
-#endif // LUX2_PLYMESH_H
+#endif // LUX2_SHAPE_SPHERE_H

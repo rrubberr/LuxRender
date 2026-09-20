@@ -45,6 +45,9 @@ struct RayP {
     FloatP time;        // Motion blur time.
     FloatP wavelengths; // SWA wavelengths.
 
+    // Visibility-group bitmask.
+    UInt32P mask;
+
     // Integrator payload
     SWCSpectrumP throughput; // Accumulated spectral throughput.
     FloatP pdf;              // PDF of the current direction.
@@ -76,6 +79,7 @@ struct RayP {
         depth = Int32P(0);
         specularBounce = MaskP(false);
         alive = MaskP(true);
+        mask = UInt32P(0xFFFFFFFFu);
     }
 };
 
@@ -85,16 +89,19 @@ struct RayP {
 
 // The result of tracing a RayP packet against the Embree scene.
 struct HitP {
-    UInt32P geomID;  // Mesh/geometry index.
-    UInt32P primID;  // Triangle index within the geometry.
-    FloatP t;        // Hit distance along the ray.
-    FloatP b1;       // First barycentric coordinate.
-    FloatP b2;       // Second barycentric coordinate.
+    UInt32P geomID;   // Mesh/geometry index.
+    UInt32P primID;   // Triangle index within the geometry.
+    FloatP  t;        // Hit distance along the ray.
+    FloatP  b1, b2;   // Barycentrics; b0 = 1 - b1 - b2.
+    MaskP   hit;      // active && tfar changed.
 
-    // True where the packet ray hit something.
-    MaskP IsValid(const FloatP &maxt) const {
-        return (t >= FloatP(0.f)) & (t < maxt);
-    }
+    // Derived by ShadeHit().
+    Point3fP  p;        // Interpolated position.
+    Normal3fP ngeo;     // Face-forward geometric normal (Embree Ng).
+    Normal3fP sh_n;     // Normalized interpolated vertex normal.
+    Point2fP  uv;       // Interpolated texture coords.
+    UInt32P   matID;    // Per-triangle material index.
+    Int32P    lightID;  // Per-triangle area-light index, or -1.
 };
 
 } // namespace lux2

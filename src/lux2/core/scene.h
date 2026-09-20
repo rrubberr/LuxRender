@@ -43,6 +43,8 @@
 
 namespace lux2 {
 
+class EmbreeScene;
+
 // -----------------------------------------------------------------------
 // Parse-time descriptors
 // -----------------------------------------------------------------------
@@ -123,8 +125,9 @@ struct SceneDescription {
 // Built from a SceneDescription at WorldEnd.
 class Scene {
 public:
-    Scene() = default;
-    ~Scene() = default;
+    // Both defined out-of-line (scene.cpp).
+    Scene();
+    ~Scene();
 
     // Build the Embree scene. Called at WorldEnd.
     void Commit(SceneDescription& desc);
@@ -140,6 +143,9 @@ public:
 
     BBox WorldBound() const { return m_worldBound; }
 
+    // The Embree accelerator built at Commit.
+    const EmbreeScene *GetEmbree() const { return m_embree.get(); }
+
    // True after a successful Commit.
     bool IsCommitted() const { return m_committed; }
 
@@ -150,6 +156,7 @@ public:
         int areaLightShapeCount = 0;
         int lightCount = 0;
         int namedMaterialCount = 0;
+        int triangleCount = 0;   // Total tessellated triangles.
     };
     const Summary& GetSummary() const { return m_summary; }
 
@@ -164,6 +171,7 @@ private:
     BBox m_worldBound;
     Summary m_summary;
     bool m_committed = false;
+    std::unique_ptr<EmbreeScene> m_embree;
 };
 
 } // namespace lux2

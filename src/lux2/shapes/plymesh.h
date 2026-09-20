@@ -19,37 +19,44 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_PLYMESH_H
-#define LUX2_PLYMESH_H
+#ifndef LUX2_SHAPE_PLYMESH_H
+#define LUX2_SHAPE_PLYMESH_H
 
+#include "core/shape.h"
 #include "core/bbox.h"
-#include "core/error.h"
-#include "core/geometry.h"
+#include "core/transform.h"
 
 #include <array>
-#include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace lux2 {
 
-// Summary of a .ply file read from its header.
-struct PlySummary {
-    bool ok = false;
-    std::uint64_t faceCount = 0;
-    BBox bound; // Object-space bound from vertex positions.
+class PluginContext;
+
+// PLY triangle mesh.
+class PlyMeshShape : public Shape {
+public:
+    PlyMeshShape(const Transform &toWorld, std::vector<Point3f> P,
+                 std::vector<Normal3f> N, std::vector<UV> uv,
+                 std::vector<std::array<int, 3>> tris);
+
+    void Tessellate(const Transform &worldToCamera,
+                    std::vector<TriangleDesc> &out) const override;
+    BBox WorldBound() const override;
+
+    static std::shared_ptr<Shape> CreateShape(const PluginContext &ctx);
+
+private:
+    Transform m_toWorld;
+    std::vector<Point3f> m_P;
+    std::vector<Normal3f> m_N;
+    std::vector<UV> m_uv;
+    std::vector<std::array<int, 3>> m_tris;
+    BBox m_objBound;
 };
-
-// Read a .ply file's face count and object-space bound.
-PlySummary ReadPlySummary(const std::string &path);
-
-// Full object-space geometry read via rply.
-bool ReadPlyGeometry(const std::string &path,
-                     std::vector<Point3f> &P,
-                     std::vector<Normal3f> &N,
-                     std::vector<UV> &uv,
-                     std::vector<std::array<int, 3>> &tris);
 
 } // namespace lux2
 
-#endif // LUX2_PLYMESH_H
+#endif // LUX2_SHAPE_PLYMESH_H

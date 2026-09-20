@@ -21,13 +21,19 @@
 
 #include "core/plymesh.h"
 
+#include <luxrays/utils/ply/rply.h>
+
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
 
 namespace lux2 {
+
+using namespace luxrays;
+
 namespace {
 
 // Byte width of a ply scalar type token (e.g. "float" -> 4). Returns 0 for
@@ -181,6 +187,196 @@ PlySummary ReadPlySummary(const std::string &path) {
     std::fclose(f);
     out.ok = true;
     return out;
+}
+
+// =======================================================================
+// rply geometry read
+// =======================================================================
+
+namespace {
+
+void PlyErrorCB(const char *message) {
+    LOG(LUX_ERROR, LUX_SYSTEM) << "PLY loader error: " << message;
+}
+
+// Vertex position/normal/uv callback.
+int PlyVertexCB(p_ply_argument argument) {
+    long userIndex = 0;
+    void *userData = nullptr;
+    ply_get_argument_user_data(argument, &userData, &userIndex);
+    float *c = *static_cast<float **>(userData);
+    long vertIndex = 0;
+    ply_get_argument_element(argument, nullptr, &vertIndex);
+    const double v = ply_get_argument_value(argument);
+    if (userIndex == 0)      c[3 * vertIndex + 0] = static_cast<float>(v);
+    else if (userIndex == 1) c[3 * vertIndex + 1] = static_cast<float>(v);
+    else if (userIndex == 2) c[3 * vertIndex + 2] = static_cast<float>(v);
+    return 1;
+}
+
+int PlyTexCoordCB(p_ply_argument argument) {
+    long userIndex = 0;
+    void *userData = nullptr;
+    ply_get_argument_user_data(argument, &userData, &userIndex);
+    float *c = *static_cast<float **>(userData);
+    long vertIndex = 0;
+    ply_get_argument_element(argument, nullptr, &vertIndex);
+    const double v = ply_get_argument_value(argument);
+    if (userIndex == 0)      c[2 * vertIndex + 0] = static_cast<float>(v);
+    else if (userIndex == 1) c[2 * vertIndex + 1] = static_cast<float>(v);
+    return 1;
+}
+
+// Accumulates triangle and quad vertex indices across the face list.
+struct PlyFaceData {
+    std::vector<int> triVerts;
+    std::vector<int> quadVerts;
+};
+
+int PlyFaceCB(p_ply_argument argument) {
+    void *userData = nullptr;
+    ply_get_argument_user_data(argument, &userData, nullptr);
+    PlyFaceData *fd = static_cast<PlyFaceData *>(userData);
+
+    long length = 0, valueIndex = 0;
+    ply_get_argument_property(argument, nullptr, &length, &valueIndex);
+
+    if (length == 3) {
+        const long n = static_cast<long>(fd->triVerts.size());
+        if (valueIndex < 0)
+            fd->triVerts.resize(n + 3);        // preallocate pass
+        else if (valueIndex < 3)
+            fd->triVerts[n - 3 + valueIndex] =
+                static_cast<int>(ply_get_argument_value(argument));
+    } else if (length == 4) {
+        const long n = static_cast<long>(fd->quadVerts.size());
+        if (valueIndex < 0)
+            fd->quadVerts.resize(n + 4);
+        else if (valueIndex < 4)
+            fd->quadVerts[n - 4 + valueIndex] =
+                static_cast<int>(ply_get_argument_value(argument));
+    }
+    return 1;
+}
+
+} // anonymous namespace
+
+bool ReadPlyGeometry(const std::string &path,
+                     std::vector<Point3f> &P,
+                     std::vector<Normal3f> &N,
+                     std::vector<UV> &uv,
+                     std::vector<std::array<int, 3>> &tris) {
+    P.clear(); N.clear(); uv.clear(); tris.clear();
+
+    p_ply plyfile = ply_open(path.c_str(), PlyErrorCB);
+    if (!plyfile) {
+        LOG(LUX_ERROR, LUX_SYSTEM) << "PLY: unable to open '" << path << "'";
+        return false;
+    }
+    if (!ply_read_header(plyfile)) {
+        LOG(LUX_ERROR, LUX_BADFILE) << "PLY: unable to read header '" << path << "'";
+        ply_close(plyfile);
+        return false;
+    }
+
+    float *pbuf = nullptr;
+    const long nbVerts = ply_set_read_cb(plyfile, "vertex", "x",
+                                         PlyVertexCB, &pbuf, 0);
+    ply_set_read_cb(plyfile, "vertex", "y", PlyVertexCB, &pbuf, 1);
+    ply_set_read_cb(plyfile, "vertex", "z", PlyVertexCB, &pbuf, 2);
+    if (nbVerts <= 0) {
+        LOG(LUX_ERROR, LUX_BADFILE) << "PLY: no vertices in '" << path << "'";
+        ply_close(plyfile);
+        return false;
+    }
+
+    PlyFaceData faceData;
+    const long nbFaces = ply_set_read_cb(plyfile, "face", "vertex_indices",
+                                         PlyFaceCB, &faceData, 0);
+    if (nbFaces <= 0) {
+        LOG(LUX_ERROR, LUX_BADFILE) << "PLY: no faces in '" << path << "'";
+        ply_close(plyfile);
+        return false;
+    }
+
+    float *nbuf = nullptr;
+    const long nbNormals = ply_set_read_cb(plyfile, "vertex", "nx",
+                                           PlyVertexCB, &nbuf, 0);
+    ply_set_read_cb(plyfile, "vertex", "ny", PlyVertexCB, &nbuf, 1);
+    ply_set_read_cb(plyfile, "vertex", "nz", PlyVertexCB, &nbuf, 2);
+
+    // s/t preferred, then u/v.
+    float *uvbuf = nullptr;
+    long nbUVs = ply_set_read_cb(plyfile, "vertex", "s", PlyTexCoordCB, &uvbuf, 0);
+    ply_set_read_cb(plyfile, "vertex", "t", PlyTexCoordCB, &uvbuf, 1);
+    if (nbUVs <= 0) {
+        nbUVs = ply_set_read_cb(plyfile, "vertex", "u", PlyTexCoordCB, &uvbuf, 0);
+        ply_set_read_cb(plyfile, "vertex", "v", PlyTexCoordCB, &uvbuf, 1);
+    }
+
+    pbuf = new float[3 * nbVerts]();
+    nbuf = (nbNormals > 0) ? new float[3 * nbVerts]() : nullptr;
+    uvbuf = (nbUVs > 0) ? new float[2 * nbVerts]() : nullptr;
+
+    const int readOk = ply_read(plyfile);
+    ply_close(plyfile);
+    if (!readOk) {
+        LOG(LUX_ERROR, LUX_SYSTEM) << "PLY: parse failed '" << path << "'";
+        delete[] pbuf; delete[] nbuf; delete[] uvbuf;
+        return false;
+    }
+
+    const int nVerts = static_cast<int>(nbVerts);
+    P.resize(nVerts);
+    for (int i = 0; i < nVerts; ++i)
+        P[i] = Point3f(pbuf[3 * i], pbuf[3 * i + 1], pbuf[3 * i + 2]);
+
+    uv.assign(nVerts, UV(0.f, 0.f));
+    if (uvbuf && nbUVs == nbVerts) {
+        for (int i = 0; i < nVerts; ++i)
+            uv[i] = UV(uvbuf[2 * i], uvbuf[2 * i + 1]);
+    }
+
+    // Quads split into (0,1,2) and (0,2,3).
+    const int nbTris = static_cast<int>(faceData.triVerts.size()) / 3;
+    const int nbQuads = static_cast<int>(faceData.quadVerts.size()) / 4;
+    tris.reserve(nbTris + 2 * nbQuads);
+    for (int f = 0; f < nbTris; ++f) {
+        const int i = 3 * f;
+        tris.push_back({faceData.triVerts[i], faceData.triVerts[i + 1],
+                        faceData.triVerts[i + 2]});
+    }
+    for (int f = 0; f < nbQuads; ++f) {
+        const int i = 4 * f;
+        const int a = faceData.quadVerts[i + 0], b = faceData.quadVerts[i + 1],
+                  c = faceData.quadVerts[i + 2], d = faceData.quadVerts[i + 3];
+        tris.push_back({a, b, c});
+        tris.push_back({a, c, d});
+    }
+
+    // Use file normals when present and complete, else generate
+    // area-weighted face normals.
+    N.assign(nVerts, Normal3f(0.f, 0.f, 0.f));
+    if (nbuf && nbNormals == nbVerts) {
+        for (int i = 0; i < nVerts; ++i)
+            N[i] = Normal3f(nbuf[3 * i], nbuf[3 * i + 1], nbuf[3 * i + 2]);
+    } else {
+        std::vector<int> nf(nVerts, 0);
+        auto addFaceNormal = [&](int i0, int i1, int i2) {
+            const Vector3f e10 = P[i1] - P[i0];
+            const Vector3f e12 = P[i1] - P[i2];
+            const Vector3f fn = enoki::cross(e12, e10);
+            N[i0] += fn; N[i1] += fn; N[i2] += fn;
+            nf[i0]++; nf[i1]++; nf[i2]++;
+        };
+        for (const auto &t : tris)
+            addFaceNormal(t[0], t[1], t[2]);
+        for (int i = 0; i < nVerts; ++i)
+            if (nf[i] > 0) N[i] /= static_cast<float>(nf[i]);
+    }
+
+    delete[] pbuf; delete[] nbuf; delete[] uvbuf;
+    return true;
 }
 
 } // namespace lux2

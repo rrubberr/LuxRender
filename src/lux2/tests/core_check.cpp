@@ -160,11 +160,12 @@ void CheckRay() {
 	Check(enoki::all(ray.alive), "alive init true");
 	Check(enoki::hsum(ray.depth * ray.depth) == 0.f, "depth init zero");
 
-	// HitP validity against maxt.
+	// HitP hit-mask field.
 	HitP hit;
 	hit.t = FloatP(1.5f);
-	Check(enoki::all(hit.IsValid(FloatP(10.f))), "hit within maxt valid");
-	Check(!enoki::any(hit.IsValid(FloatP(1.f))), "hit beyond maxt invalid");
+	hit.hit = MaskP(true);
+	Check(enoki::all(hit.hit), "hit mask set");
+	Check(AllClose(hit.t, 1.5f), "hit t stored");
 }
 
 // rng.h: PCG32 produces varied, in-range values; advance is stable.

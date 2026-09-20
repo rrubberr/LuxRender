@@ -201,8 +201,16 @@ int RunParse(const char *file) {
 	}
 
 	// The scene was committed at WorldEnd; report the recorded description.
-	if (lux2::Context2::GetActive())
+	if (lux2::Context2::GetActive()) {
 		PrintSceneSummary(lux2::Context2::GetActive()->Description());
+
+		// Tessellate every shape and construct the Embree
+		// accelerator, then report triangle total.
+		lux2::Scene scene;
+		scene.Commit(lux2::Context2::GetActive()->Description());
+		std::cout << "scene: triangles=" << scene.GetSummary().triangleCount
+			<< " meshes=" << scene.GetSummary().shapeCount << std::endl;
+	}
 
 	luxCleanup();
 	if (!origDir.empty())

@@ -51,6 +51,7 @@ set(INC_DIR ${BUILD_DIR}/include)
 PROJECT(lux2)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Enables ctest for lux2corecheck.
 enable_testing()
@@ -145,7 +146,7 @@ endif()
 # Build lux2 binaries #
 #######################
 
-# lux2core type headers.
+# lux2 core type headers.
 set(LUX2_CORE_HEADERS
 	core/lux2.h
 	core/vecp.h
@@ -175,6 +176,7 @@ set(LUX2_FOUNDATION_SRC
 	core/scene.cpp
 	core/dynload.cpp
 	core/plymesh.cpp
+	core/embree2.cpp
 )
 
 set(LUX2_FOUNDATION_HEADERS
@@ -186,22 +188,30 @@ set(LUX2_FOUNDATION_HEADERS
 	core/transform.h
 	core/dynload.h
 	core/plymesh.h
+	core/embree2.h
 )
 
-# lux2core: foundation + C API + generated parser.
+# Built as a SHARED library (liblux2.so).
 set(LUX2_CORE_SRC
 	${LUX2_FOUNDATION_SRC}
 	core/api.cpp
+	shapes/sphere.cpp
+	shapes/plymesh.cpp
 	${BISON_Lux2Parser_OUTPUTS}
 	${FLEX_Lux2Lexer_OUTPUTS}
 )
 
-ADD_LIBRARY(lux2core STATIC ${LUX2_CORE_SRC})
+ADD_LIBRARY(lux2 SHARED
+	${LUX2_CORE_SRC}
+)
 
-TARGET_INCLUDE_DIRECTORIES(lux2core PUBLIC
+TARGET_INCLUDE_DIRECTORIES(lux2 PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_CURRENT_BINARY_DIR}
 )
+
+# luxrays2 provides rply (PLY reader used by the plymesh shape).
+TARGET_LINK_LIBRARIES(lux2 PUBLIC ${LUX2_EMBREE_TARGET} luxrays2)
 
 # Build lux2foundationcheck.
 ADD_EXECUTABLE(lux2foundationcheck
@@ -213,9 +223,43 @@ TARGET_INCLUDE_DIRECTORIES(lux2foundationcheck PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-TARGET_LINK_LIBRARIES(lux2foundationcheck PRIVATE lux2core)
+TARGET_LINK_LIBRARIES(lux2foundationcheck PRIVATE lux2)
 
-add_test(NAME lux2foundationcheck COMMAND lux2foundationcheck)
+add_test(NAME lux2foundationcheck
+	COMMAND lux2foundationcheck
+	${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/Scene/00001/floor_0000_m000.ply
+)
+
+# Shape tessellation (sphere + plymesh) and Scene::Commit wiring.
+ADD_EXECUTABLE(lux2shapecheck
+	tests/shape_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2shapecheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2shapecheck PRIVATE
+	lux2
+	${LUX2_EMBREE_TARGET}
+	Threads::Threads
+)
+add_test(NAME lux2shapecheck
+	COMMAND lux2shapecheck
+	${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/Scene/00001/floor_0000_m000.ply
+)
+
+# Embree packet intersect/occlude/shade.
+ADD_EXECUTABLE(lux2embreecheck
+	tests/embree_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2embreecheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2embreecheck PRIVATE
+	lux2
+	${LUX2_EMBREE_TARGET}
+	Threads::Threads
+)
+add_test(NAME lux2embreecheck COMMAND lux2embreecheck)
 
 # luxrays2check tests luxrays scalar types to verify core APIs work.
 ADD_EXECUTABLE(luxrays2check
@@ -242,7 +286,7 @@ TARGET_INCLUDE_DIRECTORIES(lux2console PRIVATE
 )
 
 TARGET_LINK_LIBRARIES(lux2console PRIVATE
-	lux2core
+	lux2
 	${LUX2_EMBREE_TARGET}
 	Threads::Threads
 )
@@ -256,4 +300,5 @@ SET_TARGET_PROPERTIES(lux2console PROPERTIES
 ADD_CUSTOM_COMMAND(TARGET lux2console POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E make_directory "${LUX2_RELEASE_DIR}"
 	COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:lux2console> "${LUX2_RELEASE_DIR}/"
+	COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:lux2> "${LUX2_RELEASE_DIR}/"
 )

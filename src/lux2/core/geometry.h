@@ -146,6 +146,7 @@ struct UV {
 // 3D packet typedefs
 // =======================================================================
 
+using Point2fP = Point<FloatP, 2>;
 using Point3fP = Point<FloatP, 3>;
 using Vector3fP = Vector<FloatP, 3>;
 using Normal3fP = Normal<FloatP, 3>;

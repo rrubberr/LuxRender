@@ -57,7 +57,8 @@ ParamSet StringParam(const std::string &name, const std::string &v) {
 }
 
 // Build a small Cornell-like description via Context2 and verify the record.
-void CheckRecorder() {
+// plyPath points at a real PLY so Commit can tessellate it without erroring.
+void CheckRecorder(const std::string &plyPath) {
 	Context2 ctx;
 	Context2::SetActive(&ctx);
 	Check(Context2::GetActive() == &ctx, "active context get/set");
@@ -98,7 +99,7 @@ void CheckRecorder() {
 	ctx.AttributeBegin();
 	ctx.Translate(1.f, 0.f, 0.f);
 	ctx.NamedMaterial("wall_white");
-	ctx.Shape("plymesh", StringParam("filename", "wall.ply"));
+	ctx.Shape("plymesh", StringParam("filename", plyPath));
 	ctx.AttributeEnd();
 
 	// An area light bound to a sphere.
@@ -335,10 +336,11 @@ void CheckAPI() {
 
 } // anonymous namespace
 
-int main() {
+int main(int argc, char **argv) {
 	std::cout << "lux2 B.15 foundation check" << std::endl;
 
-	CheckRecorder();
+	const std::string plyPath = argc > 1 ? argv[1] : "wall.ply";
+	CheckRecorder(plyPath);
 	CheckStateMachine();
 	CheckAPI();
 
