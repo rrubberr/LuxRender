@@ -4,8 +4,5 @@
 /build
 **/.DS_Store
 /test/*.png
-/src/lux/.github
-/src/lux/references
 /ext/pfx
-/.plans
 /.github
