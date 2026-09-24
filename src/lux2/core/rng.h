@@ -20,46 +20,45 @@
 #ifndef LUX2_RNG_H
 #define LUX2_RNG_H
 
-// lux2 uses Enoki's PCG32
-
 #include "core/vecp.h"
 
 #include <enoki/random.h>
 
-namespace lux2 {
+namespace lux2
+{
 
-// =======================================================================
-// RNGP
-// =======================================================================
+    // ---------------------------------------------------------------------------
+    // RNGP
+    // ---------------------------------------------------------------------------
 
-class RNGP {
-public:
-    using FloatDist = enoki::PCG32<FloatP>;
+    class RNGP
+    {
+    public:
+        using FloatDist = enoki::PCG32<FloatP>;
 
-    // Seed with a base state. Each lane gets its own stream id so
-    // PACKET_WIDTH lanes produce independent sequences.
-    explicit RNGP(UInt64 initstate = 0x853c49e6748fea9bULL)
-        : gen(FloatDist(UInt64P(initstate))) { }
+        // Seed with a base state.
+        explicit RNGP(UInt64 initstate = 0x853c49e6748fea9bULL)
+            : gen(FloatDist(UInt64P(initstate))) {}
 
-    // Uniform float in [0, 1), one value per lane.
-    FloatP NextFloat() { return gen.template next_float<FloatP>(); }
+        // Uniform float in [0, 1), one value per lane.
+        FloatP NextFloat() { return gen.template next_float<FloatP>(); }
 
-    // Uniform float in [0, 1) for active lanes only (inactive lanes keep
-    // their state).
-    FloatP NextFloat(const MaskP &mask) { return gen.template next_float<FloatP>(mask); }
+        // Uniform float in [0, 1) for active lanes.
+        FloatP NextFloat(const MaskP &mask) { return gen.template next_float<FloatP>(mask); }
 
-    // Uniform integer in [0, n) per lane (used to pick a light / BSDF lobe).
-    UInt32P NextUInt32() { return gen.next_uint32(); }
+        // Uniform integer in [0, n) per lane.
+        UInt32P NextUInt32() { return gen.next_uint32(); }
 
-    // Re-seed every lane from a scalar base state (e.g. per pixel).
-    void Seed(UInt64 initstate) {
-        gen.seed(UInt64P(initstate),
-                 enoki::arange<UInt64P>() + 0xda3e39cb94b95bdbULL);
-    }
+        // Re-seed every lane from a scalar base state (e.g. per pixel).
+        void Seed(UInt64 initstate)
+        {
+            gen.seed(UInt64P(initstate),
+                     enoki::arange<UInt64P>() + 0xda3e39cb94b95bdbULL);
+        }
 
-private:
-    FloatDist gen;
-};
+    private:
+        FloatDist gen;
+    };
 
 } // namespace lux2
 

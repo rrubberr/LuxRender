@@ -118,7 +118,7 @@ void CheckSpectrum() {
 	SWCSpectrumP s{FloatP(a)};              // Brace-init avoids the vexing parse.
 	SWCSpectrumP t = s * s;                 // a^2 per sample.
 	SWCSpectrumP u = s + t;                 // a + a^2.
-	Check(AllClose(u.c[0], a + a * a), "spectrum mul/add");
+	Check(AllClose(u[0], a + a * a), "spectrum mul/add");
 
 	Check(AllClose(s.MaxComponent(), a), "spectrum MaxComponent");
 	Check(AllClose(s.Average(), a), "spectrum Average");
@@ -128,14 +128,14 @@ void CheckSpectrum() {
 	Check(!enoki::all(s.IsBlack()), "non-black spectrum !IsBlack");
 
 	SWCSpectrumP clamped = (s * -1.f).Clamped();
-	Check(enoki::all(clamped.c[0] == FloatP(0.f)), "Clamped to zero");
+	Check(enoki::all(clamped[0] == FloatP(0.f)), "Clamped to zero");
 
-	// select + fmadd free functions.
-	const MaskP m = s.c[0] > FloatP(a * 0.5f);
-	SWCSpectrumP sel = lux2::select(m, s, black);
-	Check(AllClose(sel.c[0], a), "spectrum select");
-	SWCSpectrumP f = lux2::fmadd(s, s, s);  // a^2 + a
-	Check(AllClose(f.c[0], a * a + a), "spectrum fmadd");
+	// Enoki select + fmadd (broadcast over the wavelength axis).
+	const MaskP m = s[0] > FloatP(a * 0.5f);
+	SWCSpectrumP sel = enoki::select(m, s, black);
+	Check(AllClose(sel[0], a), "spectrum select");
+	SWCSpectrumP f = enoki::fmadd(s, s, s);  // a^2 + a
+	Check(AllClose(f[0], a * a + a), "spectrum fmadd");
 }
 
 // ray.h: RayP construction, d_rcp, operator(), payload; HitP validity.
@@ -156,7 +156,7 @@ void CheckRay() {
 	Check(AllClose(pos.y(), 2.f), "ray(t).y");
 
 	// Payload initialized.
-	Check(enoki::all(ray.throughput.c[0] == FloatP(1.f)), "throughput init");
+	Check(enoki::all(ray.throughput[0] == FloatP(1.f)), "throughput init");
 	Check(enoki::all(ray.alive), "alive init true");
 	Check(enoki::hsum(ray.depth * ray.depth) == 0.f, "depth init zero");
 
@@ -210,7 +210,7 @@ void CheckSpectrumScalar() {
 	const SWCSpectrum s(2.f);
 	const SWCSpectrum t = s * s;            // 4 per sample.
 	const SWCSpectrum u = s + t;            // 6 per sample.
-	Check(Close(u.c[0], 6.f), "scalar spectrum mul/add");
+	Check(Close(u[0], 6.f), "scalar spectrum mul/add");
 
 	Check(Close(s.MaxComponent(), 2.f), "scalar spectrum MaxComponent");
 	Check(Close(s.Average(), 2.f), "scalar spectrum Average");
@@ -220,11 +220,13 @@ void CheckSpectrumScalar() {
 	Check(!s.IsBlack(), "scalar non-black !IsBlack");
 
 	const SWCSpectrum neg = (s * -1.f).Clamped();
-	Check(Close(neg.c[0], 0.f), "scalar Clamped to zero");
+	Check(Close(neg[0], 0.f), "scalar Clamped to zero");
 
 	const RGBColor rgb(1.f, 0.5f, 0.f);
-	Check(Close(rgb.r, 1.f) && Close(rgb.g, 0.5f) && Close(rgb.b, 0.f),
+	Check(Close(rgb.r(), 1.f) && Close(rgb.g(), 0.5f) && Close(rgb.b(), 0.f),
 		"scalar RGBColor fields");
+	Check(Close(rgb.Y(), 0.212671f * 1.f + 0.715160f * 0.5f + 0.072169f * 0.f),
+		"scalar RGBColor Y");
 }
 
 // bbox.h: BBox construction, queries, and unions.

@@ -22,101 +22,112 @@
 #ifndef LUX2_BBOX_H
 #define LUX2_BBOX_H
 
-// Axis-aligned bounding box, luxrays::BBox idiom (pMin/pMax, Inside,
-// Overlaps, Expand, Volume, SurfaceArea, MaximumExtent, Center, Union).
-
 #include "core/geometry.h"
 
 #include <limits>
 
-namespace lux2 {
+namespace lux2
+{
 
-class BBox {
-public:
-    // An invalid box: pMin=+inf, pMax=-inf (the empty set).
-    BBox() {
-        pMin = Point3f( std::numeric_limits<Float>::infinity());
-        pMax = Point3f(-std::numeric_limits<Float>::infinity());
-    }
+    class BBox
+    {
+    public:
+        // An invalid box.
+        BBox()
+        {
+            pMin = Point3f(std::numeric_limits<Float>::infinity());
+            pMax = Point3f(-std::numeric_limits<Float>::infinity());
+        }
 
-    BBox(const Point3f &p) : pMin(p), pMax(p) { }
+        BBox(const Point3f &p) : pMin(p), pMax(p) {}
 
-    BBox(const Point3f &p1, const Point3f &p2) {
-        pMin = enoki::min(p1, p2);
-        pMax = enoki::max(p1, p2);
-    }
+        BBox(const Point3f &p1, const Point3f &p2)
+        {
+            pMin = enoki::min(p1, p2);
+            pMax = enoki::max(p1, p2);
+        }
 
-    bool IsValid() const {
-        return (pMin.x() <= pMax.x()) && (pMin.y() <= pMax.y()) &&
-               (pMin.z() <= pMax.z());
-    }
+        bool IsValid() const
+        {
+            return (pMin.x() <= pMax.x()) && (pMin.y() <= pMax.y()) &&
+                   (pMin.z() <= pMax.z());
+        }
 
-    bool Inside(const Point3f &pt) const {
-        return (pt.x() >= pMin.x() && pt.x() <= pMax.x() &&
-                pt.y() >= pMin.y() && pt.y() <= pMax.y() &&
-                pt.z() >= pMin.z() && pt.z() <= pMax.z());
-    }
+        bool Inside(const Point3f &pt) const
+        {
+            return (pt.x() >= pMin.x() && pt.x() <= pMax.x() &&
+                    pt.y() >= pMin.y() && pt.y() <= pMax.y() &&
+                    pt.z() >= pMin.z() && pt.z() <= pMax.z());
+        }
 
-    bool Inside(const BBox &bb) const {
-        return (bb.pMin.x() >= pMin.x() && bb.pMax.x() <= pMax.x() &&
-                bb.pMin.y() >= pMin.y() && bb.pMax.y() <= pMax.y() &&
-                bb.pMin.z() >= pMin.z() && bb.pMax.z() <= pMax.z());
-    }
+        bool Inside(const BBox &bb) const
+        {
+            return (bb.pMin.x() >= pMin.x() && bb.pMax.x() <= pMax.x() &&
+                    bb.pMin.y() >= pMin.y() && bb.pMax.y() <= pMax.y() &&
+                    bb.pMin.z() >= pMin.z() && bb.pMax.z() <= pMax.z());
+        }
 
-    bool Overlaps(const BBox &b) const {
-        const bool x = (pMax.x() >= b.pMin.x()) && (pMin.x() <= b.pMax.x());
-        const bool y = (pMax.y() >= b.pMin.y()) && (pMin.y() <= b.pMax.y());
-        const bool z = (pMax.z() >= b.pMin.z()) && (pMin.z() <= b.pMax.z());
-        return (x && y && z);
-    }
+        bool Overlaps(const BBox &b) const
+        {
+            const bool x = (pMax.x() >= b.pMin.x()) && (pMin.x() <= b.pMax.x());
+            const bool y = (pMax.y() >= b.pMin.y()) && (pMin.y() <= b.pMax.y());
+            const bool z = (pMax.z() >= b.pMin.z()) && (pMin.z() <= b.pMax.z());
+            return (x && y && z);
+        }
 
-    void Expand(Float delta) {
-        pMin -= Vector3f(delta, delta, delta);
-        pMax += Vector3f(delta, delta, delta);
-    }
+        void Expand(Float delta)
+        {
+            pMin -= Vector3f(delta, delta, delta);
+            pMax += Vector3f(delta, delta, delta);
+        }
 
-    Float Volume() const {
-        const Vector3f d = pMax - pMin;
-        return d.x() * d.y() * d.z();
-    }
+        Float Volume() const
+        {
+            const Vector3f d = pMax - pMin;
+            return d.x() * d.y() * d.z();
+        }
 
-    Float SurfaceArea() const {
-        const Vector3f d = pMax - pMin;
-        return 2.f * (d.x() * d.y() + d.y() * d.z() + d.z() * d.x());
-    }
+        Float SurfaceArea() const
+        {
+            const Vector3f d = pMax - pMin;
+            return 2.f * (d.x() * d.y() + d.y() * d.z() + d.z() * d.x());
+        }
 
-    // Axis index with the largest extent.
-    int MaximumExtent() const {
-        const Vector3f diag = pMax - pMin;
-        if (diag.x() > diag.y() && diag.x() > diag.z())
-            return 0;
-        else if (diag.y() > diag.z())
-            return 1;
-        else
-            return 2;
-    }
+        // Axis index with the largest extent.
+        int MaximumExtent() const
+        {
+            const Vector3f diag = pMax - pMin;
+            if (diag.x() > diag.y() && diag.x() > diag.z())
+                return 0;
+            else if (diag.y() > diag.z())
+                return 1;
+            else
+                return 2;
+        }
 
-    Point3f Center() const { return (pMin + pMax) * .5f; }
+        Point3f Center() const { return (pMin + pMax) * .5f; }
 
-    Vector3f Diagonal() const { return pMax - pMin; }
+        Vector3f Diagonal() const { return pMax - pMin; }
 
-    friend BBox Union(const BBox &b, const Point3f &p) {
-        BBox r;
-        r.pMin = enoki::min(b.pMin, p);
-        r.pMax = enoki::max(b.pMax, p);
-        return r;
-    }
+        friend BBox Union(const BBox &b, const Point3f &p)
+        {
+            BBox r;
+            r.pMin = enoki::min(b.pMin, p);
+            r.pMax = enoki::max(b.pMax, p);
+            return r;
+        }
 
-    friend BBox Union(const BBox &b, const BBox &b2) {
-        BBox r;
-        r.pMin = enoki::min(b.pMin, b2.pMin);
-        r.pMax = enoki::max(b.pMax, b2.pMax);
-        return r;
-    }
+        friend BBox Union(const BBox &b, const BBox &b2)
+        {
+            BBox r;
+            r.pMin = enoki::min(b.pMin, b2.pMin);
+            r.pMax = enoki::max(b.pMax, b2.pMax);
+            return r;
+        }
 
-    // BBox Public Data.
-    Point3f pMin, pMax;
-};
+        // BBox Public Data.
+        Point3f pMin, pMax;
+    };
 
 } // namespace lux2
 

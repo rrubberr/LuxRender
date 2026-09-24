@@ -25,50 +25,57 @@
 #include <deque>
 #include <mutex>
 
-namespace lux2 {
+namespace lux2
+{
 
-// A rectangular tile of pixels.
-struct Tile {
-    int x0, y0, x1, y1;
-};
+    // A rectangular tile of pixels.
+    struct Tile
+    {
+        int x0, y0, x1, y1;
+    };
 
-// Thread-safe tile queue.
-class TileQueue {
-public:
-    
-    bool Next(Tile* t);         // Next tile; false when the queue is empty.
-    void Push(const Tile& t);   // Push a tile onto the queue.
-    bool Empty() const;         // True if no tiles remain.
-    int Remaining() const;      // Tiles remaining.
+    // Thread safe tile queue.
+    class TileQueue
+    {
+    public:
+        bool Next(Tile *t);       // next tile; false when the queue is empty
+        void Push(const Tile &t); // push a tile onto the queue
+        bool Empty() const;       // true if no tiles remain
+        int Remaining() const;    // tiles remaining
 
-private:
-    mutable std::mutex m_mutex;
-    std::deque<Tile> m_tiles;
-};
+    private:
+        mutable std::mutex m_mutex;
+        std::deque<Tile> m_tiles;
+    };
 
-// Inline definitions.
-inline bool TileQueue::Next(Tile* t) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    if (m_tiles.empty()) return false;
-    *t = m_tiles.front();
-    m_tiles.pop_front();
-    return true;
-}
+    // Inline definitions.
+    inline bool TileQueue::Next(Tile *t)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_tiles.empty())
+            return false;
+        *t = m_tiles.front();
+        m_tiles.pop_front();
+        return true;
+    }
 
-inline void TileQueue::Push(const Tile& t) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_tiles.push_back(t);
-}
+    inline void TileQueue::Push(const Tile &t)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_tiles.push_back(t);
+    }
 
-inline bool TileQueue::Empty() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return m_tiles.empty();
-}
+    inline bool TileQueue::Empty() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_tiles.empty();
+    }
 
-inline int TileQueue::Remaining() const {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    return (int)m_tiles.size();
-}
+    inline int TileQueue::Remaining() const
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return (int)m_tiles.size();
+    }
 
 } // namespace lux2
 

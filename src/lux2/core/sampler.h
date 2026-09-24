@@ -22,41 +22,34 @@
 #ifndef LUX2_SAMPLER_H
 #define LUX2_SAMPLER_H
 
-// Abstract sampler interface.
-
 #include "core/vecp.h"
 #include "core/geometry.h"
 
-namespace lux2 {
+#include <cstdint>
 
-// Integer pixel coordinate.
-struct Point2i { int x; int y; };
+namespace lux2
+{
 
-// Produces random streams consumed by the integrator.
-class Sampler {
-public:
-    virtual ~Sampler() = default;
+    // Produces quasirandom streams consumed by the integrator.
+    class Sampler
+    {
+    public:
+        virtual ~Sampler() = default;
 
-    // Declare that one more random stream is needed per sample; returns its offset.
-    virtual int AddSample() = 0;
+        // Seed for a wavefront of `wavefrontSize` lanes.
+        virtual void Seed(uint64_t seedOffset, size_t wavefrontSize) = 0;
 
-    // Begin a new pixel.
-    virtual void StartPixel(const Point2i& p) = 0;
+        // Advance to the next sample in the sequence. A subsequent Next1D/Next2D
+        // returns the first component(s) of that sample.
+        virtual void Advance() = 0;
 
-    // Begin a new sample within the current pixel.
-    virtual void StartSample() = 0;
+        // Next 1D / 2D component of the current sample.
+        virtual FloatP Next1D(MaskP active = MaskP(true)) = 0;
+        virtual Point2fP Next2D(MaskP active = MaskP(true)) = 0;
 
-    // Fetch the value of stream `offset` for the current sample.
-    // Implementations return a broadcast or per-lane jittered
-    // FloatP as appropriate.
-    virtual FloatP Get(int offset) = 0;
-
-    // Total number of samples per pixel.
-    virtual int SampleCount() const = 0;
-
-    // Number of streams declared via AddSample().
-    virtual int StreamCount() const = 0;
-};
+        // Samples per pixel.
+        virtual uint32_t SampleCount() const = 0;
+    };
 
 } // namespace lux2
 

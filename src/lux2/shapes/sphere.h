@@ -28,31 +28,33 @@
 
 #include <memory>
 
-namespace lux2 {
+namespace lux2
+{
 
-class PluginContext;
+    class PluginContext;
 
-// Analytic sphere tessellated to triangles on a lat/long grid.
-class SphereShape : public Shape {
-public:
-    SphereShape(const Transform &toWorld, float radius, float zMin,
-                float zMax, float phiMaxDeg, int phiSegments,
-                int thetaSegments);
+    // Analytic sphere tessellated to triangles on a lat/long grid.
+    class SphereShape : public Shape
+    {
+    public:
+        SphereShape(const Transform &toWorld, float radius, float zMin,
+                    float zMax, float phiMaxDeg, int phiSegments,
+                    int thetaSegments);
 
-    void Tessellate(const Transform &worldToCamera,
-                    std::vector<TriangleDesc> &out) const override;
-    BBox WorldBound() const override;
+        void Tessellate(const Transform &worldToCamera,
+                        std::vector<TriangleDesc> &out) const override;
+        BBox WorldBound() const override;
 
-    static std::shared_ptr<Shape> CreateShape(const PluginContext &ctx);
+        static std::shared_ptr<Shape> CreateShape(const PluginContext &ctx);
 
-private:
-    Transform m_toWorld;
-    float m_radius;
-    float m_zMin, m_zMax;
-    float m_thetaMin, m_thetaMax; // radians
-    float m_phiMax;               // radians
-    int m_nu, m_nv;               // grid resolution (phi, theta)
-};
+    private:
+        Transform m_toWorld;
+        float m_radius;
+        float m_zMin, m_zMax;
+        float m_thetaMin, m_thetaMax; // radians
+        float m_phiMax;               // radians
+        int m_nu, m_nv;               // grid resolution (phi, theta)
+    };
 
 } // namespace lux2
 

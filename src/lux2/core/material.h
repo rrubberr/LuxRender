@@ -25,20 +25,21 @@
 #include "core/bsdf.h"
 #include "core/bsdf_type.h"
 
-namespace lux2 {
+namespace lux2
+{
 
-// Abstract material.
-class Material {
-public:
-    virtual ~Material() = default;
+    // Abstract material.
+    class Material
+    {
+    public:
+        virtual ~Material() = default;
 
-    // Union of lobe types this BSDF can produce. The integrator
-    // uses this to decide NEE and specular handling.
-    virtual BSDFType flags() const = 0;
+        // Union of lobe types this BSDF can produce.
+        virtual uint32_t flags() const = 0;
 
-    // Return the BSDF to use at a shading point.
-    virtual const BSDF* GetBSDF(const DifferentialGeometryP& dg) const = 0;
-};
+        // Return the BSDF to use at a shading point.
+        virtual const BSDF *GetBSDF(const DifferentialGeometryP &dg) const = 0;
+    };
 
 } // namespace lux2
 

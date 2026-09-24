@@ -31,31 +31,33 @@
 #include <string>
 #include <vector>
 
-namespace lux2 {
+namespace lux2
+{
 
-class PluginContext;
+    class PluginContext;
 
-// PLY triangle mesh.
-class PlyMeshShape : public Shape {
-public:
-    PlyMeshShape(const Transform &toWorld, std::vector<Point3f> P,
-                 std::vector<Normal3f> N, std::vector<UV> uv,
-                 std::vector<std::array<int, 3>> tris);
+    // PLY triangle mesh.
+    class PlyMeshShape : public Shape
+    {
+    public:
+        PlyMeshShape(const Transform &toWorld, std::vector<Point3f> P,
+                     std::vector<Normal3f> N, std::vector<UV> uv,
+                     std::vector<std::array<int, 3>> tris);
 
-    void Tessellate(const Transform &worldToCamera,
-                    std::vector<TriangleDesc> &out) const override;
-    BBox WorldBound() const override;
+        void Tessellate(const Transform &worldToCamera,
+                        std::vector<TriangleDesc> &out) const override;
+        BBox WorldBound() const override;
 
-    static std::shared_ptr<Shape> CreateShape(const PluginContext &ctx);
+        static std::shared_ptr<Shape> CreateShape(const PluginContext &ctx);
 
-private:
-    Transform m_toWorld;
-    std::vector<Point3f> m_P;
-    std::vector<Normal3f> m_N;
-    std::vector<UV> m_uv;
-    std::vector<std::array<int, 3>> m_tris;
-    BBox m_objBound;
-};
+    private:
+        Transform m_toWorld;
+        std::vector<Point3f> m_P;
+        std::vector<Normal3f> m_N;
+        std::vector<UV> m_uv;
+        std::vector<std::array<int, 3>> m_tris;
+        BBox m_objBound;
+    };
 
 } // namespace lux2
 

@@ -22,110 +22,106 @@
 #ifndef LUX2_BSDF_H
 #define LUX2_BSDF_H
 
-// BSDF sample record, shading record, and abstract interface.
-
 #include "core/vecp.h"
 #include "core/geometry.h"
 #include "core/spectrum.h"
+#include "core/color.h"
 #include "core/bsdf_type.h"
 
 #include <cstdint>
 
-namespace lux2 {
+namespace lux2
+{
 
-// =======================================================================
-// TransportMode
-// =======================================================================
+    // ---------------------------------------------------------------------------
+    // TransportMode
+    // ---------------------------------------------------------------------------
 
-// Direction of radiance transport at a BSDF interaction:
-// Radiance = camera-side.
-// Importance = photon-side.
-enum class TransportMode { Radiance, Importance };
+    // Direction of radiance transport at a BSDF interaction.
+    enum class TransportMode
+    {
+        Radiance,
+        Importance
+    };
 
-// =======================================================================
-// BSDFSampleP sample record
-// =======================================================================
+    // ---------------------------------------------------------------------------
+    // BSDFSampleP sample record
+    // ---------------------------------------------------------------------------
 
-// Result of sampling a BSDF lobe for one packet of lanes.
-struct BSDFSampleP {
-    Vector3fP    wo;            // Sampled outgoing direction (world, normalized).
-    SWCSpectrumP f;             // BSDF value f(wi,wo).
+    // Result of sampling a BSDF lobe for one packet of lanes.
+    struct BSDFSampleP
+    {
+        Vector3fP wo;   // Sampled outgoing direction (world, normalized).
+        SWCSpectrumP f; // BSDF value f(wi,wo).
 
-                                // This does NOT include the geometric |cos(theta_i)| term;
-                                // Integrators must multiply by |cos| explicitly!
-                                // HEED THIS COMMENT to avoid energy bugs.
+        // This does NOT include the geometric |cos(theta_i)| term;
+        // Integrators must multiply by |cos| explicitly!
+        // HEED THIS COMMENT to avoid energy bugs.
 
-    FloatP       pdf;           // Solid-angle probability density.
-    FloatP       eta;           // IOR ratio.
-    UInt32P      sampledType;   // BSDFType of the lobe chosen.
-    MaskP        specular;      // True where sampledType is a delta/specular lobe.
-};
+        FloatP pdf;          // Solid-angle probability density.
+        FloatP eta;          // IOR ratio.
+        UInt32P sampledType; // BSDFType of the lobe chosen.
+        MaskP specular;      // True where sampledType is a delta/specular lobe.
+    };
 
-// =======================================================================
-// DifferentialGeometryP shading record
-// =======================================================================
+    // ---------------------------------------------------------------------------
+    // DifferentialGeometryP shading record
+    // ---------------------------------------------------------------------------
 
-// The integrator fills this from the tracer's HitP. Carries first-order
-// parametric derivatives and a shading tangent for texture filtering,
-// anisotropic roughness, and normal/bump mapping.
-struct DifferentialGeometryP {
-    Point3fP  p;       // world-space hit position
-    Normal3fP n;       // shading normal
-    FloatP    uv_u;    // texture u coordinate
-    FloatP    uv_v;    // texture v coordinate
-    Vector3fP dp_du;   // d(position)/d(u) for texture mip selection
-    Vector3fP dp_dv;   // d(position)/d(v)
-    Vector3fP dp_ds;   // shading tangent for anisotropy
-    Vector3fP dp_dt;   // shading bitangent (unit, orthogonal to dp_ds and n)
-};
+    // The integrator fills this from the tracer's HitP. Carries
+    // parametric derivatives and shading tangent for texture filtering,
+    // anisotropic roughness, and normal/bump mapping.
+    struct DifferentialGeometryP
+    {
+        Point3fP p;      // world-space hit position
+        Normal3fP n;     // shading normal
+        FloatP uv_u;     // texture u coordinate
+        FloatP uv_v;     // texture v coordinate
+        Vector3fP dp_du; // d(position)/d(u) for texture mip selection
+        Vector3fP dp_dv; // d(position)/d(v)
+        Vector3fP dp_ds; // shading tangent for anisotropy
+        Vector3fP dp_dt; // shading bitangent (unit, orthogonal to dp_ds and n)
+    };
 
-// TODO(P9): Medium/interior interface. There is currently no Medium type on the
-// hit or in RayP, so BSDF::SampleF cannot return an interior medium.
+    // TODO: There is currently no Medium type on the hit or in RayP.
 
-// =======================================================================
-// SpectrumWavelengthsP wavelength set
-// =======================================================================
+    // ---------------------------------------------------------------------------
+    // BSDF abstract interface
+    // ---------------------------------------------------------------------------
 
-// Sampled wavelengths (nm). SWCSpectrumP holds 4 spectral
-// samples evaluated at these wavelengths.
-struct SpectrumWavelengthsP {
-    FloatP lambda[WAVELENGTH_SAMPLES];
-};
+    // A Material returns one of these from GetBSDF();
+    // the integrator calls SampleF/Pdf.
+    class BSDF
+    {
+    public:
+        virtual ~BSDF() = default;
 
-// =======================================================================
-// class BSDF — abstract interface
-// =======================================================================
+        // Union of lobe types this BSDF can produce.
+        virtual uint32_t flags() const = 0;
 
-// Abstract BSDF. A Material returns one of these from GetBSDF(); the integrator
-// calls SampleF/Pdf.
-class BSDF {
-public:
-    virtual ~BSDF() = default;
+        // Sample an outgoing direction wi given wo (wo = -incidentDir).
+        // pdf==0 is a failed sample.
+        virtual void SampleF(const SpectrumWavelengthsP &sw,
+                             const Vector3fP &wo,
+                             const DifferentialGeometryP &dg,
+                             const FloatP &u0, const FloatP &u1, const FloatP &u2,
+                             BSDFSampleP *sample,
+                             TransportMode mode,
+                             MaskP active) const = 0;
 
-    // Union of lobe types this BSDF can produce (e.g. DiffuseReflection |
-    // FrontSide). For materials whose lobe varies by surface point (mix, texture-
-    // blended diffuse/specular), this is the UNION over all points. The integrator
-    // MUST read BSDFSampleP::sampledType instead.
-    virtual BSDFType flags() const = 0;
+        // Solid angle of the wi<->wo pair for lobes selected by typeMask.
+        virtual FloatP Pdf(const SpectrumWavelengthsP &sw,
+                           const Vector3fP &wi, const Vector3fP &wo,
+                           const DifferentialGeometryP &dg,
+                           uint32_t typeMask,
+                           TransportMode mode,
+                           MaskP active) const = 0;
 
-    // Sample an outgoing direction wi given wo (wo = -incidentDir).
-    // pdf==0 is a failed sample.
-    virtual void SampleF(const SpectrumWavelengthsP& sw,
-                         const Vector3fP& wo,
-                         const DifferentialGeometryP& dg,
-                         const FloatP& u0, const FloatP& u1, const FloatP& u2,
-                         BSDFSampleP* sample,
-                         TransportMode mode = TransportMode::Radiance,
-                         MaskP active = MaskP(true)) const = 0;
+        ENOKI_CALL_SUPPORT_FRIEND()
+    };
 
-    // Solid angle of the wi<->wo pair for lobes selected by typeMask.
-    virtual FloatP Pdf(const SpectrumWavelengthsP& sw,
-                       const Vector3fP& wi, const Vector3fP& wo,
-                       const DifferentialGeometryP& dg,
-                       BSDFType typeMask = BSDFType::All,
-                       TransportMode mode = TransportMode::Radiance,
-                       MaskP active = MaskP(true)) const = 0;
-};
+    // Used with enoki::call for per-material dispatch.
+    using BSDFPtr = enoki::replace_scalar_t<FloatP, const BSDF *>;
 
 } // namespace lux2
 

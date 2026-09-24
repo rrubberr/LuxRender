@@ -174,7 +174,7 @@ void CheckStateMachine() {
 
 // Drive the C ABI (lux* / lux*V) end-to-end and verify the recorded
 // description, the transform math, and that every deferred stub is safe to
-// call. This is the B.16/B.17 acceptance gate for the public C API.
+// call.
 void CheckAPI() {
 	Check(luxVersion() != nullptr, "luxVersion returns a string");
 
@@ -334,6 +334,135 @@ void CheckAPI() {
 		"luxCleanup returns to uninitialized");
 }
 
+// Verify Scene::Commit instantiates materials/textures and builds the
+// BsdfPtrTable.
+void CheckMaterials(const std::string &plyPath) {
+	Context2 ctx;
+	Context2::SetActive(&ctx);
+
+	ctx.Renderer("sampler", ParamSet());
+	ctx.Sampler("random", ParamSet());
+	ctx.SurfaceIntegrator("path", ParamSet());
+	ctx.VolumeIntegrator("none", ParamSet());
+	ctx.PixelFilter("blackmanharris", ParamSet());
+	ctx.Camera("perspective", ParamSet());
+	ctx.Film("fleximage", ParamSet());
+
+	ctx.WorldBegin();
+
+	// A fresnelcolor texture (the one plugin metal2 will consume in Phase 4).
+	{
+		const RGBColor kr(0.7f, 0.7f, 0.7f);
+		ParamSet fp;
+		fp.AddRGBColor("Kr", &kr, 1);
+		ctx.Texture("metal_cube_nk", "fresnel", "fresnelcolor", fp);
+	}
+
+	// Named materials mirroring the Cornell set.
+	{
+		const RGBColor kd(0.7f, 0.7f, 0.7f);
+		const std::string type = "matte";
+		ParamSet m;
+		m.AddRGBColor("Kd", &kd, 1);
+		m.AddString("type", &type, 1);
+		ctx.MakeNamedMaterial("wall_white", m);
+	}
+	{
+		const float ur = 0.01f, vr = 0.01f;
+		const std::string type = "metal2";
+		ParamSet m;
+		m.AddFloat("uroughness", &ur, 1);
+		m.AddFloat("vroughness", &vr, 1);
+		m.AddTexture("fresnel", "metal_cube_nk");
+		m.AddString("type", &type, 1);
+		ctx.MakeNamedMaterial("metal_cube", m);
+	}
+	{
+		const float index = 1.5f;
+		const RGBColor kr(0.8f, 0.8f, 0.8f), kt(0.8f, 0.8f, 0.8f);
+		const std::string type = "glass";
+		ParamSet m;
+		m.AddFloat("index", &index, 1);
+		m.AddRGBColor("Kr", &kr, 1);
+		m.AddRGBColor("Kt", &kt, 1);
+		m.AddString("type", &type, 1);
+		ctx.MakeNamedMaterial("glass_ball", m);
+	}
+	{
+		const std::string type = "null";
+		ParamSet m;
+		m.AddString("type", &type, 1);
+		ctx.MakeNamedMaterial("Lamp", m);
+	}
+
+	// Shapes: one per named material, plus one unbound (default material).
+	ctx.AttributeBegin();
+	ctx.NamedMaterial("wall_white");
+	ctx.Shape("plymesh", StringParam("filename", plyPath));
+	ctx.AttributeEnd();
+
+	ctx.AttributeBegin();
+	ctx.NamedMaterial("metal_cube");
+	ctx.Shape("sphere", FloatParam("radius", 0.5f));
+	ctx.AttributeEnd();
+
+	ctx.AttributeBegin();
+	ctx.NamedMaterial("glass_ball");
+	ctx.Shape("sphere", FloatParam("radius", 0.3f));
+	ctx.AttributeEnd();
+
+	ctx.AttributeBegin();  // unbound -> default material (id 0)
+	ctx.Shape("sphere", FloatParam("radius", 0.2f));
+	ctx.AttributeEnd();
+
+	SceneDescription &d = ctx.Description();
+	ctx.WorldEnd();
+
+	Scene scene;
+	scene.Commit(d);
+
+	// 4 named materials + 1 default (id 0) = 5.
+	Check(d.materials.size() == 5, "materials: 4 named + default = 5");
+	Check(scene.GetSummary().namedMaterialCount == 4,
+		"materials: named-material count == 4");
+
+	bool allMat = true;
+	for (const auto &m : d.materials)
+		if (!m) allMat = false;
+	Check(allMat, "materials: every entry non-null");
+
+	const BsdfPtrTable &table = scene.GetBsdfTable();
+	Check(table.ptrs.size() == d.materials.size(),
+		"materials: BsdfPtrTable size == material count");
+	bool allPtr = true;
+	for (const auto *b : table.ptrs)
+		if (!b) allPtr = false;
+	Check(allPtr, "materials: every BSDF pointer non-null");
+
+	// Default material (id 0) is the null material.
+	Check((table.ptrs[0]->flags() & uint32_t(BSDFType::Null)) != 0u,
+		"materials: default (id 0) is a Null BSDF");
+
+	// Every triangle's matID is in range; the unbound shape maps to id 0.
+	bool inRange = true;
+	bool unboundIsZero = false;
+	for (const auto &md : d.meshes) {
+		for (const auto &td : md.tris) {
+			if (td.matID >= table.ptrs.size()) inRange = false;
+		}
+	}
+	// The 4th mesh (index 3) is the unbound sphere.
+	if (d.meshes.size() == 4 && !d.meshes[3].tris.empty())
+		unboundIsZero = d.meshes[3].tris[0].matID == 0;
+	Check(inRange, "materials: every triangle matID < table size");
+	Check(unboundIsZero, "materials: unbound shape resolves to default id 0");
+
+	// The fresnelcolor texture is recorded and typed for later resolution.
+	Check(d.textures.count("metal_cube_nk") == 1 &&
+		d.textures["metal_cube_nk"].textureType == "fresnel",
+		"materials: fresnelcolor texture recorded as fresnel");
+}
+
 } // anonymous namespace
 
 int main(int argc, char **argv) {
@@ -343,6 +472,7 @@ int main(int argc, char **argv) {
 	CheckRecorder(plyPath);
 	CheckStateMachine();
 	CheckAPI();
+	CheckMaterials(plyPath);
 
 	if (g_failures == 0) {
 		std::cout << "lux2foundationcheck: ALL CHECKS PASSED" << std::endl;

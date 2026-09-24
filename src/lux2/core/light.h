@@ -22,47 +22,50 @@
 #ifndef LUX2_LIGHT_H
 #define LUX2_LIGHT_H
 
-// Abstract light source interface for NEE and photon emission.
-
 #include "core/vecp.h"
 #include "core/geometry.h"
 #include "core/spectrum.h"
+#include "core/color.h"
 #include "core/bsdf.h"
 #include "core/bsdf_type.h"
 #include "core/ray.h"
 
-namespace lux2 {
+namespace lux2
+{
 
-// Abstract light source.
-class Light {
-public:
-    virtual ~Light() = default;
+    // Abstract light source.
+    class Light
+    {
+    public:
+        virtual ~Light() = default;
 
-    // Lobe types this light emits into. Used for MIS weighting.
-    virtual BSDFType flags() const = 0;
+        // Lobe types this light emits into for MIS weighting.
+        virtual uint32_t flags() const = 0;
 
-    // Infinite lights have no finite sample position.
-    virtual bool IsInfinite() const = 0;
+        // Infinite lights have no finite sample position.
+        virtual bool IsInfinite() const = 0;
 
-    // Light group index.
-    virtual UInt group() const = 0;
+        // Light group index.
+        virtual UInt group() const = 0;
 
-    // Radiance emitted along `ray` (used for infinite light and
-    // area-light).
-    virtual SWCSpectrumP Le(const RayP& ray, MaskP active = MaskP(true)) const = 0;
+        // Radiance emitted along `ray`.
+        virtual SWCSpectrumP Le(const RayP &ray, MaskP active = MaskP(true)) const = 0;
 
-    // NEE / photon-emission position sampler.
-    virtual MaskP Sample_L(const Point3fP& p, const Normal3fP& n,
-                           const FloatP& u0, const FloatP& u1,
-                           Point3fP* lightP, Vector3fP* wi,
-                           FloatP* pdf, SWCSpectrumP* Le,
-                           MaskP active = MaskP(true)) const = 0;
+        // NEE / photon-emission position sampler.
+        virtual MaskP Sample_L(const SpectrumWavelengthsP &sw,
+                               const Point3fP &p, const Normal3fP &n,
+                               const FloatP &u0, const FloatP &u1,
+                               const FloatP &u2,
+                               Point3fP *lightP, Vector3fP *wi,
+                               FloatP *pdf, SWCSpectrumP *Le,
+                               MaskP active = MaskP(true)) const = 0;
 
-    // PDF of sampling direction wi from p. Used for MIS.
-    virtual FloatP Pdf_L(const Point3fP& p, const Normal3fP& n,
-                         const Vector3fP& wi,
-                         MaskP active = MaskP(true)) const = 0;
-};
+        // PDF of sampling the point lightP on this light, seen
+        // from p with shading normal n. Used for MIS.
+        virtual FloatP Pdf_L(const Point3fP &p, const Normal3fP &n,
+                             const Point3fP &lightP, const Normal3fP &lightN,
+                             MaskP active = MaskP(true)) const = 0;
+    };
 
 } // namespace lux2
 

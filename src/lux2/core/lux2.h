@@ -22,8 +22,6 @@
 #ifndef LUX2_LUX2_H
 #define LUX2_LUX2_H
 
-// lux2 core headers.
-
 #include "core/vecp.h"
 #include "core/geometry.h"
 #include "core/spectrum.h"

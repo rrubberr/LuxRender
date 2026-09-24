@@ -29,30 +29,33 @@
 #include <vector>
 #include <cstdint>
 
-namespace lux2 {
+namespace lux2
+{
 
-// One world space triangle produced by tessellation.
-struct TriangleDesc {
-    Point3f   v0, v1, v2;               // World space vertices.
-    Normal3f  n0, n1, n2;               // Per-vertex shading normals.
-    UV        uv0, uv1, uv2;            // Per-vertex texture coords.
-    std::uint32_t   matID;              // Resolved material index.
-    std::int32_t    lightID;            // Area light index, or -1.
-    std::uint32_t   groupMask = 0xFFFFFFFFu; // Visibility-group mask.
-};
+    // One world space triangle produced by tessellation.
+    struct TriangleDesc
+    {
+        Point3f v0, v1, v2;                    // world space vertices
+        Normal3f n0, n1, n2;                   // per-vertex shading normals
+        UV uv0, uv1, uv2;                      // per-vertex texture coords
+        std::uint32_t matID;                   // resolved material index
+        std::int32_t lightID;                  // area light index, or -1
+        std::uint32_t groupMask = 0xFFFFFFFFu; // visibility group mask
+    };
 
-// Abstract shape.
-class Shape {
-public:
-    virtual ~Shape() = default;
+    // Abstract shape.
+    class Shape
+    {
+    public:
+        virtual ~Shape() = default;
 
-    // Append world space triangles to output.
-    virtual void Tessellate(const Transform& worldToCamera,
-                            std::vector<TriangleDesc>& out) const = 0;
+        // Append world space triangles to output.
+        virtual void Tessellate(const Transform &worldToCamera,
+                                std::vector<TriangleDesc> &out) const = 0;
 
-    // Axis aligned world-space bound of the shape.
-    virtual BBox WorldBound() const = 0;
-};
+        // Axis aligned world space bound of the shape.
+        virtual BBox WorldBound() const = 0;
+    };
 
 } // namespace lux2
 

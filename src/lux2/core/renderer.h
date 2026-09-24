@@ -24,18 +24,20 @@
 
 #include "core/integrator.h"
 
-namespace lux2 {
+namespace lux2
+{
 
-class Scene;
+    class Scene;
 
-// Abstract renderer.
-class Renderer {
-public:
-    virtual ~Renderer() = default;
+    // Abstract renderer.
+    class Renderer
+    {
+    public:
+        virtual ~Renderer() = default;
 
-    // Render the scene with the given surface integrator.
-    virtual void Render(const Scene& scene, SurfaceIntegrator& integrator) = 0;
-};
+        // Render the scene with the given surface integrator.
+        virtual void Render(const Scene &scene, SurfaceIntegrator &integrator) = 0;
+    };
 
 } // namespace lux2
 

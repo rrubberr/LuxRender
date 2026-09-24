@@ -22,11 +22,6 @@
 #ifndef LUX2_DYNLOAD_H
 #define LUX2_DYNLOAD_H
 
-#include <map>
-#include <string>
-#include <memory>
-#include <vector>
-
 #include "core/texture.h"
 #include "core/material.h"
 #include "core/light.h"
@@ -39,79 +34,92 @@
 #include "core/renderer.h"
 #include "core/transform.h"
 
-namespace lux2 {
+#include <map>
+#include <string>
+#include <memory>
+#include <vector>
 
-class ParamSet;
+namespace lux2
+{
 
-// Everything a plugin factory needs to construct an instance.
-struct PluginContext {
-    // This plugin's own parameters.
-    ParamSet *params = nullptr;
+    class ParamSet;
 
-    // Object/texture/material-to-world transform for this plugin.
-    Transform transform;
+    // Everything a plugin factory needs to construct an instance.
+    struct PluginContext
+    {
+        // This plugin's own parameters.
+        ParamSet *params = nullptr;
 
-    // Scene-wide named texture tables.
-    const std::map<std::string, std::shared_ptr<FloatTexture>>   *floatTextures   = nullptr;
-    const std::map<std::string, std::shared_ptr<ColorTexture>>    *colorTextures   = nullptr;
-    const std::map<std::string, std::shared_ptr<FresnelTexture>>  *fresnelTextures = nullptr;
+        // Object/texture/material-to-world transform for this plugin.
+        Transform transform;
 
-    // Scene-wide named-material table.
-    const std::map<std::string, std::shared_ptr<Material>> *namedMaterials = nullptr;
+        // Named texture tables.
+        const std::map<std::string, std::shared_ptr<FloatTexture>> *floatTextures = nullptr;
+        const std::map<std::string, std::shared_ptr<ColorTexture>> *colorTextures = nullptr;
+        const std::map<std::string, std::shared_ptr<FresnelTexture>> *fresnelTextures = nullptr;
 
-    // Downstream dependencies wired by the parser.
-    Film   *film   = nullptr;
-    Filter *filter = nullptr;
-};
+        // Named material table.
+        const std::map<std::string, std::shared_ptr<Material>> *namedMaterials = nullptr;
 
-// Registry for all LuxRender plugin types.
-class DynamicLoader {
-public:
+        // Downstream dependencies wired by the parser.
+        Film *film = nullptr;
+        Filter *filter = nullptr;
 
-    template <class T>
-    class RegisterLoader {
+        // The Film's parameters.
+        const ParamSet *filmParams = nullptr;
+    };
+
+    // Registry for all plugin types.
+    class DynamicLoader
+    {
     public:
-        RegisterLoader(std::map<std::string, T> &store,
-                       const std::string &name,
-                       T loader) {
-            store[name] = loader;
-        }
-        virtual ~RegisterLoader() = default;
+        template <class T>
+        class RegisterLoader
+        {
+        public:
+            RegisterLoader(std::map<std::string, T> &store,
+                           const std::string &name,
+                           T loader)
+            {
+                store[name] = loader;
+            }
+            virtual ~RegisterLoader() = default;
+        };
+
+        // Each plugin kind needs: a Create function-pointer typedef, a registry
+        // accessor, and a Register<Kind> helper.
+#define LUX2_REGISTER_PLUGIN(Kind)                                        \
+    typedef std::shared_ptr<Kind> (*Create##Kind)(const PluginContext &); \
+    static std::map<std::string, Create##Kind> &registered##Kind##s();    \
+    template <class T>                                                    \
+    class Register##Kind : public RegisterLoader<Create##Kind>            \
+    {                                                                     \
+    public:                                                               \
+        Register##Kind(const std::string &name)                           \
+            : RegisterLoader<Create##Kind>(registered##Kind##s(), name,   \
+                                           &T::Create##Kind) {}           \
     };
 
-    // Each plugin kind needs: a Create function-pointer typedef, a registry
-    // accessor, and a Register<Kind> helper.
-#define LUX2_REGISTER_PLUGIN(Kind)                                         \
-    typedef std::shared_ptr<Kind> (*Create##Kind)(const PluginContext&);   \
-    static std::map<std::string, Create##Kind> &registered##Kind##s();     \
-    template <class T>                                                     \
-    class Register##Kind : public RegisterLoader<Create##Kind> {           \
-    public:                                                                \
-        Register##Kind(const std::string &name)                            \
-            : RegisterLoader<Create##Kind>(registered##Kind##s(), name,    \
-                  &T::Create##Kind) {}                                     \
-    };
-
-    LUX2_REGISTER_PLUGIN(Shape)
-    LUX2_REGISTER_PLUGIN(Material)
-    LUX2_REGISTER_PLUGIN(Light)
-    LUX2_REGISTER_PLUGIN(FloatTexture)
-    LUX2_REGISTER_PLUGIN(ColorTexture)
-    LUX2_REGISTER_PLUGIN(FresnelTexture)
-    LUX2_REGISTER_PLUGIN(Camera)
-    LUX2_REGISTER_PLUGIN(Sampler)
-    LUX2_REGISTER_PLUGIN(Filter)
-    LUX2_REGISTER_PLUGIN(Film)
-    LUX2_REGISTER_PLUGIN(SurfaceIntegrator)
-    LUX2_REGISTER_PLUGIN(VolumeIntegrator)
-    LUX2_REGISTER_PLUGIN(Renderer)
+        LUX2_REGISTER_PLUGIN(Shape)
+        LUX2_REGISTER_PLUGIN(Material)
+        LUX2_REGISTER_PLUGIN(Light)
+        LUX2_REGISTER_PLUGIN(FloatTexture)
+        LUX2_REGISTER_PLUGIN(ColorTexture)
+        LUX2_REGISTER_PLUGIN(FresnelTexture)
+        LUX2_REGISTER_PLUGIN(Camera)
+        LUX2_REGISTER_PLUGIN(Sampler)
+        LUX2_REGISTER_PLUGIN(Filter)
+        LUX2_REGISTER_PLUGIN(Film)
+        LUX2_REGISTER_PLUGIN(SurfaceIntegrator)
+        LUX2_REGISTER_PLUGIN(VolumeIntegrator)
+        LUX2_REGISTER_PLUGIN(Renderer)
 
 #undef LUX2_REGISTER_PLUGIN
 
-    // Human-readable list of every registered plugin, grouped by kind.
-    static std::vector<std::string> GetRegisteredPlugins();
-};
+        // Human readable list of every registered plugin.
+        static std::vector<std::string> GetRegisteredPlugins();
+    };
 
-}  // namespace lux2
+} // namespace lux2
 
 #endif // LUX2_DYNLOAD_H

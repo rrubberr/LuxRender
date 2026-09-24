@@ -31,24 +31,26 @@
 #include <string>
 #include <vector>
 
-namespace lux2 {
+namespace lux2
+{
 
-// Summary of a .ply file read from its header.
-struct PlySummary {
-    bool ok = false;
-    std::uint64_t faceCount = 0;
-    BBox bound; // Object-space bound from vertex positions.
-};
+    // Summary of a .ply file read from its header.
+    struct PlySummary
+    {
+        bool ok = false;
+        std::uint64_t faceCount = 0;
+        BBox bound; // object space bound from vertex positions
+    };
 
-// Read a .ply file's face count and object-space bound.
-PlySummary ReadPlySummary(const std::string &path);
+    // Read a .ply file's face count and object-space bound.
+    PlySummary ReadPlySummary(const std::string &path);
 
-// Full object-space geometry read via rply.
-bool ReadPlyGeometry(const std::string &path,
-                     std::vector<Point3f> &P,
-                     std::vector<Normal3f> &N,
-                     std::vector<UV> &uv,
-                     std::vector<std::array<int, 3>> &tris);
+    // Full object-space geometry read via rply.
+    bool ReadPlyGeometry(const std::string &path,
+                         std::vector<Point3f> &P,
+                         std::vector<Normal3f> &N,
+                         std::vector<UV> &uv,
+                         std::vector<std::array<int, 3>> &tris);
 
 } // namespace lux2
 

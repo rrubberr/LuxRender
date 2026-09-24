@@ -22,57 +22,61 @@
 #ifndef LUX2_BSDF_TYPE_H
 #define LUX2_BSDF_TYPE_H
 
-#include <cstdint>
-
 #include "core/vecp.h"
 
-namespace lux2 {
+#include <cstdint>
 
-// BSDF lobe-type bitmask.
-enum class BSDFType : uint32_t {
-    None                = 0x00000,   // No lobes (empty).
-    Null                = 0x00001,   // No deflection (pass-through).
-    DiffuseReflection   = 0x00002,   // Lambertian reflection.
-    DiffuseTransmission = 0x00004,   // Lambertian transmission.
-    GlossyReflection    = 0x00008,   // Non-delta reflection lobe.
-    GlossyTransmission  = 0x00010,   // Non-delta transmission lobe.
-    SpecularReflection  = 0x00020,   // Delta reflection (lux BSDF_SPECULAR reflection).
-    SpecularTransmission= 0x00040,   // Delta transmission (lux BSDF_SPECULAR transmission).
-    Delta1DReflection   = 0x00080,   // Reserved: rough glass/metal 1D lobes (future).
-    Delta1DTransmission = 0x00100,   // Reserved.
-    Anisotropic         = 0x01000,   // Attribute: not rotation-invariant about normal.
-    FrontSide           = 0x08000,   // Attribute: interacts on front-facing side.
-    BackSide            = 0x10000,   // Attribute: interacts on back-facing side.
+namespace lux2
+{
 
-    // Compound constants.
-    Reflection   = uint32_t(DiffuseReflection) | uint32_t(GlossyReflection) | uint32_t(SpecularReflection),
-    Transmission = uint32_t(DiffuseTransmission) | uint32_t(GlossyTransmission) | uint32_t(SpecularTransmission) | uint32_t(Null),
-    Diffuse      = uint32_t(DiffuseReflection) | uint32_t(DiffuseTransmission),
-    Glossy       = uint32_t(GlossyReflection) | uint32_t(GlossyTransmission),
-    Specular     = uint32_t(SpecularReflection) | uint32_t(SpecularTransmission),
-    Smooth       = uint32_t(Diffuse) | uint32_t(Glossy),
-    All          = uint32_t(Diffuse) | uint32_t(Glossy) | uint32_t(Specular) | uint32_t(Null),
-};
+    // BSDF lobe-type bitmask.
+    enum class BSDFType : uint32_t
+    {
+        None = 0x00000,                 // no lobes
+        Null = 0x00001,                 // no deflection
+        DiffuseReflection = 0x00002,    // lambertian reflection
+        DiffuseTransmission = 0x00004,  // lambertian transmission
+        GlossyReflection = 0x00008,     // non-delta reflection lobe
+        GlossyTransmission = 0x00010,   // non-delta transmission lobe.
+        SpecularReflection = 0x00020,   // delta reflection
+        SpecularTransmission = 0x00040, // delta transmission
+        Delta1DReflection = 0x00080,    // reserved for rough glass/metal 1D lobes
+        Delta1DTransmission = 0x00100,  // reserved
+        Anisotropic = 0x01000,          // attribute: not rotation invariant about normal
+        FrontSide = 0x08000,            // attribute: interacts on frontfacing side
+        BackSide = 0x10000,             // attribute: interacts on backfacing side
 
-// Bitwise OR of two BSDFType values.
-constexpr uint32_t operator|(BSDFType a, BSDFType b) { return uint32_t(a) | uint32_t(b); }
+        // Compound constants.
+        Reflection = uint32_t(DiffuseReflection) | uint32_t(GlossyReflection) | uint32_t(SpecularReflection),
+        Transmission = uint32_t(DiffuseTransmission) | uint32_t(GlossyTransmission) | uint32_t(SpecularTransmission) | uint32_t(Null),
+        Diffuse = uint32_t(DiffuseReflection) | uint32_t(DiffuseTransmission),
+        Glossy = uint32_t(GlossyReflection) | uint32_t(GlossyTransmission),
+        Specular = uint32_t(SpecularReflection) | uint32_t(SpecularTransmission),
+        Smooth = uint32_t(Diffuse) | uint32_t(Glossy),
+        All = uint32_t(Diffuse) | uint32_t(Glossy) | uint32_t(Specular) | uint32_t(Null),
+    };
 
-// Bitwise AND of two BSDFType values.
-constexpr uint32_t operator&(BSDFType a, BSDFType b) { return uint32_t(a) & uint32_t(b); }
+    // Bitwise OR of two BSDFType values.
+    constexpr uint32_t operator|(BSDFType a, BSDFType b) { return uint32_t(a) | uint32_t(b); }
 
-// Bitwise OR of uint32_t and BSDFType, result cast back to BSDFType.
-constexpr BSDFType operator|(uint32_t a, BSDFType b) { return BSDFType(a | uint32_t(b)); }
+    // Bitwise AND of two BSDFType values.
+    constexpr uint32_t operator&(BSDFType a, BSDFType b) { return uint32_t(a) & uint32_t(b); }
 
-// Bitwise OR of BSDFType and uint32_t, result cast back to BSDFType.
-constexpr BSDFType operator|(BSDFType a, uint32_t b) { return BSDFType(uint32_t(a) | b); }
+    // Bitwise OR of uint32_t and BSDFType, result cast back to BSDFType.
+    constexpr BSDFType operator|(uint32_t a, BSDFType b) { return BSDFType(a | uint32_t(b)); }
 
-// Bitwise NOT of a BSDFType, result cast back to BSDFType.
-constexpr BSDFType operator~(BSDFType a) { return BSDFType(~uint32_t(a)); }
+    // Bitwise OR of BSDFType and uint32_t, result cast back to BSDFType.
+    constexpr BSDFType operator|(BSDFType a, uint32_t b) { return BSDFType(uint32_t(a) | b); }
 
-// Test a BSDFType field against a single lobe flag.
-inline MaskP has_flag(const UInt32P& typeField, BSDFType flag) {
-    return (typeField & UInt32P(uint32_t(flag))) != UInt32P(0u);
-}
+    // Bitwise NOT of a BSDFType, result cast back to BSDFType.
+    constexpr BSDFType operator~(BSDFType a) { return BSDFType(~uint32_t(a)); }
+
+    // Test a BSDFType field against a single lobe flag.
+    template <typename UInt32>
+    constexpr auto has_flag(UInt32 flags, BSDFType f)
+    {
+        return enoki::neq(flags & UInt32(uint32_t(f)), UInt32(0u));
+    }
 
 } // namespace lux2
 

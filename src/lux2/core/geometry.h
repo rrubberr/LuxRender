@@ -22,155 +22,166 @@
 #ifndef LUX2_GEOMETRY_H
 #define LUX2_GEOMETRY_H
 
-// Point/Vector/Normal as Enoki static arrays.
-
 #include "core/vecp.h"
 
 #include <utility>
 
-namespace lux2 {
+namespace lux2
+{
 
-// =======================================================================
-// Vector, point, and normal data types
-// =======================================================================
+    // ---------------------------------------------------------------------------
+    // Vector, point, and normal data types
+    // ---------------------------------------------------------------------------
 
-template <typename Value_, size_t Size_>
-struct Vector : enoki::StaticArrayImpl<Value_, Size_, false, Vector<Value_, Size_>> {
-    using Base = enoki::StaticArrayImpl<Value_, Size_, false, Vector<Value_, Size_>>;
+    template <typename Value_, size_t Size_>
+    struct Vector : enoki::StaticArrayImpl<Value_, Size_, false, Vector<Value_, Size_>>
+    {
+        using Base = enoki::StaticArrayImpl<Value_, Size_, false, Vector<Value_, Size_>>;
 
-    template <typename T> using ReplaceValue = Vector<T, Size_>;
+        template <typename T>
+        using ReplaceValue = Vector<T, Size_>;
 
-    using ArrayType = Vector;
-    using MaskType = enoki::Mask<Value_, Size_>;
+        using ArrayType = Vector;
+        using MaskType = enoki::Mask<Value_, Size_>;
 
-    ENOKI_ARRAY_IMPORT(Base, Vector)
-};
-
-template <typename Value_, size_t Size_>
-struct Point : enoki::StaticArrayImpl<Value_, Size_, false, Point<Value_, Size_>> {
-    using Base = enoki::StaticArrayImpl<Value_, Size_, false, Point<Value_, Size_>>;
-
-    template <typename T> using ReplaceValue = Point<T, Size_>;
-
-    using ArrayType = Point;
-    using MaskType = enoki::Mask<Value_, Size_>;
-
-    ENOKI_ARRAY_IMPORT(Base, Point)
-};
-
-template <typename Value_, size_t Size_>
-struct Normal : enoki::StaticArrayImpl<Value_, Size_, false, Normal<Value_, Size_>> {
-    using Base = enoki::StaticArrayImpl<Value_, Size_, false, Normal<Value_, Size_>>;
-
-    template <typename T> using ReplaceValue = Normal<T, Size_>;
-
-    using ArrayType = Normal;
-    using MaskType = enoki::Mask<Value_, Size_>;
-
-    ENOKI_ARRAY_IMPORT(Base, Normal)
-};
-
-// Subtracting two points always yields a vector.
-template <typename T1, size_t S1, typename T2, size_t S2>
-auto operator-(const Point<T1, S1> &p1, const Point<T2, S2> &p2) {
-    return Vector<T1, S1>(p1) - Vector<T2, S2>(p2);
-}
-
-// Subtracting a vector from a point yields a point.
-template <typename T1, size_t S1, typename T2, size_t S2>
-auto operator-(const Point<T1, S1> &p1, const Vector<T2, S2> &v2) {
-    return p1 - Point<T2, S2>(v2);
-}
-
-// Adding a vector to a point yields a point.
-template <typename T1, size_t S1, typename T2, size_t S2>
-auto operator+(const Point<T1, S1> &p1, const Vector<T2, S2> &v2) {
-    return p1 + Point<T2, S2>(v2);
-}
-
-// =======================================================================
-// Masking for the geometry types
-// =======================================================================
-
-template <typename Value_, size_t Size_>
-struct Vector<enoki::detail::MaskedArray<Value_>, Size_>
-    : enoki::detail::MaskedArray<Vector<Value_, Size_>> {
-    using Base = enoki::detail::MaskedArray<Vector<Value_, Size_>>;
-    using Base::Base;
-    using Base::operator=;
-    Vector(const Base &b) : Base(b) { }
-};
-
-template <typename Value_, size_t Size_>
-struct Point<enoki::detail::MaskedArray<Value_>, Size_>
-    : enoki::detail::MaskedArray<Point<Value_, Size_>> {
-    using Base = enoki::detail::MaskedArray<Point<Value_, Size_>>;
-    using Base::Base;
-    using Base::operator=;
-    Point(const Base &b) : Base(b) { }
-};
-
-template <typename Value_, size_t Size_>
-struct Normal<enoki::detail::MaskedArray<Value_>, Size_>
-    : enoki::detail::MaskedArray<Normal<Value_, Size_>> {
-    using Base = enoki::detail::MaskedArray<Normal<Value_, Size_>>;
-    using Base::Base;
-    using Base::operator=;
-    Normal(const Base &b) : Base(b) { }
-};
-
-// =======================================================================
-// Scalar typedefs
-// =======================================================================
-
-using Point2f = Point<Float, 2>;
-using Point3f = Point<Float, 3>;
-using Point4f = Point<Float, 4>;
-
-using Vector2f = Vector<Float, 2>;
-using Vector3f = Vector<Float, 3>;
-using Vector4f = Vector<Float, 4>;
-
-using Normal3f = Normal<Float, 3>;
-
-// Texture coordinate.
-struct UV {
-    Float u = 0.f;
-    Float v = 0.f;
-
-    UV() = default;
-    UV(Float u, Float v) : u(u), v(v) { }
-};
-
-// =======================================================================
-// 3D packet typedefs
-// =======================================================================
-
-using Point2fP = Point<FloatP, 2>;
-using Point3fP = Point<FloatP, 3>;
-using Vector3fP = Vector<FloatP, 3>;
-using Normal3fP = Normal<FloatP, 3>;
-
-// Complete the unit vector 'n' into an orthonormal basis {b, c, n}.
-// Duff et al., "Building an Orthonormal Basis, Revisited" (JCGT 2017),
-template <typename Vector3fP_>
-std::pair<Vector3fP_, Vector3fP_> coordinate_system(const Vector3fP_ &n) {
-    static_assert(Vector3fP_::Size == 3,
-        "coordinate_system() expects a 3D vector as input!");
-
-    using FloatP_ = enoki::value_t<Vector3fP_>;
-
-    FloatP_ sign = enoki::sign(n.z()),
-            a = -enoki::rcp(sign + n.z()),
-            b = n.x() * n.y() * a;
-
-    return {
-        Vector3fP_(enoki::fmadd(enoki::sqr(n.x()) * a, n.z(), FloatP_(1.f)),
-                   enoki::mulsign(b, n.z()),
-                   enoki::mulsign_neg(n.x(), n.z())),
-        Vector3fP_(b, enoki::fmadd(enoki::sqr(n.y()), a, sign), -n.y())
+        ENOKI_ARRAY_IMPORT(Base, Vector)
     };
-}
+
+    template <typename Value_, size_t Size_>
+    struct Point : enoki::StaticArrayImpl<Value_, Size_, false, Point<Value_, Size_>>
+    {
+        using Base = enoki::StaticArrayImpl<Value_, Size_, false, Point<Value_, Size_>>;
+
+        template <typename T>
+        using ReplaceValue = Point<T, Size_>;
+
+        using ArrayType = Point;
+        using MaskType = enoki::Mask<Value_, Size_>;
+
+        ENOKI_ARRAY_IMPORT(Base, Point)
+    };
+
+    template <typename Value_, size_t Size_>
+    struct Normal : enoki::StaticArrayImpl<Value_, Size_, false, Normal<Value_, Size_>>
+    {
+        using Base = enoki::StaticArrayImpl<Value_, Size_, false, Normal<Value_, Size_>>;
+
+        template <typename T>
+        using ReplaceValue = Normal<T, Size_>;
+
+        using ArrayType = Normal;
+        using MaskType = enoki::Mask<Value_, Size_>;
+
+        ENOKI_ARRAY_IMPORT(Base, Normal)
+    };
+
+    // Subtracting two points always yields a vector.
+    template <typename T1, size_t S1, typename T2, size_t S2>
+    auto operator-(const Point<T1, S1> &p1, const Point<T2, S2> &p2)
+    {
+        return Vector<T1, S1>(p1) - Vector<T2, S2>(p2);
+    }
+
+    // Subtracting a vector from a point yields a point.
+    template <typename T1, size_t S1, typename T2, size_t S2>
+    auto operator-(const Point<T1, S1> &p1, const Vector<T2, S2> &v2)
+    {
+        return p1 - Point<T2, S2>(v2);
+    }
+
+    // Adding a vector to a point yields a point.
+    template <typename T1, size_t S1, typename T2, size_t S2>
+    auto operator+(const Point<T1, S1> &p1, const Vector<T2, S2> &v2)
+    {
+        return p1 + Point<T2, S2>(v2);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Masking for the geometry types
+    // ---------------------------------------------------------------------------
+
+    template <typename Value_, size_t Size_>
+    struct Vector<enoki::detail::MaskedArray<Value_>, Size_>
+        : enoki::detail::MaskedArray<Vector<Value_, Size_>>
+    {
+        using Base = enoki::detail::MaskedArray<Vector<Value_, Size_>>;
+        using Base::Base;
+        using Base::operator=;
+        Vector(const Base &b) : Base(b) {}
+    };
+
+    template <typename Value_, size_t Size_>
+    struct Point<enoki::detail::MaskedArray<Value_>, Size_>
+        : enoki::detail::MaskedArray<Point<Value_, Size_>>
+    {
+        using Base = enoki::detail::MaskedArray<Point<Value_, Size_>>;
+        using Base::Base;
+        using Base::operator=;
+        Point(const Base &b) : Base(b) {}
+    };
+
+    template <typename Value_, size_t Size_>
+    struct Normal<enoki::detail::MaskedArray<Value_>, Size_>
+        : enoki::detail::MaskedArray<Normal<Value_, Size_>>
+    {
+        using Base = enoki::detail::MaskedArray<Normal<Value_, Size_>>;
+        using Base::Base;
+        using Base::operator=;
+        Normal(const Base &b) : Base(b) {}
+    };
+
+    // ---------------------------------------------------------------------------
+    // Scalar typedefs
+    // ---------------------------------------------------------------------------
+
+    using Point2f = Point<Float, 2>;
+    using Point3f = Point<Float, 3>;
+    using Point4f = Point<Float, 4>;
+
+    using Vector2f = Vector<Float, 2>;
+    using Vector3f = Vector<Float, 3>;
+    using Vector4f = Vector<Float, 4>;
+
+    using Normal3f = Normal<Float, 3>;
+
+    // Texture coordinate.
+    struct UV
+    {
+        Float u = 0.f;
+        Float v = 0.f;
+
+        UV() = default;
+        UV(Float u, Float v) : u(u), v(v) {}
+    };
+
+    // ---------------------------------------------------------------------------
+    // 3D packet typedefs
+    // ---------------------------------------------------------------------------
+
+    using Point2fP = Point<FloatP, 2>;
+    using Point3fP = Point<FloatP, 3>;
+    using Vector3fP = Vector<FloatP, 3>;
+    using Normal3fP = Normal<FloatP, 3>;
+
+    // Complete the unit vector 'n' into an orthonormal basis {b, c, n}.
+    template <typename Vector3fP_>
+    std::pair<Vector3fP_, Vector3fP_> coordinate_system(const Vector3fP_ &n)
+    {
+        static_assert(Vector3fP_::Size == 3,
+                      "coordinate_system() expects a 3D vector as input!");
+
+        using FloatP_ = enoki::value_t<Vector3fP_>;
+
+        FloatP_ sign = enoki::sign(n.z()),
+                a = -enoki::rcp(sign + n.z()),
+                b = n.x() * n.y() * a;
+
+        return {
+            Vector3fP_(enoki::fmadd(enoki::sqr(n.x()) * a, n.z(), FloatP_(1.f)),
+                       enoki::mulsign(b, n.z()),
+                       enoki::mulsign_neg(n.x(), n.z())),
+            Vector3fP_(b, enoki::fmadd(enoki::sqr(n.y()), a, sign), -n.y())};
+    }
 
 } // namespace lux2
 

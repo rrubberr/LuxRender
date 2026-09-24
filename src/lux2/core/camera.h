@@ -22,36 +22,48 @@
 #ifndef LUX2_CAMERA_H
 #define LUX2_CAMERA_H
 
-// Abstract camera interface.
-
 #include "core/vecp.h"
 #include "core/geometry.h"
 #include "core/ray.h"
 
-namespace lux2 {
+namespace lux2
+{
 
-// Camera generates a packet of primary rays for a set of
-// sample positions on the film.
-class Camera {
-public:
-    virtual ~Camera() = default;
+    // Generates a packet of primary rays for a set of sample positions on the film.
+    class Camera
+    {
+    public:
+        virtual ~Camera() = default;
 
-    // Fill `ray` for the given film coordinates.
-    virtual void GenerateRay(const FloatP& x, const FloatP& y,
-                             const FloatP& time, RayP* ray,
-                             FloatP* weight,
-                             MaskP active = MaskP(true)) const = 0;
+        // Fill `ray` for the given film coordinates.
+        virtual void GenerateRay(const FloatP &x, const FloatP &y,
+                                 const FloatP &time, RayP *ray,
+                                 FloatP *weight,
+                                 MaskP active = MaskP(true)) const = 0;
 
-    // PDF of generating a given ray for bidirectional/MLT.
-    virtual FloatP Pdf(const RayP& ray, MaskP active = MaskP(true)) const {
-        return FloatP(0.f);
-    }
+        // Returns the ray, its sampling PDF, and emission weight.
+        virtual void SampleRay(const FloatP &uPixelX, const FloatP &uPixelY,
+                               const FloatP &time, RayP *ray, FloatP *pdf,
+                               FloatP *weight,
+                               MaskP active = MaskP(true)) const
+        {
+            const FloatP x = uPixelX * FloatP(PixelWidth());
+            const FloatP y = uPixelY * FloatP(PixelHeight());
+            GenerateRay(x, y, time, ray, weight, active);
+            enoki::masked(*pdf, active) = Pdf(*ray, active);
+        }
 
-    // Film resolution.
-    virtual int PixelWidth() const = 0;
-    virtual int PixelHeight() const = 0;
-};
+        // PDF of generating a given ray for bidirectional/MLT.
+        virtual FloatP Pdf(const RayP &ray, MaskP active = MaskP(true)) const
+        {
+            return FloatP(0.f);
+        }
 
-}  // namespace lux2
+        // Film resolution.
+        virtual int PixelWidth() const = 0;
+        virtual int PixelHeight() const = 0;
+    };
 
-#endif  // LUX2_CAMERA_H
+} // namespace lux2
+
+#endif // LUX2_CAMERA_H

@@ -152,6 +152,7 @@ set(LUX2_CORE_HEADERS
 	core/vecp.h
 	core/geometry.h
 	core/spectrum.h
+	core/color.h
 	core/ray.h
 	core/rng.h
 )
@@ -172,11 +173,14 @@ add_test(NAME lux2corecheck COMMAND lux2corecheck)
 # lux2 foundation sources.
 set(LUX2_FOUNDATION_SRC
 	core/paramset.cpp
+	core/color.cpp
 	core/context2.cpp
 	core/scene.cpp
 	core/dynload.cpp
 	core/plymesh.cpp
 	core/embree2.cpp
+	core/fresnel.cpp
+	core/schlick_distribution.cpp
 )
 
 set(LUX2_FOUNDATION_HEADERS
@@ -197,6 +201,17 @@ set(LUX2_CORE_SRC
 	core/api.cpp
 	shapes/sphere.cpp
 	shapes/plymesh.cpp
+	textures/constant.cpp
+	textures/fresnelcolor.cpp
+	materials/null.cpp
+	materials/matte.cpp
+	materials/metal2.cpp
+	materials/glass.cpp
+	samplers/ldsampler.cpp
+	filters/gaussian.cpp
+	cameras/perspective.cpp
+	lights/area.cpp
+	lights/infinite.cpp
 	${BISON_Lux2Parser_OUTPUTS}
 	${FLEX_Lux2Lexer_OUTPUTS}
 )
@@ -247,6 +262,45 @@ add_test(NAME lux2shapecheck
 	${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/Scene/00001/floor_0000_m000.ply
 )
 
+# BSDF dispatch substrate.
+ADD_EXECUTABLE(lux2bsdfdispatchcheck
+	tests/bsdf_dispatch_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2bsdfdispatchcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2bsdfdispatchcheck PRIVATE
+	lux2
+	Threads::Threads
+)
+add_test(NAME lux2bsdfdispatchcheck COMMAND lux2bsdfdispatchcheck)
+
+# Texture plugins + Fresnel math.
+ADD_EXECUTABLE(lux2texturecheck
+	tests/texture_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2texturecheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2texturecheck PRIVATE
+	lux2
+	Threads::Threads
+)
+add_test(NAME lux2texturecheck COMMAND lux2texturecheck)
+
+# Material kernels (D.1 matte: Lambertian + Oren--Nayar).
+ADD_EXECUTABLE(lux2materialcheck
+	tests/material_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2materialcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2materialcheck PRIVATE
+	lux2
+	Threads::Threads
+)
+add_test(NAME lux2materialcheck COMMAND lux2materialcheck)
+
 # Embree packet intersect/occlude/shade.
 ADD_EXECUTABLE(lux2embreecheck
 	tests/embree_check.cpp
@@ -275,6 +329,92 @@ add_test(NAME luxrays2check
 	COMMAND luxrays2check
 	${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/Scene/00001/floor_0000_m000.ply
 )
+
+# Stage 0: QMC substrate (radical_inverse_2 / sobol_2 / permute / tea).
+ADD_EXECUTABLE(lux2qmccheck
+	tests/qmc_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2qmccheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+add_test(NAME lux2qmccheck COMMAND lux2qmccheck)
+
+# Stage 2: LDSampler (0-2 sequence) streaming interface.
+ADD_EXECUTABLE(lux2samplercheck
+	tests/sampler_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2samplercheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2samplercheck PRIVATE lux2)
+add_test(NAME lux2samplercheck COMMAND lux2samplercheck)
+
+# Stage 3: Gaussian pixel filter (LuxRender semantics).
+ADD_EXECUTABLE(lux2filtercheck
+	tests/filter_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2filtercheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2filtercheck PRIVATE lux2)
+add_test(NAME lux2filtercheck COMMAND lux2filtercheck)
+
+# Stage 4: Perspective camera (legacy +Z convention, BDPT endpoint).
+ADD_EXECUTABLE(lux2cameracheck
+	tests/camera_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2cameracheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2cameracheck PRIVATE lux2)
+add_test(NAME lux2cameracheck COMMAND lux2cameracheck)
+
+# Stage 5: Area light (uniform triangle sampling, area-CDF, Pdf_L).
+ADD_EXECUTABLE(lux2arealightcheck
+	tests/area_light_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2arealightcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2arealightcheck PRIVATE lux2)
+add_test(NAME lux2arealightcheck COMMAND lux2arealightcheck)
+
+# Stage 6: Infinite (environment) light, uniform-sphere sampling.
+ADD_EXECUTABLE(lux2infinitelightcheck
+	tests/infinite_light_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2infinitelightcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2infinitelightcheck PRIVATE lux2)
+add_test(NAME lux2infinitelightcheck COMMAND lux2infinitelightcheck)
+
+# Stage 7: Scene::Commit wiring (camera/sampler/filter/lights/area geometry).
+ADD_EXECUTABLE(lux2scenewiringcheck
+	tests/scene_wiring_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2scenewiringcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2scenewiringcheck PRIVATE
+	lux2
+	${LUX2_EMBREE_TARGET}
+	Threads::Threads
+)
+add_test(NAME lux2scenewiringcheck COMMAND lux2scenewiringcheck)
+
+# SoA SPD/CIE pipeline cross-checked against the scalar luxrays reference.
+ADD_EXECUTABLE(lux2colorcheck
+	tests/color_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2colorcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2colorcheck PRIVATE
+	lux2
+	luxrays2
+)
+add_test(NAME lux2colorcheck COMMAND lux2colorcheck)
 
 ADD_EXECUTABLE(lux2console
 	console/lux2console.cpp

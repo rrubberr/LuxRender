@@ -25,33 +25,34 @@
 #include "core/vecp.h"
 #include "core/spectrum.h"
 
-namespace lux2 {
+namespace lux2
+{
 
-// Accumulates per-sample radiance contributions into pixels and
-// writes the final image.
-class Film {
-public:
-    virtual ~Film() = default;
+    // Accumulates radiance contributions into pixels and writes the image.
+    class Film
+    {
+    public:
+        virtual ~Film() = default;
 
-    // Film resolution in pixels.
-    virtual int XRes() const = 0;
-    virtual int YRes() const = 0;
+        // Film resolution in pixels.
+        virtual int XRes() const = 0;
+        virtual int YRes() const = 0;
 
-    // Splat a packet of filter-weighted contributions.
-    virtual void Splat(const FloatP& x, const FloatP& y,
-                       const SWCSpectrumP& rgb, const FloatP& alpha,
-                       const FloatP& weight, int bufferId) = 0;
+        // Splat a packet of filter-weighted contributions.
+        virtual void Splat(const FloatP &x, const FloatP &y,
+                           const SWCSpectrumP &rgb, const FloatP &alpha,
+                           const FloatP &weight, int bufferId) = 0;
 
-    // Merge another film's accumulated buffer into this one.
-    virtual void Merge(Film* other) = 0;
+        // Merge another film's accumulated buffer into this one.
+        virtual void Merge(Film *other) = 0;
 
-    // Write the current accumulated image to disk.
-    virtual void WriteImage() = 0;
+        // Write the current accumulated image to disk.
+        virtual void WriteImage() = 0;
 
-    // Write a resume FLM file.
-    virtual void WriteFLM() { }
-};
+        // Write a resume FLM file.
+        virtual void WriteFLM() {}
+    };
 
-}  // namespace lux2
+} // namespace lux2
 
-#endif  // LUX2_FILM_H
+#endif // LUX2_FILM_H

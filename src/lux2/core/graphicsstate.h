@@ -22,55 +22,57 @@
 #ifndef LUX2_GRAPHICSSTATE_H
 #define LUX2_GRAPHICSSTATE_H
 
-// Parser graphics state.
-
 #include "core/paramset.h"
 
 #include <map>
 #include <string>
 
-namespace lux2 {
+namespace lux2
+{
 
-// A named texture binding recorded by the Texture statement.
-struct TextureDesc {
-    std::string textureType;   // "float" | "color" | "fresnel"
-    std::string pluginName;    // e.g. "fresnelcolor", "constant"
-    ParamSet params;
-};
+    // A named texture binding recorded by the Texture statement.
+    struct TextureDesc
+    {
+        std::string textureType; // "float" | "color" | "fresnel"
+        std::string pluginName;  // e.g. "fresnelcolor", "constant"
+        ParamSet params;
+    };
 
-// A material binding on a shape.
-struct MaterialBinding {
-    bool isNamed = false;      // True when namedRef is a namedMaterial.
-    std::string namedRef;      // When isNamed.
-    std::string pluginName;    // When inline.
-    ParamSet params;           // When inline.
+    // A material binding on a shape.
+    struct MaterialBinding
+    {
+        bool isNamed = false;   // true when namedRef is a namedMaterial
+        std::string namedRef;   // when isNamed
+        std::string pluginName; // when inline
+        ParamSet params;        // when inline
 
-    bool valid() const { return isNamed || !pluginName.empty(); }
-};
+        bool valid() const { return isNamed || !pluginName.empty(); }
+    };
 
-// The scoped graphics state.
-struct GraphicsState {
-    // Named texture tables.
-    std::map<std::string, TextureDesc> floatTextures;
-    std::map<std::string, TextureDesc> colorTextures;
-    std::map<std::string, TextureDesc> fresnelTextures;
+    // The scoped graphics state.
+    struct GraphicsState
+    {
+        // Named texture tables.
+        std::map<std::string, TextureDesc> floatTextures;
+        std::map<std::string, TextureDesc> colorTextures;
+        std::map<std::string, TextureDesc> fresnelTextures;
 
-    // Named materials visible in this scope.
-    std::map<std::string, ParamSet> namedMaterials;
+        // Named materials visible in this scope.
+        std::map<std::string, ParamSet> namedMaterials;
 
-    // Current material binding applied to subsequently declared shapes.
-    MaterialBinding material;
+        // Current material binding applied to subsequently declared shapes.
+        MaterialBinding material;
 
-    // Pending area light: set by AreaLightSource.
-    bool areaLightActive = false;
-    std::string areaLightName;
-    ParamSet areaLightParams;
+        // Pending area light set by AreaLightSource.
+        bool areaLightActive = false;
+        std::string areaLightName;
+        ParamSet areaLightParams;
 
-    // Current light group name.
-    std::string currentLightGroup;
+        // Current light group name.
+        std::string currentLightGroup;
 
-    bool reverseOrientation = false;
-};
+        bool reverseOrientation = false;
+    };
 
 } // namespace lux2
 

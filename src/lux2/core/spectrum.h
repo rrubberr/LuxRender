@@ -22,214 +22,134 @@
 #ifndef LUX2_SPECTRUM_H
 #define LUX2_SPECTRUM_H
 
-// SWCSpectrumP analogue of luxrays::SWCSpectrum.
-
 #include "core/vecp.h"
 
 #include <enoki/array.h>
 
-namespace lux2 {
+namespace lux2
+{
 
-// Pull Enoki's math/compare functions.
-using namespace enoki;
+    // Pull Enoki's math/compare functions.
+    using namespace enoki;
 
-// Number of wavelength samples per spectrum. Must match
-// luxrays::WAVELENGTH_SAMPLES.
-constexpr int WAVELENGTH_SAMPLES = 4;
+    // Number of wavelength samples per spectrum.
+    // Must match luxrays::WAVELENGTH_SAMPLES.
+    constexpr int WAVELENGTH_SAMPLES = 4;
 
-// Number of components in an RGBColor.
-constexpr int RGB_SAMPLES = 3;
+    // Number of components in an RGBColor.
+    constexpr int RGB_SAMPLES = 3;
 
-// =======================================================================
-// SWCSpectrum Templates
-// =======================================================================
+    // ---------------------------------------------------------------------------
+    // SWCSpectrum Templates
+    // ---------------------------------------------------------------------------
 
-template <typename Value>
-struct SWCSpectrum_ {
-    using Scalar = enoki::scalar_t<Value>;
-    using Mask   = enoki::mask_t<Value>;
+    // A spectrum of WAVELENGTH_SAMPLES spectral samples.
+    template <typename Value_, size_t Size_ = WAVELENGTH_SAMPLES>
+    struct SWCSpectrum_
+        : enoki::StaticArrayImpl<Value_, Size_, false, SWCSpectrum_<Value_, Size_>>
+    {
+        using Base =
+            enoki::StaticArrayImpl<Value_, Size_, false, SWCSpectrum_<Value_, Size_>>;
 
-    // The 4 spectral samples, each a Value.
-    Value c[WAVELENGTH_SAMPLES];
+        // Helper alias used to implement Enoki type promotion.
+        template <typename T>
+        using ReplaceValue = SWCSpectrum_<T, Size_>;
 
-    // -----------------------------------------------------------------
-    // Construction
-    // -----------------------------------------------------------------
+        using ArrayType = SWCSpectrum_;
+        using MaskType = enoki::Mask<Value_, Size_>;
 
-    SWCSpectrum_() = default;
+        ENOKI_ARRAY_IMPORT(Base, SWCSpectrum_)
 
-    // Broadcast a Value to every wavelength sample.
-    explicit SWCSpectrum_(Value v) {
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            c[i] = v;
-    }
+        // -----------------------------------------------------------------
+        // Reductions across the wavelength axis
+        // -----------------------------------------------------------------
 
-    // Build from 4 values (one per wavelength sample).
-    SWCSpectrum_(const Value &c0, const Value &c1,
-                 const Value &c2, const Value &c3) {
-        c[0] = c0; c[1] = c1; c[2] = c2; c[3] = c3;
-    }
+        // Clamp to [0, inf).
+        SWCSpectrum_ Clamped() const { return max(*this, Value_(0.f)); }
 
-    // -----------------------------------------------------------------
-    // Component-wise arithmetic (luxrays::SWCSpectrum operators)
-    // -----------------------------------------------------------------
+        // Maximum across wavelength samples.
+        Value_ MaxComponent() const { return hmax(*this); }
 
-    SWCSpectrum_ operator+(const SWCSpectrum_ &s) const {
-        SWCSpectrum_ r;
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            r.c[i] = c[i] + s.c[i];
-        return r;
-    }
-    SWCSpectrum_ &operator+=(const SWCSpectrum_ &s) {
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            c[i] += s.c[i];
-        return *this;
-    }
+        // Average across wavelength samples.
+        Value_ Average() const
+        {
+            return hsum(*this) * (Scalar(1.f) / Scalar(Size_));
+        }
 
-    SWCSpectrum_ operator-(const SWCSpectrum_ &s) const {
-        SWCSpectrum_ r;
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            r.c[i] = c[i] - s.c[i];
-        return r;
-    }
-    SWCSpectrum_ &operator-=(const SWCSpectrum_ &s) {
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            c[i] -= s.c[i];
-        return *this;
-    }
+        // True where every wavelength sample is exactly zero.
+        auto IsBlack() const { return all(*this == Value_(0.f)); }
+    };
 
-    SWCSpectrum_ operator*(const SWCSpectrum_ &s) const {
-        SWCSpectrum_ r;
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            r.c[i] = c[i] * s.c[i];
-        return r;
-    }
-    SWCSpectrum_ &operator*=(const SWCSpectrum_ &s) {
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            c[i] *= s.c[i];
-        return *this;
-    }
+    // Lane masking.
+    template <typename Value_, size_t Size_>
+    struct SWCSpectrum_<enoki::detail::MaskedArray<Value_>, Size_>
+        : enoki::detail::MaskedArray<SWCSpectrum_<Value_, Size_>>
+    {
+        using Base = enoki::detail::MaskedArray<SWCSpectrum_<Value_, Size_>>;
+        using Base::Base;
+        using Base::operator=;
+        SWCSpectrum_(const Base &b) : Base(b) {}
+    };
 
-    SWCSpectrum_ operator/(const SWCSpectrum_ &s) const {
-        SWCSpectrum_ r;
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            r.c[i] = c[i] / s.c[i];
-        return r;
-    }
-    SWCSpectrum_ &operator/=(const SWCSpectrum_ &s) {
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            c[i] /= s.c[i];
-        return *this;
-    }
+    // Scalar and packet aliases.
+    using SWCSpectrum = SWCSpectrum_<Float>;
+    using SWCSpectrumP = SWCSpectrum_<FloatP>;
 
-    // Scalar operands, that mix a SWCSpectrum with a plain float.
-    SWCSpectrum_ operator*(Scalar a) const {
-        SWCSpectrum_ r;
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            r.c[i] = c[i] * a;
-        return r;
-    }
-    SWCSpectrum_ operator/(Scalar a) const {
-        SWCSpectrum_ r;
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            r.c[i] = c[i] / a;
-        return r;
-    }
+    // ---------------------------------------------------------------------------
+    // RGBColor
+    // ---------------------------------------------------------------------------
 
-    // Avoid the redefinition that a template friend-in-class would trigger.
-    friend SWCSpectrum_ operator*(Scalar a, const SWCSpectrum_ &s) {
-        return s * a;
-    }
+    // An RGB color of RGB_SAMPLES components templated on the value type.
+    template <typename Value_, size_t Size_ = RGB_SAMPLES>
+    struct RGBColor_
+        : enoki::StaticArrayImpl<Value_, Size_, false, RGBColor_<Value_, Size_>>
+    {
+        using Base =
+            enoki::StaticArrayImpl<Value_, Size_, false, RGBColor_<Value_, Size_>>;
 
-    // -----------------------------------------------------------------
-    // Selection / reduction helpers used by the integrator
-    // -----------------------------------------------------------------
+        // Helper alias used to implement Enoki type promotion.
+        template <typename T>
+        using ReplaceValue = RGBColor_<T, Size_>;
 
-    // Per-lane component-wise clamp to [0, inf).
-    SWCSpectrum_ Clamped() const {
-        SWCSpectrum_ r;
-        for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            r.c[i] = enoki::max(c[i], Value(0.f));
-        return r;
-    }
+        using ArrayType = RGBColor_;
+        using MaskType = enoki::Mask<Value_, Size_>;
 
-    // Per-lane maximum across wavelength samples (SWCSpectrum::Clamp/yMax).
-    Value MaxComponent() const {
-        Value m = c[0];
-        for (int i = 1; i < WAVELENGTH_SAMPLES; ++i)
-            m = enoki::max(m, c[i]);
-        return m;
-    }
+        ENOKI_ARRAY_IMPORT(Base, RGBColor_)
 
-    // Per-lane average across wavelength samples (for adaptive sampling / RR, like lux's y()).
-    Value Average() const {
-        Value s = c[0];
-        for (int i = 1; i < WAVELENGTH_SAMPLES; ++i)
-            s += c[i];
-        return s * (Scalar(1.f) / Scalar(WAVELENGTH_SAMPLES));
-    }
+        // Chromatic component accessors.
+        Value_ r() const { return (*this)[0]; }
+        Value_ g() const { return (*this)[1]; }
+        Value_ b() const { return (*this)[2]; }
 
-    // True if every sample of every lane is exactly zero.
-    Mask IsBlack() const {
-        Mask m = (c[0] == Value(0.f));
-        for (int i = 1; i < WAVELENGTH_SAMPLES; ++i)
-            m = m & (c[i] == Value(0.f));
-        return m;
-    }
+        // Rec.709 luma.
+        Value_ Y() const
+        {
+            return Value_(0.212671f) * (*this)[0] +
+                   Value_(0.715160f) * (*this)[1] +
+                   Value_(0.072169f) * (*this)[2];
+        }
 
-    // Enoki nested-array/gather support to be added later if needed.
-};
+        // Unweighted mean of the channels.
+        Value_ Filter() const
+        {
+            return hsum(*this) * (Scalar(1.f) / Scalar(Size_));
+        }
+    };
 
-// Scalar and packet aliases.
-using SWCSpectrum  = SWCSpectrum_<Float>;
-using SWCSpectrumP = SWCSpectrum_<FloatP>;
+    // Lane masking.
+    template <typename Value_, size_t Size_>
+    struct RGBColor_<enoki::detail::MaskedArray<Value_>, Size_>
+        : enoki::detail::MaskedArray<RGBColor_<Value_, Size_>>
+    {
+        using Base = enoki::detail::MaskedArray<RGBColor_<Value_, Size_>>;
+        using Base::Base;
+        using Base::operator=;
+        RGBColor_(const Base &b) : Base(b) {}
+    };
 
-// Component-wise select (mask ? a : b) for SWCSpectrum_.
-template <typename Value>
-SWCSpectrum_<Value> select(const enoki::mask_t<Value> &m,
-                           const SWCSpectrum_<Value> &a,
-                           const SWCSpectrum_<Value> &b) {
-    SWCSpectrum_<Value> r;
-    for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-        r.c[i] = enoki::select(m, a.c[i], b.c[i]);
-    return r;
-}
-
-// Fused multiply-add across wavelength samples: a * b + c.
-template <typename Value>
-SWCSpectrum_<Value> fmadd(const SWCSpectrum_<Value> &a,
-                          const SWCSpectrum_<Value> &b,
-                          const SWCSpectrum_<Value> &c) {
-    SWCSpectrum_<Value> r;
-    for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-        r.c[i] = enoki::fmadd(a.c[i], b.c[i], c.c[i]);
-    return r;
-}
-
-// =======================================================================
-// RGBColor
-// =======================================================================
-
-struct RGBColor {
-    Float r = 0.f, g = 0.f, b = 0.f;
-
-    RGBColor() = default;
-    RGBColor(Float v) : r(v), g(v), b(v) { }
-    RGBColor(Float r, Float g, Float b) : r(r), g(g), b(b) { }
-    // Read three contiguous floats.
-    explicit RGBColor(const Float *v) : r(v[0]), g(v[1]), b(v[2]) { }
-
-    RGBColor operator+(const RGBColor &c) const { return {r + c.r, g + c.g, b + c.b}; }
-    RGBColor operator-(const RGBColor &c) const { return {r - c.r, g - c.g, b - c.b}; }
-    RGBColor operator*(const RGBColor &c) const { return {r * c.r, g * c.g, b * c.b}; }
-    RGBColor operator*(Float a) const { return {r * a, g * a, b * a}; }
-    RGBColor operator/(Float a) const { return {r / a, g / a, b / a}; }
-
-    RGBColor &operator+=(const RGBColor &c) { r += c.r; g += c.g; b += c.b; return *this; }
-    RGBColor &operator*=(const RGBColor &c) { r *= c.r; g *= c.g; b *= c.b; return *this; }
-
-    friend RGBColor operator*(Float a, const RGBColor &c) { return c * a; }
-};
+    // Scalar and packet aliases.
+    using RGBColor = RGBColor_<Float>;
+    using RGBColorP = RGBColor_<FloatP>;
 
 } // namespace lux2
 

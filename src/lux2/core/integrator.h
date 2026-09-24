@@ -22,57 +22,59 @@
 #ifndef LUX2_INTEGRATOR_H
 #define LUX2_INTEGRATOR_H
 
-// Abstract surface and volume integrator.
-
 #include "core/vecp.h"
 #include "core/spectrum.h"
 #include "core/ray.h"
 #include "core/sampler.h"
 
-namespace lux2 {
+namespace lux2
+{
 
-class Scene;        // Defined in core/scene.h.
-class TileQueue;    // Defined in core/tilequeue.h.
+    class Scene;
+    class TileQueue;
 
-// =======================================================================
-// SurfaceIntegrator
-// =======================================================================
+    // ---------------------------------------------------------------------------
+    // SurfaceIntegrator
+    // ---------------------------------------------------------------------------
 
-// Abstract surface integrator. Solves the rendering equation over a
-// stream of tiles. The interface is multi pass so can be reused for photon mapping.
-class SurfaceIntegrator {
-public:
-    virtual ~SurfaceIntegrator() = default;
+    // Abstract surface integrator.
+    class SurfaceIntegrator
+    {
+    public:
+        virtual ~SurfaceIntegrator() = default;
 
-    // Number of rendering passes this integrator requires. Default 1.
-    virtual int PassCount() const { return 1; }
+        // Number of rendering passes this integrator requires. Default 1.
+        virtual int PassCount() const { return 1; }
 
-    // Called once before the first pass.
-    virtual void Start(const Scene& scene) { (void)scene; }
+        // Called once before the first pass.
+        virtual void Start(const Scene &scene) { (void)scene; }
 
-    // Execute one rendering pass over the tiles.
-    virtual void RenderPass(const Scene& scene, TileQueue& tiles,
-                            Sampler& sampler, int passIndex) = 0;
+        // Execute one rendering pass over the tiles.
+        virtual void RenderPass(const Scene &scene, TileQueue &tiles,
+                                Sampler &sampler, int passIndex) = 0;
 
-    // Called once after the last pass. Flush pass buffers.
-    virtual void End(const Scene& scene) { (void)scene; }
-};
+        // Called once after the last pass. Flush pass buffers.
+        virtual void End(const Scene &scene) { (void)scene; }
+    };
 
-// =======================================================================
-// VolumeIntegrator
-// =======================================================================
+    // ---------------------------------------------------------------------------
+    // VolumeIntegrator
+    // ---------------------------------------------------------------------------
 
-// Abstract volume integrator.
-class VolumeIntegrator {
-public:
-    virtual ~VolumeIntegrator() = default;
+    // Abstract volume integrator.
+    class VolumeIntegrator
+    {
+    public:
+        virtual ~VolumeIntegrator() = default;
 
-    // Radiance accumulated along the ray segment.
-    virtual SWCSpectrumP Li(const RayP& ray, MaskP active = MaskP(true)) const {
-        (void)ray; (void)active;
-        return SWCSpectrumP(0.f);
-    }
-};
+        // Radiance accumulated along the ray segment.
+        virtual SWCSpectrumP Li(const RayP &ray, MaskP active = MaskP(true)) const
+        {
+            (void)ray;
+            (void)active;
+            return SWCSpectrumP(0.f);
+        }
+    };
 
 } // namespace lux2
 
