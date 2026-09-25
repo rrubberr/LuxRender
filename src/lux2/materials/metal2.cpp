@@ -103,7 +103,7 @@ namespace lux2
         const FloatP absWiZSafe = select(absWiZ > FloatP(1e-8f), absWiZ, FloatP(1e-8f));
 
         const FresnelGeneralP fg = m_fr->Evaluate(dg, sw, active);
-        const SWCSpectrumP F = FresnelGeneralEvaluate(fg, abs(cosThetaH));
+        const FloatP F = FresnelGeneralEvaluate(fg, abs(cosThetaH));
 
         const FloatP G = distr.G(woL, wiL, whL);
         const FloatP factor = d * abs(cosThetaH) / pdfH * G;

@@ -35,7 +35,7 @@ namespace lux2
 
         // Dielectric Fresnel reflectance at cos(theta_i) = cosi (signed: >0 entering),
         // interior IOR = index, exterior = air.
-        SWCSpectrumP DielectricFresnel(const FloatP &cosi, const FloatP &index)
+        FloatP DielectricFresnel(const FloatP &cosi, const FloatP &index)
         {
             const MaskP entering = cosi > FloatP(0.f);
             const FloatP eta = index;
@@ -45,10 +45,9 @@ namespace lux2
             const FloatP sint2 = select(entering, invEta2 * sini2, eta * eta * sini2);
             const MaskP tir = sint2 >= FloatP(1.f);
             const FloatP cost = sqrt(max(FloatP(0.f), FloatP(1.f) - sint2));
-            const SWCSpectrumP etaS = select(entering, SWCSpectrumP(eta),
-                                             SWCSpectrumP(FloatP(1.f) / eta));
-            const SWCSpectrumP F = FrDiel2(abs(cosi), SWCSpectrumP(cost), etaS);
-            return select(tir, SWCSpectrumP(FloatP(1.f)), F);
+            const FloatP etaS = select(entering, eta, FloatP(1.f) / eta);
+            const FloatP F = FrDiel2(abs(cosi), cost, etaS);
+            return select(tir, FloatP(1.f), F);
         }
 
     } // namespace
@@ -79,9 +78,8 @@ namespace lux2
         const Vector3fP wiReflect = -woLx * tx - woLy * ty + woLz * n;
 
         // Fresnel split. F is wavelength-independent for non-dispersive glass.
-        const SWCSpectrumP F = DielectricFresnel(woLz, index);
-        const FloatP Fscalar = F; // monochromatic: Average() is identity
-        const MaskP doReflect = u2 < Fscalar;
+        const FloatP F = DielectricFresnel(woLz, index);
+        const MaskP doReflect = u2 < F;
 
         const SWCSpectrumP kr = Clamped(m_kr->Evaluate(dg, sw, active));
         const SWCSpectrumP kt = Clamped(m_kt->Evaluate(dg, sw, active));
@@ -91,11 +89,11 @@ namespace lux2
         const FloatP costSafe = select(abs(cost) > FloatP(1e-8f), abs(cost),
                                        FloatP(1e-8f));
         const SWCSpectrumP fReflect = kr * F;
-        const SWCSpectrumP fTransmit = kt * (SWCSpectrumP(FloatP(1.f)) - F) *
-                                       SWCSpectrumP(abs(woLz) / costSafe);
+        const SWCSpectrumP fTransmit = kt * (FloatP(1.f) - F) *
+                                       (abs(woLz) / costSafe);
 
         const Vector3fP wi = select(doReflect, wiReflect, wiTransmit);
-        const FloatP pdf = select(doReflect, Fscalar, FloatP(1.f) - Fscalar);
+        const FloatP pdf = select(doReflect, F, FloatP(1.f) - F);
 
         enoki::masked(s->wo, active) = wi;
         enoki::masked(s->pdf, active) = pdf;

@@ -62,8 +62,8 @@ namespace lux2
                                  MaskP = MaskP(true)) const override
         {
             FresnelGeneralP f;
-            f.eta = SWCSpectrumP(m_value);
-            f.k = SWCSpectrumP(FloatP(0.f));
+            f.eta = m_value;
+            f.k = FloatP(0.f);
             f.model = FresnelModel::Dielectric;
             return f;
         }

@@ -46,8 +46,8 @@ namespace lux2
     // Complex IOR Fresnel data.
     struct FresnelGeneralP
     {
-        SWCSpectrumP eta; // real IOR
-        SWCSpectrumP k;   // imaginary IOR
+        FloatP eta; // real IOR
+        FloatP k;   // imaginary IOR
         FresnelModel model;
     };
 

@@ -49,7 +49,7 @@ namespace lux2
                      MaskP active) const override
         {
             enoki::masked(s->pdf, active) = FloatP(0.f);
-            enoki::masked(s->f, active) = SWCSpectrumP(FloatP(0.f));
+            enoki::masked(s->f, active) = FloatP(0.f);
             enoki::masked(s->sampledType, active) = UInt32P(uint32_t(BSDFType::Null));
             enoki::masked(s->specular, active) = MaskP(true);
         }

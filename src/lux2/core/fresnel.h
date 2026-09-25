@@ -28,31 +28,29 @@ namespace lux2
 {
 
     // Dielectric interface reflectance.
-    SWCSpectrumP FrDiel(const FloatP &cosi, const FloatP &cost,
-                        const SWCSpectrumP &etai, const SWCSpectrumP &etat);
+    FloatP FrDiel(const FloatP &cosi, const FloatP &cost,
+                  const FloatP &etai, const FloatP &etat);
 
     // Dielectric reflectance with a precomputed relative IOR eta = etat / etai.
-    SWCSpectrumP FrDiel2(const FloatP &cosi, const SWCSpectrumP &cost,
-                         const SWCSpectrumP &eta);
+    FloatP FrDiel2(const FloatP &cosi, const FloatP &cost, const FloatP &eta);
 
     // Complex IOR reflectance at cos(theta_i) = cosi.
-    SWCSpectrumP FrCond(const FloatP &cosi, const SWCSpectrumP &eta,
-                        const SWCSpectrumP &k);
+    FloatP FrCond(const FloatP &cosi, const FloatP &eta, const FloatP &k);
 
     // Full conductor reflectance with both cos(theta_i) and cos(theta_t).
-    SWCSpectrumP FrFull(const FloatP &cosi, const SWCSpectrumP &cost,
-                        const SWCSpectrumP &eta, const SWCSpectrumP &k);
+    FloatP FrFull(const FloatP &cosi, const FloatP &cost,
+                  const FloatP &eta, const FloatP &k);
 
     // Approximate real IOR from a reflectance Fr in [0, 1]:
     //   (1 + sqrt(Fr)) / (1 - sqrt(Fr)), Fr clamped to [0, .999].
-    SWCSpectrumP FresnelApproxEta(const SWCSpectrumP &Fr);
+    FloatP FresnelApproxEta(const FloatP &Fr);
 
     // Approximate imaginary IOR from a reflectance Fr in [0, 1]:
     //   2 * sqrt(Fr / (1 - Fr)), Fr clamped to [0, .999].
-    SWCSpectrumP FresnelApproxK(const SWCSpectrumP &Fr);
+    FloatP FresnelApproxK(const FloatP &Fr);
     // Evaluate a FresnelGeneralP at cos(theta_i).
     struct FresnelGeneralP;
-    SWCSpectrumP FresnelGeneralEvaluate(const FresnelGeneralP &fg, const FloatP &cosi);
+    FloatP FresnelGeneralEvaluate(const FresnelGeneralP &fg, const FloatP &cosi);
 } // namespace lux2
 
 #endif // LUX2_FRESNEL_H

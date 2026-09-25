@@ -36,7 +36,6 @@ namespace lux2
 
     constexpr Float WAVELENGTH_START = 380.f;
     constexpr Float WAVELENGTH_END = 720.f;
-    constexpr Float INV_WAVELENGTH_SAMPLES = 1.f / Float(WAVELENGTH_SAMPLES);
 
     // Both the reflectant (E) and illuminant (D65) tables share this range.
     constexpr int SMITS_BINS = 32;

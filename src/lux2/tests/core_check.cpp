@@ -154,7 +154,7 @@ void CheckRay() {
 	Check(AllClose(pos.y(), 2.f), "ray(t).y");
 
 	// Payload initialized.
-	Check(enoki::all(ray.throughput[0] == FloatP(1.f)), "throughput init");
+	Check(enoki::all(ray.throughput == FloatP(1.f)), "throughput init");
 	Check(enoki::all(ray.alive), "alive init true");
 	Check(enoki::hsum(ray.depth * ray.depth) == 0.f, "depth init zero");
 

@@ -112,8 +112,8 @@ void CheckConstantFresnel() {
     FresnelGeneralP f = tex.Evaluate(MakeDG(), MakeSW(), MaskP(true));
     Check(f.model == FresnelModel::Dielectric,
           "ConstantFresnelTexture model == Dielectric");
-    bool etaOk = enoki::all(f.eta == SWCSpectrumP(FloatP(1.5f)));
-    bool kOk = enoki::all(f.k == SWCSpectrumP(FloatP(0.f)));
+    bool etaOk = enoki::all(f.eta == FloatP(1.5f));
+    bool kOk = enoki::all(f.k == FloatP(0.f));
     Check(etaOk, "ConstantFresnelTexture eta == 1.5 across wavelengths");
     Check(kOk, "ConstantFresnelTexture k == 0 across wavelengths");
     Check(tex.IsConstant(), "ConstantFresnelTexture IsConstant() == true");
