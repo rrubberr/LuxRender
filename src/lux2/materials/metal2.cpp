@@ -146,6 +146,53 @@ namespace lux2
         return select(active && (whLen2 > FloatP(0.f)), pdf, FloatP(0.f));
     }
 
+    void Metal2Material::Eval(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
+                              const Vector3fP &wo, const DifferentialGeometryP &dg,
+                              TransportMode, BSDFEvalP *out, MaskP active) const
+    {
+        const Frame fr = MakeFrame(dg);
+        const Vector3fP woL = ToLocal(fr, wo);
+        const Vector3fP wiL = ToLocal(fr, wi);
+
+        const FloatP u = m_nu->Evaluate(dg, sw, active);
+        const FloatP v = m_nv->Evaluate(dg, sw, active);
+        FloatP roughness, anisotropy;
+        DistrParams(u, v, &roughness, &anisotropy);
+        const SchlickDistribution distr(roughness, anisotropy);
+
+        Vector3fP whL = wiL + woL;
+        const FloatP whLen2 = sqr(whL.x()) + sqr(whL.y()) + sqr(whL.z());
+        whL = enoki::normalize(whL);
+        whL = select(whL.z() < FloatP(0.f), -whL, whL);
+
+        const FloatP cosThetaH = dot(woL, whL);
+        const FloatP absWiZ = abs(wiL.z());
+        const FloatP absWiZSafe = select(absWiZ > FloatP(1e-8f), absWiZ, FloatP(1e-8f));
+
+        const FresnelGeneralP fg = m_fr->Evaluate(dg, sw, active);
+        const FloatP F = FresnelGeneralEvaluate(fg, abs(cosThetaH));
+
+        // d == D(wh) (== pdfH in SampleH), so factor = d*|cosH|/pdfH*G = |cosH|*G.
+        const FloatP d = distr.D(whL);
+        const FloatP G = distr.G(woL, wiL, whL);
+        const FloatP factor = d * abs(cosThetaH) / distr.Pdf(whL) * G;
+
+        // Forward eye-walk pdf pdf(wi|wo) == Pdf(wi,wo); reverse pdf(wo|wi).
+        const FloatP pdf = Pdf(sw, wi, wo, dg, 0, TransportMode::Radiance, active);
+        const FloatP pdfRev = Pdf(sw, wo, wi, dg, 0, TransportMode::Radiance, active);
+
+        // No valid half-vector (wi,wo back-facing) == no contribution.
+        const MaskP valid = active && (whLen2 > FloatP(0.f));
+        enoki::masked(out->f, valid) = (factor / absWiZSafe) * F;
+        enoki::masked(out->pdf, valid) = pdf;
+        enoki::masked(out->pdfRev, valid) = pdfRev;
+        // Lanes with no valid half-vector contribute nothing.
+        const MaskP invalid = active && !(whLen2 > FloatP(0.f));
+        enoki::masked(out->f, invalid) = SWCSpectrumP(0.f);
+        enoki::masked(out->pdf, invalid) = FloatP(0.f);
+        enoki::masked(out->pdfRev, invalid) = FloatP(0.f);
+    }
+
     std::shared_ptr<Material> Metal2Material::CreateMaterial(const PluginContext &ctx)
     {
         std::shared_ptr<FresnelTexture> fr;

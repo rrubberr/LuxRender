@@ -65,6 +65,18 @@ namespace lux2
     };
 
     // ---------------------------------------------------------------------------
+    // BSDFEvalP evaluation record
+    // ---------------------------------------------------------------------------
+
+    // Result of evaluating a BSDF at a fixed (wi, wo) pair.
+    struct BSDFEvalP
+    {
+        SWCSpectrumP f;      // f(wi,wo), excludes geometric |cos|
+        FloatP pdf;          // pdf(wi | wo) the eye-walk forward
+        FloatP pdfRev;       // pdf(wo | wi) the reverse pdf
+    };
+
+    // ---------------------------------------------------------------------------
     // DifferentialGeometryP shading record
     // ---------------------------------------------------------------------------
 
@@ -118,6 +130,19 @@ namespace lux2
                            uint32_t typeMask,
                            TransportMode mode,
                            MaskP active) const = 0;
+
+        // Evaluate f(wi,wo) and both directional pdfs at a fixed pair, writing
+        // into *out (masked by `active`, like SampleF). Naming is relative to
+        // the eye walk: `wi` is the sampled/outgoing direction, `wo` the
+        // incoming. `pdf = pdf(wi|wo)` is the forward eye-walk pdf (identical
+        // to Pdf()/SampleF.pdf, used as NEE's bsdfPdf); `pdfRev = pdf(wo|wi)`
+        // is the reverse. Delta/specular lobes have no finite pdf and write
+        // {0,0,0} (NEE never queries them).
+        virtual void Eval(const SpectrumWavelengthsP &sw,
+                          const Vector3fP &wi, const Vector3fP &wo,
+                          const DifferentialGeometryP &dg,
+                          TransportMode mode, BSDFEvalP *out,
+                          MaskP active) const = 0;
 
         ENOKI_CALL_SUPPORT_FRIEND()
     };

@@ -96,6 +96,16 @@ struct TestDiffuse : public BSDF {
         ++calls;
         return select(active, FloatP(0.25f), FloatP(0.f));
     }
+
+    void Eval(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
+              const Vector3fP &wo, const DifferentialGeometryP &dg,
+              TransportMode mode, BSDFEvalP *out, MaskP active) const override {
+        ++calls;
+        enoki::masked(out->f, active) = SWCSpectrumP(FloatP(0.5f));
+        // Forward pdf == Pdf(); reverse pdf == Pdf().
+        enoki::masked(out->pdf, active) = Pdf(sw, wi, wo, dg, 0, mode, active);
+        enoki::masked(out->pdfRev, active) = Pdf(sw, wo, wi, dg, 0, mode, active);
+    }
 };
 
 // Specular: Pdf = 0.75, SampleF -> wo=+X, pdf=0.9, f=0.9, SpecularReflection.
@@ -125,6 +135,16 @@ struct TestSpecular : public BSDF {
                MaskP active) const override {
         ++calls;
         return select(active, FloatP(0.75f), FloatP(0.f));
+    }
+
+    // Delta/specular stub: Eval has no finite pdf, writes zeros.
+    void Eval(const SpectrumWavelengthsP &, const Vector3fP &, const Vector3fP &,
+              const DifferentialGeometryP &, TransportMode, BSDFEvalP *out,
+              MaskP active) const override {
+        ++calls;
+        enoki::masked(out->f, active) = SWCSpectrumP(0.f);
+        enoki::masked(out->pdf, active) = FloatP(0.f);
+        enoki::masked(out->pdfRev, active) = FloatP(0.f);
     }
 };
 
@@ -350,6 +370,47 @@ void CheckFastPath(const BsdfPtrTable &table) {
           "Fast path: only diffuse kernel invoked");
 }
 
+// -----------------------------------------------------------------------
+// Test 7 (Stage 1.5): Eval returns {f, pdf, pdfRev}; for the non-delta
+// diffuse stub Eval.pdf must equal Pdf() and pdfRev must equal the reverse
+// Pdf; the specular (delta) stub's Eval is all zeros.
+// -----------------------------------------------------------------------
+void CheckEvalDispatch(const BsdfPtrTable &table) {
+    BSDFPtr ptr = table.Gather(MixedMatID(), MaskP(true));
+    DifferentialGeometryP dg = MakeDG();
+    SpectrumWavelengthsP sw = MakeSW();
+    Vector3fP wi(FloatP(0.f), FloatP(0.f), FloatP(1.f));
+    Vector3fP wo(FloatP(0.f), FloatP(0.f), FloatP(-1.f));
+
+    BSDFEvalP ev;
+    ev.f = SWCSpectrumP(0.f);
+    ev.pdf = FloatP(0.f);
+    ev.pdfRev = FloatP(0.f);
+    ptr->Eval(sw, wi, wo, dg, TransportMode::Radiance, &ev, MaskP(true));
+    FloatP pdfDirect = ptr->Pdf(sw, wi, wo, dg, uint32_t(BSDFType::All),
+                                TransportMode::Radiance, MaskP(true));
+
+    // Eval.pdf must equal Pdf() on every NON-DELTA lane (NEE uses Eval.pdf,
+    // the hit-side MIS term uses Pdf, so they must agree). The specular stub is
+    // a delta lobe: its Eval is zero by contract while Pdf() returns a value,
+    // so those lanes are excluded from this invariant.
+    bool pdfAgrees = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        if (i % 2 == 0) // diffuse (non-delta) lanes only
+            pdfAgrees = pdfAgrees && (lane(ev.pdf, i) == lane(pdfDirect, i));
+    Check(pdfAgrees, "Eval.pdf agrees with Pdf() on non-delta lanes");
+
+    // Diffuse (even) lanes: f=0.5, pdf=pdfRev=0.25. Specular (odd): all zero.
+    bool fOk = true, revOk = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+        const bool even = (i % 2 == 0);
+        fOk = fOk && (lane(ev.f, i) == (even ? 0.5f : 0.f));
+        revOk = revOk && (lane(ev.pdfRev, i) == (even ? 0.25f : 0.f));
+    }
+    Check(fOk, "Eval.f: diffuse=0.5, specular(delta)=0");
+    Check(revOk, "Eval.pdfRev: diffuse=0.25, specular(delta)=0");
+}
+
 } // namespace
 
 int main() {
@@ -370,6 +431,7 @@ int main() {
     CheckSampleFMixed(table);
     CheckSampleFInactive(table);
     CheckFastPath(table);
+    CheckEvalDispatch(table);
 
     if (g_failures == 0) {
         std::cout << "lux2bsdfdispatchcheck: ALL CHECKS PASSED\n";

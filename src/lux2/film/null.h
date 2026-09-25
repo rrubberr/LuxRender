@@ -19,18 +19,56 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_BSDF_CALL_H
-#define LUX2_BSDF_CALL_H
+#ifndef LUX2_FILM_NULL_H
+#define LUX2_FILM_NULL_H
 
-#include "core/bsdf.h"
+#include "core/film.h"
 
-#include <enoki/array.h>
+#include <memory>
 
-ENOKI_CALL_SUPPORT_BEGIN(lux2::BSDF)
-ENOKI_CALL_SUPPORT_METHOD(flags)
-ENOKI_CALL_SUPPORT_METHOD(SampleF)
-ENOKI_CALL_SUPPORT_METHOD(Pdf)
-ENOKI_CALL_SUPPORT_METHOD(Eval)
-ENOKI_CALL_SUPPORT_END(lux2::BSDF)
+namespace lux2
+{
 
-#endif // LUX2_BSDF_CALL_H
+    struct PluginContext;
+
+    // A Film that keeps no pixels.
+    class NullFilm : public Film
+    {
+    public:
+        NullFilm(int xres, int yres) : m_xres(xres), m_yres(yres) {}
+
+        int XRes() const override { return m_xres; }
+        int YRes() const override { return m_yres; }
+
+        // Convert each lane's spectral radiance to luminance at its own
+        // wavelength and fold it into the sum.
+        void Splat(const FloatP &x, const FloatP &y,
+                   const SWCSpectrumP &L, const SpectrumWavelengthsP &sw,
+                   const FloatP &alpha, const FloatP &weight,
+                   int bufferId) override;
+
+        // Fold another NullFilm's accumulators into this one.
+        void Merge(Film *other) override;
+
+        // No image output.
+        void WriteImage() override {}
+
+        // Accumulated luminance statistics.
+        double SumLuminance() const { return m_sumLuminance; }
+        double SampleCount() const { return m_count; }
+        double MeanLuminance() const
+        {
+            return m_count > 0.0 ? m_sumLuminance / m_count : 0.0;
+        }
+
+        static std::shared_ptr<Film> CreateFilm(const PluginContext &ctx);
+
+    private:
+        int m_xres, m_yres;
+        double m_sumLuminance = 0.0;
+        double m_count = 0.0;
+    };
+
+} // namespace lux2
+
+#endif // LUX2_FILM_NULL_H

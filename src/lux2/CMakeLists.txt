@@ -212,6 +212,8 @@ set(LUX2_CORE_SRC
 	cameras/perspective.cpp
 	lights/area.cpp
 	lights/infinite.cpp
+	film/null.cpp
+	integrators/path.cpp
 	${BISON_Lux2Parser_OUTPUTS}
 	${FLEX_Lux2Lexer_OUTPUTS}
 )
@@ -402,6 +404,20 @@ TARGET_LINK_LIBRARIES(lux2scenewiringcheck PRIVATE
 	Threads::Threads
 )
 add_test(NAME lux2scenewiringcheck COMMAND lux2scenewiringcheck)
+
+# Stage 1: NullFilm + PathIntegrator skeleton + registry construction.
+ADD_EXECUTABLE(lux2pathcheck
+	tests/path_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2pathcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2pathcheck PRIVATE
+	lux2
+	${LUX2_EMBREE_TARGET}
+	Threads::Threads
+)
+add_test(NAME lux2pathcheck COMMAND lux2pathcheck)
 
 # SoA SPD/CIE pipeline cross-checked against the scalar luxrays reference.
 ADD_EXECUTABLE(lux2colorcheck

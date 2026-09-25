@@ -100,6 +100,31 @@ namespace lux2
         return select(active && (cosT > FloatP(0.f)), pdf, FloatP(0.f));
     }
 
+    void MatteMaterial::Eval(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
+                             const Vector3fP &wo, const DifferentialGeometryP &dg,
+                             TransportMode, BSDFEvalP *out, MaskP active) const
+    {
+        const Vector3fP n(dg.n);
+        const auto [tx, ty] = coordinate_system(n);
+
+        // Local frame (z == n) for both directions.
+        const Vector3fP woL(dot(wo, tx), dot(wo, ty), dot(wo, n));
+        const Vector3fP wiL(dot(wi, tx), dot(wi, ty), dot(wi, n));
+
+        const FloatP sigmaDeg = clamp(m_sigma->Evaluate(dg, sw, active),
+                                      FloatP(0.f), FloatP(90.f));
+        const FloatP sigmaRad = sigmaDeg * (PI / FloatP(180.f));
+        const SWCSpectrumP kd = Clamped(m_kd->Evaluate(dg, sw, active));
+
+        // Forward eye-walk pdf pdf(wi|wo) == Pdf(wi,wo); reverse pdf(wo|wi).
+        const FloatP pdf = Pdf(sw, wi, wo, dg, 0, TransportMode::Radiance, active);
+        const FloatP pdfRev = Pdf(sw, wo, wi, dg, 0, TransportMode::Radiance, active);
+
+        enoki::masked(out->f, active) = OrenNayarF(kd, sigmaRad, woL, wiL);
+        enoki::masked(out->pdf, active) = pdf;
+        enoki::masked(out->pdfRev, active) = pdfRev;
+    }
+
     std::shared_ptr<Material> MatteMaterial::CreateMaterial(const PluginContext &ctx)
     {
         std::shared_ptr<ColorTexture> kd;

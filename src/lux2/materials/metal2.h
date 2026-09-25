@@ -59,6 +59,10 @@ namespace lux2
                    const Vector3fP &wo, const DifferentialGeometryP &dg,
                    uint32_t, TransportMode, MaskP active) const override;
 
+        void Eval(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
+                  const Vector3fP &wo, const DifferentialGeometryP &dg,
+                  TransportMode mode, BSDFEvalP *out, MaskP active) const override;
+
         static std::shared_ptr<Material> CreateMaterial(const PluginContext &ctx);
 
     private:

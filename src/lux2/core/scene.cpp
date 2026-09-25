@@ -381,6 +381,44 @@ namespace lux2
             }
         }
 
+        // Film.
+        {
+            auto &filmReg = DynamicLoader::registeredFilms();
+            const std::string fname =
+                desc.filmName.empty() ? "null" : desc.filmName;
+            auto it = filmReg.find(fname);
+            if (it != filmReg.end())
+            {
+                PluginContext pctx;
+                pctx.params = &desc.filmParams;
+                m_film = it->second(pctx);
+            }
+            else
+            {
+                LOG(LUX_ERROR, LUX_BADHANDLE)
+                    << "No film plugin registered as '" << fname << "'";
+            }
+        }
+
+        // Surface integrator.
+        {
+            auto &siReg = DynamicLoader::registeredSurfaceIntegrators();
+            const std::string iname =
+                desc.surfIntName.empty() ? "path" : desc.surfIntName;
+            auto it = siReg.find(iname);
+            if (it != siReg.end())
+            {
+                PluginContext pctx;
+                pctx.params = &desc.surfIntParams;
+                m_surfaceIntegrator = it->second(pctx);
+            }
+            else
+            {
+                LOG(LUX_ERROR, LUX_BADHANDLE)
+                    << "No surface integrator plugin registered as '" << iname << "'";
+            }
+        }
+
         m_committed = true;
     }
 

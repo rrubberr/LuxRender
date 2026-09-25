@@ -66,6 +66,16 @@ namespace lux2
             return FloatP(0.f);
         }
 
+        // Delta/specular lobes have no finite pdf so NEE never queries Eval.
+        void Eval(const SpectrumWavelengthsP &, const Vector3fP &, const Vector3fP &,
+                  const DifferentialGeometryP &, TransportMode, BSDFEvalP *out,
+                  MaskP active) const override
+        {
+            enoki::masked(out->f, active) = SWCSpectrumP(0.f);
+            enoki::masked(out->pdf, active) = FloatP(0.f);
+            enoki::masked(out->pdfRev, active) = FloatP(0.f);
+        }
+
         static std::shared_ptr<Material> CreateMaterial(const PluginContext &ctx);
 
     private:

@@ -146,7 +146,7 @@ namespace lux2
         void Commit(SceneDescription &desc);
 
         const Camera &GetCamera() const { return *m_camera; }
-        Film &GetFilm() { return *m_film; }
+        Film &GetFilm() const { return *m_film; }
         SurfaceIntegrator &GetSurfaceIntegrator() { return *m_surfaceIntegrator; }
         VolumeIntegrator &GetVolumeIntegrator() { return *m_volumeIntegrator; }
         Renderer &GetRenderer() { return *m_renderer; }
