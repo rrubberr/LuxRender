@@ -93,15 +93,13 @@ void CheckConstantColor() {
     ConstantColorTexture tex(rgb);
     Check(tex.IsConstant(), "ConstantColorTexture IsConstant() == true");
 
-    // Evaluate at a fixed wavelength set; every wavelength sample of the
-    // Smits reconstruction must be finite and non-negative.
+    // Evaluate at a fixed wavelength; every lane's Smits reconstruction must be
+    // finite and non-negative.
     SWCSpectrumP s = tex.Evaluate(MakeDG(), MakeSW(), MaskP(true));
     bool finite = true;
-    for (int i = 0; i < WAVELENGTH_SAMPLES; ++i) {
-        for (size_t lane = 0; lane < PACKET_WIDTH; ++lane) {
-            float x = s[i][lane];
-            if (!(x >= 0.f) || !(x < 1e30f)) finite = false;
-        }
+    for (size_t lane = 0; lane < PACKET_WIDTH; ++lane) {
+        float x = s[lane];
+        if (!(x >= 0.f) || !(x < 1e30f)) finite = false;
     }
     Check(finite, "ConstantColorTexture Smits SPD is finite and non-negative");
 }
@@ -133,12 +131,12 @@ void CheckApproxEtaK() {
     const float kRef = 2.f * std::sqrt(0.7f / 0.3f);
 
     bool etaOk = true, kOk = true;
-    for (int i = 0; i < WAVELENGTH_SAMPLES; ++i) {
-        if (!Close(eta[i][0], etaRef)) etaOk = false;
-        if (!Close(k[i][0], kRef)) kOk = false;
+    for (size_t lane = 0; lane < PACKET_WIDTH; ++lane) {
+        if (!Close(eta[lane], etaRef)) etaOk = false;
+        if (!Close(k[lane], kRef)) kOk = false;
     }
-    std::cout << "    eta(0.7)=" << eta[0][0] << " (ref " << etaRef << ")  "
-              << "k(0.7)=" << k[0][0] << " (ref " << kRef << ")\n";
+    std::cout << "    eta(0.7)=" << eta[0] << " (ref " << etaRef << ")  "
+              << "k(0.7)=" << k[0] << " (ref " << kRef << ")\n";
     Check(etaOk, "FresnelApproxEta(0.7) matches analytic");
     Check(kOk, "FresnelApproxK(0.7) matches analytic");
 }
@@ -156,9 +154,9 @@ void CheckFrCondNormal() {
     const float ref = ((e - 1.f) * (e - 1.f) + kk * kk) /
                       ((e + 1.f) * (e + 1.f) + kk * kk);
     bool ok = true;
-    for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-        if (!Close(R[i][0], ref, 2e-3f)) ok = false;
-    std::cout << "    FrCond(1)=" << R[0][0] << " (ref " << ref << ")\n";
+    for (size_t lane = 0; lane < PACKET_WIDTH; ++lane)
+        if (!Close(R[lane], ref, 2e-3f)) ok = false;
+    std::cout << "    FrCond(1)=" << R[0] << " (ref " << ref << ")\n";
     Check(ok, "FrCond at normal incidence matches analytic conductor R");
 }
 
@@ -183,11 +181,9 @@ void CheckFresnelColor() {
     SWCSpectrumP etaRef = FresnelApproxEta(c);
     SWCSpectrumP kRef = FresnelApproxK(c);
     bool etaOk = true, kOk = true;
-    for (int i = 0; i < WAVELENGTH_SAMPLES; ++i) {
-        for (size_t lane = 0; lane < PACKET_WIDTH; ++lane) {
-            if (!Close(f.eta[i][lane], etaRef[i][lane])) etaOk = false;
-            if (!Close(f.k[i][lane], kRef[i][lane])) kOk = false;
-        }
+    for (size_t lane = 0; lane < PACKET_WIDTH; ++lane) {
+        if (!Close(f.eta[lane], etaRef[lane])) etaOk = false;
+        if (!Close(f.k[lane], kRef[lane])) kOk = false;
     }
     Check(etaOk, "fresnelcolor eta == FresnelApproxEta(color)");
     Check(kOk, "fresnelcolor k == FresnelApproxK(color)");

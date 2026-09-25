@@ -69,6 +69,7 @@ namespace lux2
                                   const FloatP &u0, const FloatP &u1,
                                   const FloatP &u2,
                                   Point3fP *lightP, Vector3fP *wi,
+                                  Normal3fP *lightN,
                                   FloatP *pdf, SWCSpectrumP *LeOut,
                                   MaskP active) const
     {
@@ -84,6 +85,8 @@ namespace lux2
 
         enoki::masked(*wi, active) = dir;
         enoki::masked(*lightP, active) = p + dir * FloatP(kInfiniteDistance);
+        // The environment's surface normal at the sampled direction is +wi.
+        enoki::masked(*lightN, active) = Normal3fP(dir.x(), dir.y(), dir.z());
         enoki::masked(*pdf, active) = FloatP(INV_FOURPI);
 
         // Radiance along the sampled direction.

@@ -108,9 +108,9 @@ int main() {
         sw.Sample(FloatP(0.5f));
         FloatP u0(FloatP(0.25f)), u1(FloatP(0.5f)), u2(FloatP(0.5f));
 
-        Point3fP lightP; Vector3fP wi; FloatP pdf; SWCSpectrumP Le;
+        Point3fP lightP; Vector3fP wi; Normal3fP lightN; FloatP pdf; SWCSpectrumP Le;
         MaskP valid = light->Sample_L(sw, p, n, u0, u1, u2,
-                                      &lightP, &wi, &pdf, &Le);
+                                      &lightP, &wi, &lightN, &pdf, &Le);
 
         Check(bool(enoki::all(valid)), "Sample_L valid for facing point");
         // lightP.z should be ~0 (on the emitter plane).
@@ -122,8 +122,8 @@ int main() {
               "Sample_L lands inside the quad");
         Check(pdf[0] > 0.f, "Sample_L pdf > 0");
 
-        // Pdf_L at the same lightP must match Sample_L's pdf.
-        Normal3fP lightN(FloatP(0.f), FloatP(0.f), FloatP(1.f));
+        // Pdf_L at the same lightP must match Sample_L's pdf. Reuse the
+        // lightN that Sample_L wrote (the interpolated quad normal, ~+Z).
         FloatP pdfL = light->Pdf_L(p, n, lightP, lightN);
         Check(std::abs(pdfL[0] - pdf[0]) < 1e-3f * (pdf[0] + 1e-6f),
               "Pdf_L matches Sample_L pdf");
@@ -143,9 +143,9 @@ int main() {
 
         SpectrumWavelengthsP sw;
         sw.Sample(FloatP(0.5f));
-        Point3fP lightP; Vector3fP wi; FloatP pdf; SWCSpectrumP Le;
+        Point3fP lightP; Vector3fP wi; Normal3fP lightN; FloatP pdf; SWCSpectrumP Le;
         light->Sample_L(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
-                        &lightP, &wi, &pdf, &Le);
+                        &lightP, &wi, &lightN, &pdf, &Le);
         Check(pdf[0] == 0.f, "Sample_L pdf == 0 for backfacing point");
     }
 
@@ -168,9 +168,9 @@ int main() {
         bool hitLow = false, hitHigh = false;
         for (int i = 0; i < 64; ++i) {
             FloatP u0(FloatP((i + 0.5f) / 64.f));
-            Point3fP lightP; Vector3fP wi; FloatP pdf; SWCSpectrumP Le;
+            Point3fP lightP; Vector3fP wi; Normal3fP lightN; FloatP pdf; SWCSpectrumP Le;
             light->Sample_L(sw, p, n, u0, FloatP(0.5f), FloatP(0.5f),
-                            &lightP, &wi, &pdf, &Le);
+                            &lightP, &wi, &lightN, &pdf, &Le);
             // Triangle 0 (a,b,c) has centroid (2/3,1/3); triangle 1 (a,c,d)
             // has centroid (1/3,2/3). Distinguish by x vs y.
             if (lightP.x()[0] > lightP.y()[0]) hitLow = true;

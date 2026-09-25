@@ -123,10 +123,8 @@ void CheckSample() {
     bool pdfOk = true, fFinite = true, hemiOk = true, typeOk = true, specOk = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
         if (!(lane(s.pdf, i) >= 0.f)) pdfOk = false;
-        for (int w = 0; w < WAVELENGTH_SAMPLES; ++w) {
-            float x = lane(s.f, w)[i];
-            if (!(x >= 0.f) || !(x < 1e30f)) fFinite = false;
-        }
+        float x = lane(s.f, i);
+        if (!(x >= 0.f) || !(x < 1e30f)) fFinite = false;
         float dn = lane(s.wo, 2)[i];  // z component (n == +Z)
         if (!(dn > 0.f)) hemiOk = false;
         if (lane(s.sampledType, i) != uint32_t(BSDFType::DiffuseReflection))
@@ -184,8 +182,8 @@ float MeanLobeRatio(const MatteMaterial &m) {
 
     float sum = 0.f;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
-        float lobe = lane(s.f, 0)[i];
-        float ref = lane(kdS, 0)[i] * INVPI;
+        float lobe = lane(s.f, i);
+        float ref = lane(kdS, i) * INVPI;
         sum += (lobe - ref);
     }
     return sum / float(PACKET_WIDTH);
@@ -239,10 +237,8 @@ void CheckMetal2Sample() {
     bool pdfPos = true, fFinite = true, typeOk = true, specOk = true, hemiOk = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
         if (!(lane(s.pdf, i) > 0.f)) pdfPos = false;
-        for (int w = 0; w < WAVELENGTH_SAMPLES; ++w) {
-            float x = lane(s.f, w)[i];
-            if (!(x >= 0.f) || !(x < 1e30f)) fFinite = false;
-        }
+        float x = lane(s.f, i);
+        if (!(x >= 0.f) || !(x < 1e30f)) fFinite = false;
         if (!(lane(s.wo, 2)[i] > 0.f)) hemiOk = false;
         if (lane(s.sampledType, i) != uint32_t(BSDFType::GlossyReflection))
             typeOk = false;
@@ -290,8 +286,8 @@ void CheckMetal2FresnelNormal() {
     SWCSpectrumP cond = FrCond(FloatP(1.f), fg.eta, fg.k);
 
     bool ok = true;
-    for (int w = 0; w < WAVELENGTH_SAMPLES; ++w) {
-        float a = full[w][0], b = cond[w][0];
+    for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+        float a = lane(full, i), b = lane(cond, i);
         if (std::fabs(a - b) > 1e-3f * std::max(1.f, std::fabs(b))) ok = false;
     }
     Check(ok, "metal2 FULL Fresnel == FrCond at normal incidence");
@@ -351,10 +347,8 @@ void CheckGlassNormal() {
         if (lane(st.sampledType, i) != uint32_t(BSDFType::SpecularTransmission))
             transType = false;
         if (std::fabs(lane(st.pdf, i) - 0.96f) > 1e-3f) transPdf = false;
-        for (int w = 0; w < WAVELENGTH_SAMPLES; ++w) {
-            float x = lane(st.f, w)[i];
-            if (!(x >= 0.f) || !(x < 1e30f)) transFinite = false;
-        }
+        float x = lane(st.f, i);
+        if (!(x >= 0.f) || !(x < 1e30f)) transFinite = false;
     }
     Check(transType, "glass normal u2=1 -> SpecularTransmission");
     Check(transPdf, "glass normal transmit pdf == 1-F ~= 0.96");

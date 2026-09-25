@@ -78,8 +78,8 @@ namespace lux2
     // Float texture.
     using FloatTexture = Texture<FloatP>;
 
-    // Spectral color texture.
-    using ColorTexture = Texture<SWCSpectrumP>;
+   // Spectral color texture.
+    using ColorTexture = Texture<FloatP>;
 
     // Fresnel texture.
     using FresnelTexture = Texture<FresnelGeneralP>;

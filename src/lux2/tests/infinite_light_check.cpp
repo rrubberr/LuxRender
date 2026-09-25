@@ -79,9 +79,9 @@ int main() {
         for (int i = 0; i < 64; ++i) {
             FloatP u0(FloatP((i + 0.5f) / 64.f));
             FloatP u1(FloatP(std::fmod(i * 0.6180339887f, 1.f)));
-            Point3fP lightP; Vector3fP wi; FloatP pdf; SWCSpectrumP Le;
+            Point3fP lightP; Vector3fP wi; Normal3fP lightN; FloatP pdf; SWCSpectrumP Le;
             light->Sample_L(sw, p, n, u0, u1, FloatP(0.f),
-                            &lightP, &wi, &pdf, &Le);
+                            &lightP, &wi, &lightN, &pdf, &Le);
             const FloatP len = enoki::sqrt(enoki::dot(wi, wi));
             if (std::abs(len[0] - 1.f) > 1e-4f) allUnit = false;
             if (std::abs(pdf[0] - INV_FOURPI) > 1e-6f) allPdf = false;

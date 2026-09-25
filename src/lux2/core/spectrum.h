@@ -92,8 +92,13 @@ namespace lux2
     };
 
     // Scalar and packet aliases.
+
+    // With monochromatic SWA,  each lane carries a single wavelength.
     using SWCSpectrum = SWCSpectrum_<Float>;
-    using SWCSpectrumP = SWCSpectrum_<FloatP>;
+    using SWCSpectrumP = FloatP;
+
+    inline FloatP Clamped(const FloatP &s) { return enoki::max(s, FloatP(0.f)); }
+    inline MaskP IsBlack(const FloatP &s) { return s == FloatP(0.f); }
 
     // ---------------------------------------------------------------------------
     // RGBColor

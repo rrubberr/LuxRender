@@ -47,7 +47,7 @@ namespace lux2
         MaskP Sample_L(const SpectrumWavelengthsP &sw,
                        const Point3fP &p, const Normal3fP &n,
                        const FloatP &u0, const FloatP &u1, const FloatP &u2,
-                       Point3fP *lightP, Vector3fP *wi,
+                       Point3fP *lightP, Vector3fP *wi, Normal3fP *lightN,
                        FloatP *pdf, SWCSpectrumP *LeOut,
                        MaskP active = MaskP(true)) const override;
 

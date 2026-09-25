@@ -74,7 +74,9 @@ namespace lux2
     struct DifferentialGeometryP
     {
         Point3fP p;      // world-space hit position
-        Normal3fP n;     // shading normal
+        Normal3fP n;     // shading normal (cosine terms only)
+        Normal3fP ng;    // geometric normal (ray offset / side tests)
+        MaskP entering;  // true where the ray crosses into the surface
         FloatP uv_u;     // texture u coordinate
         FloatP uv_v;     // texture v coordinate
         Vector3fP dp_du; // d(position)/d(u) for texture mip selection

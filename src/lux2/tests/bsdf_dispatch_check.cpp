@@ -145,8 +145,7 @@ DifferentialGeometryP MakeDG() {
 // A SpectrumWavelengthsP (values irrelevant to the stubs).
 SpectrumWavelengthsP MakeSW() {
     SpectrumWavelengthsP sw;
-    for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-        sw.w[i] = FloatP(550.f);
+    sw.FromWavelength(FloatP(550.f));
     return sw;
 }
 
@@ -266,7 +265,7 @@ void CheckSampleFMixed(const BsdfPtrTable &table) {
         // diffuse wo = +Z, specular wo = +X.
         woOk = woOk && (lane(s.wo.x(), i) == (even ? 0.f : 1.f)) &&
                         (lane(s.wo.z(), i) == (even ? 1.f : 0.f));
-        fOk = fOk && (lane(s.f[0], i) == (even ? 0.5f : 0.9f));
+        fOk = fOk && (lane(s.f, i) == (even ? 0.5f : 0.9f));
         typeOk = typeOk && (lane(s.sampledType, i) ==
                             (even ? uint32_t(BSDFType::DiffuseReflection)
                                   : uint32_t(BSDFType::SpecularReflection)));
@@ -315,7 +314,7 @@ void CheckSampleFInactive(const BsdfPtrTable &table) {
         } else {
             // Odd lanes inactive: must retain the sentinel.
             inactiveOk = inactiveOk && (lane(s.pdf, i) == -999.f) &&
-                         (lane(s.f[0], i) == -999.f);
+                         (lane(s.f, i) == -999.f);
         }
     }
     Check(activeOk, "SampleF partial-active: active lanes written");

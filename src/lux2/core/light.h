@@ -57,6 +57,7 @@ namespace lux2
                                const FloatP &u0, const FloatP &u1,
                                const FloatP &u2,
                                Point3fP *lightP, Vector3fP *wi,
+                               Normal3fP *lightN,
                                FloatP *pdf, SWCSpectrumP *Le,
                                MaskP active = MaskP(true)) const = 0;
 

@@ -80,11 +80,11 @@ namespace lux2
 
         // Fresnel split. F is wavelength-independent for non-dispersive glass.
         const SWCSpectrumP F = DielectricFresnel(woLz, index);
-        const FloatP Fscalar = F.Average();
+        const FloatP Fscalar = F; // monochromatic: Average() is identity
         const MaskP doReflect = u2 < Fscalar;
 
-        const SWCSpectrumP kr = m_kr->Evaluate(dg, sw, active).Clamped();
-        const SWCSpectrumP kt = m_kt->Evaluate(dg, sw, active).Clamped();
+        const SWCSpectrumP kr = Clamped(m_kr->Evaluate(dg, sw, active));
+        const SWCSpectrumP kt = Clamped(m_kt->Evaluate(dg, sw, active));
 
         // f excludes the geometric |cos| (delta lobes). Transmit carries the
         // solid-angle compression |wo.z / cost|.

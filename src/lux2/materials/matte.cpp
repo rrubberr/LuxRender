@@ -81,7 +81,7 @@ namespace lux2
         const Vector3fP woL(dot(wo, tx), dot(wo, ty), dot(wo, n));
         const Vector3fP wiL(dot(wi, tx), dot(wi, ty), dot(wi, n));
 
-        const SWCSpectrumP kd = m_kd->Evaluate(dg, sw, active).Clamped();
+        const SWCSpectrumP kd = Clamped(m_kd->Evaluate(dg, sw, active));
         const SWCSpectrumP f = OrenNayarF(kd, sigmaRad, woL, wiL);
 
         enoki::masked(s->wo, active) = wi;

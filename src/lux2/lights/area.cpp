@@ -116,7 +116,7 @@ namespace lux2
     MaskP AreaLight::Sample_L(const SpectrumWavelengthsP &sw,
                               const Point3fP &p, const Normal3fP &n,
                               const FloatP &u0, const FloatP &u1, const FloatP &u2,
-                              Point3fP *lightP, Vector3fP *wi,
+                              Point3fP *lightP, Vector3fP *wi, Normal3fP *lightN,
                               FloatP *pdf, SWCSpectrumP *LeOut,
                               MaskP active) const
     {
@@ -198,6 +198,7 @@ namespace lux2
 
         enoki::masked(*lightP, active) = lp;
         enoki::masked(*wi, active) = w;
+        enoki::masked(*lightN, active) = nl;
         enoki::masked(*pdf, active) = enoki::select(valid, pdfVal, FloatP(0.f));
 
         // Emitted radiance: Le * gain * PI.

@@ -112,30 +112,28 @@ void CheckGeometry() {
 		"coord system basis orthogonal");
 }
 
-// spectrum.h: SWCSpectrumP arithmetic and reductions.
+// SWCSpectrumP (monochromatic == FloatP) arithmetic + free helpers.
 void CheckSpectrum() {
 	const float a = float(std::rand() % 50 + 1) / 50.f;
-	SWCSpectrumP s{FloatP(a)};              // Brace-init avoids the vexing parse.
-	SWCSpectrumP t = s * s;                 // a^2 per sample.
+	SWCSpectrumP s = FloatP(a);             // one value per lane.
+	SWCSpectrumP t = s * s;                 // a^2 per lane.
 	SWCSpectrumP u = s + t;                 // a + a^2.
-	Check(AllClose(u[0], a + a * a), "spectrum mul/add");
+	Check(AllClose(u, a + a * a), "spectrum mul/add");
 
-	Check(AllClose(s.MaxComponent(), a), "spectrum MaxComponent");
-	Check(AllClose(s.Average(), a), "spectrum Average");
+	// Monochromatic.
+	SWCSpectrumP black = FloatP(0.f);
+	Check(enoki::all(IsBlack(black)), "black spectrum IsBlack");
+	Check(enoki::none(IsBlack(s)), "non-black spectrum !IsBlack");
 
-	SWCSpectrumP black{0.f};
-	Check(enoki::all(black.IsBlack()), "black spectrum IsBlack");
-	Check(!enoki::all(s.IsBlack()), "non-black spectrum !IsBlack");
+	SWCSpectrumP clamped = Clamped(s * -1.f);
+	Check(enoki::all(clamped == FloatP(0.f)), "Clamped to zero");
 
-	SWCSpectrumP clamped = (s * -1.f).Clamped();
-	Check(enoki::all(clamped[0] == FloatP(0.f)), "Clamped to zero");
-
-	// Enoki select + fmadd (broadcast over the wavelength axis).
-	const MaskP m = s[0] > FloatP(a * 0.5f);
+	// Enoki select + fmadd.
+	const MaskP m = s > FloatP(a * 0.5f);
 	SWCSpectrumP sel = enoki::select(m, s, black);
-	Check(AllClose(sel[0], a), "spectrum select");
+	Check(AllClose(sel, a), "spectrum select");
 	SWCSpectrumP f = enoki::fmadd(s, s, s);  // a^2 + a
-	Check(AllClose(f[0], a * a + a), "spectrum fmadd");
+	Check(AllClose(f, a * a + a), "spectrum fmadd");
 }
 
 // ray.h: RayP construction, d_rcp, operator(), payload; HitP validity.

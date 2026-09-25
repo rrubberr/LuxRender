@@ -319,6 +319,8 @@ namespace lux2
             auto area = std::dynamic_pointer_cast<AreaLight>(l);
             if (area)
                 area->BindGeometry(tris);
+            // Store in lightID order (i == lightID) for HitP.lightID lookup.
+            m_areaLights.push_back(l);
             m_lights.push_back(std::move(l));
         }
 

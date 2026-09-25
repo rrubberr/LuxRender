@@ -49,9 +49,9 @@ namespace lux2
     using luxrays::refrgb2spect_white;
     using luxrays::refrgb2spect_yellow;
 
-    // CIE matching functions carry this scale.
+    // CIE matching functions carry this scale. Monochromatic SWA.
     static constexpr Float CIE_SCALE =
-        683.f * (WAVELENGTH_END - WAVELENGTH_START) * INV_WAVELENGTH_SAMPLES;
+        683.f * (WAVELENGTH_END - WAVELENGTH_START);
 
     // ---------------------------------------------------------------------------
     // SpectrumWavelengthsP
@@ -59,65 +59,25 @@ namespace lux2
 
     void SpectrumWavelengthsP::Sample(const FloatP &u1)
     {
-        FloatP s = u1 * FloatP(float(WAVELENGTH_SAMPLES));
-        single_w = floor(s);
-        s -= FloatP(single_w);
-
-        const FloatP offset = FloatP(WAVELENGTH_END - WAVELENGTH_START) *
-                              FloatP(INV_WAVELENGTH_SAMPLES);
-        FloatP waveln = FloatP(WAVELENGTH_START) + s * offset;
-        for (size_t i = 0; i < WAVELENGTH_SAMPLES; ++i)
-        {
-            w[i] = waveln;
-            waveln += offset;
-
-            // Smits RGB basis bins.
-            const FloatP xRGB = (w[i] - FloatP(WAVELENGTH_START)) *
-                                FloatP(INV_SMITS_DELTA);
-            binsRGB[i] = floor(xRGB);
-            offsetsRGB[i] = xRGB - FloatP(binsRGB[i]);
-
-            // CIE bins.
-            const FloatP xCIE = w[i] - FloatP(CIE_START);
-            binsXYZ[i] = floor(xCIE);
-            offsetsXYZ[i] = xCIE - FloatP(binsXYZ[i]);
-        }
-
-        single = MaskP(false);
+        // Uniform stratified wavelength over [START, END).
+        FromWavelength(FloatP(WAVELENGTH_START) +
+                       FloatP(WAVELENGTH_END - WAVELENGTH_START) * u1);
     }
 
     void SpectrumWavelengthsP::FromWavelength(const FloatP &wl)
     {
+        w = wl;
+
         // Smits RGB basis bins.
         const FloatP xRGB = (wl - FloatP(WAVELENGTH_START)) *
                             FloatP(INV_SMITS_DELTA);
-        const Int32P binRGB = floor(xRGB);
-        const FloatP offRGB = xRGB - FloatP(binRGB);
+        binRGB = floor(xRGB);
+        offsetRGB = xRGB - FloatP(binRGB);
 
         // CIE bins.
         const FloatP xCIE = wl - FloatP(CIE_START);
-        const Int32P binXYZ = floor(xCIE);
-        const FloatP offXYZ = xCIE - FloatP(binXYZ);
-
-        for (size_t i = 0; i < WAVELENGTH_SAMPLES; ++i)
-        {
-            w[i] = wl;
-            binsRGB[i] = binRGB;
-            offsetsRGB[i] = offRGB;
-            binsXYZ[i] = binXYZ;
-            offsetsXYZ[i] = offXYZ;
-        }
-        single = MaskP(false);
-    }
-
-    FloatP SpectrumWavelengthsP::SampleSingle()
-    {
-        single = MaskP(true);
-        // Selection among the wavelength slots.
-        FloatP result = w[0];
-        for (size_t i = 1; i < WAVELENGTH_SAMPLES; ++i)
-            result = select(single_w == Int32P(int(i)), w[i], result);
-        return result;
+        binXYZ = floor(xCIE);
+        offsetXYZ = xCIE - FloatP(binXYZ);
     }
 
     // ---------------------------------------------------------------------------
@@ -135,18 +95,8 @@ namespace lux2
         return lerp(lo, hi, offset);
     }
 
-    SWCSpectrumP SampleRegular(const float *table,
-                               const Int32P bins[WAVELENGTH_SAMPLES],
-                               const FloatP offsets[WAVELENGTH_SAMPLES])
-    {
-        SWCSpectrumP result;
-        for (size_t i = 0; i < WAVELENGTH_SAMPLES; ++i)
-            result[i] = SampleRegular1(table, bins[i], offsets[i]);
-        return result;
-    }
-
     // ---------------------------------------------------------------------------
-    // Smits RGB -> SWCSpectrum
+    // RGB -> SWCSpectrum
     // ---------------------------------------------------------------------------
 
     namespace
@@ -155,7 +105,7 @@ namespace lux2
         SWCSpectrumP Basis(const float *table, const SpectrumWavelengthsP &sw,
                            const FloatP &weight)
         {
-            return SampleRegular(table, sw.binsRGB, sw.offsetsRGB) * weight;
+            return SampleRegular1(table, sw.binRGB, sw.offsetRGB) * weight;
         }
 
         template <typename T>
@@ -218,7 +168,7 @@ namespace lux2
                                        : float(refrgb2spect_scale);
         result *= FloatP(scale);
         if (illuminant)
-            result = result.Clamped();
+            result = Clamped(result);
 
         return result;
     }
@@ -229,33 +179,11 @@ namespace lux2
 
     FloatP SWCY(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw)
     {
-        // Multi-wavelength luminance: sum_j ciey(w_j) * s_j.
-        FloatP multi = FloatP(0.f);
-        for (size_t j = 0; j < WAVELENGTH_SAMPLES; ++j)
-        {
-            const Int32P b = min(sw.binsXYZ[j], Int32P(CIE_BINS - 2));
-            const FloatP lo = gather<FloatP>(CIE_Y, b);
-            const FloatP hi = gather<FloatP>(CIE_Y, b + 1);
-            multi += lerp(lo, hi, sw.offsetsXYZ[j]) * s[j];
-        }
-
-        // Single wavelength luminance: ciey(w_single) * s_single * N.
-        Int32P b = sw.binsXYZ[0];
-        FloatP off = sw.offsetsXYZ[0];
-        FloatP sSingle = s[0];
-        for (size_t i = 1; i < WAVELENGTH_SAMPLES; ++i)
-        {
-            const MaskP sel = sw.single_w == Int32P(int(i));
-            b = select(sel, sw.binsXYZ[i], b);
-            off = select(sel, sw.offsetsXYZ[i], off);
-            sSingle = select(sel, s[i], sSingle);
-        }
-        b = min(b, Int32P(CIE_BINS - 2));
-        const FloatP singleY = lerp(gather<FloatP>(CIE_Y, b),
-                                    gather<FloatP>(CIE_Y, b + 1), off) *
-                               sSingle * FloatP(float(WAVELENGTH_SAMPLES));
-
-        return select(sw.single, singleY, multi) * CIE_SCALE;
+        // Monochromatic luminance ciey(w) * s scaled by CIE_SCALE.
+        const Int32P b = min(sw.binXYZ, Int32P(CIE_BINS - 2));
+        const FloatP lo = gather<FloatP>(CIE_Y, b);
+        const FloatP hi = gather<FloatP>(CIE_Y, b + 1);
+        return lerp(lo, hi, sw.offsetXYZ) * s * CIE_SCALE;
     }
 
 } // namespace lux2

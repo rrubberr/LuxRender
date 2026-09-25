@@ -24,6 +24,7 @@
 
 #include "core/vecp.h"
 #include "core/spectrum.h"
+#include "core/color.h"
 
 namespace lux2
 {
@@ -39,9 +40,11 @@ namespace lux2
         virtual int YRes() const = 0;
 
         // Splat a packet of filter-weighted contributions.
+        // Each splat carries its wavelength set `sw`.
         virtual void Splat(const FloatP &x, const FloatP &y,
-                           const SWCSpectrumP &rgb, const FloatP &alpha,
-                           const FloatP &weight, int bufferId) = 0;
+                           const SWCSpectrumP &L, const SpectrumWavelengthsP &sw,
+                           const FloatP &alpha, const FloatP &weight,
+                           int bufferId) = 0;
 
         // Merge another film's accumulated buffer into this one.
         virtual void Merge(Film *other) = 0;

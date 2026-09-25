@@ -155,6 +155,18 @@ namespace lux2
 
         const std::vector<std::shared_ptr<Light>> &GetLights() const { return m_lights; }
 
+        // Area lights indexed by lightID.
+        const Light *GetAreaLight(std::int32_t id) const
+        {
+            if (id < 0 || id >= static_cast<std::int32_t>(m_areaLights.size()))
+                return nullptr;
+            return m_areaLights[id].get();
+        }
+        int AreaLightCount() const
+        {
+            return static_cast<int>(m_areaLights.size());
+        }
+
         BBox WorldBound() const { return m_worldBound; }
 
         // The Embree accelerator built at Commit.
@@ -186,6 +198,7 @@ namespace lux2
         std::shared_ptr<Sampler> m_sampler;
         std::shared_ptr<Filter> m_filter;
         std::vector<std::shared_ptr<Light>> m_lights;
+        std::vector<std::shared_ptr<Light>> m_areaLights; // indexed by lightID
         BBox m_worldBound;
         Summary m_summary;
         bool m_committed = false;

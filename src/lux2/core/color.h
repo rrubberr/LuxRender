@@ -53,37 +53,26 @@ namespace lux2
     // SpectrumWavelengthsP
     // ---------------------------------------------------------------------------
 
-    // A set of wavelengths.
+    // A set of wavelengths. Monochromatic SWA w/ one wavelength per lane.
     struct SpectrumWavelengthsP
     {
-        FloatP w[WAVELENGTH_SAMPLES]; // wavelengths in nm
+        FloatP w;        // nm, one per lane.
 
-        Int32P single_w; // chosen single-wavelength bin per lane
-        MaskP single;    // true where the lane is split to single
-
-        Int32P binsRGB[WAVELENGTH_SAMPLES];
-        FloatP offsetsRGB[WAVELENGTH_SAMPLES];
-        Int32P binsXYZ[WAVELENGTH_SAMPLES];
-        FloatP offsetsXYZ[WAVELENGTH_SAMPLES];
+        Int32P binRGB;   // Smits basis bin for w.
+        FloatP offsetRGB;
+        Int32P binXYZ;   // CIE bin for w.
+        FloatP offsetXYZ;
 
         // Stratified wavelength sampling from a uniform [0,1) sample.
         void Sample(const FloatP &u1);
 
-        // Populate every wavelength slot and precompute the CIE bins.
+        // Populate the wavelength and precompute the bins from an explicit wl.
         void FromWavelength(const FloatP &wl);
-
-        // Split to a single wavelength.
-        FloatP SampleSingle();
     };
 
     // ---------------------------------------------------------------------------
     // Regular SPD sampling
     // ---------------------------------------------------------------------------
-
-    // Linearly interpolate a table at the precomputed offset pairs.
-    SWCSpectrumP SampleRegular(const float *table,
-                               const Int32P bins[WAVELENGTH_SAMPLES],
-                               const FloatP offsets[WAVELENGTH_SAMPLES]);
 
     // Gather a regularly-sampled table at a single precomputed bin/offset.
     FloatP SampleRegular1(const float *table, const Int32P &bin,
@@ -93,7 +82,7 @@ namespace lux2
     // Smits RGB -> SWCSpectrum reconstruction
     // ---------------------------------------------------------------------------
 
-    // Reconstruct a spectrum from an RGB color at the wavelengths in sw.
+    // Reconstruct a spectrum from an RGB color at the wavelength in sw.
     SWCSpectrumP RGBToSmitsSPD(const RGBColorP &rgb,
                                const SpectrumWavelengthsP &sw,
                                bool illuminant);

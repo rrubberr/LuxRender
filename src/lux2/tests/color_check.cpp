@@ -21,8 +21,13 @@
 
 // Cross-check the SoA SPD/CIE pipeline (lux2::color) against the scalar
 // luxrays reference for wavelength sampling, Smits RGB->SPD reconstruction
-// (reflectant and illuminant), and CIE luminance. Every packet lane carries
-// the same broadcast input, so lane 0 is compared against the scalar result.
+// (reflectant and illuminant), and CIE luminance.
+//
+// Monochromatic SWA: a lux2 lane carries ONE wavelength. The scalar reference
+// carries 4 (SWCSpectrum_<4>). We drive both to the SAME single wavelength --
+// the scalar's SampleSingle() slot -- and compare lux2's single value against
+// the scalar's c[single_w] (and Y). Every packet lane carries the same
+// broadcast input, so lane 0 is compared against the scalar result.
 
 #include "core/color.h"
 #include "core/texture.h"
@@ -68,31 +73,31 @@ float First(const lux2::FloatP &p) {
 	return buf[0];
 }
 
-// Sample a packet of wavelengths from a broadcast u1.
-void SampleSW(lux2::SpectrumWavelengthsP &sw, float u1) {
-	sw.Sample(lux2::FloatP(u1));
-}
-
 lux2::RGBColorP ToP(const RGBColor &rgb) {
 	return lux2::RGBColorP(lux2::FloatP(rgb.c[0]), lux2::FloatP(rgb.c[1]),
 		lux2::FloatP(rgb.c[2]));
 }
 
-// Scalar reference: sample wavelengths, then evaluate an RGB color as a
-// reflectant or illuminant SPD at those wavelengths.
-void ScalarRef(float u1, const RGBColor &rgb, bool illum,
-               float out[WAVELENGTH_SAMPLES], float *outY) {
+// Scalar reference at a single wavelength: sample the scalar's 4 wavelengths,
+// split to a single slot (SampleSingle), and return that wavelength together
+// with the reflectant/illuminant SPD value c[single_w] and luminance Y there.
+// The caller drives lux2 to the SAME wavelength via FromWavelength.
+struct ScalarSingle {
+	float wl;
+	float value;
+	float Y;
+};
+ScalarSingle ScalarRefSingle(float u1, const RGBColor &rgb, bool illum) {
 	SpectrumWavelengths sw;
 	sw.Sample(u1);
+	const float wl = sw.SampleSingle(); // sets sw.single, returns w[single_w]
 	SWCSpectrum s = illum ? SWCSpectrum(sw, RGBIllumSPD(rgb))
 	                      : SWCSpectrum(sw, RGBReflSPD(rgb));
-	for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-		out[i] = s.c[i];
-	if (outY)
-		*outY = s.Y(sw);
+	return ScalarSingle{wl, s.c[sw.single_w], s.Y(sw)};
 }
 
-// Wavelength sampling must match the scalar stratified sampler.
+// lux2's uniform wavelength must land in [START, END) and its bins must match
+// the scalar's bin computation at the same wavelength.
 void CheckWavelengths() {
 	bool ok = true;
 	for (int t = 0; t < 32 && ok; ++t) {
@@ -100,97 +105,92 @@ void CheckWavelengths() {
 
 		SpectrumWavelengths sw;
 		sw.Sample(u1);
+		const float wl = sw.SampleSingle();
 
 		lux2::SpectrumWavelengthsP swp;
-		SampleSW(swp, u1);
+		swp.FromWavelength(lux2::FloatP(wl));
 
-		for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-			ok = ok && Close(First(swp.w[i]), sw.w[i], 1e-5f);
+		// The wavelength round-trips exactly and stays in range.
+		ok = ok && Close(First(swp.w), wl, 1e-5f);
+		ok = ok && First(swp.w) >= 380.f && First(swp.w) <= 720.f;
+		// The CIE bin must match the scalar's at the single slot.
+		const int j = int(sw.single_w);
+		ok = ok && (swp.binXYZ[0] == sw.binsXYZ[j]);
 	}
 	Check(ok, "wavelength sampling");
 }
 
-// Smits RGB->SPD (reflectant) must match SWCSpectrum(sw, RGBReflSPD).
+// Smits RGB->SPD (reflectant) at a single wavelength must match c[single_w].
 void CheckRefl() {
 	bool ok = true;
 	for (int t = 0; t < 32 && ok; ++t) {
 		const float u1 = RandUnit();
 		const RGBColor rgb(RandUnit(), RandUnit(), RandUnit());
 
-		float ref[WAVELENGTH_SAMPLES];
-		ScalarRef(u1, rgb, false, ref, nullptr);
+		const ScalarSingle ref = ScalarRefSingle(u1, rgb, false);
 
 		lux2::SpectrumWavelengthsP swp;
-		SampleSW(swp, u1);
+		swp.FromWavelength(lux2::FloatP(ref.wl));
 		lux2::SWCSpectrumP s = lux2::RGBToSmitsSPD(ToP(rgb), swp, false);
 
-		for (int i = 0; i < WAVELENGTH_SAMPLES; ++i) {
-			if (!Close(First(s[i]), ref[i])) {
-				std::cerr << "  [dbg t=" << t << " i=" << i
-					<< " rgb=(" << rgb.c[0] << "," << rgb.c[1] << ","
-					<< rgb.c[2] << ") w=" << First(swp.w[i])
-					<< " got=" << First(s[i]) << " ref=" << ref[i] << "]\n";
-			}
-			ok = ok && Close(First(s[i]), ref[i]);
+		if (!Close(First(s), ref.value)) {
+			std::cerr << "  [dbg t=" << t << " rgb=(" << rgb.c[0] << ","
+				<< rgb.c[1] << "," << rgb.c[2] << ") w=" << ref.wl
+				<< " got=" << First(s) << " ref=" << ref.value << "]\n";
 		}
+		ok = ok && Close(First(s), ref.value);
 	}
 	Check(ok, "Smits reflectant");
 }
 
-// Smits RGB->SPD (illuminant) must match SWCSpectrum(sw, RGBIllumSPD).
+// Smits RGB->SPD (illuminant) at a single wavelength must match c[single_w].
 void CheckIllum() {
 	bool ok = true;
 	for (int t = 0; t < 32 && ok; ++t) {
 		const float u1 = RandUnit();
 		const RGBColor rgb(RandUnit(), RandUnit(), RandUnit());
 
-		float ref[WAVELENGTH_SAMPLES];
-		ScalarRef(u1, rgb, true, ref, nullptr);
+		const ScalarSingle ref = ScalarRefSingle(u1, rgb, true);
 
 		lux2::SpectrumWavelengthsP swp;
-		SampleSW(swp, u1);
+		swp.FromWavelength(lux2::FloatP(ref.wl));
 		lux2::SWCSpectrumP s = lux2::RGBToSmitsSPD(ToP(rgb), swp, true);
 
-		for (int i = 0; i < WAVELENGTH_SAMPLES; ++i)
-			ok = ok && Close(First(s[i]), ref[i]);
+		ok = ok && Close(First(s), ref.value);
 	}
 	Check(ok, "Smits illuminant");
 }
 
-// CIE luminance must match SWCSpectrum::Y.
+// CIE luminance at a single wavelength must match SWCSpectrum::Y (single).
 void CheckLuminance() {
 	bool ok = true;
 	for (int t = 0; t < 32 && ok; ++t) {
 		const float u1 = RandUnit();
 		const RGBColor rgb(RandUnit(), RandUnit(), RandUnit());
 
-		float ref[WAVELENGTH_SAMPLES], refY = 0.f;
-		ScalarRef(u1, rgb, false, ref, &refY);
+		const ScalarSingle ref = ScalarRefSingle(u1, rgb, false);
 
 		lux2::SpectrumWavelengthsP swp;
-		SampleSW(swp, u1);
+		swp.FromWavelength(lux2::FloatP(ref.wl));
 		lux2::SWCSpectrumP s = lux2::RGBToSmitsSPD(ToP(rgb), swp, false);
-		ok = ok && Close(First(lux2::SWCY(s, swp)), refY);
+		ok = ok && Close(First(lux2::SWCY(s, swp)), ref.Y);
 	}
 	Check(ok, "CIE luminance");
 }
 
-// ConstantColorTexture must evaluate to the same spectrum as the scalar path.
+// ConstantColorTexture must evaluate to the same single-wavelength value.
 void CheckConstantTexture() {
 	const RGBColor rgb(0.7f, 0.3f, 0.1f);
 	const float u1 = 0.42f;
 
-	float ref[WAVELENGTH_SAMPLES];
-	ScalarRef(u1, rgb, false, ref, nullptr);
+	const ScalarSingle ref = ScalarRefSingle(u1, rgb, false);
 
 	lux2::ConstantColorTexture tex(ToP(rgb));
 	lux2::SpectrumWavelengthsP swp;
-	SampleSW(swp, u1);
+	swp.FromWavelength(lux2::FloatP(ref.wl));
 	lux2::SWCSpectrumP s = tex.Evaluate(lux2::DifferentialGeometryP(), swp);
 
-	bool ok = tex.IsConstant();
-	for (int i = 0; i < WAVELENGTH_SAMPLES && ok; ++i)
-		ok = ok && Close(First(s[i]), ref[i]);
+	bool ok = tex.IsConstant() && Close(First(s), ref.value);
 	Check(ok, "ConstantColorTexture matches scalar");
 }
 
