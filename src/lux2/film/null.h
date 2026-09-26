@@ -51,11 +51,13 @@ namespace lux2
         void Merge(Film *other) override;
 
         // No image output.
-        void WriteImage() override {}
+        bool WriteImage(ImageType) override { return true; }
+
+        void AddSampleCount(double n) override { m_sampleCount += n; }
+        double SampleCount() const override { return m_sampleCount; }
 
         // Accumulated luminance statistics.
         double SumLuminance() const { return m_sumLuminance; }
-        double SampleCount() const { return m_count; }
         double MeanLuminance() const
         {
             return m_count > 0.0 ? m_sumLuminance / m_count : 0.0;
@@ -67,6 +69,7 @@ namespace lux2
         int m_xres, m_yres;
         double m_sumLuminance = 0.0;
         double m_count = 0.0;
+        double m_sampleCount = 0.0;
     };
 
 } // namespace lux2

@@ -213,6 +213,7 @@ set(LUX2_CORE_SRC
 	lights/area.cpp
 	lights/infinite.cpp
 	film/null.cpp
+	film/fleximage.cpp
 	integrators/path.cpp
 	${BISON_Lux2Parser_OUTPUTS}
 	${FLEX_Lux2Lexer_OUTPUTS}
@@ -390,6 +391,16 @@ TARGET_INCLUDE_DIRECTORIES(lux2infinitelightcheck PRIVATE
 )
 TARGET_LINK_LIBRARIES(lux2infinitelightcheck PRIVATE lux2)
 add_test(NAME lux2infinitelightcheck COMMAND lux2infinitelightcheck)
+
+# FlexImageFilm core.
+ADD_EXECUTABLE(lux2filmcheck
+	tests/film_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2filmcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2filmcheck PRIVATE lux2)
+add_test(NAME lux2filmcheck COMMAND lux2filmcheck)
 
 # Stage 7: Scene::Commit wiring (camera/sampler/filter/lights/area geometry).
 ADD_EXECUTABLE(lux2scenewiringcheck

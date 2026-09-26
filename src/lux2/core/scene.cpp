@@ -391,6 +391,7 @@ namespace lux2
             {
                 PluginContext pctx;
                 pctx.params = &desc.filmParams;
+                pctx.filter = m_filter.get();
                 m_film = it->second(pctx);
             }
             else

@@ -60,6 +60,7 @@ namespace lux2
             return;
         m_sumLuminance += o->m_sumLuminance;
         m_count += o->m_count;
+        m_sampleCount += o->m_sampleCount;
     }
 
     std::shared_ptr<Film> NullFilm::CreateFilm(const PluginContext &ctx)

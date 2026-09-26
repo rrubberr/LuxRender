@@ -25,9 +25,24 @@
 #include "core/vecp.h"
 #include "core/spectrum.h"
 #include "core/color.h"
+#include "core/api.h"
+
+#include <iosfwd>
+#include <string>
 
 namespace lux2
 {
+
+    // Which outputs to produce on a WriteImage call.
+    enum ImageType
+    {
+        IMAGE_NONE = 0,
+        IMAGE_FILEOUTPUT = 1 << 0,   // Write image file(s) (PNG/EXR)
+        IMAGE_FLMOUTPUT = 1 << 1,    // Write resume FLM file
+        IMAGE_FRAMEBUFFER = 1 << 2,  // Refresh the display framebuffer
+        IMAGE_FINAL = 1 << 3,        // Final output before ending
+        IMAGE_FILE_ALL = IMAGE_FILEOUTPUT | IMAGE_FLMOUTPUT
+    };
 
     // Accumulates radiance contributions into pixels and writes the image.
     class Film
@@ -49,11 +64,59 @@ namespace lux2
         // Merge another film's accumulated buffer into this one.
         virtual void Merge(Film *other) = 0;
 
-        // Write the current accumulated image to disk.
-        virtual void WriteImage() = 0;
+        // Accumulated sample count (drives haltspp and FLM bookkeeping).
+        virtual void AddSampleCount(double n) = 0;
+        virtual double SampleCount() const = 0;
 
-        // Write a resume FLM file.
-        virtual void WriteFLM() {}
+        // Produce the requested outputs. Returns true on success.
+        virtual bool WriteImage(ImageType type) = 0;
+
+        // Resume-file support. Films without FLM support keep the defaults.
+        virtual bool WriteFilmToFile(const std::string &filename)
+        {
+            (void)filename;
+            return false;
+        }
+        virtual bool LoadResumeFilm(const std::string &filename)
+        {
+            (void)filename;
+            return false;
+        }
+        virtual double MergeFilmFromStream(std::istream &stream)
+        {
+            (void)stream;
+            return 0.0;
+        }
+
+        // Display framebuffer access for the C-API. nullptr when unsupported.
+        virtual void UpdateFrameBuffer() {}
+        virtual unsigned char *GetFrameBuffer() { return nullptr; }
+        virtual float *GetFloatFrameBuffer() { return nullptr; }
+        virtual float *GetAlphaBuffer() { return nullptr; }
+
+        // Live parameter access (legacy luxComponentParameters subset).
+        // Unimplemented ids are ignored on set and read as 0.
+        virtual void SetParameterValue(luxComponentParameters param,
+                                       double value, unsigned int index)
+        {
+            (void)param;
+            (void)value;
+            (void)index;
+        }
+        virtual double GetParameterValue(luxComponentParameters param,
+                                         unsigned int index) const
+        {
+            (void)param;
+            (void)index;
+            return 0.0;
+        }
+        virtual double GetDefaultParameterValue(luxComponentParameters param,
+                                                unsigned int index) const
+        {
+            (void)param;
+            (void)index;
+            return 0.0;
+        }
     };
 
 } // namespace lux2
