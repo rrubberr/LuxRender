@@ -110,7 +110,15 @@ namespace lux2
         // Expand to a full sw so the color texture can reconstruct its spectrum.
         SpectrumWavelengthsP sw;
         sw.FromWavelength(ray.wavelengths);
-        return m_Le->Evaluate(dg, sw, active) * FloatP(m_gain * PI);
+        return m_Le->Evaluate(dg, sw, active) * FloatP(m_gain);
+    }
+
+    SWCSpectrumP AreaLight::Le(const DifferentialGeometryP &dg,
+                               const SpectrumWavelengthsP &sw,
+                               MaskP active) const
+    {
+        // Read the emission texture at the real hit point.
+        return m_Le->Evaluate(dg, sw, active) * FloatP(m_gain);
     }
 
     MaskP AreaLight::Sample_L(const SpectrumWavelengthsP &sw,
@@ -254,7 +262,7 @@ namespace lux2
                 ctx.params ? ctx.params->FindOneRGBColor("Le", RGBColor(1.f))
                            : RGBColor(1.f);
             const RGBColorP rgbP(FloatP(rgb.r()), FloatP(rgb.g()), FloatP(rgb.b()));
-            le = std::make_shared<ConstantColorTexture>(rgbP);
+            le = std::make_shared<ConstantColorTexture>(rgbP, /*illuminant=*/true);
         }
 
         const float gain = ctx.params ? ctx.params->FindOneFloat("gain", 1.f) : 1.f;

@@ -64,6 +64,19 @@ namespace lux2
         return m_Le->Evaluate(dg, sw, active) * FloatP(m_gain);
     }
 
+    SWCSpectrumP InfiniteLight::Le(const DifferentialGeometryP &,
+                                   const SpectrumWavelengthsP &sw,
+                                   MaskP active) const
+    {
+        // Return the constant value so the interface is satisfied.
+        DifferentialGeometryP dg;
+        dg.p = Point3fP(FloatP(0.f), FloatP(0.f), FloatP(0.f));
+        dg.n = Normal3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));
+        dg.uv_u = FloatP(0.f);
+        dg.uv_v = FloatP(0.f);
+        return m_Le->Evaluate(dg, sw, active) * FloatP(m_gain);
+    }
+
     MaskP InfiniteLight::Sample_L(const SpectrumWavelengthsP &sw,
                                   const Point3fP &p, const Normal3fP &n,
                                   const FloatP &u0, const FloatP &u1,
@@ -125,7 +138,7 @@ namespace lux2
                 ctx.params ? ctx.params->FindOneRGBColor("Le", RGBColor(1.f))
                            : RGBColor(1.f);
             const RGBColorP rgbP(FloatP(rgb.r()), FloatP(rgb.g()), FloatP(rgb.b()));
-            le = std::make_shared<ConstantColorTexture>(rgbP);
+            le = std::make_shared<ConstantColorTexture>(rgbP, /*illuminant=*/true);
         }
 
         const float gain = ctx.params ? ctx.params->FindOneFloat("gain", 1.f) : 1.f;

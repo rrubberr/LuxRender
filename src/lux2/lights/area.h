@@ -46,6 +46,11 @@ namespace lux2
         // Radiance emitted along a ray that hit this emitter.
         SWCSpectrumP Le(const RayP &ray, MaskP active = MaskP(true)) const override;
 
+        // Radiance emitted from a surface point.
+        SWCSpectrumP Le(const DifferentialGeometryP &dg,
+                        const SpectrumWavelengthsP &sw,
+                        MaskP active = MaskP(true)) const override;
+
         MaskP Sample_L(const SpectrumWavelengthsP &sw,
                        const Point3fP &p, const Normal3fP &n,
                        const FloatP &u0, const FloatP &u1, const FloatP &u2,

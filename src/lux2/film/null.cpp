@@ -39,14 +39,14 @@ namespace lux2
         const FloatP lum = SWCY(L, sw) * weight;
         const MaskP active = alpha > FloatP(0.f);
 
-        // Reduce the active lanes into the running scalar accumulators.
+        // Reduce active lanes into scalar accumulators.
         float lumArr[PACKET_WIDTH];
-        bool actArr[PACKET_WIDTH];
+        uint32_t actArr[PACKET_WIDTH];
         enoki::store_unaligned(lumArr, lum);
         enoki::store_unaligned(actArr, active);
 
         for (size_t i = 0; i < PACKET_WIDTH; ++i) {
-            if (actArr[i] && enoki::isfinite(lumArr[i])) {
+            if (actArr[i] != 0u && enoki::isfinite(lumArr[i])) {
                 m_sumLuminance += double(lumArr[i]);
                 m_count += 1.0;
             }

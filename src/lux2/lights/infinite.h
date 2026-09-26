@@ -44,6 +44,11 @@ namespace lux2
         // Radiance arriving from the ray's direction.
         SWCSpectrumP Le(const RayP &ray, MaskP active = MaskP(true)) const override;
 
+        // Used only if an eye ray somehow reports a surface hit on the env.
+        SWCSpectrumP Le(const DifferentialGeometryP &dg,
+                        const SpectrumWavelengthsP &sw,
+                        MaskP active = MaskP(true)) const override;
+
         MaskP Sample_L(const SpectrumWavelengthsP &sw,
                        const Point3fP &p, const Normal3fP &n,
                        const FloatP &u0, const FloatP &u1, const FloatP &u2,
