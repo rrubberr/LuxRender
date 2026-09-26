@@ -39,6 +39,9 @@ namespace lux2
     // Number of components in an RGBColor.
     constexpr int RGB_SAMPLES = 3;
 
+    // Number of components in an XYZColor.
+    constexpr int XYZ_SAMPLES = 3;
+
     // ---------------------------------------------------------------------------
     // SWCSpectrum Templates
     // ---------------------------------------------------------------------------
@@ -155,6 +158,48 @@ namespace lux2
     // Scalar and packet aliases.
     using RGBColor = RGBColor_<Float>;
     using RGBColorP = RGBColor_<FloatP>;
+
+    // ---------------------------------------------------------------------------
+    // XYZColor
+    // ---------------------------------------------------------------------------
+
+    // A CIE XYZ color of XYZ_SAMPLES components.
+    template <typename Value_, size_t Size_ = XYZ_SAMPLES>
+    struct XYZColor_
+        : enoki::StaticArrayImpl<Value_, Size_, false, XYZColor_<Value_, Size_>>
+    {
+        using Base =
+            enoki::StaticArrayImpl<Value_, Size_, false, XYZColor_<Value_, Size_>>;
+
+        // Helper alias used to implement Enoki type promotion.
+        template <typename T>
+        using ReplaceValue = XYZColor_<T, Size_>;
+
+        using ArrayType = XYZColor_;
+        using MaskType = enoki::Mask<Value_, Size_>;
+
+        ENOKI_ARRAY_IMPORT(Base, XYZColor_)
+
+        // Tristimulus accessors.
+        Value_ X() const { return (*this)[0]; }
+        Value_ Y() const { return (*this)[1]; }
+        Value_ Z() const { return (*this)[2]; }
+    };
+
+    // Lane masking.
+    template <typename Value_, size_t Size_>
+    struct XYZColor_<enoki::detail::MaskedArray<Value_>, Size_>
+        : enoki::detail::MaskedArray<XYZColor_<Value_, Size_>>
+    {
+        using Base = enoki::detail::MaskedArray<XYZColor_<Value_, Size_>>;
+        using Base::Base;
+        using Base::operator=;
+        XYZColor_(const Base &b) : Base(b) {}
+    };
+
+    // Scalar and packet aliases.
+    using XYZColor = XYZColor_<Float>;
+    using XYZColorP = XYZColor_<FloatP>;
 
 } // namespace lux2
 

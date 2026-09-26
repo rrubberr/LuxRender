@@ -31,7 +31,9 @@ namespace lux2
     using namespace enoki;
 
     // Bring in the scalar data tables from luxrays.
+    using luxrays::CIE_X;
     using luxrays::CIE_Y;
+    using luxrays::CIE_Z;
     using luxrays::illumrgb2spect_blue;
     using luxrays::illumrgb2spect_cyan;
     using luxrays::illumrgb2spect_green;
@@ -174,16 +176,36 @@ namespace lux2
     }
 
     // ---------------------------------------------------------------------------
-    // CIE luminance
+    // CIE luminance / tristimulus
     // ---------------------------------------------------------------------------
+
+    namespace
+    {
+        // Linearized CIE table sample at sw's wavelength, scaled by CIE_SCALE.
+        FloatP SampleCIE(const float *table, const SpectrumWavelengthsP &sw)
+        {
+            const Int32P b = min(sw.binXYZ, Int32P(CIE_BINS - 2));
+            const FloatP lo = gather<FloatP>(table, b);
+            const FloatP hi = gather<FloatP>(table, b + 1);
+            return lerp(lo, hi, sw.offsetXYZ) * CIE_SCALE;
+        }
+    } // namespace
 
     FloatP SWCY(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw)
     {
         // Monochromatic luminance ciey(w) * s scaled by CIE_SCALE.
-        const Int32P b = min(sw.binXYZ, Int32P(CIE_BINS - 2));
-        const FloatP lo = gather<FloatP>(CIE_Y, b);
-        const FloatP hi = gather<FloatP>(CIE_Y, b + 1);
-        return lerp(lo, hi, sw.offsetXYZ) * s * CIE_SCALE;
+        return SampleCIE(CIE_Y, sw) * s;
+    }
+
+    XYZColorP SWCToXYZ(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw)
+    {
+        // Monochromatic: cie(w) * s * 683 * (END - START) per channel. The
+        // scalar reference divides spd_cie* by WAVELENGTH_SAMPLES and then
+        // multiplies the single-sample result by WAVELENGTH_SAMPLES, so the
+        // factors cancel and CIE_SCALE is the exact match.
+        return XYZColorP(SampleCIE(CIE_X, sw) * s,
+                         SampleCIE(CIE_Y, sw) * s,
+                         SampleCIE(CIE_Z, sw) * s);
     }
 
 } // namespace lux2

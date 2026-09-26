@@ -178,6 +178,54 @@ void CheckLuminance() {
 	Check(ok, "CIE luminance");
 }
 
+// CIE XYZ at a single wavelength must match XYZColor(sw, s) (single).
+void CheckXYZ() {
+	bool ok = true;
+	for (int t = 0; t < 32 && ok; ++t) {
+		const float u1 = RandUnit();
+		const RGBColor rgb(RandUnit(), RandUnit(), RandUnit());
+
+		SpectrumWavelengths sw;
+		sw.Sample(u1);
+		const float wl = sw.SampleSingle(); // sets sw.single
+		const SWCSpectrum s = SWCSpectrum(sw, RGBReflSPD(rgb));
+		const luxrays::XYZColor ref(sw, s);
+
+		lux2::SpectrumWavelengthsP swp;
+		swp.FromWavelength(lux2::FloatP(wl));
+		lux2::SWCSpectrumP sp = lux2::RGBToSmitsSPD(ToP(rgb), swp, false);
+		const lux2::XYZColorP xyz = lux2::SWCToXYZ(sp, swp);
+
+		if (!Close(First(xyz[0]), ref.c[0]) ||
+			!Close(First(xyz[1]), ref.c[1]) ||
+			!Close(First(xyz[2]), ref.c[2])) {
+			std::cerr << "  [dbg t=" << t << " w=" << wl
+				<< " got=(" << First(xyz[0]) << "," << First(xyz[1]) << ","
+				<< First(xyz[2]) << ") ref=(" << ref.c[0] << "," << ref.c[1]
+				<< "," << ref.c[2] << ")]\n";
+			ok = false;
+		}
+	}
+	Check(ok, "CIE XYZ tristimulus");
+}
+
+// SWCY must equal the Y channel of SWCToXYZ.
+void CheckYMatchesXYZ() {
+	bool ok = true;
+	for (int t = 0; t < 32 && ok; ++t) {
+		const float u1 = RandUnit();
+		const RGBColor rgb(RandUnit(), RandUnit(), RandUnit());
+
+		lux2::SpectrumWavelengthsP swp;
+		swp.Sample(lux2::FloatP(u1));
+		lux2::SWCSpectrumP s = lux2::RGBToSmitsSPD(
+			ToP(RGBColor(RandUnit(), RandUnit(), RandUnit())), swp, false);
+
+		ok = ok && Close(First(lux2::SWCY(s, swp)), First(lux2::SWCToXYZ(s, swp)[1]));
+	}
+	Check(ok, "SWCY == SWCToXYZ().Y");
+}
+
 // ConstantColorTexture must evaluate to the same single-wavelength value.
 void CheckConstantTexture() {
 	const RGBColor rgb(0.7f, 0.3f, 0.1f);
@@ -202,6 +250,8 @@ int main() {
 	CheckRefl();
 	CheckIllum();
 	CheckLuminance();
+	CheckXYZ();
+	CheckYMatchesXYZ();
 	CheckConstantTexture();
 
 	if (g_failures == 0) {

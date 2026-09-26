@@ -93,6 +93,9 @@ namespace lux2
     // Photometric luminance of a spectrum.
     FloatP SWCY(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw);
 
+    // CIE XYZ tristimulus of a spectrum at the wavelengths in sw.
+    XYZColorP SWCToXYZ(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw);
+
 } // namespace lux2
 
 #endif // LUX2_COLOR_H
