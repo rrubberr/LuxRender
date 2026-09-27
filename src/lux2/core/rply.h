@@ -1,7 +1,7 @@
 #ifndef PLY_H
 #define PLY_H
 
-namespace luxrays {
+namespace lux2 {
 
 /* ----------------------------------------------------------------------
  * RPly library, read/write PLY files

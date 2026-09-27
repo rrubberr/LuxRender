@@ -15,16 +15,15 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <stdint.h> 
+#include <stdint.h>
 
-#include "luxrays/utils/ply/rply.h"
-#include "luxrays/core/utils.h"
+#include <cmath>
+
+#include "core/rply.h"
 
 using namespace std;
 
-// Patched for x64 Linux/OSX based on http://src.luxrender.net/lux/rev/612d14f647ae
-
-namespace luxrays {
+namespace lux2 {
 
 /* ----------------------------------------------------------------------
  * Constants 
@@ -1396,7 +1395,7 @@ static int ibinary_int32(p_ply ply, double *value) {
     int32_t int32; //long int32;
     if (!ply->idriver->ichunk(ply, &int32, sizeof(int32))) return 0;
     *value = int32;
-    if (isnan(*value) || isinf(*value))
+    if (std::isnan(*value) || std::isinf(*value))
        *value = 0.f;
     return 1;
 }
@@ -1412,7 +1411,7 @@ static int ibinary_float32(p_ply ply, double *value) {
     float float32;
     if (!ply->idriver->ichunk(ply, &float32, sizeof(float32))) return 0;
     *value = float32;
-    if (isnan(*value) || isinf(*value))
+    if (std::isnan(*value) || std::isinf(*value))
        *value = 0.f;
     ply_reverse(&float32, sizeof(float32));
     return 1;

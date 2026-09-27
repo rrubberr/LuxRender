@@ -19,7 +19,7 @@
 // 32 bin RGB spectra for smits RGB->RGBColor conversion using E whitepoint (for reflectances)
 // generated with matlab by karlvb - added by radiance
 
-namespace luxrays {
+namespace lux2 {
 
 static const unsigned int refrgb2spect_bins  = 32;
 static const float refrgb2spect_start = 380.f;
