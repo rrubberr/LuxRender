@@ -60,76 +60,12 @@ enable_testing()
 # Find Dependencies #
 #####################
 
-# Enoki is header-only.
-if(NOT EXISTS ${INC_DIR}/enoki/array.h)
-	message(FATAL_ERROR
-		"Enoki headers not found in ${INC_DIR}/enoki - "
-		"build the 'enoki' target in the top-level build first.")
-endif()
-INCLUDE_DIRECTORIES(BEFORE SYSTEM "${INC_DIR}")
-
-FIND_PACKAGE(embree CONFIG REQUIRED)
-IF(TARGET embree::embree)
-	SET(LUX2_EMBREE_TARGET embree::embree)
-ELSEIF(TARGET embree)
-	SET(LUX2_EMBREE_TARGET embree)
-ELSE()
-	MESSAGE(FATAL_ERROR "No Embree target (embree::embree or embree) found.")
-ENDIF()
-MESSAGE(STATUS "lux2: Embree found (${LUX2_EMBREE_TARGET})")
-
-FIND_PACKAGE(TBB CONFIG REQUIRED)
-IF(NOT TARGET TBB::tbb)
-	MESSAGE(FATAL_ERROR "TBB::tbb target not found - build the 'tbb' ext target first.")
-ENDIF()
-MESSAGE(STATUS "lux2: TBB found (TBB::tbb)")
-
-FIND_PACKAGE(Threads REQUIRED)
-
-FIND_PACKAGE(OpenEXR CONFIG REQUIRED)
-if(TARGET OpenEXR::OpenEXR)
-	get_target_property(EXR_INC OpenEXR::OpenEXR INTERFACE_INCLUDE_DIRECTORIES)
-	MESSAGE(STATUS "OpenEXR include directory: ${EXR_INC}")
-endif()
-FIND_PACKAGE(Imath CONFIG REQUIRED)
-if(TARGET Imath::Imath)
-	get_target_property(IMATH_INC Imath::Imath INTERFACE_INCLUDE_DIRECTORIES)
-	MESSAGE(STATUS "Imath include directory: ${IMATH_INC}")
-endif()
-
-FIND_PACKAGE(PNG CONFIG REQUIRED)
-IF(PNG_INCLUDE_DIRS)
-	MESSAGE(STATUS "PNG include directory: " ${PNG_INCLUDE_DIRS})
-	INCLUDE_DIRECTORIES(BEFORE SYSTEM ${PNG_INCLUDE_DIRS})
-ELSE(PNG_INCLUDE_DIRS)
-	MESSAGE(STATUS "Warning : could not find PNG headers - building without png support")
-endif()
-
-FIND_PACKAGE(libjpeg-turbo CONFIG REQUIRED)
-MESSAGE(STATUS "lux2: libjpeg-turbo found (libjpeg-turbo::jpeg-static)")
-
-FIND_PACKAGE(TIFF CONFIG REQUIRED)
-IF(TIFF_INCLUDE_DIRS)
-	MESSAGE(STATUS "TIFF include directory: " ${TIFF_INCLUDE_DIRS})
-	INCLUDE_DIRECTORIES(BEFORE SYSTEM ${TIFF_INCLUDE_DIRS})
-ENDIF()
-MESSAGE(STATUS "lux2: TIFF found (TIFF::tiff)")
-
-# Bison/Flex for the .lxs parser.
-FIND_PACKAGE(BISON REQUIRED)
-FIND_PACKAGE(FLEX REQUIRED)
-
-BISON_TARGET(Lux2Parser ${CMAKE_CURRENT_SOURCE_DIR}/core/luxparse.y
-	${CMAKE_CURRENT_BINARY_DIR}/luxparse.cpp)
-FLEX_TARGET(Lux2Lexer ${CMAKE_CURRENT_SOURCE_DIR}/core/luxlex.l
-	${CMAKE_CURRENT_BINARY_DIR}/luxlex.cpp)
-ADD_FLEX_BISON_DEPENDENCY(Lux2Lexer Lux2Parser)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 
 ######################
 # Set compiler flags #
 ######################
 
-# Same native/vectorization policy as src/lux.
 ADD_DEFINITIONS(-march=native -ftree-vectorize -funroll-loops -DHAVE_PTHREAD_H)
 add_compile_options(-w)
 
@@ -138,88 +74,26 @@ if(NOT DEFINED LUX2_RELEASE_DIR)
 	set(LUX2_RELEASE_DIR ${CMAKE_BINARY_DIR})
 endif()
 
-#######################
-# Build lux2 binaries #
-#######################
+####################
+# Build liblux2.so #
+####################
 
-# lux2 core type headers.
-set(LUX2_CORE_HEADERS
-	core/lux2.h
-	core/vecp.h
-	core/geometry.h
-	core/spectrum.h
-	core/color.h
-	core/ray.h
-	core/rng.h
+file(GLOB LUX2_CORE_SRC CONFIGURE_DEPENDS
+	core/*.cpp
+	shapes/*.cpp
+	textures/*.cpp
+	materials/*.cpp
+	samplers/*.cpp
+	filters/*.cpp
+	cameras/*.cpp
+	lights/*.cpp
+	film/*.cpp
+	integrators/*.cpp
+	tonemaps/*.cpp
 )
 
-# Build lux2corecheck.
-ADD_EXECUTABLE(lux2corecheck
-	tests/core_check.cpp
-	${LUX2_CORE_HEADERS}
-)
-
-TARGET_INCLUDE_DIRECTORIES(lux2corecheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-# Run the check automatically after each build of the check target.
-add_test(NAME lux2corecheck COMMAND lux2corecheck)
-
-# lux2 foundation sources.
-set(LUX2_FOUNDATION_SRC
-	core/paramset.cpp
-	core/color.cpp
-	core/rply.cpp
-	core/context2.cpp
-	core/scene.cpp
-	core/dynload.cpp
-	core/plymesh.cpp
-	core/embree2.cpp
-	core/fresnel.cpp
-	core/schlick_distribution.cpp
-	core/threadpool.cpp
-)
-
-set(LUX2_FOUNDATION_HEADERS
-	core/scene.h
-	core/paramset.h
-	core/context2.h
-	core/graphicsstate.h
-	core/transform_stack.h
-	core/transform.h
-	core/dynload.h
-	core/plymesh.h
-	core/embree2.h
-)
-
-# Built as a SHARED library (liblux2.so).
-set(LUX2_CORE_SRC
-	${LUX2_FOUNDATION_SRC}
-	core/api.cpp
-	shapes/sphere.cpp
-	shapes/plymesh.cpp
-	textures/constant.cpp
-	textures/fresnelcolor.cpp
-	materials/null.cpp
-	materials/matte.cpp
-	materials/metal2.cpp
-	materials/glass.cpp
-	samplers/ldsampler.cpp
-	filters/gaussian.cpp
-	cameras/perspective.cpp
-	lights/area.cpp
-	lights/infinite.cpp
-	film/null.cpp
-	film/fleximage.cpp
-	integrators/path.cpp
-	core/colorsystem.cpp
-	core/tonemap.cpp
-	core/exrio.cpp
-	core/pngio.cpp
-	core/jpegio.cpp
-	core/tiffio.cpp
-	tonemaps/lineartonemap.cpp
+# Bison/Flex generate these at build time.
+list(APPEND LUX2_CORE_SRC
 	${BISON_Lux2Parser_OUTPUTS}
 	${FLEX_Lux2Lexer_OUTPUTS}
 )
@@ -233,250 +107,26 @@ TARGET_INCLUDE_DIRECTORIES(lux2 PUBLIC
 	${CMAKE_CURRENT_BINARY_DIR}
 )
 
-# TBB shared scheduler also used by Embree; linking it here keeps
-# a single libtbb in the process.
+# Share the libtbb used by Embree.
 TARGET_LINK_LIBRARIES(lux2 PUBLIC
 	${LUX2_EMBREE_TARGET} TBB::tbb
 	OpenEXR::OpenEXR OpenEXR::Iex Imath::Imath PNG::PNG
 	libjpeg-turbo::jpeg-static TIFF::tiff)
 
-# Build lux2foundationcheck.
-ADD_EXECUTABLE(lux2foundationcheck
-	tests/foundation_check.cpp
-	${LUX2_FOUNDATION_HEADERS}
-)
+###############
+# Build tests #
+###############
 
-TARGET_INCLUDE_DIRECTORIES(lux2foundationcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
+# Test check executables (defined in tests/CMakeLists.txt).
+add_subdirectory(tests)
 
-TARGET_LINK_LIBRARIES(lux2foundationcheck PRIVATE lux2)
 
-add_test(NAME lux2foundationcheck
-	COMMAND lux2foundationcheck
-	${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/Scene/00001/floor_0000_m000.ply
-)
-
-# Shape tessellation (sphere + plymesh) and Scene::Commit wiring.
-ADD_EXECUTABLE(lux2shapecheck
-	tests/shape_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2shapecheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2shapecheck PRIVATE
-	lux2
-	${LUX2_EMBREE_TARGET}
-	Threads::Threads
-)
-add_test(NAME lux2shapecheck
-	COMMAND lux2shapecheck
-	${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/Scene/00001/floor_0000_m000.ply
-)
-
-# BSDF dispatch substrate.
-ADD_EXECUTABLE(lux2bsdfdispatchcheck
-	tests/bsdf_dispatch_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2bsdfdispatchcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2bsdfdispatchcheck PRIVATE
-	lux2
-	Threads::Threads
-)
-add_test(NAME lux2bsdfdispatchcheck COMMAND lux2bsdfdispatchcheck)
-
-# Texture plugins + Fresnel math.
-ADD_EXECUTABLE(lux2texturecheck
-	tests/texture_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2texturecheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2texturecheck PRIVATE
-	lux2
-	Threads::Threads
-)
-add_test(NAME lux2texturecheck COMMAND lux2texturecheck)
-
-# Material kernels (D.1 matte: Lambertian + Oren--Nayar).
-ADD_EXECUTABLE(lux2materialcheck
-	tests/material_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2materialcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2materialcheck PRIVATE
-	lux2
-	Threads::Threads
-)
-add_test(NAME lux2materialcheck COMMAND lux2materialcheck)
-
-# Embree packet intersect/occlude/shade.
-ADD_EXECUTABLE(lux2embreecheck
-	tests/embree_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2embreecheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2embreecheck PRIVATE
-	lux2
-	${LUX2_EMBREE_TARGET}
-	Threads::Threads
-)
-add_test(NAME lux2embreecheck COMMAND lux2embreecheck)
-
-# Phase 1: shared TBB scheduler cap + render arena coexisting with Embree.
-ADD_EXECUTABLE(lux2threadpoolcheck
-	tests/threadpool_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2threadpoolcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2threadpoolcheck PRIVATE
-	lux2
-	${LUX2_EMBREE_TARGET}
-	TBB::tbb
-	Threads::Threads
-)
-add_test(NAME lux2threadpoolcheck COMMAND lux2threadpoolcheck)
-
-# Stage 0: QMC substrate (radical_inverse_2 / sobol_2 / permute / tea).
-ADD_EXECUTABLE(lux2qmccheck
-	tests/qmc_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2qmccheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-add_test(NAME lux2qmccheck COMMAND lux2qmccheck)
-
-# Stage 2: LDSampler (0-2 sequence) streaming interface.
-ADD_EXECUTABLE(lux2samplercheck
-	tests/sampler_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2samplercheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2samplercheck PRIVATE lux2)
-add_test(NAME lux2samplercheck COMMAND lux2samplercheck)
-
-# Stage 3: Gaussian pixel filter (LuxRender semantics).
-ADD_EXECUTABLE(lux2filtercheck
-	tests/filter_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2filtercheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2filtercheck PRIVATE lux2)
-add_test(NAME lux2filtercheck COMMAND lux2filtercheck)
-
-# Stage 4: Perspective camera (legacy +Z convention, BDPT endpoint).
-ADD_EXECUTABLE(lux2cameracheck
-	tests/camera_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2cameracheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2cameracheck PRIVATE lux2)
-add_test(NAME lux2cameracheck COMMAND lux2cameracheck)
-
-# Stage 5: Area light (uniform triangle sampling, area-CDF, Pdf_L).
-ADD_EXECUTABLE(lux2arealightcheck
-	tests/area_light_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2arealightcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2arealightcheck PRIVATE lux2)
-add_test(NAME lux2arealightcheck COMMAND lux2arealightcheck)
-
-# Stage 6: Infinite (environment) light, uniform-sphere sampling.
-ADD_EXECUTABLE(lux2infinitelightcheck
-	tests/infinite_light_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2infinitelightcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2infinitelightcheck PRIVATE lux2)
-add_test(NAME lux2infinitelightcheck COMMAND lux2infinitelightcheck)
-
-# FlexImageFilm core.
-ADD_EXECUTABLE(lux2filmcheck
-	tests/film_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2filmcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2filmcheck PRIVATE lux2)
-add_test(NAME lux2filmcheck COMMAND lux2filmcheck)
-
-# Stage D: linear/autolinear tonemap kernels + registry.
-ADD_EXECUTABLE(lux2tonemapcheck
-	tests/tonemap_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2tonemapcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2tonemapcheck PRIVATE lux2)
-add_test(NAME lux2tonemapcheck COMMAND lux2tonemapcheck)
-
-# Stage D: EXR/PNG writers and readers.
-ADD_EXECUTABLE(lux2imageiocheck
-	tests/imageio_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2imageiocheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2imageiocheck PRIVATE lux2)
-add_test(NAME lux2imageiocheck COMMAND lux2imageiocheck
-	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-
-# Stage 7: Scene::Commit wiring (camera/sampler/filter/lights/area geometry).
-ADD_EXECUTABLE(lux2scenewiringcheck
-	tests/scene_wiring_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2scenewiringcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2scenewiringcheck PRIVATE
-	lux2
-	${LUX2_EMBREE_TARGET}
-	Threads::Threads
-)
-add_test(NAME lux2scenewiringcheck COMMAND lux2scenewiringcheck)
-
-# Stage 1: NullFilm + PathIntegrator skeleton + registry construction.
-ADD_EXECUTABLE(lux2pathcheck
-	tests/path_check.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2pathcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2pathcheck PRIVATE
-	lux2
-	${LUX2_EMBREE_TARGET}
-	Threads::Threads
-)
-add_test(NAME lux2pathcheck COMMAND lux2pathcheck)
-
-# SoA SPD/CIE pipeline cross-checked against the scalar colorref reference
-# (tests/color_ref/, compiled into this target only).
-ADD_EXECUTABLE(lux2colorcheck
-	tests/color_check.cpp
-	tests/color_ref/color_ref.cpp
-)
-TARGET_INCLUDE_DIRECTORIES(lux2colorcheck PRIVATE
-	${CMAKE_CURRENT_SOURCE_DIR}
-)
-TARGET_LINK_LIBRARIES(lux2colorcheck PRIVATE
-	lux2
-)
-add_test(NAME lux2colorcheck COMMAND lux2colorcheck)
+#####################
+# Build lux2console #
+#####################
 
 ADD_EXECUTABLE(lux2console
 	console/lux2console.cpp
-	${LUX2_CORE_HEADERS}
 )
 
 TARGET_INCLUDE_DIRECTORIES(lux2console PRIVATE
@@ -494,7 +144,10 @@ SET_TARGET_PROPERTIES(lux2console PROPERTIES
 	INSTALL_RPATH "$ORIGIN"
 )
 
-# Collect the binary next to the regular LuxRender binaries.
+####################
+# Collect binaries #
+####################
+
 ADD_CUSTOM_COMMAND(TARGET lux2console POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E make_directory "${LUX2_RELEASE_DIR}"
 	COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:lux2console> "${LUX2_RELEASE_DIR}/"
