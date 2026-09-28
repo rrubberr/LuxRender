@@ -320,11 +320,10 @@ namespace lux2
 
     void PathIntegrator::RenderTile(const Scene &scene, const Tile &tile,
                                     Film &dest, Sampler &sampler,
-                                    int passIndex)
+                                    int passIndex, uint32_t spp)
     {
         const Camera &camera = scene.GetCamera();
 
-        const uint32_t spp = sampler.SampleCount();
         const FloatP lane = enoki::arange<FloatP>();
 
         for (int py = tile.y0; py < tile.y1; ++py)

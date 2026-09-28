@@ -126,7 +126,7 @@ add_lux2_check(
 	NAME lux2shapecheck
 	SOURCES shape_check.cpp
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
-	WORKING_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/Scene/00001
+	WORKING_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../test/cornell_box/Scene/00001
 )
 
 add_lux2_check(
@@ -139,7 +139,7 @@ add_lux2_check(
 	NAME lux2scenewiringcheck
 	SOURCES scene_wiring_check.cpp
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
-	WORKING_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/Scene/00001
+	WORKING_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../test/cornell_box/Scene/00001
 )
 
 add_lux2_check(
@@ -152,6 +152,12 @@ add_lux2_check(
 add_lux2_check(
 	NAME lux2threadpoolcheck
 	SOURCES threadpool_check.cpp
+	LINKS lux2 ${LUX2_EMBREE_TARGET} TBB::tbb Threads::Threads
+)
+
+add_lux2_check(
+	NAME lux2renderercheck
+	SOURCES renderer_check.cpp
 	LINKS lux2 ${LUX2_EMBREE_TARGET} TBB::tbb Threads::Threads
 )
 

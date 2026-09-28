@@ -162,7 +162,8 @@ double RunPass(SurfaceIntegrator &integ, Scene &scene) {
     Tile t;
     t.x0 = 0; t.y0 = 0; t.x1 = 16; t.y1 = 16;
     auto sampler = scene.GetSampler().Clone();
-    integ.RenderTile(scene, t, scene.GetFilm(), *sampler, 0);
+    integ.RenderTile(scene, t, scene.GetFilm(), *sampler, 0,
+                     sampler->SampleCount());
     auto *film = dynamic_cast<NullFilm *>(&scene.GetFilm());
     return film ? film->MeanLuminance() : -1.0;
 }

@@ -89,6 +89,7 @@ file(GLOB LUX2_CORE_SRC CONFIGURE_DEPENDS
 	lights/*.cpp
 	film/*.cpp
 	integrators/*.cpp
+	renderers/*.cpp
 	tonemaps/*.cpp
 )
 

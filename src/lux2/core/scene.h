@@ -150,8 +150,8 @@ namespace lux2
         SurfaceIntegrator &GetSurfaceIntegrator() { return *m_surfaceIntegrator; }
         VolumeIntegrator &GetVolumeIntegrator() { return *m_volumeIntegrator; }
         Renderer &GetRenderer() { return *m_renderer; }
-        Sampler &GetSampler() { return *m_sampler; }
-        Filter &GetFilter() { return *m_filter; }
+        Sampler &GetSampler() const { return *m_sampler; }
+        Filter &GetFilter() const { return *m_filter; }
 
         const std::vector<std::shared_ptr<Light>> &GetLights() const { return m_lights; }
 

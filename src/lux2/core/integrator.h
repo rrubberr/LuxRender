@@ -50,10 +50,10 @@ namespace lux2
         // Called once before the first pass.
         virtual void Start(const Scene &scene) { (void)scene; }
 
-        // Render one tile of `spp` into `dest`.
+        // Render `spp` samples per pixel of `tile` into `dest`.
         virtual void RenderTile(const Scene &scene, const Tile &tile,
                                 Film &dest, Sampler &sampler,
-                                int passIndex) = 0;
+                                int passIndex, uint32_t spp) = 0;
 
         // Called once after the last pass. Flush pass buffers.
         virtual void End(const Scene &scene) { (void)scene; }

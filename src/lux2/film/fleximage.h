@@ -65,10 +65,10 @@ namespace lux2
         void Clear() override;
 
         // Crop window in pixels.
-        int XStart() const { return m_xStart; }
-        int YStart() const { return m_yStart; }
-        int XCount() const { return m_xCount; }
-        int YCount() const { return m_yCount; }
+        int XStart() const override { return m_xStart; }
+        int YStart() const override { return m_yStart; }
+        int XCount() const override { return m_xCount; }
+        int YCount() const override { return m_yCount; }
 
         void Splat(const FloatP &x, const FloatP &y, const SWCSpectrumP &L,
                    const SpectrumWavelengthsP &sw, const FloatP &alpha,
@@ -113,8 +113,8 @@ namespace lux2
         int WriteInterval() const { return m_writeInterval; }
         int FlmWriteInterval() const { return m_flmWriteInterval; }
         int DisplayInterval() const { return m_displayInterval; }
-        int HaltSpp() const { return m_haltspp; }
-        int HaltTime() const { return m_halttime; }
+        int HaltSpp() const override { return m_haltspp; }
+        int HaltTime() const override { return m_halttime; }
 
         // Tonemap/colorspace state.
         int TonemapKernelValue() const { return m_tonemapKernel; }

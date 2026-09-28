@@ -55,6 +55,16 @@ namespace lux2
         virtual int XRes() const = 0;
         virtual int YRes() const = 0;
 
+        // Crop window in pixels (defaults to full frame).
+        virtual int XStart() const { return 0; }
+        virtual int YStart() const { return 0; }
+        virtual int XCount() const { return XRes(); }
+        virtual int YCount() const { return YRes(); }
+
+        // Halt parameters in SPP and seconds. 0 disables.
+        virtual int HaltSpp() const { return 0; }
+        virtual int HaltTime() const { return 0; }
+
         // Splat a packet of filter-weighted contributions.
         // Each splat carries its wavelength set `sw`.
         virtual void Splat(const FloatP &x, const FloatP &y,

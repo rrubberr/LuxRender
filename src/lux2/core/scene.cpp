@@ -420,6 +420,33 @@ namespace lux2
             }
         }
 
+        // Renderer.
+        {
+            auto &rReg = DynamicLoader::registeredRenderers();
+            std::string rname =
+                desc.rendererName.empty() ? "sampler" : desc.rendererName;
+            auto it = rReg.find(rname);
+            if (it == rReg.end())
+            {
+                LOG(LUX_WARNING, LUX_NOERROR)
+                    << "No renderer plugin registered as '" << rname
+                    << "'; falling back to 'sampler'.";
+                rname = "sampler";
+                it = rReg.find(rname);
+            }
+            if (it != rReg.end())
+            {
+                PluginContext pctx;
+                pctx.params = &desc.rendererParams;
+                m_renderer = it->second(pctx);
+            }
+            else
+            {
+                LOG(LUX_ERROR, LUX_BADHANDLE)
+                    << "Renderer registry has no 'sampler' fallback.";
+            }
+        }
+
         // Keep the materials alive.
         m_materials = desc.materials;
 

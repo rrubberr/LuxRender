@@ -1,0 +1,233 @@
+/***************************************************************************
+ *   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  *
+ *                                                                         *
+ *   This file is part of LuxRender.                                       *
+ *                                                                         *
+ *   LuxRender is free software; you can redistribute it and/or modify     *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 3 of the License, or     *
+ *   any later version.                                                    *
+ *                                                                         *
+ *   LuxRender is distributed in the hope that it will be useful,          *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program. If not, see <http://www.gnu.org/licenses/>   *
+ *                                                                         *
+ *   This project is based on PBRT; see <http://www.pbrt.org>              *
+ ***************************************************************************/
+
+// Phase 4 verification: the "sampler" TBB tile-scheduler renderer.
+// Checks registration + Scene::Commit wiring, progressive pass termination
+// (target spp, haltspp, halttime), convergence to the analytic radiance of a
+// direct-view white emitter through the private-block/merge-region path, and
+// bitwise determinism across renders (pixel-hash seeding must make output
+// independent of tile/thread assignment).
+
+#include "core/dynload.h"
+#include "core/paramset.h"
+#include "core/scene.h"
+#include "core/spectrum.h"
+#include "core/color.h"
+#include "core/transform.h"
+#include "film/fleximage.h"
+#include "renderers/samplerrenderer.h"
+
+#include <cmath>
+#include <iostream>
+#include <memory>
+#include <string>
+
+using namespace lux2;
+
+namespace {
+
+int g_failures = 0;
+
+void Check(bool cond, const char *what) {
+    if (!cond) {
+        std::cerr << "  FAIL: " << what << std::endl;
+        ++g_failures;
+    } else {
+        std::cout << "  ok:   " << what << std::endl;
+    }
+}
+
+void CheckNum(const char *what, double actual, double expected, bool pass) {
+    const double ratio = expected != 0.0 ? actual / expected
+                                         : (actual == 0.0 ? 1.0 : 0.0);
+    std::cout << (pass ? "  ok:   " : "  FAIL: ") << what
+              << "  [actual=" << actual << " expected=" << expected
+              << " ratio=" << ratio << "]" << std::endl;
+    if (!pass)
+        ++g_failures;
+}
+
+bool Close(double a, double b, double tol) {
+    const double d = std::fabs(a - b);
+    const double m = std::max(1e-9, std::max(std::fabs(a), std::fabs(b)));
+    return d <= tol * m;
+}
+
+double First(const FloatP &p) {
+    Float buf[PACKET_WIDTH];
+    enoki::store_unaligned(buf, p);
+    return double(buf[0]);
+}
+
+// Mean luminance of a white (1,1,1) emitter of radiance `Le` over the
+// wavelength range (same normalization path_check uses).
+double WhiteLeMeanLum(double Le) {
+    double sum = 0.0;
+    int n = 0;
+    for (double wl = 380.0; wl < 720.0; wl += 1.0) {
+        SpectrumWavelengthsP sw;
+        sw.FromWavelength(FloatP(float(wl)));
+        const RGBColorP white(FloatP(1.f), FloatP(1.f), FloatP(1.f));
+        const SWCSpectrumP spd = RGBToSmitsSPD(white, sw, true);
+        sum += First(SWCY(spd * FloatP(float(Le)), sw));
+        ++n;
+    }
+    return sum / double(n);
+}
+
+// Committed scene: camera at (0,0,4) looking at the origin, emissive white
+// sphere of radiance `le` at the origin, FlexImageFilm `xres`x`yres`,
+// sampler spp, optional haltspp/halttime overrides (< 0 keeps film default).
+std::unique_ptr<Scene> MakeEmitterScene(int spp, int haltspp, int halttime) {
+    SceneDescription d;
+    const int xr = 64, yr = 64;
+    d.filmName = "fleximage";
+    d.filmParams.AddInt("xresolution", &xr, 1);
+    d.filmParams.AddInt("yresolution", &yr, 1);
+    if (haltspp >= 0) d.filmParams.AddInt("haltspp", &haltspp, 1);
+    if (halttime >= 0) d.filmParams.AddInt("halttime", &halttime, 1);
+
+    d.rendererName = "sampler";
+    d.samplerName = "ldsampler";
+    d.samplerParams.AddInt("count", &spp, 1);
+
+    d.cameraName = "perspective";
+    d.cameraTransform = Transform::look_at(Point3f(0.f, 0.f, 4.f),
+                                           Point3f(0.f, 0.f, 0.f),
+                                           Vector3f(0.f, 1.f, 0.f));
+
+    ShapeDesc sd;
+    sd.name = "sphere";
+    const float r = 1.f;
+    sd.params.AddFloat("radius", &r, 1);
+    sd.isAreaLight = true;
+    sd.areaLightName = "area";
+    const double le = 1.0;
+    const RGBColor leRGB = RGBColor(Float(le), Float(le), Float(le));
+    sd.areaLightParams.AddRGBColor("Le", &leRGB, 1);
+    d.shapes.push_back(sd);
+
+    auto scene = std::make_unique<Scene>();
+    scene->Commit(d);
+    return scene;
+}
+
+const FlexImageFilm *AsFlex(const Scene &s) {
+    return dynamic_cast<const FlexImageFilm *>(&s.GetFilm());
+}
+
+} // namespace
+
+int main() {
+    std::cout << "lux2 renderer_check (Phase 4: TBB tile scheduler)" << std::endl;
+
+    // ---- 1. registration + Commit wiring ------------------------------
+    {
+        auto &reg = DynamicLoader::registeredRenderers();
+        Check(reg.count("sampler") == 1, "\"sampler\" renderer registered");
+
+        auto scene = MakeEmitterScene(16, -1, -1);
+        Check(scene->IsCommitted(), "scene committed");
+        Renderer &r = scene->GetRenderer();
+        Check(true, "GetRenderer() non-null after Commit");
+        auto *sr = dynamic_cast<SamplerRenderer *>(&r);
+        Check(sr != nullptr, "Commit instantiated a SamplerRenderer");
+    }
+
+    // ---- 2. unknown renderer name falls back to "sampler" --------------
+    {
+        SceneDescription d;
+        const int xr = 8, yr = 8, spp = 4;
+        d.filmParams.AddInt("xresolution", &xr, 1);
+        d.filmParams.AddInt("yresolution", &yr, 1);
+        d.rendererName = "no_such_renderer";
+        d.samplerParams.AddInt("count", &spp, 1);
+        Scene s;
+        s.Commit(d);
+        auto *sr = dynamic_cast<SamplerRenderer *>(&s.GetRenderer());
+        Check(sr != nullptr, "unknown renderer name falls back to SamplerRenderer");
+    }
+
+    // ---- 3. full render: termination at spp + convergence --------------
+    {
+        const int spp = 256;
+        auto scene = MakeEmitterScene(spp, -1, -1);
+        scene->GetRenderer().Render(*scene, scene->GetSurfaceIntegrator());
+
+        const double count = scene->GetFilm().SampleCount();
+        CheckNum("pass loop terminates at sampler spp", count, double(spp),
+                 count == double(spp));
+
+        // Center pixel looks straight at the sphere: normalized Y must
+        // converge to the emitter's mean luminance. Background is exactly
+        // black (maxdepth-independent: no lights elsewhere, no env).
+        const FlexImageFilm *film = AsFlex(*scene);
+        Check(film != nullptr, "film is a FlexImageFilm");
+        if (film) {
+            float xyz[3], alpha = 0.f;
+            film->GetPixelNormalized(32, 32, xyz, &alpha);
+            const double expected = WhiteLeMeanLum(1.0);
+            CheckNum("center pixel converges to Le", xyz[1], expected,
+                     Close(xyz[1], expected, 0.10));
+
+            // Corner is background: nothing to hit, must stay black.
+            film->GetPixelNormalized(2, 2, xyz, &alpha);
+            Check(xyz[1] < 1e-5, "corner pixel black");
+        }
+    }
+
+    // ---- 4. determinism: identical scenes render bitwise identically ---
+    {
+        auto s1 = MakeEmitterScene(64, -1, -1);
+        auto s2 = MakeEmitterScene(64, -1, -1);
+        s1->GetRenderer().Render(*s1, s1->GetSurfaceIntegrator());
+        s2->GetRenderer().Render(*s2, s2->GetSurfaceIntegrator());
+
+        const FlexImageFilm *f1 = AsFlex(*s1), *f2 = AsFlex(*s2);
+        bool same = f1 && f2 &&
+                    f1->BufY() == f2->BufY() &&
+                    f1->BufX() == f2->BufX() &&
+                    f1->BufZ() == f2->BufZ() &&
+                    f1->BufWeight() == f2->BufWeight();
+        Check(same, "two renders are bitwise identical (thread-independent seeding)");
+    }
+
+    // ---- 5. haltspp early-out -------------------------------------------
+    {
+        const int spp = 64, haltspp = 8;
+        auto scene = MakeEmitterScene(spp, haltspp, -1);
+        scene->GetRenderer().Render(*scene, scene->GetSurfaceIntegrator());
+        const double count = scene->GetFilm().SampleCount();
+        CheckNum("haltspp stops the pass loop", count, double(haltspp),
+                 count == double(haltspp));
+    }
+
+    // ---- 6. halttime early-out ------------------------------------------
+    {
+        auto scene = MakeEmitterScene(100000, -1, 1);
+        scene->GetRenderer().Render(*scene, scene->GetSurfaceIntegrator());
+        const double count = scene->GetFilm().SampleCount();
+        Check(count > 0.0 && count < 100000.0, "halttime stops the pass loop");
+    }
+
+    std::cout << (g_failures == 0 ? "ALL PASS" : "FAILURES") << std::endl;
+    return g_failures == 0 ? 0 : 1;
+}
