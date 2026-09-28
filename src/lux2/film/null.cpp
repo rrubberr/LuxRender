@@ -63,6 +63,24 @@ namespace lux2
         m_sampleCount += o->m_sampleCount;
     }
 
+    void NullFilm::MergeRegion(Film *other, int, int, int, int)
+    {
+        NullFilm *o = dynamic_cast<NullFilm *>(other);
+        if (!o || o == this)
+            return;
+        m_sumLuminance += o->m_sumLuminance;
+        m_count += o->m_count;
+        m_sampleCount += o->m_sampleCount;
+        o->m_sumLuminance = 0.0;
+        o->m_count = 0.0;
+        o->m_sampleCount = 0.0;
+    }
+
+    std::unique_ptr<Film> NullFilm::MakePrivateBlock(int, int, int, int) const
+    {
+        return std::make_unique<NullFilm>(m_xres, m_yres);
+    }
+
     std::shared_ptr<Film> NullFilm::CreateFilm(const PluginContext &ctx)
     {
         const int xres = ctx.params ? ctx.params->FindOneInt("xresolution", 800) : 800;

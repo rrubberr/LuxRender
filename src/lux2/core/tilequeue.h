@@ -48,6 +48,26 @@ namespace lux2
         std::deque<Tile> m_tiles;
     };
 
+    // Fill the queue with tiles.
+    inline void BuildTiles(int xStart, int yStart, int xCount, int yCount,
+                           int tileSize, TileQueue *q)
+    {
+        if (xCount <= 0 || yCount <= 0)
+            return;
+        const int tw = tileSize > 0 ? tileSize : xCount;
+        const int th = tileSize > 0 ? tileSize : yCount;
+        for (int y = yStart; y < yStart + yCount; y += th)
+        {
+            const int y1 = y + th < yStart + yCount ? y + th : yStart + yCount;
+            for (int x = xStart; x < xStart + xCount; x += tw)
+            {
+                const int x1 =
+                    x + tw < xStart + xCount ? x + tw : xStart + xCount;
+                q->Push(Tile{x, y, x1, y1});
+            }
+        }
+    }
+
     // Inline definitions.
     inline bool TileQueue::Next(Tile *t)
     {

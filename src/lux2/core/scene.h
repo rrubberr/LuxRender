@@ -199,6 +199,7 @@ namespace lux2
         std::shared_ptr<Filter> m_filter;
         std::vector<std::shared_ptr<Light>> m_lights;
         std::vector<std::shared_ptr<Light>> m_areaLights; // indexed by lightID
+        std::vector<std::shared_ptr<Material>> m_materials;
         BBox m_worldBound;
         Summary m_summary;
         bool m_committed = false;

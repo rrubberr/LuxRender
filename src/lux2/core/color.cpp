@@ -21,35 +21,14 @@
 
 #include "core/color.h"
 
-#include <luxrays/core/color/spds/data/rgbE_32.h>
-#include <luxrays/core/color/spds/data/rgbD65_32.h>
-#include <luxrays/core/color/spds/data/xyzbasis.h>
+#include "core/data/rgbE_32.h"
+#include "core/data/rgbD65_32.h"
+#include "core/data/xyzbasis.h"
 
 namespace lux2
 {
 
     using namespace enoki;
-
-    // Bring in the scalar data tables from luxrays.
-    using luxrays::CIE_X;
-    using luxrays::CIE_Y;
-    using luxrays::CIE_Z;
-    using luxrays::illumrgb2spect_blue;
-    using luxrays::illumrgb2spect_cyan;
-    using luxrays::illumrgb2spect_green;
-    using luxrays::illumrgb2spect_magenta;
-    using luxrays::illumrgb2spect_red;
-    using luxrays::illumrgb2spect_scale;
-    using luxrays::illumrgb2spect_white;
-    using luxrays::illumrgb2spect_yellow;
-    using luxrays::refrgb2spect_blue;
-    using luxrays::refrgb2spect_cyan;
-    using luxrays::refrgb2spect_green;
-    using luxrays::refrgb2spect_magenta;
-    using luxrays::refrgb2spect_red;
-    using luxrays::refrgb2spect_scale;
-    using luxrays::refrgb2spect_white;
-    using luxrays::refrgb2spect_yellow;
 
     // CIE matching functions carry this scale. Monochromatic SWA.
     static constexpr Float CIE_SCALE =

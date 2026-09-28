@@ -82,7 +82,7 @@ namespace lux2
 
         // Clip along the view axis t such that (t * dirWorld).z_cam == hither/yon.
         const FloatP cosT = dot(dirWorld, m_normal);
-        const FloatP safeCos = select(cosT > FloatP(1e-8f), cosT, FloatP(1e-8f));
+        const FloatP safeCos = select(cosT > FloatP(EPS_DENOM), cosT, FloatP(EPS_DENOM));
         enoki::masked(ray->mint, active) = FloatP(m_hither) / safeCos;
         enoki::masked(ray->maxt, active) = FloatP(m_yon) / safeCos;
 
@@ -108,7 +108,7 @@ namespace lux2
         // Endpoint density.
         const Vector3fP d = normalize(ray.d);
         const FloatP cosT = dot(d, m_normal);
-        const MaskP valid = active && (cosT > FloatP(1e-8f));
+        const MaskP valid = active && (cosT > FloatP(EPS_DENOM));
         const FloatP cos2 = cosT * cosT;
         const FloatP pdf = FloatP(1.f) / (FloatP(m_apixel) * cos2 * cosT);
         return select(valid, pdf, FloatP(0.f));
@@ -124,7 +124,7 @@ namespace lux2
             yRes = ctx.filmParams->FindOneInt("yresolution", 600);
         }
 
-        const float hither = std::max(1e-4f,
+        const float hither = std::max(EPS_RAY,
                                       ctx.params ? ctx.params->FindOneFloat("hither", 1e-3f) : 1e-3f);
         float yon = ctx.params ? ctx.params->FindOneFloat("yon", 1e30f) : 1e30f;
         yon = std::max(hither, yon);

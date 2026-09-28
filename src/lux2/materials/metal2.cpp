@@ -100,7 +100,7 @@ namespace lux2
 
         const FloatP cosThetaH = dot(woL, whL);
         const FloatP absWiZ = abs(wiL.z());
-        const FloatP absWiZSafe = select(absWiZ > FloatP(1e-8f), absWiZ, FloatP(1e-8f));
+        const FloatP absWiZSafe = select(absWiZ > FloatP(EPS_DENOM), absWiZ, FloatP(EPS_DENOM));
 
         const FresnelGeneralP fg = m_fr->Evaluate(dg, sw, active);
         const FloatP F = FresnelGeneralEvaluate(fg, abs(cosThetaH));
@@ -141,7 +141,7 @@ namespace lux2
         whL = select(whL.z() < FloatP(0.f), -whL, whL);
 
         const FloatP denom = FloatP(4.f) * abs(dot(woL, whL));
-        const FloatP denomSafe = select(denom > FloatP(1e-8f), denom, FloatP(1e-8f));
+        const FloatP denomSafe = select(denom > FloatP(EPS_DENOM), denom, FloatP(EPS_DENOM));
         const FloatP pdf = distr.Pdf(whL) / denomSafe;
         return select(active && (whLen2 > FloatP(0.f)), pdf, FloatP(0.f));
     }
@@ -167,7 +167,7 @@ namespace lux2
 
         const FloatP cosThetaH = dot(woL, whL);
         const FloatP absWiZ = abs(wiL.z());
-        const FloatP absWiZSafe = select(absWiZ > FloatP(1e-8f), absWiZ, FloatP(1e-8f));
+        const FloatP absWiZSafe = select(absWiZ > FloatP(EPS_DENOM), absWiZ, FloatP(EPS_DENOM));
 
         const FresnelGeneralP fg = m_fr->Evaluate(dg, sw, active);
         const FloatP F = FresnelGeneralEvaluate(fg, abs(cosThetaH));

@@ -19,47 +19,47 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_LDSAMPLER_H
-#define LUX2_LDSAMPLER_H
+#ifndef LUX2_THREADPOOL_H
+#define LUX2_THREADPOOL_H
 
-#include "core/sampler.h"
-#include "core/vecp.h"
+#include <tbb/global_control.h>
+#include <tbb/task_arena.h>
 
-#include <cstdint>
 #include <memory>
 
 namespace lux2
 {
 
-    struct PluginContext;
-
-    class LDSampler : public Sampler
+    // TBB scheduler configuration.
+    class RenderThreadPool
     {
     public:
-        // spp is rounded up to a square power of two.
-        LDSampler(uint32_t sampleCount, uint64_t baseSeed);
+        static RenderThreadPool &Get();
 
-        std::unique_ptr<Sampler> Clone() const override
+        // Process wide global_control.
+        void Init(unsigned int nThreads);
+
+        // Effective worker count.
+        unsigned int Count() const { return m_count; }
+
+        // Run fn inside a task_arena bounded to Count().
+        template <class F>
+        void RunInArena(F &&fn)
         {
-            return std::make_unique<LDSampler>(*this);
+            tbb::task_arena arena(static_cast<int>(m_count));
+            arena.execute(std::forward<F>(fn));
         }
 
-        void Seed(uint64_t seedOffset, size_t wavefrontSize) override;
-        void Advance() override;
-        FloatP Next1D(MaskP active = MaskP(true)) override;
-        Point2fP Next2D(MaskP active = MaskP(true)) override;
-        uint32_t SampleCount() const override { return m_sampleCount; }
-
-        static std::shared_ptr<Sampler> CreateSampler(const PluginContext &ctx);
-
     private:
-        uint32_t m_sampleCount;    // res^2
-        uint32_t m_dimensionIndex; // per-sample stream counter
-        uint32_t m_sampleIndex;    // current sample within the sequence
-        uint64_t m_baseSeed;
-        UInt32P m_scrambleSeed; // per-lane scramble
+        RenderThreadPool() = default;
+        ~RenderThreadPool() = default;
+        RenderThreadPool(const RenderThreadPool &) = delete;
+        RenderThreadPool &operator=(const RenderThreadPool &) = delete;
+
+        std::unique_ptr<tbb::global_control> m_control;
+        unsigned int m_count = 0;
     };
 
 } // namespace lux2
 
-#endif // LUX2_LDSAMPLER_H
+#endif // LUX2_THREADPOOL_H

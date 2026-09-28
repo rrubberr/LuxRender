@@ -32,6 +32,20 @@ namespace lux2
     constexpr float INV_TWOPI = 0.15915494309189533577f;
     constexpr float INV_FOURPI = 0.07957747154594766788f;
 
+    inline constexpr float Radians(float deg) { return PI * (1.f / 180.f) * deg; }
+    inline constexpr float Degrees(float rad) { return rad * (180.f / PI); }
+
+    // Guard against division by near-zero.
+    constexpr float EPS_DENOM = 1e-8f;
+    // Ray offsetting / geometric degeneracy thresholds.
+    constexpr float EPS_RAY = 1e-4f;
+
+    // Scalar clamp to [low, high].
+    inline constexpr float ClampF(float v, float low, float high)
+    {
+        return v < low ? low : (v > high ? high : v);
+    }
+
 } // namespace lux2
 
 #endif // LUX2_MATH_H

@@ -59,53 +59,46 @@ namespace lux2
         m_bW.assign(n, 0.f);
     }
 
-    void FlexImageFilm::AddFiltered(float x, float y, const float xyz[3],
-                                    float alpha, float weight)
+    // Private constructor.
+    FlexImageFilm::FlexImageFilm(int xres, int yres, const Filter *filter,
+                                 int xStart, int xCount, int yStart, int yCount,
+                                 bool premultiplyAlpha)
+        : m_xres(xres), m_yres(yres), m_xStart(xStart), m_xCount(xCount),
+          m_yStart(yStart), m_yCount(yCount), m_filter(filter),
+          m_premultiplyAlpha(premultiplyAlpha)
     {
-        // Filter footprint in frame coordinates.
-        const float xWidth = m_filter ? m_filter->GetXWidth() : 0.5f;
-        const float yWidth = m_filter ? m_filter->GetYWidth() : 0.5f;
-        const float dx = x - 0.5f;
-        const float dy = y - 0.5f;
+        const size_t n = size_t(m_xCount) * size_t(m_yCount);
+        m_bX.assign(n, 0.f);
+        m_bY.assign(n, 0.f);
+        m_bZ.assign(n, 0.f);
+        m_bAlpha.assign(n, 0.f);
+        m_bW.assign(n, 0.f);
+    }
 
-        const int x0 = CeilToInt(dx - xWidth);
-        const int x1 = int(std::floor(dx + xWidth));
-        const int y0 = CeilToInt(dy - yWidth);
-        const int y1 = int(std::floor(dy + yWidth));
+    std::unique_ptr<Film> FlexImageFilm::MakePrivateBlock(int x0, int y0,
+                                                          int x1, int y1) const
+    {
+        // Clamp the requested rect to this film's crop window.
+        const int cx0 = std::max(x0, m_xStart);
+        const int cy0 = std::max(y0, m_yStart);
+        const int cx1 = std::min(x1, m_xStart + m_xCount);
+        const int cy1 = std::min(y1, m_yStart + m_yCount);
+        if (cx1 <= cx0 || cy1 <= cy0)
+            return nullptr;
 
-        // Normalize each sample's filter footprint to unit total.
-        float total = 0.f;
-        if (m_filter)
-        {
-            for (int iy = y0; iy <= y1; ++iy)
-                for (int ix = x0; ix <= x1; ++ix)
-                    total += m_filter->Evaluate(std::fabs(float(ix) - dx),
-                                                std::fabs(float(iy) - dy));
-        }
+        return std::unique_ptr<Film>(new FlexImageFilm(
+            m_xres, m_yres, m_filter, cx0, cx1 - cx0, cy0, cy1 - cy0,
+            m_premultiplyAlpha));
+    }
 
-        const int xEnd = std::min(x1, m_xStart + m_xCount - 1);
-        const int yEnd = std::min(y1, m_yStart + m_yCount - 1);
-        for (int iy = std::max(y0, m_yStart); iy <= yEnd; ++iy)
-        {
-            for (int ix = std::max(x0, m_xStart); ix <= xEnd; ++ix)
-            {
-                float w;
-                if (m_filter && total > 0.f)
-                    w = weight * m_filter->Evaluate(std::fabs(float(ix) - dx),
-                                                    std::fabs(float(iy) - dy)) /
-                        total;
-                else
-                    w = weight;
-
-                const size_t idx = size_t(iy - m_yStart) * m_xCount +
-                                   size_t(ix - m_xStart);
-                m_bX[idx] += w * xyz[0];
-                m_bY[idx] += w * xyz[1];
-                m_bZ[idx] += w * xyz[2];
-                m_bAlpha[idx] += alpha * w;
-                m_bW[idx] += w;
-            }
-        }
+    void FlexImageFilm::Clear()
+    {
+        std::fill(m_bX.begin(), m_bX.end(), 0.f);
+        std::fill(m_bY.begin(), m_bY.end(), 0.f);
+        std::fill(m_bZ.begin(), m_bZ.end(), 0.f);
+        std::fill(m_bAlpha.begin(), m_bAlpha.end(), 0.f);
+        std::fill(m_bW.begin(), m_bW.end(), 0.f);
+        m_sampleCount = 0.0;
     }
 
     void FlexImageFilm::Splat(const FloatP &x, const FloatP &y,
@@ -114,36 +107,99 @@ namespace lux2
                               const FloatP &alpha, const FloatP &weight,
                               int)
     {
-        const XYZColorP xyzP = SWCToXYZ(L, sw);
+        XYZColorP xyzP = SWCToXYZ(L, sw);
 
-        float xA[PACKET_WIDTH], yA[PACKET_WIDTH];
-        float xa[PACKET_WIDTH], ya[PACKET_WIDTH], za[PACKET_WIDTH];
-        float alphaA[PACKET_WIDTH], weightA[PACKET_WIDTH];
-        enoki::store_unaligned(xA, x);
-        enoki::store_unaligned(yA, y);
-        enoki::store_unaligned(xa, xyzP[0]);
-        enoki::store_unaligned(ya, xyzP[1]);
-        enoki::store_unaligned(za, xyzP[2]);
-        enoki::store_unaligned(alphaA, alpha);
-        enoki::store_unaligned(weightA, weight);
+        // Reject non-finite or negative Y/alpha/weight.
+        const FloatP Y = xyzP[1];
+        MaskP active = (Y >= FloatP(0.f)) && enoki::isfinite(Y) &&
+                       (alpha >= FloatP(0.f)) && enoki::isfinite(alpha) &&
+                       (weight >= FloatP(0.f)) && enoki::isfinite(weight);
+        if (!enoki::any(active))
+            return;
 
-        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        // Folds alpha into the XYZ.
+        if (m_premultiplyAlpha)
         {
-            // Legacy validity: reject non-finite or negative Y/alpha/weight.
-            if (!(ya[i] >= 0.f) || !std::isfinite(ya[i]) ||
-                !(alphaA[i] >= 0.f) || !std::isfinite(alphaA[i]) ||
-                !(weightA[i] >= 0.f) || !std::isfinite(weightA[i]))
+            xyzP[0] = xyzP[0] * alpha;
+            xyzP[1] = xyzP[1] * alpha;
+            xyzP[2] = xyzP[2] * alpha;
+        }
+
+        const float xWidth = m_filter->GetXWidth();
+        const float yWidth = m_filter->GetYWidth();
+
+        // Sample center in continuous pixel space.
+        const FloatP dx = x - FloatP(0.5f);
+        const FloatP dy = y - FloatP(0.5f);
+
+        // Footprint bounds per lane.
+        Int32P loX, loY, hiX, hiY;
+        loX = enoki::ceil(dx - FloatP(xWidth));
+        hiX = enoki::floor(dx + FloatP(xWidth));
+        loY = enoki::ceil(dy - FloatP(yWidth));
+        hiY = enoki::floor(dy + FloatP(yWidth));
+
+        const int nx = int(std::floor(2.f * xWidth + 1e-4f)) + 1;
+        const int ny = int(std::floor(2.f * yWidth + 1e-4f)) + 1;
+
+        // Per-axis weight tables.
+        FloatP wx[64], wy[64];
+        FloatP totalX(0.f), totalY(0.f);
+        for (int xr = 0; xr < nx; ++xr)
+        {
+            const Int32P xPix = loX + Int32P(xr);
+            const FloatP off = enoki::abs(FloatP(xPix) - dx);
+            wx[xr] = m_filter->EvaluateXP(off);
+            totalX = enoki::select(xPix <= hiX, totalX + wx[xr], totalX);
+        }
+        for (int yr = 0; yr < ny; ++yr)
+        {
+            const Int32P yPix = loY + Int32P(yr);
+            const FloatP off = enoki::abs(FloatP(yPix) - dy);
+            wy[yr] = m_filter->EvaluateYP(off);
+            totalY = enoki::select(yPix <= hiY, totalY + wy[yr], totalY);
+        }
+        const FloatP invTotal =
+            enoki::rcp(enoki::max(totalX * totalY, FloatP(1e-20f)));
+
+        const Int32P xStartP(m_xStart), yStartP(m_yStart), xCountP(m_xCount);
+        const int maxX = m_xStart + m_xCount - 1;
+        const int maxY = m_yStart + m_yCount - 1;
+        const Int32P maxXP(maxX), maxYP(maxY);
+        const Int32P nIdxP(int(m_bX.size()) - 1);
+
+        float *bufX = m_bX.data();
+        float *bufY = m_bY.data();
+        float *bufZ = m_bZ.data();
+        float *bufA = m_bAlpha.data();
+        float *bufW = m_bW.data();
+
+        for (int yr = 0; yr < ny; ++yr)
+        {
+            const Int32P yPix = loY + Int32P(yr);
+            const MaskP rowOk = active && (yPix <= hiY) && (yPix >= yStartP) &&
+                                (yPix <= maxYP);
+            if (!enoki::any(rowOk))
                 continue;
-
-            float xyz[3] = {xa[i], ya[i], za[i]};
-            if (m_premultiplyAlpha)
+            for (int xr = 0; xr < nx; ++xr)
             {
-                xyz[0] *= alphaA[i];
-                xyz[1] *= alphaA[i];
-                xyz[2] *= alphaA[i];
-            }
+                const Int32P xPix = loX + Int32P(xr);
+                MaskP enabled = rowOk && (xPix <= hiX) && (xPix >= xStartP) &&
+                                (xPix <= maxXP);
+                if (!enoki::any(enabled))
+                    continue;
 
-            AddFiltered(xA[i], yA[i], xyz, alphaA[i], weightA[i]);
+                const FloatP w = weight * wx[xr] * wy[yr] * invTotal;
+                Int32P idx = (yPix - yStartP) * xCountP + (xPix - xStartP);
+                // Clamp so masked-off lanes never form out-of-range addresses.
+                idx = enoki::clamp(idx, Int32P(0), nIdxP);
+
+                enoki::scatter_add(bufX, w * xyzP[0], idx, enabled);
+                enoki::scatter_add(bufY, w * xyzP[1], idx, enabled);
+                enoki::scatter_add(bufZ, w * xyzP[2], idx, enabled);
+                enoki::scatter_add(bufA, alpha * w, idx, enabled);
+                enoki::scatter_add(bufW, w, idx, enabled);
+            }
         }
     }
 
@@ -152,6 +208,10 @@ namespace lux2
         FlexImageFilm *o = dynamic_cast<FlexImageFilm *>(other);
         if (!o || o == this)
             return;
+
+        // One lock per merge.
+        std::lock_guard<std::mutex> lock(m_mergeMutex);
+
         if (o->m_xCount != m_xCount || o->m_yCount != m_yCount ||
             o->m_xStart != m_xStart || o->m_yStart != m_yStart)
         {
@@ -170,6 +230,72 @@ namespace lux2
             m_bW[i] += o->m_bW[i];
         }
         m_sampleCount += o->m_sampleCount;
+    }
+
+    void FlexImageFilm::MergeRegion(Film *other, int x0, int y0, int x1, int y1)
+    {
+        FlexImageFilm *o = dynamic_cast<FlexImageFilm *>(other);
+        if (!o || o == this)
+            return;
+
+        // Intersection of the requested rect with both crop windows.
+        const int cx0 = std::max(x0, std::max(m_xStart, o->m_xStart));
+        const int cy0 = std::max(y0, std::max(m_yStart, o->m_yStart));
+        const int cx1 = std::min(x1, std::min(m_xStart + m_xCount,
+                                              o->m_xStart + o->m_xCount));
+        const int cy1 = std::min(y1, std::min(m_yStart + m_yCount,
+                                              o->m_yStart + o->m_yCount));
+        if (cx1 <= cx0 || cy1 <= cy0)
+            return;
+
+        // One lock per region merge.
+        std::lock_guard<std::mutex> lock(m_mergeMutex);
+
+        const int rowLen = cx1 - cx0;
+        for (int y = cy0; y < cy1; ++y)
+        {
+            float *dstRow = m_bX.data() + size_t(y - m_yStart) * m_xCount +
+                            (cx0 - m_xStart);
+            float *srcRow = o->m_bX.data() + size_t(y - o->m_yStart) *
+                                                 o->m_xCount +
+                            (cx0 - o->m_xStart);
+            float *dstRowY = m_bY.data() + size_t(y - m_yStart) * m_xCount +
+                             (cx0 - m_xStart);
+            float *srcRowY = o->m_bY.data() + size_t(y - o->m_yStart) *
+                                                  o->m_xCount +
+                             (cx0 - o->m_xStart);
+            float *dstRowZ = m_bZ.data() + size_t(y - m_yStart) * m_xCount +
+                             (cx0 - m_xStart);
+            float *srcRowZ = o->m_bZ.data() + size_t(y - o->m_yStart) *
+                                                  o->m_xCount +
+                             (cx0 - o->m_xStart);
+            float *dstRowA = m_bAlpha.data() +
+                             size_t(y - m_yStart) * m_xCount +
+                             (cx0 - m_xStart);
+            float *srcRowA = o->m_bAlpha.data() +
+                             size_t(y - o->m_yStart) * o->m_xCount +
+                             (cx0 - o->m_xStart);
+            float *dstRowW = m_bW.data() + size_t(y - m_yStart) * m_xCount +
+                             (cx0 - m_xStart);
+            float *srcRowW = o->m_bW.data() + size_t(y - o->m_yStart) *
+                                                 o->m_xCount +
+                             (cx0 - o->m_xStart);
+            for (int i = 0; i < rowLen; ++i)
+            {
+                dstRow[i] += srcRow[i];
+                dstRowY[i] += srcRowY[i];
+                dstRowZ[i] += srcRowZ[i];
+                dstRowA[i] += srcRowA[i];
+                dstRowW[i] += srcRowW[i];
+                srcRow[i] = 0.f;
+                srcRowY[i] = 0.f;
+                srcRowZ[i] = 0.f;
+                srcRowA[i] = 0.f;
+                srcRowW[i] = 0.f;
+            }
+        }
+        m_sampleCount += o->m_sampleCount;
+        o->m_sampleCount = 0.0;
     }
 
     void FlexImageFilm::GetPixelNormalized(int x, int y, float xyz[3],
@@ -214,22 +340,54 @@ namespace lux2
     {
         switch (param)
         {
-        case LUX_FILM_TM_TONEMAPKERNEL: m_tonemapKernel = int(value); break;
-        case LUX_FILM_TM_REINHARD_PRESCALE: m_reinhardPreScale = float(value); break;
-        case LUX_FILM_TM_REINHARD_POSTSCALE: m_reinhardPostScale = float(value); break;
-        case LUX_FILM_TM_REINHARD_BURN: m_reinhardBurn = float(value); break;
-        case LUX_FILM_TM_LINEAR_SENSITIVITY: m_linearSensitivity = float(value); break;
-        case LUX_FILM_TM_LINEAR_EXPOSURE: m_linearExposure = float(value); break;
-        case LUX_FILM_TM_LINEAR_FSTOP: m_linearFStop = float(value); break;
-        case LUX_FILM_TM_LINEAR_GAMMA: m_linearGamma = float(value); break;
-        case LUX_FILM_TORGB_X_WHITE: m_csWhite[0] = float(value); break;
-        case LUX_FILM_TORGB_Y_WHITE: m_csWhite[1] = float(value); break;
-        case LUX_FILM_TORGB_X_RED: m_csRed[0] = float(value); break;
-        case LUX_FILM_TORGB_Y_RED: m_csRed[1] = float(value); break;
-        case LUX_FILM_TORGB_X_GREEN: m_csGreen[0] = float(value); break;
-        case LUX_FILM_TORGB_Y_GREEN: m_csGreen[1] = float(value); break;
-        case LUX_FILM_TORGB_X_BLUE: m_csBlue[0] = float(value); break;
-        case LUX_FILM_TORGB_Y_BLUE: m_csBlue[1] = float(value); break;
+        case LUX_FILM_TM_TONEMAPKERNEL:
+            m_tonemapKernel = int(value);
+            break;
+        case LUX_FILM_TM_REINHARD_PRESCALE:
+            m_reinhardPreScale = float(value);
+            break;
+        case LUX_FILM_TM_REINHARD_POSTSCALE:
+            m_reinhardPostScale = float(value);
+            break;
+        case LUX_FILM_TM_REINHARD_BURN:
+            m_reinhardBurn = float(value);
+            break;
+        case LUX_FILM_TM_LINEAR_SENSITIVITY:
+            m_linearSensitivity = float(value);
+            break;
+        case LUX_FILM_TM_LINEAR_EXPOSURE:
+            m_linearExposure = float(value);
+            break;
+        case LUX_FILM_TM_LINEAR_FSTOP:
+            m_linearFStop = float(value);
+            break;
+        case LUX_FILM_TM_LINEAR_GAMMA:
+            m_linearGamma = float(value);
+            break;
+        case LUX_FILM_TORGB_X_WHITE:
+            m_csWhite[0] = float(value);
+            break;
+        case LUX_FILM_TORGB_Y_WHITE:
+            m_csWhite[1] = float(value);
+            break;
+        case LUX_FILM_TORGB_X_RED:
+            m_csRed[0] = float(value);
+            break;
+        case LUX_FILM_TORGB_Y_RED:
+            m_csRed[1] = float(value);
+            break;
+        case LUX_FILM_TORGB_X_GREEN:
+            m_csGreen[0] = float(value);
+            break;
+        case LUX_FILM_TORGB_Y_GREEN:
+            m_csGreen[1] = float(value);
+            break;
+        case LUX_FILM_TORGB_X_BLUE:
+            m_csBlue[0] = float(value);
+            break;
+        case LUX_FILM_TORGB_Y_BLUE:
+            m_csBlue[1] = float(value);
+            break;
         default:
             // TORGB_GAMMA and unimplemented ids are ignored.
             break;
@@ -241,23 +399,40 @@ namespace lux2
     {
         switch (param)
         {
-        case LUX_FILM_TM_TONEMAPKERNEL: return m_tonemapKernel;
-        case LUX_FILM_TM_REINHARD_PRESCALE: return m_reinhardPreScale;
-        case LUX_FILM_TM_REINHARD_POSTSCALE: return m_reinhardPostScale;
-        case LUX_FILM_TM_REINHARD_BURN: return m_reinhardBurn;
-        case LUX_FILM_TM_LINEAR_SENSITIVITY: return m_linearSensitivity;
-        case LUX_FILM_TM_LINEAR_EXPOSURE: return m_linearExposure;
-        case LUX_FILM_TM_LINEAR_FSTOP: return m_linearFStop;
-        case LUX_FILM_TM_LINEAR_GAMMA: return m_linearGamma;
-        case LUX_FILM_TORGB_X_WHITE: return m_csWhite[0];
-        case LUX_FILM_TORGB_Y_WHITE: return m_csWhite[1];
-        case LUX_FILM_TORGB_X_RED: return m_csRed[0];
-        case LUX_FILM_TORGB_Y_RED: return m_csRed[1];
-        case LUX_FILM_TORGB_X_GREEN: return m_csGreen[0];
-        case LUX_FILM_TORGB_Y_GREEN: return m_csGreen[1];
-        case LUX_FILM_TORGB_X_BLUE: return m_csBlue[0];
-        case LUX_FILM_TORGB_Y_BLUE: return m_csBlue[1];
-        default: return 0.0;
+        case LUX_FILM_TM_TONEMAPKERNEL:
+            return m_tonemapKernel;
+        case LUX_FILM_TM_REINHARD_PRESCALE:
+            return m_reinhardPreScale;
+        case LUX_FILM_TM_REINHARD_POSTSCALE:
+            return m_reinhardPostScale;
+        case LUX_FILM_TM_REINHARD_BURN:
+            return m_reinhardBurn;
+        case LUX_FILM_TM_LINEAR_SENSITIVITY:
+            return m_linearSensitivity;
+        case LUX_FILM_TM_LINEAR_EXPOSURE:
+            return m_linearExposure;
+        case LUX_FILM_TM_LINEAR_FSTOP:
+            return m_linearFStop;
+        case LUX_FILM_TM_LINEAR_GAMMA:
+            return m_linearGamma;
+        case LUX_FILM_TORGB_X_WHITE:
+            return m_csWhite[0];
+        case LUX_FILM_TORGB_Y_WHITE:
+            return m_csWhite[1];
+        case LUX_FILM_TORGB_X_RED:
+            return m_csRed[0];
+        case LUX_FILM_TORGB_Y_RED:
+            return m_csRed[1];
+        case LUX_FILM_TORGB_X_GREEN:
+            return m_csGreen[0];
+        case LUX_FILM_TORGB_Y_GREEN:
+            return m_csGreen[1];
+        case LUX_FILM_TORGB_X_BLUE:
+            return m_csBlue[0];
+        case LUX_FILM_TORGB_Y_BLUE:
+            return m_csBlue[1];
+        default:
+            return 0.0;
         }
     }
 
@@ -266,23 +441,40 @@ namespace lux2
     {
         switch (param)
         {
-        case LUX_FILM_TM_TONEMAPKERNEL: return m_dTonemapKernel;
-        case LUX_FILM_TM_REINHARD_PRESCALE: return m_dReinhardPreScale;
-        case LUX_FILM_TM_REINHARD_POSTSCALE: return m_dReinhardPostScale;
-        case LUX_FILM_TM_REINHARD_BURN: return m_dReinhardBurn;
-        case LUX_FILM_TM_LINEAR_SENSITIVITY: return m_dLinearSensitivity;
-        case LUX_FILM_TM_LINEAR_EXPOSURE: return m_dLinearExposure;
-        case LUX_FILM_TM_LINEAR_FSTOP: return m_dLinearFStop;
-        case LUX_FILM_TM_LINEAR_GAMMA: return m_dLinearGamma;
-        case LUX_FILM_TORGB_X_WHITE: return m_dCsWhite[0];
-        case LUX_FILM_TORGB_Y_WHITE: return m_dCsWhite[1];
-        case LUX_FILM_TORGB_X_RED: return m_dCsRed[0];
-        case LUX_FILM_TORGB_Y_RED: return m_dCsRed[1];
-        case LUX_FILM_TORGB_X_GREEN: return m_dCsGreen[0];
-        case LUX_FILM_TORGB_Y_GREEN: return m_dCsGreen[1];
-        case LUX_FILM_TORGB_X_BLUE: return m_dCsBlue[0];
-        case LUX_FILM_TORGB_Y_BLUE: return m_dCsBlue[1];
-        default: return 0.0;
+        case LUX_FILM_TM_TONEMAPKERNEL:
+            return m_dTonemapKernel;
+        case LUX_FILM_TM_REINHARD_PRESCALE:
+            return m_dReinhardPreScale;
+        case LUX_FILM_TM_REINHARD_POSTSCALE:
+            return m_dReinhardPostScale;
+        case LUX_FILM_TM_REINHARD_BURN:
+            return m_dReinhardBurn;
+        case LUX_FILM_TM_LINEAR_SENSITIVITY:
+            return m_dLinearSensitivity;
+        case LUX_FILM_TM_LINEAR_EXPOSURE:
+            return m_dLinearExposure;
+        case LUX_FILM_TM_LINEAR_FSTOP:
+            return m_dLinearFStop;
+        case LUX_FILM_TM_LINEAR_GAMMA:
+            return m_dLinearGamma;
+        case LUX_FILM_TORGB_X_WHITE:
+            return m_dCsWhite[0];
+        case LUX_FILM_TORGB_Y_WHITE:
+            return m_dCsWhite[1];
+        case LUX_FILM_TORGB_X_RED:
+            return m_dCsRed[0];
+        case LUX_FILM_TORGB_Y_RED:
+            return m_dCsRed[1];
+        case LUX_FILM_TORGB_X_GREEN:
+            return m_dCsGreen[0];
+        case LUX_FILM_TORGB_Y_GREEN:
+            return m_dCsGreen[1];
+        case LUX_FILM_TORGB_X_BLUE:
+            return m_dCsBlue[0];
+        case LUX_FILM_TORGB_Y_BLUE:
+            return m_dCsBlue[1];
+        default:
+            return 0.0;
         }
     }
 

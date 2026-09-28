@@ -51,8 +51,9 @@ namespace lux2
 
         void Start(const Scene &scene) override;
 
-        void RenderPass(const Scene &scene, TileQueue &tiles,
-                        Sampler &sampler, int passIndex) override;
+        void RenderTile(const Scene &scene, const Tile &tile,
+                        Film &dest, Sampler &sampler,
+                        int passIndex) override;
 
         // Accessors.
         int MaxDepth() const { return m_maxDepth; }

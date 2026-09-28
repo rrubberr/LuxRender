@@ -23,6 +23,7 @@
 
 #include "core/dynload.h"
 #include "core/fresnel.h"
+#include "core/math.h"
 #include "core/paramset.h"
 #include "core/register.h"
 #include "textures/constant.h"
@@ -86,8 +87,8 @@ namespace lux2
 
         // f excludes the geometric |cos| (delta lobes). Transmit carries the
         // solid-angle compression |wo.z / cost|.
-        const FloatP costSafe = select(abs(cost) > FloatP(1e-8f), abs(cost),
-                                       FloatP(1e-8f));
+        const FloatP costSafe = select(abs(cost) > FloatP(EPS_DENOM), abs(cost),
+                                       FloatP(EPS_DENOM));
         const SWCSpectrumP fReflect = kr * F;
         const SWCSpectrumP fTransmit = kt * (FloatP(1.f) - F) *
                                        (abs(woLz) / costSafe);

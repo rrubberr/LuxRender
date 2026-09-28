@@ -32,6 +32,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <thread>
+#include <vector>
 
 using namespace lux2;
 
@@ -55,7 +57,7 @@ bool Close(float a, float b, float tol = 1e-4f) {
 float RandUnit() { return float(std::rand()) / float(RAND_MAX); }
 
 // Broadcast a scalar splat of a monochromatic spectrum value at wl.
-void SplatOne(FlexImageFilm &film, float px, float py, float wl, float L,
+void SplatOne(Film &film, float px, float py, float wl, float L,
               float alpha, float weight) {
     SpectrumWavelengthsP sw;
     sw.FromWavelength(FloatP(wl));
@@ -257,6 +259,180 @@ void CheckParameters() {
           "colorspace red x set/get");
 }
 
+// Compare all accumulation buffers of two films.
+bool BuffersEqual(const FlexImageFilm &a, const FlexImageFilm &b,
+                  float tol = 1e-4f) {
+    const size_t n = a.BufX().size();
+    if (n != b.BufX().size())
+        return false;
+    for (size_t i = 0; i < n; ++i) {
+        if (!Close(a.BufX()[i], b.BufX()[i], tol) ||
+            !Close(a.BufY()[i], b.BufY()[i], tol) ||
+            !Close(a.BufZ()[i], b.BufZ()[i], tol) ||
+            !Close(a.BufAlpha()[i], b.BufAlpha()[i], tol) ||
+            !Close(a.BufWeight()[i], b.BufWeight()[i], tol))
+            return false;
+    }
+    return true;
+}
+
+// A private block accumulates independently.
+void CheckPrivateBlock() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm master(64, 64, &f, full, "out", false);
+    FlexImageFilm ref(64, 64, &f, full, "out", false);
+
+    auto block = master.MakePrivateBlock(0, 0, 64, 64);
+    Check(block != nullptr, "MakePrivateBlock returns a film");
+    if (!block)
+        return;
+
+    // Geometry matches the master.
+    Check(block->XRes() == master.XRes() && block->YRes() == master.YRes(),
+          "block resolution matches master");
+
+    FlexImageFilm *blk = dynamic_cast<FlexImageFilm *>(block.get());
+    Check(blk != nullptr, "block is a FlexImageFilm");
+    if (!blk)
+        return;
+    Check(blk->XStart() == master.XStart() && blk->XCount() == master.XCount() &&
+              blk->YStart() == master.YStart() && blk->YCount() == master.YCount(),
+          "block crop window matches master");
+
+    // Splat into the block and the reference.
+    const float wl = 560.f;
+    SplatOne(*blk, 24.5f, 30.5f, wl, 1.3f, 1.f, 1.f);
+    SplatOne(ref, 24.5f, 30.5f, wl, 1.3f, 1.f, 1.f);
+    blk->AddSampleCount(3.0);
+    ref.AddSampleCount(3.0);
+
+    master.Merge(block.get());
+    Check(BuffersEqual(master, ref), "block merge equals direct accumulation");
+    Check(Close(float(master.SampleCount()), float(ref.SampleCount())),
+          "block merge carries sample count");
+}
+
+// Clear() zeroes the buffers and sample count so a block can be reused.
+void CheckClear() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm film(64, 64, &f, full, "out", false);
+
+    SplatOne(film, 32.5f, 32.5f, 550.f, 1.f, 1.f, 1.f);
+    film.AddSampleCount(9.0);
+
+    double before = 0.0;
+    for (float w : film.BufWeight())
+        before += w;
+    Check(before > 0.0, "film has samples before clear");
+
+    film.Clear();
+
+    double after = 0.0;
+    for (float w : film.BufWeight())
+        after += w;
+    Check(after == 0.0, "Clear zeroes weight buffer");
+    Check(film.SampleCount() == 0.0, "Clear zeroes sample count");
+}
+
+// Concurrent merges from workers are serialized.
+void CheckConcurrentMerge() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+
+    const int nWorkers = 8;
+    const int splatsPerWorker = 40;
+    const float wl = 590.f;
+
+    // Build workers with deterministic splat sets.
+    std::vector<std::unique_ptr<Film>> blocks;
+    blocks.reserve(nWorkers);
+    for (int w = 0; w < nWorkers; ++w) {
+        auto b = FlexImageFilm(64, 64, &f, full, "out", false)
+                     .MakePrivateBlock(0, 0, 64, 64);
+        for (int i = 0; i < splatsPerWorker; ++i) {
+            const float px = 8.f + float((w * 7 + i * 3) % 47);
+            const float py = 8.f + float((w * 5 + i * 11) % 47);
+            SplatOne(*b, px + 0.5f, py + 0.5f, wl, 1.f, 1.f, 1.f);
+        }
+        b->AddSampleCount(double(splatsPerWorker));
+        blocks.push_back(std::move(b));
+    }
+
+    // Merge all blocks into one master sequentially.
+    FlexImageFilm serialRef(64, 64, &f, full, "out", false);
+    for (auto &b : blocks)
+        serialRef.Merge(b.get());
+
+    // Merge from nWorkers threads.
+    FlexImageFilm master(64, 64, &f, full, "out", false);
+    std::vector<std::thread> threads;
+    threads.reserve(nWorkers);
+    for (int w = 0; w < nWorkers; ++w) {
+        threads.emplace_back([&master, &blocks, w]() {
+            master.Merge(blocks[w].get());
+        });
+    }
+    for (auto &t : threads)
+        t.join();
+
+    Check(BuffersEqual(master, serialRef),
+          "concurrent merges equal serial merge");
+    Check(Close(float(master.SampleCount()), float(serialRef.SampleCount())),
+          "concurrent merges carry total sample count");
+}
+
+// A region block accumulates a sub-rect. MergeRegion maps it into the master.
+void CheckRegionMerge() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    const float wl = 560.f;
+
+    FlexImageFilm master(64, 64, &f, full, "out", false);
+    FlexImageFilm ref(64, 64, &f, full, "out", false);
+
+    // Preexisting data outside the region must survive the merge.
+    SplatOne(master, 4.5f, 4.5f, wl, 1.f, 1.f, 1.f);
+    SplatOne(ref, 4.5f, 4.5f, wl, 1.f, 1.f, 1.f);
+
+    // Owned region is [16,32) x [16,32).
+    auto block = master.MakePrivateBlock(14, 14, 34, 34);
+    Check(block != nullptr, "region MakePrivateBlock returns a film");
+    if (!block)
+        return;
+    FlexImageFilm *blk = dynamic_cast<FlexImageFilm *>(block.get());
+    Check(blk && blk->XStart() == 14 && blk->XCount() == 20 &&
+              blk->YStart() == 14 && blk->YCount() == 20,
+          "region block crop window is the requested rect");
+
+    // Splat inside the region on both the block and the reference.
+    for (int i = 0; i < 25; ++i) {
+        const float px = 17.f + float(i % 5) + 0.5f;
+        const float py = 17.f + float(i / 5) + 0.5f;
+        SplatOne(*blk, px, py, wl, 1.f, 1.f, 1.f);
+        SplatOne(ref, px, py, wl, 1.f, 1.f, 1.f);
+    }
+    blk->AddSampleCount(25.0);
+    ref.AddSampleCount(25.0);
+
+    master.MergeRegion(block.get(), 14, 14, 34, 34);
+
+    Check(BuffersEqual(master, ref),
+          "region merge equals direct accumulation (incl. out-of-region)");
+    Check(Close(float(master.SampleCount()), float(ref.SampleCount())),
+          "region merge carries sample count");
+
+    bool zeroed = true;
+    for (size_t i = 0; i < blk->BufWeight().size(); ++i)
+        if (blk->BufWeight()[i] != 0.f || blk->BufX()[i] != 0.f ||
+            blk->BufY()[i] != 0.f || blk->BufZ()[i] != 0.f ||
+            blk->BufAlpha()[i] != 0.f)
+            zeroed = false;
+    Check(zeroed, "region merge zeroes the block for reuse");
+    Check(blk->SampleCount() == 0.0, "region merge clears block count");
+}
+
 } // namespace
 
 int main() {
@@ -271,6 +447,10 @@ int main() {
     CheckValidity();
     CheckPremultiply();
     CheckParameters();
+    CheckPrivateBlock();
+    CheckClear();
+    CheckConcurrentMerge();
+    CheckRegionMerge();
 
     if (g_failures == 0) {
         std::cout << "lux2filmcheck: ALL CHECKS PASSED" << std::endl;

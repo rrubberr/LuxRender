@@ -420,6 +420,9 @@ namespace lux2
             }
         }
 
+        // Keep the materials alive.
+        m_materials = desc.materials;
+
         m_committed = true;
     }
 

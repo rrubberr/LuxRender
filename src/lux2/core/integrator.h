@@ -26,12 +26,13 @@
 #include "core/spectrum.h"
 #include "core/ray.h"
 #include "core/sampler.h"
+#include "core/tilequeue.h"
 
 namespace lux2
 {
 
     class Scene;
-    class TileQueue;
+    class Film;
 
     // ---------------------------------------------------------------------------
     // SurfaceIntegrator
@@ -49,9 +50,10 @@ namespace lux2
         // Called once before the first pass.
         virtual void Start(const Scene &scene) { (void)scene; }
 
-        // Execute one rendering pass over the tiles.
-        virtual void RenderPass(const Scene &scene, TileQueue &tiles,
-                                Sampler &sampler, int passIndex) = 0;
+        // Render one tile of `spp` into `dest`.
+        virtual void RenderTile(const Scene &scene, const Tile &tile,
+                                Film &dest, Sampler &sampler,
+                                int passIndex) = 0;
 
         // Called once after the last pass. Flush pass buffers.
         virtual void End(const Scene &scene) { (void)scene; }

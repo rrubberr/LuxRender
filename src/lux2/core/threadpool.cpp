@@ -19,47 +19,46 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_LDSAMPLER_H
-#define LUX2_LDSAMPLER_H
+#include "core/threadpool.h"
+#include "core/error.h"
 
-#include "core/sampler.h"
-#include "core/vecp.h"
-
-#include <cstdint>
-#include <memory>
+#include <thread>
 
 namespace lux2
 {
 
-    struct PluginContext;
-
-    class LDSampler : public Sampler
+    RenderThreadPool &RenderThreadPool::Get()
     {
-    public:
-        // spp is rounded up to a square power of two.
-        LDSampler(uint32_t sampleCount, uint64_t baseSeed);
+        // Intentionally leaked.
+        static RenderThreadPool *instance = new RenderThreadPool();
+        return *instance;
+    }
 
-        std::unique_ptr<Sampler> Clone() const override
+    void RenderThreadPool::Init(unsigned int nThreads)
+    {
+        if (nThreads == 0)
         {
-            return std::make_unique<LDSampler>(*this);
+            nThreads = std::thread::hardware_concurrency();
+            if (nThreads == 0)
+                nThreads = 1;
         }
 
-        void Seed(uint64_t seedOffset, size_t wavefrontSize) override;
-        void Advance() override;
-        FloatP Next1D(MaskP active = MaskP(true)) override;
-        Point2fP Next2D(MaskP active = MaskP(true)) override;
-        uint32_t SampleCount() const override { return m_sampleCount; }
-
-        static std::shared_ptr<Sampler> CreateSampler(const PluginContext &ctx);
-
-    private:
-        uint32_t m_sampleCount;    // res^2
-        uint32_t m_dimensionIndex; // per-sample stream counter
-        uint32_t m_sampleIndex;    // current sample within the sequence
-        uint64_t m_baseSeed;
-        UInt32P m_scrambleSeed; // per-lane scramble
-    };
+        if (!m_control)
+        {
+            // First Init sets the cap.
+            m_control = std::make_unique<tbb::global_control>(
+                tbb::global_control::max_allowed_parallelism,
+                static_cast<size_t>(nThreads));
+            m_count = nThreads;
+            LOG(LUX_INFO, LUX_NOERROR)
+                << "lux2: TBB scheduler capped at " << nThreads
+                << " worker(s) (shared with Embree).";
+        }
+        else
+        {
+            // The parallelism cap is fixed for the process.
+            m_count = nThreads;
+        }
+    }
 
 } // namespace lux2
-
-#endif // LUX2_LDSAMPLER_H

@@ -26,6 +26,7 @@
 #include "core/geometry.h"
 
 #include <cstdint>
+#include <memory>
 
 namespace lux2
 {
@@ -35,6 +36,15 @@ namespace lux2
     {
     public:
         virtual ~Sampler() = default;
+
+        // A sampler instance must not be shared between workers.
+        virtual std::unique_ptr<Sampler> Clone() const = 0;
+
+        // Correlated samplers (e.g. Metropolis) are pinned to a fixed image region.
+        virtual bool IsCorrelated() const { return false; }
+
+        // Correlated samplers route each contribution through feedback.
+        virtual bool RequiresFeedback() const { return false; }
 
         // Seed for a wavefront of `wavefrontSize` lanes.
         virtual void Seed(uint64_t seedOffset, size_t wavefrontSize) = 0;

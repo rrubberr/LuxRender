@@ -20,7 +20,7 @@
  ***************************************************************************/
 
 // Cross-check the SoA SPD/CIE pipeline (lux2::color) against the scalar
-// luxrays reference for wavelength sampling, Smits RGB->SPD reconstruction
+// colorref reference for wavelength sampling, Smits RGB->SPD reconstruction
 // (reflectant and illuminant), and CIE luminance.
 //
 // Monochromatic SWA: a lux2 lane carries ONE wavelength. The scalar reference
@@ -30,22 +30,20 @@
 // broadcast input, so lane 0 is compared against the scalar result.
 
 #include "core/color.h"
+#include "core/colorsystem.h"
 #include "core/texture.h"
 
-#include "luxrays/core/color/swcspectrum.h"
-#include "luxrays/core/color/spectrumwavelengths.h"
-#include "luxrays/core/color/spds/rgbrefl.h"
-#include "luxrays/core/color/spds/rgbillum.h"
+#include "color_ref/color_ref.h"
 
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
 
-using luxrays::RGBColor;
-using luxrays::RGBReflSPD;
-using luxrays::RGBIllumSPD;
-using luxrays::SpectrumWavelengths;
-using luxrays::SWCSpectrum;
+using colorref::RGBColor;
+using colorref::RGBReflSPD;
+using colorref::RGBIllumSPD;
+using colorref::SpectrumWavelengths;
+using colorref::SWCSpectrum;
 
 namespace {
 
@@ -189,7 +187,7 @@ void CheckXYZ() {
 		sw.Sample(u1);
 		const float wl = sw.SampleSingle(); // sets sw.single
 		const SWCSpectrum s = SWCSpectrum(sw, RGBReflSPD(rgb));
-		const luxrays::XYZColor ref(sw, s);
+		const colorref::XYZColor ref(sw, s);
 
 		lux2::SpectrumWavelengthsP swp;
 		swp.FromWavelength(lux2::FloatP(wl));
@@ -242,6 +240,98 @@ void CheckConstantTexture() {
 	Check(ok, "ConstantColorTexture matches scalar");
 }
 
+// ---------------------------------------------------------------------------
+// lux2::ColorSystem (legacy luxrays::ColorSystem port)
+// ---------------------------------------------------------------------------
+
+void CheckColorSystemRoundTrip() {
+	const lux2::ColorSystem cs;
+
+	// RGB -> XYZ -> RGB must round-trip.
+	bool ok = true;
+	for (int i = 0; i < 64; ++i) {
+		const lux2::RGBColor rgb(RandUnit(), RandUnit(), RandUnit());
+		const lux2::RGBColor back = cs.ToRGB(cs.ToXYZ(rgb));
+		ok = ok && Close(back[0], rgb[0], 1e-4f) &&
+		     Close(back[1], rgb[1], 1e-4f) &&
+		     Close(back[2], rgb[2], 1e-4f);
+	}
+	Check(ok, "ColorSystem RGB->XYZ->RGB round-trips");
+
+	// The white point converts to (1,1,1) at unit luminance.
+	const lux2::XYZColor xw = cs.ToXYZ(lux2::RGBColor(1.f));
+	const lux2::RGBColor rw = cs.ToRGB(xw);
+	Check(Close(rw[0], 1.f, 1e-4f) && Close(rw[1], 1.f, 1e-4f) &&
+	          Close(rw[2], 1.f, 1e-4f),
+	      "ColorSystem white point maps to unit RGB");
+
+	// XYZ(1,1,1) chromaticity matches the configured white point.
+	const float sum = xw[0] + xw[1] + xw[2];
+	Check(Close(xw[0] / sum, cs.xWhite, 1e-4f) &&
+	          Close(xw[1] / sum, cs.yWhite, 1e-4f),
+	      "ToXYZ(white RGB) has the configured white chromaticity");
+}
+
+void CheckConstrain() {
+	const lux2::ColorSystem cs;
+
+	// In-gamut: a mid gray is untouched and reports no modification.
+	const lux2::XYZColor gray = cs.ToXYZ(lux2::RGBColor(0.5f));
+	lux2::RGBColor rgb = cs.ToRGB(gray);
+	bool modified = cs.Constrain(gray, rgb);
+	Check(!modified && Close(rgb[0], 0.5f, 1e-4f) &&
+	          Close(rgb[1], 0.5f, 1e-4f) && Close(rgb[2], 0.5f, 1e-4f),
+	      "Constrain leaves in-gamut colors unmodified");
+
+	// Out-of-gamut: a spectral-ish blue outside SMPTE primaries.
+	const lux2::XYZColor outOfGamut(0.05f, 0.03f, 0.4f);
+	lux2::RGBColor rgb2 = cs.ToRGB(outOfGamut);
+	Check(rgb2[0] < 0.f || rgb2[1] < 0.f || rgb2[2] < 0.f,
+	      "test color is genuinely out of gamut");
+	bool modified2 = cs.Constrain(outOfGamut, rgb2);
+	Check(modified2 && rgb2[0] >= -1e-5f && rgb2[1] >= -1e-5f &&
+	          rgb2[2] >= -1e-5f,
+	      "Constrain desaturates out-of-gamut colors to non-negative RGB");
+
+	// Zero-luminance negative case collapses to black.
+	lux2::RGBColor rgb3(-1.f, 0.5f, 0.5f);
+	bool modified3 = cs.Constrain(lux2::XYZColor(0.f), rgb3);
+	Check(modified3 && rgb3[0] == 0.f && rgb3[1] == 0.f && rgb3[2] == 0.f,
+	      "Constrain with Y<=0 collapses to black");
+}
+
+void CheckLimit() {
+	const lux2::ColorSystem cs;
+	const lux2::RGBColor over(1.5f, 0.8f, 1.2f);
+
+	// In-range colors pass through every method unchanged.
+	const lux2::RGBColor inRange(0.4f, 0.9f, 0.1f);
+	bool ok = true;
+	for (int m = 0; m < 4; ++m)
+		ok = ok && enoki::all(cs.Limit(inRange, m) == inRange);
+	Check(ok, "Limit passes in-range colors through");
+
+	// method 2 (cut): per-channel clamp to [0,1].
+	const lux2::RGBColor cut = cs.Limit(over, 2);
+	Check(cut[0] == 1.f && cut[1] == 0.8f && cut[2] == 1.f,
+	      "Limit cut clamps channels to [0,1]");
+
+	// method 3 (darken): scale so max == 1.
+	const lux2::RGBColor dark = cs.Limit(over, 3);
+	Check(Close(dark[0], 1.f, 1e-5f) && Close(dark[1], 0.8f / 1.5f, 1e-5f) &&
+	          Close(dark[2], 1.2f / 1.5f, 1e-5f),
+	      "Limit darken scales max channel to 1 preserving hue");
+
+	// methods 0/1 (lum/hue): result within [0,1] and modified.
+	ok = true;
+	for (int m = 0; m < 2; ++m) {
+		const lux2::RGBColor l = cs.Limit(over, m);
+		ok = ok && l[0] >= 0.f && l[0] <= 1.f && l[1] >= 0.f && l[1] <= 1.f &&
+		     l[2] >= 0.f && l[2] <= 1.f;
+	}
+	Check(ok, "Limit lum/hue produce in-range results");
+}
+
 } // namespace
 
 int main() {
@@ -253,6 +343,9 @@ int main() {
 	CheckXYZ();
 	CheckYMatchesXYZ();
 	CheckConstantTexture();
+	CheckColorSystemRoundTrip();
+	CheckConstrain();
+	CheckLimit();
 
 	if (g_failures == 0) {
 		std::cout << "lux2colorcheck: ALL CHECKS PASSED" << std::endl;

@@ -78,7 +78,42 @@ ELSE()
 ENDIF()
 MESSAGE(STATUS "lux2: Embree found (${LUX2_EMBREE_TARGET})")
 
+FIND_PACKAGE(TBB CONFIG REQUIRED)
+IF(NOT TARGET TBB::tbb)
+	MESSAGE(FATAL_ERROR "TBB::tbb target not found - build the 'tbb' ext target first.")
+ENDIF()
+MESSAGE(STATUS "lux2: TBB found (TBB::tbb)")
+
 FIND_PACKAGE(Threads REQUIRED)
+
+FIND_PACKAGE(OpenEXR CONFIG REQUIRED)
+if(TARGET OpenEXR::OpenEXR)
+	get_target_property(EXR_INC OpenEXR::OpenEXR INTERFACE_INCLUDE_DIRECTORIES)
+	MESSAGE(STATUS "OpenEXR include directory: ${EXR_INC}")
+endif()
+FIND_PACKAGE(Imath CONFIG REQUIRED)
+if(TARGET Imath::Imath)
+	get_target_property(IMATH_INC Imath::Imath INTERFACE_INCLUDE_DIRECTORIES)
+	MESSAGE(STATUS "Imath include directory: ${IMATH_INC}")
+endif()
+
+FIND_PACKAGE(PNG CONFIG REQUIRED)
+IF(PNG_INCLUDE_DIRS)
+	MESSAGE(STATUS "PNG include directory: " ${PNG_INCLUDE_DIRS})
+	INCLUDE_DIRECTORIES(BEFORE SYSTEM ${PNG_INCLUDE_DIRS})
+ELSE(PNG_INCLUDE_DIRS)
+	MESSAGE(STATUS "Warning : could not find PNG headers - building without png support")
+endif()
+
+FIND_PACKAGE(libjpeg-turbo CONFIG REQUIRED)
+MESSAGE(STATUS "lux2: libjpeg-turbo found (libjpeg-turbo::jpeg-static)")
+
+FIND_PACKAGE(TIFF CONFIG REQUIRED)
+IF(TIFF_INCLUDE_DIRS)
+	MESSAGE(STATUS "TIFF include directory: " ${TIFF_INCLUDE_DIRS})
+	INCLUDE_DIRECTORIES(BEFORE SYSTEM ${TIFF_INCLUDE_DIRS})
+ENDIF()
+MESSAGE(STATUS "lux2: TIFF found (TIFF::tiff)")
 
 # Bison/Flex for the .lxs parser.
 FIND_PACKAGE(BISON REQUIRED)
@@ -89,45 +124,6 @@ BISON_TARGET(Lux2Parser ${CMAKE_CURRENT_SOURCE_DIR}/core/luxparse.y
 FLEX_TARGET(Lux2Lexer ${CMAKE_CURRENT_SOURCE_DIR}/core/luxlex.l
 	${CMAKE_CURRENT_BINARY_DIR}/luxlex.cpp)
 ADD_FLEX_BISON_DEPENDENCY(Lux2Lexer Lux2Parser)
-
-#####################
-# Configure LuxRays #
-#####################
-
-# Configure the LuxRays version header.
-set(LUXRAYS_VERSION_MAJOR 2)
-set(LUXRAYS_VERSION_MINOR 6)
-configure_file(
-	${CMAKE_CURRENT_SOURCE_DIR}/luxrays/include/luxrays/cfg.h.in
-	${CMAKE_BINARY_DIR}/luxrays/include/luxrays/cfg.h
-	@ONLY
-)
-
-#############################
-# Build luxrays2 static lib #
-#############################
-
-# Collect all luxrays source files from the snapshot.
-file(GLOB_RECURSE LUXRAYS2_SRC CONFIGURE_DEPENDS
-	${CMAKE_CURRENT_SOURCE_DIR}/luxrays/src/*.cpp)
-
-add_library(luxrays2 STATIC ${LUXRAYS2_SRC})
-target_include_directories(luxrays2 SYSTEM PUBLIC
-	${CMAKE_CURRENT_SOURCE_DIR}/luxrays/include
-	${CMAKE_BINARY_DIR}/luxrays/include)
-
-# luxrays uses pthread for threading primitives.
-target_link_libraries(luxrays2 PRIVATE
-	Threads::Threads
-)
-
-# Guards for OpenEXR/Imath includes (luxrays color/spds headers).
-if(EXISTS ${INC_DIR}/Imath)
-	target_include_directories(luxrays2 SYSTEM PUBLIC ${INC_DIR}/Imath)
-endif()
-if(EXISTS ${INC_DIR}/OpenEXR)
-	target_include_directories(luxrays2 SYSTEM PUBLIC ${INC_DIR}/OpenEXR)
-endif()
 
 ######################
 # Set compiler flags #
@@ -174,6 +170,7 @@ add_test(NAME lux2corecheck COMMAND lux2corecheck)
 set(LUX2_FOUNDATION_SRC
 	core/paramset.cpp
 	core/color.cpp
+	core/rply.cpp
 	core/context2.cpp
 	core/scene.cpp
 	core/dynload.cpp
@@ -181,6 +178,7 @@ set(LUX2_FOUNDATION_SRC
 	core/embree2.cpp
 	core/fresnel.cpp
 	core/schlick_distribution.cpp
+	core/threadpool.cpp
 )
 
 set(LUX2_FOUNDATION_HEADERS
@@ -215,6 +213,13 @@ set(LUX2_CORE_SRC
 	film/null.cpp
 	film/fleximage.cpp
 	integrators/path.cpp
+	core/colorsystem.cpp
+	core/tonemap.cpp
+	core/exrio.cpp
+	core/pngio.cpp
+	core/jpegio.cpp
+	core/tiffio.cpp
+	tonemaps/lineartonemap.cpp
 	${BISON_Lux2Parser_OUTPUTS}
 	${FLEX_Lux2Lexer_OUTPUTS}
 )
@@ -228,8 +233,12 @@ TARGET_INCLUDE_DIRECTORIES(lux2 PUBLIC
 	${CMAKE_CURRENT_BINARY_DIR}
 )
 
-# luxrays2 provides rply (PLY reader used by the plymesh shape).
-TARGET_LINK_LIBRARIES(lux2 PUBLIC ${LUX2_EMBREE_TARGET} luxrays2)
+# TBB shared scheduler also used by Embree; linking it here keeps
+# a single libtbb in the process.
+TARGET_LINK_LIBRARIES(lux2 PUBLIC
+	${LUX2_EMBREE_TARGET} TBB::tbb
+	OpenEXR::OpenEXR OpenEXR::Iex Imath::Imath PNG::PNG
+	libjpeg-turbo::jpeg-static TIFF::tiff)
 
 # Build lux2foundationcheck.
 ADD_EXECUTABLE(lux2foundationcheck
@@ -318,20 +327,20 @@ TARGET_LINK_LIBRARIES(lux2embreecheck PRIVATE
 )
 add_test(NAME lux2embreecheck COMMAND lux2embreecheck)
 
-# luxrays2check tests luxrays scalar types to verify core APIs work.
-ADD_EXECUTABLE(luxrays2check
-	tests/luxrays_check.cpp
+# Phase 1: shared TBB scheduler cap + render arena coexisting with Embree.
+ADD_EXECUTABLE(lux2threadpoolcheck
+	tests/threadpool_check.cpp
 )
-TARGET_INCLUDE_DIRECTORIES(luxrays2check PRIVATE
+TARGET_INCLUDE_DIRECTORIES(lux2threadpoolcheck PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}
 )
-TARGET_LINK_LIBRARIES(luxrays2check PRIVATE
-	luxrays2
+TARGET_LINK_LIBRARIES(lux2threadpoolcheck PRIVATE
+	lux2
+	${LUX2_EMBREE_TARGET}
+	TBB::tbb
+	Threads::Threads
 )
-add_test(NAME luxrays2check
-	COMMAND luxrays2check
-	${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/Scene/00001/floor_0000_m000.ply
-)
+add_test(NAME lux2threadpoolcheck COMMAND lux2threadpoolcheck)
 
 # Stage 0: QMC substrate (radical_inverse_2 / sobol_2 / permute / tea).
 ADD_EXECUTABLE(lux2qmccheck
@@ -402,6 +411,27 @@ TARGET_INCLUDE_DIRECTORIES(lux2filmcheck PRIVATE
 TARGET_LINK_LIBRARIES(lux2filmcheck PRIVATE lux2)
 add_test(NAME lux2filmcheck COMMAND lux2filmcheck)
 
+# Stage D: linear/autolinear tonemap kernels + registry.
+ADD_EXECUTABLE(lux2tonemapcheck
+	tests/tonemap_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2tonemapcheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2tonemapcheck PRIVATE lux2)
+add_test(NAME lux2tonemapcheck COMMAND lux2tonemapcheck)
+
+# Stage D: EXR/PNG writers and readers.
+ADD_EXECUTABLE(lux2imageiocheck
+	tests/imageio_check.cpp
+)
+TARGET_INCLUDE_DIRECTORIES(lux2imageiocheck PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+)
+TARGET_LINK_LIBRARIES(lux2imageiocheck PRIVATE lux2)
+add_test(NAME lux2imageiocheck COMMAND lux2imageiocheck
+	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 # Stage 7: Scene::Commit wiring (camera/sampler/filter/lights/area geometry).
 ADD_EXECUTABLE(lux2scenewiringcheck
 	tests/scene_wiring_check.cpp
@@ -430,16 +460,17 @@ TARGET_LINK_LIBRARIES(lux2pathcheck PRIVATE
 )
 add_test(NAME lux2pathcheck COMMAND lux2pathcheck)
 
-# SoA SPD/CIE pipeline cross-checked against the scalar luxrays reference.
+# SoA SPD/CIE pipeline cross-checked against the scalar colorref reference
+# (tests/color_ref/, compiled into this target only).
 ADD_EXECUTABLE(lux2colorcheck
 	tests/color_check.cpp
+	tests/color_ref/color_ref.cpp
 )
 TARGET_INCLUDE_DIRECTORIES(lux2colorcheck PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}
 )
 TARGET_LINK_LIBRARIES(lux2colorcheck PRIVATE
 	lux2
-	luxrays2
 )
 add_test(NAME lux2colorcheck COMMAND lux2colorcheck)
 

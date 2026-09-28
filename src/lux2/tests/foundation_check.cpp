@@ -306,7 +306,7 @@ void CheckAPI() {
 	luxAbort();
 	luxWait();
 	luxSetThreadCount(4);
-	Check(luxGetThreadCount() == 1, "C API: luxGetThreadCount sentinel");
+	Check(luxGetThreadCount() == 4, "C API: luxGetThreadCount reflects set");
 	luxUpdateFramebuffer();
 	Check(luxFramebuffer() == nullptr, "C API: luxFramebuffer null");
 	Check(luxFloatFramebuffer() == nullptr, "C API: luxFloatFramebuffer null");

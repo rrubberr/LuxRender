@@ -27,6 +27,7 @@
 
 #include <enoki/array.h>
 
+#include <cassert>
 #include <vector>
 
 namespace lux2
@@ -37,10 +38,14 @@ namespace lux2
         // Indexed by material id.
         std::vector<const BSDF *> ptrs;
 
-        // Gather a BSDFPtr for the given material ids.
+        // Gather a BSDFPtr for the given material ids. Out of range = null.
         BSDFPtr Gather(const UInt32P &matID, MaskP active) const
         {
-            return enoki::gather<BSDFPtr>(ptrs.data(), matID, active);
+            const MaskP inRange =
+                active && (matID < UInt32P(uint32_t(ptrs.size())));
+            assert(!enoki::any(active && !inRange) &&
+                   "BsdfPtrTable::Gather: material id out of range");
+            return enoki::gather<BSDFPtr>(ptrs.data(), matID, inRange);
         }
     };
 

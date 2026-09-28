@@ -156,14 +156,13 @@ std::unique_ptr<Scene> MakeScene(const Point3f &camPos, const Point3f &target,
     return scene;
 }
 
-// Drive one RenderPass over the whole 16x16 frame; return the NullFilm mean.
+// Render one frame tile into the film.
 double RunPass(SurfaceIntegrator &integ, Scene &scene) {
     integ.Start(scene);
-    TileQueue tiles;
     Tile t;
     t.x0 = 0; t.y0 = 0; t.x1 = 16; t.y1 = 16;
-    tiles.Push(t);
-    integ.RenderPass(scene, tiles, scene.GetSampler(), 0);
+    auto sampler = scene.GetSampler().Clone();
+    integ.RenderTile(scene, t, scene.GetFilm(), *sampler, 0);
     auto *film = dynamic_cast<NullFilm *>(&scene.GetFilm());
     return film ? film->MeanLuminance() : -1.0;
 }

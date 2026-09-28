@@ -33,7 +33,6 @@ namespace lux2
     using namespace enoki;
 
     // Number of wavelength samples per spectrum.
-    // Must match luxrays::WAVELENGTH_SAMPLES.
     constexpr int WAVELENGTH_SAMPLES = 4;
 
     // Number of components in an RGBColor.
@@ -141,6 +140,12 @@ namespace lux2
         Value_ Filter() const
         {
             return hsum(*this) * (Scalar(1.f) / Scalar(Size_));
+        }
+
+        // Componentwise power.
+        RGBColor_ Pow(const Value_ &e) const
+        {
+            return pow(max(*this, Value_(0.f)), e);
         }
     };
 

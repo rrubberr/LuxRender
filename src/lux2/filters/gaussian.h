@@ -40,13 +40,24 @@ namespace lux2
               m_expX(std::exp(-alpha * xw * xw)),
               m_expY(std::exp(-alpha * yw * yw)) {}
 
-        float Evaluate(float dx, float dy) const override
-        {
-            return G(dx, m_expX) * G(dy, m_expY);
-        }
-
         float GetXWidth() const override { return m_xWidth; }
         float GetYWidth() const override { return m_yWidth; }
+
+        // Separable 1D kernels.
+        float EvaluateX(float dx) const override { return G(dx, m_expX); }
+        float EvaluateY(float dy) const override { return G(dy, m_expY); }
+
+        // Ealuate the windowed Gaussian directly on the lanes.
+        FloatP EvaluateXP(const FloatP &dx) const override
+        {
+            return enoki::max(enoki::exp(-m_alpha * dx * dx) - m_expX,
+                              FloatP(0.f));
+        }
+        FloatP EvaluateYP(const FloatP &dy) const override
+        {
+            return enoki::max(enoki::exp(-m_alpha * dy * dy) - m_expY,
+                              FloatP(0.f));
+        }
 
         static std::shared_ptr<Filter> CreateFilter(const PluginContext &ctx);
 

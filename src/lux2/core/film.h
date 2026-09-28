@@ -28,6 +28,7 @@
 #include "core/api.h"
 
 #include <iosfwd>
+#include <memory>
 #include <string>
 
 namespace lux2
@@ -63,6 +64,21 @@ namespace lux2
 
         // Merge another film's accumulated buffer into this one.
         virtual void Merge(Film *other) = 0;
+
+        // Merge the `other` rectangle into this film, zero, and transfer its
+        // pending samples.
+        virtual void MergeRegion(Film *other, int x0, int y0, int x1, int y1) = 0;
+
+        // Create a private accumulation block clamped to this film's crop window.
+        virtual std::unique_ptr<Film> MakePrivateBlock(int x0, int y0,
+                                                       int x1, int y1) const
+        {
+            (void)x0; (void)y0; (void)x1; (void)y1;
+            return nullptr;
+        }
+
+        // Zero the accumulation buffers.
+        virtual void Clear() {}
 
         // Accumulated sample count (drives haltspp and FLM bookkeeping).
         virtual void AddSampleCount(double n) = 0;

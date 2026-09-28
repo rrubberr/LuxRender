@@ -22,6 +22,8 @@
 #ifndef LUX2_FILTER_H
 #define LUX2_FILTER_H
 
+#include "core/vecp.h"
+
 namespace lux2
 {
 
@@ -31,12 +33,37 @@ namespace lux2
     public:
         virtual ~Filter() = default;
 
-        // Filter weight at an offset (dx, dy) from the pixel center.
-        virtual float Evaluate(float dx, float dy) const = 0;
-
         // Filter footprint half-widths in pixel units.
         virtual float GetXWidth() const = 0;
         virtual float GetYWidth() const = 0;
+
+        // Separable 1D kernels at an offset from the pixel center.
+        virtual float EvaluateX(float dx) const = 0;
+        virtual float EvaluateY(float dy) const = 0;
+
+        // Filter weight at offset from the pixel center.
+        virtual float Evaluate(float dx, float dy) const
+        {
+            return EvaluateX(dx) * EvaluateY(dy);
+        }
+
+        // Weight for each lane at its own offset.
+        virtual FloatP EvaluateXP(const FloatP &dx) const
+        {
+            float in[PACKET_WIDTH], t[PACKET_WIDTH];
+            enoki::store_unaligned(in, dx);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                t[i] = EvaluateX(in[i]);
+            return enoki::load_unaligned<FloatP>(t);
+        }
+        virtual FloatP EvaluateYP(const FloatP &dy) const
+        {
+            float in[PACKET_WIDTH], t[PACKET_WIDTH];
+            enoki::store_unaligned(in, dy);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                t[i] = EvaluateY(in[i]);
+            return enoki::load_unaligned<FloatP>(t);
+        }
     };
 
 } // namespace lux2

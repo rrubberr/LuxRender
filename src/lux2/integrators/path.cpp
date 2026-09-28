@@ -30,7 +30,6 @@
 #include "core/math.h"
 #include "core/register.h"
 #include "core/scene.h"
-#include "core/tilequeue.h"
 
 #include <enoki/array.h>
 
@@ -82,7 +81,6 @@ namespace lux2
         const bool rrEfficiency = (m_rrStrategy == "efficiency");
         const FloatP rrProb = FloatP(m_rrContinueProb);
 
-        constexpr float kRayEps = 1e-4f;
         const FloatP INF = std::numeric_limits<float>::infinity();
 
         RayP ray = primary;
@@ -231,12 +229,12 @@ namespace lux2
                                             &pdfPos, &Le, la);
                         const FloatP pdfL = pdfPos * invNLights;
                         // Offset toward the side the path arrived on.
-                        const Point3fP off = OffsetRay(p, ng, -ray.d, FloatP(kRayEps));
+                        const Point3fP off = OffsetRay(p, ng, -ray.d, FloatP(EPS_RAY));
                         const FloatP tmax = enoki::any(light->IsInfinite())
                                                 ? INF
                                                 : enoki::norm(lightP - p) *
-                                                      (FloatP(1.f) - FloatP(1e-4f));
-                        RayP shadow(off, wi, FloatP(kRayEps), tmax, FloatP(0.f));
+                                                      (FloatP(1.f) - FloatP(EPS_RAY));
+                        RayP shadow(off, wi, FloatP(EPS_RAY), tmax, FloatP(0.f));
                         shadow.wavelengths = sw.w;
                         shadow.mask = UInt32P(0xFFFFFFFFu);
                         const MaskP tryVis = la && valid && (pdfL > FloatP(0.f));
@@ -284,7 +282,7 @@ namespace lux2
                 if (any(rrActive))
                 {
                     const SWCSpectrumP tputF =
-                        sample.f * cosS / max(sample.pdf, FloatP(1e-8f));
+                        sample.f * cosS / max(sample.pdf, FloatP(EPS_DENOM));
                     FloatP q;
                     if (rrEfficiency)
                         q = min(FloatP(1.f), max(tputF, FloatP(0.f)));
@@ -292,21 +290,21 @@ namespace lux2
                         q = rrProb;
                     const MaskP kill = rrActive && (q < urr);
                     throughput = select(rrActive && !kill,
-                                        throughput / max(q, FloatP(1e-8f)),
+                                        throughput / max(q, FloatP(EPS_DENOM)),
                                         throughput);
                     alive &= !kill;
                 }
 
                 // Advance.
                 throughput = select(alive,
-                                    throughput * sample.f * (cosS / max(sample.pdf, FloatP(1e-8f))),
+                                    throughput * sample.f * (cosS / max(sample.pdf, FloatP(EPS_DENOM))),
                                     throughput);
                 specularBounce =
                     select(hitMask, has_flag(sample.sampledType, BSDFType::Specular),
                            specularBounce);
 
-                const Point3fP spawn = OffsetRay(p, ng, sample.wo, FloatP(kRayEps));
-                ray = RayP(spawn, sample.wo, FloatP(kRayEps), INF, FloatP(0.f));
+                const Point3fP spawn = OffsetRay(p, ng, sample.wo, FloatP(EPS_RAY));
+                ray = RayP(spawn, sample.wo, FloatP(EPS_RAY), INF, FloatP(0.f));
                 ray.wavelengths = sw.w;
                 ray.mask = UInt32P(0xFFFFFFFFu);
                 depth = depth + Int32P(1);
@@ -320,77 +318,73 @@ namespace lux2
         return L;
     }
 
-    void PathIntegrator::RenderPass(const Scene &scene, TileQueue &tiles,
-                                    Sampler &sampler, int passIndex)
+    void PathIntegrator::RenderTile(const Scene &scene, const Tile &tile,
+                                    Film &dest, Sampler &sampler,
+                                    int passIndex)
     {
-        Film &film = scene.GetFilm();
         const Camera &camera = scene.GetCamera();
 
-        Tile tile;
         const uint32_t spp = sampler.SampleCount();
-        while (tiles.Next(&tile))
+        const FloatP lane = enoki::arange<FloatP>();
+
+        for (int py = tile.y0; py < tile.y1; ++py)
         {
-            const FloatP lane = enoki::arange<FloatP>();
-
-            for (int py = tile.y0; py < tile.y1; ++py)
+            for (int px = tile.x0; px < tile.x1; px += int(PACKET_WIDTH))
             {
-                for (int px = tile.x0; px < tile.x1; px += int(PACKET_WIDTH))
+                const FloatP x = FloatP(float(px)) + lane + FloatP(0.5f);
+                const FloatP y = FloatP(float(py)) + FloatP(0.5f);
+
+                const uint64_t seedOffset =
+                    (uint64_t(passIndex) * 0x9E3779B97F4A7C15ull) ^
+                    (uint64_t(px) * 0xBF58476D1CE4E5B9ull) ^
+                    (uint64_t(py) * 0x94D049BB133111EBull);
+                sampler.Seed(seedOffset, PACKET_WIDTH);
+
+                for (uint32_t s = 0; s < spp; ++s)
                 {
-                    const FloatP x = FloatP(float(px)) + lane + FloatP(0.5f);
-                    const FloatP y = FloatP(float(py)) + FloatP(0.5f);
+                    SpectrumWavelengthsP sw;
+                    sw.Sample(sampler.Next1D());
 
-                    const uint64_t seedOffset =
-                        (uint64_t(passIndex) * 0x9E3779B97F4A7C15ull) ^
-                        (uint64_t(px) * 0xBF58476D1CE4E5B9ull) ^
-                        (uint64_t(py) * 0x94D049BB133111EBull);
-                    sampler.Seed(seedOffset, PACKET_WIDTH);
+                    RayP ray;
+                    FloatP weight;
+                    camera.GenerateRay(x, y, FloatP(0.f), &ray, &weight);
+                    ray.wavelengths = sw.w;
 
-                    for (uint32_t s = 0; s < spp; ++s)
-                    {
-                        SpectrumWavelengthsP sw;
-                        sw.Sample(sampler.Next1D());
-
-                        RayP ray;
-                        FloatP weight;
-                        camera.GenerateRay(x, y, FloatP(0.f), &ray, &weight);
-                        ray.wavelengths = sw.w;
-
-                        FloatP alpha;
-                        const SWCSpectrumP L = WalkPath(scene, sampler, ray, sw, &alpha);
+                    FloatP alpha;
+                    const SWCSpectrumP L = WalkPath(scene, sampler, ray, sw, &alpha);
 #ifdef PATH_DEBUG
+                    {
+                        float La[PACKET_WIDTH], lu[PACKET_WIDTH], aa[PACKET_WIDTH];
+                        enoki::store_unaligned(La, L);
+                        enoki::store_unaligned(lu, SWCY(L, sw) * weight);
+                        enoki::store_unaligned(aa, alpha);
+                        for (size_t i = 0; i < PACKET_WIDTH; ++i)
                         {
-                            float La[PACKET_WIDTH], lu[PACKET_WIDTH], aa[PACKET_WIDTH];
-                            enoki::store_unaligned(La, L);
-                            enoki::store_unaligned(lu, SWCY(L, sw) * weight);
-                            enoki::store_unaligned(aa, alpha);
-                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                            {
-                                g_fb_Lsum += La[i];
-                                g_fb_LumSum += lu[i];
-                                g_fb_alphaSum += aa[i] > 0.f ? 1.0 : 0.0;
-                                g_fb_n += 1.0;
-                                if (La[i] > g_fb_maxL)
-                                    g_fb_maxL = La[i];
-                            }
-                            if (!g_fb_hdr && px == tile.x0 && py == tile.y0)
-                            {
-                                g_fb_hdr = true;
-                                fprintf(stderr, "[FB first-pixel] L=[");
-                                for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                    fprintf(stderr, "%.4g ", La[i]);
-                                fprintf(stderr, "] alpha=[");
-                                for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                    fprintf(stderr, "%.4g ", aa[i]);
-                                fprintf(stderr, "] SWCY(L)*w=[");
-                                for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                    fprintf(stderr, "%.4g ", lu[i]);
-                                fprintf(stderr, "]\n");
-                            }
+                            g_fb_Lsum += La[i];
+                            g_fb_LumSum += lu[i];
+                            g_fb_alphaSum += aa[i] > 0.f ? 1.0 : 0.0;
+                            g_fb_n += 1.0;
+                            if (La[i] > g_fb_maxL)
+                                g_fb_maxL = La[i];
                         }
+                        if (!g_fb_hdr && px == tile.x0 && py == tile.y0)
+                        {
+                            g_fb_hdr = true;
+                            fprintf(stderr, "[FB first-pixel] L=[");
+                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                                fprintf(stderr, "%.4g ", La[i]);
+                            fprintf(stderr, "] alpha=[");
+                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                                fprintf(stderr, "%.4g ", aa[i]);
+                            fprintf(stderr, "] SWCY(L)*w=[");
+                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                                fprintf(stderr, "%.4g ", lu[i]);
+                            fprintf(stderr, "]\n");
+                        }
+                    }
 #endif
-                        film.Splat(x, y, L, sw, alpha, weight, 0);
-                    } // spp
-                }
+                    dest.Splat(x, y, L, sw, alpha, weight, 0);
+                } // spp
             }
         }
 #ifdef PATH_DEBUG

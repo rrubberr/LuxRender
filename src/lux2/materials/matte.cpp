@@ -44,15 +44,18 @@ namespace lux2
 
         // cos(phi_i - phi_o) = cosphi_i*cosphi_o + sinphi_i*sinphi_o, guarded
         // against the sintheta -> 0 poles where phi is undefined.
-        const MaskP useCos = (sinthetai > FloatP(1e-4f)) && (sinthetao > FloatP(1e-4f));
+        const MaskP useCos = (sinthetai > FloatP(EPS_RAY)) &&
+                             (sinthetao > FloatP(EPS_RAY));
         const FloatP sinphii = select(useCos, wiL.y() / sinthetai, FloatP(0.f));
         const FloatP cosphii = select(useCos, wiL.x() / sinthetai, FloatP(1.f));
         const FloatP sinphio = select(useCos, woL.y() / sinthetao, FloatP(0.f));
         const FloatP cosphio = select(useCos, woL.x() / sinthetao, FloatP(1.f));
         const FloatP maxcos = max(FloatP(0.f), cosphii * cosphio + sinphii * sinphio);
 
+        // Oren-Nayar-specific denominator guard.
+        constexpr float EPS_COS = 1e-6f;
         const FloatP cosT = max(abs(wiL.z()), abs(woL.z()));
-        const FloatP denom = select(cosT > FloatP(1e-6f), cosT, FloatP(1e-6f));
+        const FloatP denom = select(cosT > FloatP(EPS_COS), cosT, FloatP(EPS_COS));
 
         const FloatP lobe = A + B * maxcos * sinthetao * sinthetai / denom;
         return R * (lobe * INVPI);

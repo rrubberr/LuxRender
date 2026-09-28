@@ -197,11 +197,11 @@ namespace lux2
         const FloatP cosShading = enoki::dot(n, w);
 
         const MaskP valid = active && (cosLight > FloatP(0.f)) &&
-                            (cosShading > FloatP(0.f)) && (dist > FloatP(1e-8f));
+                            (cosShading > FloatP(0.f)) && (dist > FloatP(EPS_DENOM));
 
         // pdf = distSq / (totalArea * cosLight).
-        const FloatP denom = enoki::select(cosLight > FloatP(1e-8f), cosLight,
-                                           FloatP(1e-8f));
+        const FloatP denom = enoki::select(cosLight > FloatP(EPS_DENOM), cosLight,
+                                           FloatP(EPS_DENOM));
         const FloatP pdfVal = distSq / (FloatP(m_totalArea) * denom);
 
         enoki::masked(*lightP, active) = lp;
@@ -237,10 +237,10 @@ namespace lux2
         const FloatP cosLight = enoki::dot(lightN, -w);
         const FloatP cosShading = enoki::dot(n, w);
         const MaskP valid = active && (cosLight > FloatP(0.f)) &&
-                            (cosShading > FloatP(0.f)) && (dist > FloatP(1e-8f));
+                            (cosShading > FloatP(0.f)) && (dist > FloatP(EPS_DENOM));
 
-        const FloatP denom = enoki::select(cosLight > FloatP(1e-8f), cosLight,
-                                           FloatP(1e-8f));
+        const FloatP denom = enoki::select(cosLight > FloatP(EPS_DENOM), cosLight,
+                                           FloatP(EPS_DENOM));
         const FloatP pdfVal = distSq / (FloatP(m_totalArea) * denom);
         return enoki::select(valid, pdfVal, FloatP(0.f));
     }

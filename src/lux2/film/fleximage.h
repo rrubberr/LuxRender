@@ -26,6 +26,7 @@
 #include "core/filter.h"
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -56,6 +57,13 @@ namespace lux2
         int XRes() const override { return m_xres; }
         int YRes() const override { return m_yres; }
 
+        // Private region.
+        std::unique_ptr<Film> MakePrivateBlock(int x0, int y0,
+                                               int x1, int y1) const override;
+
+        // Zero the accumulation buffers and sample count.
+        void Clear() override;
+
         // Crop window in pixels.
         int XStart() const { return m_xStart; }
         int YStart() const { return m_yStart; }
@@ -67,6 +75,7 @@ namespace lux2
                    const FloatP &weight, int bufferId) override;
 
         void Merge(Film *other) override;
+        void MergeRegion(Film *other, int x0, int y0, int x1, int y1) override;
 
         void AddSampleCount(double n) override { m_sampleCount += n; }
         double SampleCount() const override { return m_sampleCount; }
@@ -124,9 +133,12 @@ namespace lux2
         static std::shared_ptr<Film> CreateFilm(const PluginContext &ctx);
 
     private:
-        // Add one filtered contribution at frame coordinates (x, y).
-        void AddFiltered(float x, float y, const float xyz[3], float alpha,
-                         float weight);
+        // Private-block constructor: explicit geometry + filter, zeroed
+        // buffers, default output config, no filename. Used by
+        // MakePrivateBlock().
+        FlexImageFilm(int xres, int yres, const Filter *filter,
+                      int xStart, int xCount, int yStart, int yCount,
+                      bool premultiplyAlpha);
 
         int m_xres, m_yres;
         int m_xStart, m_xCount, m_yStart, m_yCount;
@@ -135,6 +147,9 @@ namespace lux2
         std::vector<float> m_bX, m_bY, m_bZ, m_bAlpha, m_bW;
 
         double m_sampleCount = 0.0;
+
+        // Guards Merge() into a shared master film (one lock per tile merge).
+        mutable std::mutex m_mergeMutex;
 
         const Filter *m_filter; // owned by the Scene
         bool m_premultiplyAlpha;

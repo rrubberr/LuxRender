@@ -22,6 +22,7 @@
 #include "shapes/sphere.h"
 
 #include "core/dynload.h"
+#include "core/math.h"
 #include "core/paramset.h"
 #include "core/register.h"
 
@@ -32,8 +33,6 @@ namespace lux2
 
     namespace
     {
-        constexpr float kPi = 3.14159265358979323846f;
-        float Radians(float d) { return d * (kPi / 180.f); }
         float Clampf(float v, float lo, float hi)
         {
             return v < lo ? lo : (v > hi ? hi : v);

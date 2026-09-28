@@ -21,7 +21,7 @@
 
 #include "core/plymesh.h"
 
-#include <luxrays/utils/ply/rply.h>
+#include "core/rply.h"
 
 #include <algorithm>
 #include <cctype>
@@ -32,8 +32,6 @@
 
 namespace lux2
 {
-
-    using namespace luxrays;
 
     namespace
     {

@@ -24,6 +24,7 @@
 #include "core/context2.h"
 #include "core/error.h"
 #include "core/paramset.h"
+#include "core/threadpool.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -82,6 +83,9 @@ namespace
     count, aTokens.size() > 0 ? &aTokens[0] : 0, aValues.size() > 0 ? &aValues[0] : 0
 
     bool g_initialized = false;
+
+    // Worker count for the scheduler.
+    unsigned int g_threadCount = 0;
 
     // Parse a single file.
     bool ParseFile(const char *filename)
@@ -159,6 +163,9 @@ extern "C" void luxInit()
     }
     else
     {
+        // Initialize a TBB scheduler cap.
+        RenderThreadPool::Get().Init(g_threadCount);
+
         Context2::SetActive(new Context2());
         Context2::GetActive()->Init();
     }
@@ -483,8 +490,17 @@ extern "C" void luxExit() { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTE
 extern "C" void luxAbort() { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxAbort"; }
 extern "C" void luxWait() { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxWait"; }
 extern "C" void luxSetHaltSamplesPerPixel(int, bool, bool) { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxSetHaltSamplesPerPixel"; }
-extern "C" void luxSetThreadCount(unsigned int) { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxSetThreadCount"; }
-extern "C" unsigned int luxGetThreadCount() { return 1; }
+extern "C" void luxSetThreadCount(unsigned int n)
+{
+    // Effective at the next render start.
+    g_threadCount = n;
+    if (g_initialized)
+        RenderThreadPool::Get().Init(n);
+}
+extern "C" unsigned int luxGetThreadCount()
+{
+    return RenderThreadPool::Get().Count();
+}
 extern "C" void luxSetEpsilon(const float, const float) { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxSetEpsilon"; }
 
 // ---------------------------------------------------------------------------

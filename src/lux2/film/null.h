@@ -40,7 +40,7 @@ namespace lux2
         int XRes() const override { return m_xres; }
         int YRes() const override { return m_yres; }
 
-        // Convert each lane's spectral radiance to luminance at its own
+        // Convert each lane's spectral radiance to luminance at its
         // wavelength and fold it into the sum.
         void Splat(const FloatP &x, const FloatP &y,
                    const SWCSpectrumP &L, const SpectrumWavelengthsP &sw,
@@ -49,6 +49,12 @@ namespace lux2
 
         // Fold another NullFilm's accumulators into this one.
         void Merge(Film *other) override;
+
+        // NullFilm keeps no pixels.
+        void MergeRegion(Film *other, int x0, int y0, int x1, int y1) override;
+
+        std::unique_ptr<Film> MakePrivateBlock(int x0, int y0,
+                                               int x1, int y1) const override;
 
         // No image output.
         bool WriteImage(ImageType) override { return true; }
