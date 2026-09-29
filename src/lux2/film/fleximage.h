@@ -151,10 +151,22 @@ namespace lux2
         // ToneMap built from current parameters.
         std::unique_ptr<ToneMap> BuildToneMap() const;
 
+        // Copy the accumulation buffers under m_mergeMutex so the image
+        // pipeline can run outside the lock (legacy WriteImage pattern).
+        void SnapshotAccum(std::vector<float> &bX, std::vector<float> &bY,
+                           std::vector<float> &bZ, std::vector<float> &bAlpha,
+                           std::vector<float> &bW) const;
+
         // Normalize, tonemap, and convert to display RGB.
+        // Operates on snapshot buffers, never on the live accumulation.
         bool BuildDisplayImage(std::vector<RGBColor> &rgb,
                                std::vector<float> &alpha,
-                               bool applyTonemap) const;
+                               bool applyTonemap,
+                               const std::vector<float> &bX,
+                               const std::vector<float> &bY,
+                               const std::vector<float> &bZ,
+                               const std::vector<float> &bAlpha,
+                               const std::vector<float> &bW) const;
 
         int m_xres, m_yres;
         int m_xStart, m_xCount, m_yStart, m_yCount;

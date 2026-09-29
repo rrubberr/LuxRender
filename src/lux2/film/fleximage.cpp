@@ -392,9 +392,30 @@ namespace lux2
         return MakeToneMap(name, ps);
     }
 
+    void FlexImageFilm::SnapshotAccum(std::vector<float> &bX,
+                                      std::vector<float> &bY,
+                                      std::vector<float> &bZ,
+                                      std::vector<float> &bAlpha,
+                                      std::vector<float> &bW) const
+    {
+        // Only contiguous copies inside the lock; the image pipeline runs
+        // on the snapshot so render-thread merges stall for the minimum.
+        std::lock_guard<std::mutex> lock(m_mergeMutex);
+        bX = m_bX;
+        bY = m_bY;
+        bZ = m_bZ;
+        bAlpha = m_bAlpha;
+        bW = m_bW;
+    }
+
     bool FlexImageFilm::BuildDisplayImage(std::vector<RGBColor> &rgb,
                                           std::vector<float> &alpha,
-                                          bool applyTonemap) const
+                                          bool applyTonemap,
+                                          const std::vector<float> &bX,
+                                          const std::vector<float> &bY,
+                                          const std::vector<float> &bZ,
+                                          const std::vector<float> &bAlpha,
+                                          const std::vector<float> &bW) const
     {
         const size_t nPix = size_t(m_xCount) * size_t(m_yCount);
         rgb.resize(nPix);
@@ -403,12 +424,12 @@ namespace lux2
         std::vector<XYZColor> xyz(nPix, XYZColor(0.f));
         for (size_t i = 0; i < nPix; ++i)
         {
-            const float w = m_bW[i];
+            const float w = bW[i];
             if (w == 0.f)
                 continue;
             const float inv = 1.f / w;
-            xyz[i] = XYZColor(m_bX[i] * inv, m_bY[i] * inv, m_bZ[i] * inv);
-            alpha[i] = m_bAlpha[i] * inv;
+            xyz[i] = XYZColor(bX[i] * inv, bY[i] * inv, bZ[i] * inv);
+            alpha[i] = bAlpha[i] * inv;
         }
 
         // Recover straight color for the tonemapper.
@@ -454,15 +475,27 @@ namespace lux2
         if (!anyFile && !(type & IMAGE_FRAMEBUFFER))
             return true;
 
+        const bool needLinearEXR =
+            anyFile && m_writeEXR && !m_writeEXRApplyImaging;
+
+        // Tonemapped output with imaging applied.
+        const bool needTonemapped =
+            (type & IMAGE_FRAMEBUFFER) ||
+            (anyFile && ((m_writeEXR && m_writeEXRApplyImaging) || m_writePNG));
+        if (!needLinearEXR && !needTonemapped)
+            return true;
+
+        // One snapshot feeds every output of this call, so all outputs see
+        // the same sample state and merges stall for a single copy.
+        std::vector<float> bX, bY, bZ, bAlpha, bW;
+        SnapshotAccum(bX, bY, bZ, bAlpha, bW);
+
         // Straight linear EXR.
-        if (anyFile && m_writeEXR && !m_writeEXRApplyImaging)
+        if (needLinearEXR)
         {
             std::vector<RGBColor> rgb;
             std::vector<float> alpha;
-            {
-                std::lock_guard<std::mutex> lock(m_mergeMutex);
-                BuildDisplayImage(rgb, alpha, false);
-            }
+            BuildDisplayImage(rgb, alpha, false, bX, bY, bZ, bAlpha, bW);
             if (!m_premultiplyAlpha)
             {
                 for (size_t i = 0; i < rgb.size(); ++i)
@@ -473,19 +506,12 @@ namespace lux2
                               m_xStart, m_yStart);
         }
 
-        // Tonemapped output with imaging applied.
-        const bool needTonemapped =
-            (type & IMAGE_FRAMEBUFFER) ||
-            (anyFile && ((m_writeEXR && m_writeEXRApplyImaging) || m_writePNG));
         if (!needTonemapped)
             return true;
 
         std::vector<RGBColor> rgb;
         std::vector<float> alpha;
-        {
-            std::lock_guard<std::mutex> lock(m_mergeMutex);
-            BuildDisplayImage(rgb, alpha, true);
-        }
+        BuildDisplayImage(rgb, alpha, true, bX, bY, bZ, bAlpha, bW);
 
         if (anyFile && m_writeEXR && m_writeEXRApplyImaging)
         {
