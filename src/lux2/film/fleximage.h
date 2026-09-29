@@ -117,9 +117,9 @@ namespace lux2
         bool WritePNG() const { return m_writePNG; }
         bool WritePNG16() const { return m_writePNG16; }
         bool PremultiplyAlpha() const { return m_premultiplyAlpha; }
-        int WriteInterval() const { return m_writeInterval; }
+        int WriteInterval() const override { return m_writeInterval; }
         int FlmWriteInterval() const { return m_flmWriteInterval; }
-        int DisplayInterval() const { return m_displayInterval; }
+        int DisplayInterval() const override { return m_displayInterval; }
         int HaltSpp() const override { return m_haltspp; }
         int HaltTime() const override { return m_halttime; }
 

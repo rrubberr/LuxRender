@@ -2,7 +2,7 @@
 
 Renderer "sampler"
 
-Sampler "random"
+Sampler "ldsampler"
 
 Accelerator "embree"
 
@@ -16,7 +16,7 @@ SurfaceIntegrator "path"
 
 VolumeIntegrator "none"
 
-PixelFilter "blackmanharris"
+PixelFilter "gaussian"
 	"float xwidth" [3.299999952316284]
 	"float ywidth" [3.299999952316284]
 
@@ -57,7 +57,7 @@ Film "fleximage"
 	"integer displayinterval" [10]
 	"integer writeinterval" [180]
 	"integer flmwriteinterval" [900]
-	"integer halttime" [10]
+	"integer halttime" [30]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]
 

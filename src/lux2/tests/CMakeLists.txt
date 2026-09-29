@@ -96,6 +96,12 @@ add_lux2_check(
 )
 
 add_lux2_check(
+	NAME lux2statscheck
+	SOURCES stats_check.cpp
+	LINKS lux2 Threads::Threads
+)
+
+add_lux2_check(
 	NAME lux2imageiocheck
 	SOURCES imageio_check.cpp
 	LINKS lux2

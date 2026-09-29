@@ -181,7 +181,7 @@ namespace lux2
     {
         ParamSet *p = ctx.params;
         const int tileSize = p ? p->FindOneInt("tilesize", 64) : 64;
-        const int passSpp = p ? p->FindOneInt("passspp", 32) : 32;
+        const int passSpp = p ? p->FindOneInt("passspp", 2) : 2;
         return std::make_shared<SamplerRenderer>(
             tileSize, uint32_t(std::max(1, passSpp)));
     }

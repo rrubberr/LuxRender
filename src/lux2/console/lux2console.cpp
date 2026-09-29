@@ -27,9 +27,16 @@
 
 #include <embree4/rtcore.h>
 
+#include <atomic>
+#include <chrono>
+#include <csignal>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include <unistd.h>
 
@@ -40,7 +47,7 @@
 namespace
 {
 
-	// Evaluate a packet operation, then reduce it horizontally.
+	// Evaluate a packet operation then reduce it horizontally.
 	bool CheckEnoki()
 	{
 		// Keep the runtime value small so x*x stays inside float range.
@@ -79,7 +86,7 @@ namespace
 		return ok;
 	}
 
-	// Print the summary for a parsed scene description.
+	// Print the summary for a parsed scene file.
 	void PrintSceneSummary(const lux2::SceneDescription &d)
 	{
 		using namespace lux2;
@@ -193,7 +200,38 @@ namespace
 		std::cout << "--- end summary ---" << std::endl;
 	}
 
-	int RunParse(const char *file)
+	// Set by the SIGINT handler.
+	std::atomic<bool> g_abortRequested{false};
+
+	// Ctrl-C aborts the render.
+	void SigintHandler(int)
+	{
+		if (g_abortRequested.exchange(true))
+			return; // ignore, termination already requested
+		std::cerr << "\nlux2: interrupt received, aborting..." << std::endl;
+		luxAbort();
+	}
+
+	// Periodic progress line.
+	void ProgressThread(std::atomic<bool> &stop)
+	{
+		std::vector<char> buf(1 << 16, '\0');
+		while (!stop.load())
+		{
+			for (int i = 0; i < 5 && !stop.load(); ++i)
+				std::this_thread::sleep_for(std::chrono::seconds(1));
+			if (stop.load())
+				break;
+			const unsigned int n = luxGetStringAttribute(
+				"renderer_statistics_formatted_short", "_recommended_string",
+				&buf[0], static_cast<unsigned int>(buf.size()));
+			if (n > 0)
+				std::cout << "lux2: " << buf.data() << std::endl;
+		}
+	}
+
+	// Parse a scene.
+	int RunParse(const char *file, bool render, unsigned int threadCount)
 	{
 		std::cout << "lux2: parsing " << file << std::endl;
 
@@ -210,8 +248,16 @@ namespace
 			chdir(scenePath.substr(0, slash).c_str());
 
 		luxInit();
+		// Set the thread count before parsing.
+		if (threadCount > 0)
+			luxSetThreadCount(threadCount);
+		luxStartRenderingAfterParse(render);
+
+		if (render)
+			std::signal(SIGINT, SigintHandler);
+
 		const int ok = luxParse(scenePath.substr(slash == std::string::npos ? 0 : slash + 1).c_str());
-		if (!ok)
+		if (!ok || (render && luxStatistics("sceneIsReady") == 0.0))
 		{
 			std::cerr << "lux2: parse failed" << std::endl;
 			luxCleanup();
@@ -220,17 +266,47 @@ namespace
 			return EXIT_FAILURE;
 		}
 
-		// The scene was committed at WorldEnd; report the recorded description.
-		if (lux2::Context2::GetActive())
+		if (render)
 		{
-			PrintSceneSummary(lux2::Context2::GetActive()->Description());
+			// Rendering runs on the context thread.
+			std::atomic<bool> stopProgress{false};
+			std::thread progress(ProgressThread, std::ref(stopProgress));
 
-			// Tessellate every shape and construct the Embree
-			// accelerator, then report triangle total.
-			lux2::Scene scene;
-			scene.Commit(lux2::Context2::GetActive()->Description());
-			std::cout << "scene: triangles=" << scene.GetSummary().triangleCount
-					  << " meshes=" << scene.GetSummary().shapeCount << std::endl;
+			luxWait(); // block until the render thread joins
+
+			stopProgress.store(true);
+			progress.join();
+
+			std::signal(SIGINT, SIG_DFL);
+
+			const double secs = luxStatistics("secElapsed");
+			const unsigned long s = static_cast<unsigned long>(secs);
+			char tbuf[32];
+			std::snprintf(tbuf, sizeof(tbuf), "%02lu:%02lu:%02lu", s / 3600,
+						  (s % 3600) / 60, s % 60);
+			if (g_abortRequested.load())
+				std::cout << "lux2: render aborted [" << tbuf << "]" << std::endl;
+			else
+				std::cout << "lux2: 100% rendering done [" << luxGetThreadCount()
+						  << " threads] " << tbuf << std::endl;
+
+			luxExit();
+			luxCleanup();
+			if (!origDir.empty())
+				chdir(origDir.c_str());
+			return EXIT_SUCCESS;
+		}
+
+		// Parse summary only.
+		lux2::Context2 *ctx = lux2::Context2::GetActive();
+		if (ctx)
+		{
+			PrintSceneSummary(ctx->Description());
+
+			const lux2::Scene *scene = ctx->GetScene();
+			if (scene && scene->IsCommitted())
+				std::cout << "scene: triangles=" << scene->GetSummary().triangleCount
+						  << " meshes=" << scene->GetSummary().shapeCount << std::endl;
 		}
 
 		luxCleanup();
@@ -240,26 +316,61 @@ namespace
 		return EXIT_SUCCESS;
 	}
 
+	void PrintUsage()
+	{
+		std::cout << "usage: lux2console [options] <scene.lxs>\n"
+				  << "  --render            render after parsing (default: summary only)\n"
+				  << "  -t, --threads <n>   rendering thread count\n"
+				  << "  -h, --help          show this help\n";
+	}
+
 } // anonymous namespace
 
 int main(int argc, char *argv[])
 {
 	std::cout << "lux2 " << LUX2_VERSION_STRING
-			  << " - SoA renderer (B.16 parser)" << std::endl;
+			  << " - console" << std::endl;
 
 	if (!CheckEnoki())
 	{
-		std::cerr << "lux2: Enoki SoA smoke test FAILED" << std::endl;
+		std::cerr << "lux2: Enoki test FAILED" << std::endl;
 		return EXIT_FAILURE;
 	}
 	if (!CheckEmbree())
 	{
-		std::cerr << "lux2: Embree smoke test FAILED" << std::endl;
+		std::cerr << "lux2: Embree test FAILED" << std::endl;
 		return EXIT_FAILURE;
 	}
 
-	if (argc >= 2)
-		return RunParse(argv[1]);
+	// Minimal parsed options.
+	bool render = false;
+	unsigned int threadCount = 0; // 0 -> hardware_concurrency
+	const char *sceneFile = nullptr;
+
+	for (int i = 1; i < argc; ++i)
+	{
+		const std::string a(argv[i]);
+		if (a == "--render")
+			render = true;
+		else if ((a == "-t" || a == "--threads") && i + 1 < argc)
+			threadCount = static_cast<unsigned int>(std::atoi(argv[++i]));
+		else if (a == "-h" || a == "--help")
+		{
+			PrintUsage();
+			return EXIT_SUCCESS;
+		}
+		else if (!a.empty() && a[0] == '-')
+		{
+			std::cerr << "lux2: unknown option '" << a << "'" << std::endl;
+			PrintUsage();
+			return EXIT_FAILURE;
+		}
+		else if (!sceneFile)
+			sceneFile = argv[i];
+	}
+
+	if (sceneFile)
+		return RunParse(sceneFile, render, threadCount);
 
 	std::cout << "lux2: all checks passed" << std::endl;
 	return EXIT_SUCCESS;

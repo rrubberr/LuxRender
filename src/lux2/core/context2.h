@@ -24,11 +24,17 @@
 
 #include "core/graphicsstate.h"
 #include "core/paramset.h"
+#include "core/queryableregistry.h"
+#include "core/renderstats.h"
 #include "core/scene.h"
 #include "core/transform_stack.h"
 
+#include <atomic>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace lux2
@@ -47,7 +53,7 @@ namespace lux2
     {
     public:
         Context2() { Init(); }
-        ~Context2() = default;
+        ~Context2() { Cleanup(); }
 
         // Active context get/set.
         static Context2 *GetActive() { return s_active; }
@@ -59,6 +65,34 @@ namespace lux2
         int State() const { return m_state; }
         SceneDescription &Description() { return m_desc; }
         const SceneDescription &Description() const { return m_desc; }
+
+        // Queryable attribute registry for the C-API. Objects register
+        // themselves on creation and unregister on destruction.
+        QueryableRegistry &Registry() { return m_registry; }
+        const QueryableRegistry &Registry() const { return m_registry; }
+
+        // Render statistics, created when a scene commits. Null until then.
+        RenderStatistics *Stats() { return m_stats.get(); }
+
+        // The committed scene.
+        Scene *GetScene() { return m_scene.get(); }
+        bool IsCommitted() const { return m_scene && m_scene->IsCommitted(); }
+
+        // Render control.
+        void Pause();
+        void Resume();
+        void Exit();
+        void Abort();
+        // Block until render thread finishes.
+        void Wait();
+        bool IsRendering() const;
+        bool IsAborted() const { return m_aborted.load(); }
+
+        // Framebuffer access.
+        void UpdateFramebuffer();
+        unsigned char *Framebuffer();
+        float *FloatFramebuffer();
+        float *AlphaBuffer();
 
         // Options block statements.
         void Renderer(const std::string &name, const ParamSet &params);
@@ -128,6 +162,13 @@ namespace lux2
         bool RequireOptions(const char *what);
         bool RequireInitialized(const char *what);
 
+        // Spawn the render thread.
+        void StartRendering();
+        // Statistics, display timer, write.
+        void RenderThreadMain();
+        // Join the render thread if it is running.
+        void JoinRenderThread();
+
         static Context2 *s_active;
 
         int m_state = LUX2_STATE_UNINITIALIZED;
@@ -140,6 +181,19 @@ namespace lux2
 
         unsigned int m_shapeNo = 0; // anonymous shape counter
         bool m_startRenderingAfterParse = true;
+
+        QueryableRegistry m_registry;
+        // Created when a scene commits.
+        std::unique_ptr<RenderStatistics> m_stats;
+
+        // Scene committed at WorldEnd.
+        std::unique_ptr<Scene> m_scene;
+        // Runs the renderer when auto start is enabled.
+        std::thread m_renderThread;
+        // Guards join().
+        std::mutex m_threadMutex;
+        std::atomic<bool> m_aborted{false};
+        std::atomic<bool> m_terminated{false};
     };
 
 } // namespace lux2

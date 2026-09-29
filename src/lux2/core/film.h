@@ -34,7 +34,7 @@
 namespace lux2
 {
 
-    // Which outputs to produce on a WriteImage call.
+    // Which outputs to write.
     enum ImageType
     {
         IMAGE_NONE = 0,
@@ -65,18 +65,20 @@ namespace lux2
         virtual int HaltSpp() const { return 0; }
         virtual int HaltTime() const { return 0; }
 
-        // Splat a packet of filter-weighted contributions.
-        // Each splat carries its wavelength set `sw`.
+        // DisplayTimer cadence in seconds. 0 disables.
+        virtual int DisplayInterval() const { return 0; }
+        virtual int WriteInterval() const { return 0; }
+
+        // Splat contributions.
         virtual void Splat(const FloatP &x, const FloatP &y,
                            const SWCSpectrumP &L, const SpectrumWavelengthsP &sw,
                            const FloatP &alpha, const FloatP &weight,
                            int bufferId) = 0;
 
-        // Merge another film's accumulated buffer into this one.
+        // Merge another film's buffer into this one.
         virtual void Merge(Film *other) = 0;
 
-        // Merge the `other` rectangle into this film, zero, and transfer its
-        // pending samples.
+        // Merge rectangle into this film and transfer its pending samples.
         virtual void MergeRegion(Film *other, int x0, int y0, int x1, int y1) = 0;
 
         // Create a private accumulation block clamped to this film's crop window.
@@ -90,14 +92,14 @@ namespace lux2
         // Zero the accumulation buffers.
         virtual void Clear() {}
 
-        // Accumulated sample count (drives haltspp and FLM bookkeeping).
+        // Accumulated sample count.
         virtual void AddSampleCount(double n) = 0;
         virtual double SampleCount() const = 0;
 
-        // Produce the requested outputs. Returns true on success.
+        // Write the requested image format.
         virtual bool WriteImage(ImageType type) = 0;
 
-        // Resume-file support. Films without FLM support keep the defaults.
+        // Resume film.
         virtual bool WriteFilmToFile(const std::string &filename)
         {
             (void)filename;
@@ -114,14 +116,13 @@ namespace lux2
             return 0.0;
         }
 
-        // Display framebuffer access for the C-API. nullptr when unsupported.
+        // Display framebuffer access for the C-API.
         virtual void UpdateFrameBuffer() {}
         virtual unsigned char *GetFrameBuffer() { return nullptr; }
         virtual float *GetFloatFrameBuffer() { return nullptr; }
         virtual float *GetAlphaBuffer() { return nullptr; }
 
-        // Live parameter access (legacy luxComponentParameters subset).
-        // Unimplemented ids are ignored on set and read as 0.
+        // Parameter access.
         virtual void SetParameterValue(luxComponentParameters param,
                                        double value, unsigned int index)
         {

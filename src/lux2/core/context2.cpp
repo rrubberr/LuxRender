@@ -21,6 +21,11 @@
 
 #include "core/context2.h"
 
+#include "core/displaytimer.h"
+#include "core/film.h"
+#include "core/sampler.h"
+#include "core/threadpool.h"
+
 namespace lux2
 {
 
@@ -37,10 +42,23 @@ namespace lux2
         m_gs.clear();
         m_gs.emplace_back();
         m_shapeNo = 0;
+        m_aborted.store(false);
+        m_terminated.store(false);
     }
 
     void Context2::Cleanup()
     {
+        // Stop rendering.
+        m_aborted.store(true);
+        m_terminated.store(true);
+        if (m_scene)
+            m_scene->GetRenderer().Terminate();
+        JoinRenderThread();
+
+        // Destroy the statistics object.
+        m_stats.reset();
+        m_registry.Clear();
+        m_scene.reset();
         m_gs.clear();
         m_desc = SceneDescription();
         m_state = LUX2_STATE_UNINITIALIZED;
@@ -385,12 +403,142 @@ namespace lux2
         if (!RequireWorld("WorldEnd"))
             return;
         m_state = LUX2_STATE_OPTIONS_BLOCK;
-        // Scene::Commit consumes m_desc; Context2 does not own a Scene.
+
+        // Build from the parsed description.
+        m_aborted.store(false);
+        m_terminated.store(false);
+        m_scene = std::make_unique<Scene>();
+        m_scene->Commit(m_desc);
+
+        // Statistics reference the committed film.
+        if (m_scene->IsCommitted())
+        {
+            const double targetSpp = double(m_scene->GetSampler().SampleCount());
+            m_stats = std::make_unique<RenderStatistics>(
+                m_scene->GetFilm(), targetSpp, RenderThreadPool::Get().Count());
+            m_registry.Insert(m_stats.get());
+            m_registry.Insert(m_stats->formattedLong.get());
+            m_registry.Insert(m_stats->formattedShort.get());
+        }
+
+        if (ShouldStartRenderingAfterParse())
+            StartRendering();
     }
 
     void Context2::ParseEnd()
     {
         m_state = LUX2_STATE_OPTIONS_BLOCK;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Render orchestration
+    // ---------------------------------------------------------------------------
+    void Context2::StartRendering()
+    {
+        if (!m_scene || !m_scene->IsCommitted())
+            return;
+        std::lock_guard<std::mutex> lock(m_threadMutex);
+        if (m_renderThread.joinable())
+            return; // already running
+        m_aborted.store(false);
+        m_terminated.store(false);
+        m_renderThread = std::thread([this]
+                                     { RenderThreadMain(); });
+    }
+
+    void Context2::RenderThreadMain()
+    {
+        class Renderer &renderer = m_scene->GetRenderer();
+        class Film &film = m_scene->GetFilm();
+
+        if (m_stats)
+            m_stats->Reset();
+
+        DisplayTimer timer(film, m_stats.get());
+        timer.Start();
+        if (m_stats)
+            m_stats->Start();
+
+        renderer.Render(*m_scene, m_scene->GetSurfaceIntegrator());
+
+        if (m_stats)
+            m_stats->Stop();
+        timer.Stop();
+
+        // Skip file output when render is aborted.
+        if (!m_aborted.load())
+            film.WriteImage(ImageType(IMAGE_FINAL | IMAGE_FILE_ALL | IMAGE_FRAMEBUFFER));
+    }
+
+    void Context2::JoinRenderThread()
+    {
+        std::lock_guard<std::mutex> lock(m_threadMutex);
+        if (m_renderThread.joinable())
+            m_renderThread.join();
+    }
+
+    void Context2::Pause()
+    {
+        if (m_scene)
+            m_scene->GetRenderer().Pause();
+        // Exclude paused time.
+        if (m_stats)
+            m_stats->Stop();
+    }
+
+    void Context2::Resume()
+    {
+        if (m_scene)
+            m_scene->GetRenderer().Resume();
+        if (m_stats)
+            m_stats->Start();
+    }
+
+    void Context2::Exit()
+    {
+        m_terminated.store(true);
+        if (m_scene)
+            m_scene->GetRenderer().Terminate();
+    }
+
+    void Context2::Abort()
+    {
+        m_aborted.store(true);
+        Exit();
+    }
+
+    void Context2::Wait()
+    {
+        JoinRenderThread();
+    }
+
+    bool Context2::IsRendering() const
+    {
+        return m_scene && m_scene->GetRenderer().IsRendering();
+    }
+
+    // ---------------------------------------------------------------------------
+    // Framebuffer forwarding
+    // ---------------------------------------------------------------------------
+    void Context2::UpdateFramebuffer()
+    {
+        if (m_scene)
+            m_scene->GetFilm().UpdateFrameBuffer();
+    }
+
+    unsigned char *Context2::Framebuffer()
+    {
+        return m_scene ? m_scene->GetFilm().GetFrameBuffer() : nullptr;
+    }
+
+    float *Context2::FloatFramebuffer()
+    {
+        return m_scene ? m_scene->GetFilm().GetFloatFrameBuffer() : nullptr;
+    }
+
+    float *Context2::AlphaBuffer()
+    {
+        return m_scene ? m_scene->GetFilm().GetAlphaBuffer() : nullptr;
     }
 
     // ---------------------------------------------------------------------------

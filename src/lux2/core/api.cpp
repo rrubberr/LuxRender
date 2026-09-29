@@ -26,6 +26,7 @@
 #include "core/paramset.h"
 #include "core/threadpool.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -484,11 +485,14 @@ extern "C" int luxSaveEXR(const char *, bool, bool, int, bool)
 // ---------------------------------------------------------------------------
 // Render control
 // ---------------------------------------------------------------------------
-extern "C" void luxStart() { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxStart"; }
-extern "C" void luxPause() { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxPause"; }
-extern "C" void luxExit() { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxExit"; }
-extern "C" void luxAbort() { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxAbort"; }
-extern "C" void luxWait() { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxWait"; }
+extern "C" void luxStart()
+{
+    Context2::GetActive()->Resume();
+}
+extern "C" void luxPause() { Context2::GetActive()->Pause(); }
+extern "C" void luxExit() { Context2::GetActive()->Exit(); }
+extern "C" void luxAbort() { Context2::GetActive()->Abort(); }
+extern "C" void luxWait() { Context2::GetActive()->Wait(); }
 extern "C" void luxSetHaltSamplesPerPixel(int, bool, bool) { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxSetHaltSamplesPerPixel"; }
 extern "C" void luxSetThreadCount(unsigned int n)
 {
@@ -506,10 +510,10 @@ extern "C" void luxSetEpsilon(const float, const float) { LOG(LUX_WARNING, LUX_U
 // ---------------------------------------------------------------------------
 // Framebuffer
 // ---------------------------------------------------------------------------
-extern "C" void luxUpdateFramebuffer() { LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxUpdateFramebuffer"; }
-extern "C" unsigned char *luxFramebuffer() { return nullptr; }
-extern "C" float *luxFloatFramebuffer() { return nullptr; }
-extern "C" float *luxAlphaBuffer() { return nullptr; }
+extern "C" void luxUpdateFramebuffer() { Context2::GetActive()->UpdateFramebuffer(); }
+extern "C" unsigned char *luxFramebuffer() { return Context2::GetActive()->Framebuffer(); }
+extern "C" float *luxFloatFramebuffer() { return Context2::GetActive()->FloatFramebuffer(); }
+extern "C" float *luxAlphaBuffer() { return Context2::GetActive()->AlphaBuffer(); }
 
 // ---------------------------------------------------------------------------
 // User sampling
@@ -554,48 +558,233 @@ extern "C" unsigned int luxGetDefaultStringParameterValue(luxComponent, luxCompo
 // ---------------------------------------------------------------------------
 // Attribute access
 // ---------------------------------------------------------------------------
-extern "C" const char *luxGetAttributes() { return ""; }
-extern "C" bool luxHasObject(const char *) { return false; }
-extern "C" bool luxHasAttribute(const char *, const char *) { return false; }
-extern "C" luxAttributeType luxGetAttributeType(const char *, const char *) { return LUX_ATTRIBUTETYPE_NONE; }
-extern "C" unsigned int luxGetAttributeDescription(const char *, const char *, char *dst, unsigned int dstlen)
+namespace
 {
-    if (dst && dstlen)
-        dst[0] = '\0';
-    return 0;
-}
-extern "C" bool luxHasAttributeDefaultValue(const char *, const char *) { return false; }
-extern "C" unsigned int luxGetStringAttribute(const char *, const char *, char *dst, unsigned int dstlen)
+    // Resolve an attribute through the active registry.
+    const QueryableAttribute *FindAttribute(const char *objectName,
+                                            const char *attributeName)
+    {
+        if (!objectName || !attributeName)
+            return nullptr;
+        Context2 *ctx = Context2::GetActive();
+        if (!ctx)
+            return nullptr;
+        Queryable *obj = ctx->Registry()[objectName];
+        if (!obj || !obj->HasAttribute(attributeName))
+            return nullptr;
+        return &(*obj)[attributeName];
+    }
+
+    // Copy a string into the caller buffer.
+    unsigned int CopyString(const std::string &s, char *dst, unsigned int dstlen)
+    {
+        if (dst && dstlen)
+        {
+            const unsigned int n =
+                static_cast<unsigned int>(std::min<size_t>(s.size(), dstlen - 1));
+            std::memcpy(dst, s.data(), n);
+            dst[n] = '\0';
+            return n;
+        }
+        return 0;
+    }
+} // namespace
+
+extern "C" const char *luxGetAttributes()
 {
-    if (dst && dstlen)
-        dst[0] = '\0';
-    return 0;
+    Context2 *ctx = Context2::GetActive();
+    return ctx ? ctx->Registry().GetContent() : "";
 }
-extern "C" unsigned int luxGetStringAttributeDefault(const char *, const char *, char *dst, unsigned int dstlen)
+extern "C" bool luxHasObject(const char *objectName)
 {
-    if (dst && dstlen)
-        dst[0] = '\0';
-    return 0;
+    Context2 *ctx = Context2::GetActive();
+    return ctx && objectName && ctx->Registry().Has(objectName);
 }
-extern "C" void luxSetStringAttribute(const char *, const char *, const char *) {}
-extern "C" float luxGetFloatAttribute(const char *, const char *) { return 0.f; }
+extern "C" bool luxHasAttribute(const char *objectName, const char *attributeName)
+{
+    return FindAttribute(objectName, attributeName) != nullptr;
+}
+extern "C" luxAttributeType luxGetAttributeType(const char *objectName,
+                                                const char *attributeName)
+{
+    const QueryableAttribute *a = FindAttribute(objectName, attributeName);
+    return a ? static_cast<luxAttributeType>(a->Type()) : LUX_ATTRIBUTETYPE_NONE;
+}
+extern "C" unsigned int luxGetAttributeDescription(const char *objectName,
+                                                   const char *attributeName,
+                                                   char *dst, unsigned int dstlen)
+{
+    const QueryableAttribute *a = FindAttribute(objectName, attributeName);
+    return CopyString(a ? a->Description() : std::string(), dst, dstlen);
+}
+extern "C" bool luxHasAttributeDefaultValue(const char *objectName,
+                                            const char *attributeName)
+{
+    const QueryableAttribute *a = FindAttribute(objectName, attributeName);
+    return a && a->HasDefaultValue();
+}
+extern "C" unsigned int luxGetStringAttribute(const char *objectName,
+                                              const char *attributeName,
+                                              char *dst, unsigned int dstlen)
+{
+    const QueryableAttribute *a = FindAttribute(objectName, attributeName);
+    return CopyString(a ? a->StringValue() : std::string(), dst, dstlen);
+}
+extern "C" unsigned int luxGetStringAttributeDefault(const char *objectName,
+                                                     const char *attributeName,
+                                                     char *dst, unsigned int dstlen)
+{
+    const QueryableAttribute *a = FindAttribute(objectName, attributeName);
+    return CopyString(a ? a->DefaultValue() : std::string(), dst, dstlen);
+}
+extern "C" void luxSetStringAttribute(const char *objectName,
+                                      const char *attributeName, const char *value)
+{
+    Context2 *ctx = Context2::GetActive();
+    if (!ctx || !objectName || !attributeName || !value)
+        return;
+    Queryable *obj = ctx->Registry()[objectName];
+    if (obj && obj->HasAttribute(attributeName))
+    {
+        try
+        {
+            (*obj)[attributeName].Set(std::string(value));
+        }
+        catch (const std::exception &e)
+        {
+            LOG(LUX_ERROR, LUX_CONSISTENCY) << "luxSetStringAttribute: " << e.what();
+        }
+    }
+}
+extern "C" float luxGetFloatAttribute(const char *objectName, const char *attributeName)
+{
+    const QueryableAttribute *a = FindAttribute(objectName, attributeName);
+    return a ? a->FloatValue() : 0.f;
+}
 extern "C" float luxGetFloatAttributeDefault(const char *, const char *) { return 0.f; }
-extern "C" void luxSetFloatAttribute(const char *, const char *, float) {}
-extern "C" double luxGetDoubleAttribute(const char *, const char *) { return 0.0; }
+extern "C" void luxSetFloatAttribute(const char *objectName, const char *attributeName,
+                                     float value)
+{
+    Context2 *ctx = Context2::GetActive();
+    if (!ctx || !objectName || !attributeName)
+        return;
+    Queryable *obj = ctx->Registry()[objectName];
+    if (obj && obj->HasAttribute(attributeName))
+    {
+        try
+        {
+            (*obj)[attributeName].Set(value);
+        }
+        catch (const std::exception &e)
+        {
+            LOG(LUX_ERROR, LUX_CONSISTENCY) << "luxSetFloatAttribute: " << e.what();
+        }
+    }
+}
+extern "C" double luxGetDoubleAttribute(const char *objectName, const char *attributeName)
+{
+    const QueryableAttribute *a = FindAttribute(objectName, attributeName);
+    return a ? a->DoubleValue() : 0.0;
+}
 extern "C" double luxGetDoubleAttributeDefault(const char *, const char *) { return 0.0; }
-extern "C" void luxSetDoubleAttribute(const char *, const char *, double) {}
-extern "C" int luxGetIntAttribute(const char *, const char *) { return 0; }
+extern "C" void luxSetDoubleAttribute(const char *objectName, const char *attributeName,
+                                      double value)
+{
+    Context2 *ctx = Context2::GetActive();
+    if (!ctx || !objectName || !attributeName)
+        return;
+    Queryable *obj = ctx->Registry()[objectName];
+    if (obj && obj->HasAttribute(attributeName))
+    {
+        try
+        {
+            (*obj)[attributeName].Set(value);
+        }
+        catch (const std::exception &e)
+        {
+            LOG(LUX_ERROR, LUX_CONSISTENCY) << "luxSetDoubleAttribute: " << e.what();
+        }
+    }
+}
+extern "C" int luxGetIntAttribute(const char *objectName, const char *attributeName)
+{
+    const QueryableAttribute *a = FindAttribute(objectName, attributeName);
+    return a ? a->IntValue() : 0;
+}
 extern "C" int luxGetIntAttributeDefault(const char *, const char *) { return 0; }
-extern "C" void luxSetIntAttribute(const char *, const char *, int) {}
-extern "C" bool luxGetBoolAttribute(const char *, const char *) { return false; }
+extern "C" void luxSetIntAttribute(const char *objectName, const char *attributeName,
+                                   int value)
+{
+    Context2 *ctx = Context2::GetActive();
+    if (!ctx || !objectName || !attributeName)
+        return;
+    Queryable *obj = ctx->Registry()[objectName];
+    if (obj && obj->HasAttribute(attributeName))
+    {
+        try
+        {
+            (*obj)[attributeName].Set(value);
+        }
+        catch (const std::exception &e)
+        {
+            LOG(LUX_ERROR, LUX_CONSISTENCY) << "luxSetIntAttribute: " << e.what();
+        }
+    }
+}
+extern "C" bool luxGetBoolAttribute(const char *objectName, const char *attributeName)
+{
+    const QueryableAttribute *a = FindAttribute(objectName, attributeName);
+    return a ? a->BoolValue() : false;
+}
 extern "C" bool luxGetBoolAttributeDefault(const char *, const char *) { return false; }
-extern "C" void luxSetBoolAttribute(const char *, const char *, bool) {}
+extern "C" void luxSetBoolAttribute(const char *objectName, const char *attributeName,
+                                    bool value)
+{
+    Context2 *ctx = Context2::GetActive();
+    if (!ctx || !objectName || !attributeName)
+        return;
+    Queryable *obj = ctx->Registry()[objectName];
+    if (obj && obj->HasAttribute(attributeName))
+    {
+        try
+        {
+            (*obj)[attributeName].Set(value);
+        }
+        catch (const std::exception &e)
+        {
+            LOG(LUX_ERROR, LUX_CONSISTENCY) << "luxSetBoolAttribute: " << e.what();
+        }
+    }
+}
 extern "C" void luxSetAttribute(const char *, const char *, int, void *) {}
 
 // ---------------------------------------------------------------------------
 // Statistics / misc
 // ---------------------------------------------------------------------------
-extern "C" double luxStatistics(const char *) { return 0.0; }
+extern "C" double luxStatistics(const char *statName)
+{
+    Context2 *ctx = Context2::GetActive();
+    if (!ctx || !statName)
+        return 0.0;
+    const std::string name(statName);
+    // Context level state queries.
+    if (name == "sceneIsReady")
+        return ctx->IsCommitted() ? 1.0 : 0.0;
+    if (name == "terminated")
+        return ctx->IsAborted() ? 1.0 : 0.0;
+    RenderStatistics *stats = ctx->Stats();
+    if (!stats)
+        return 0.0;
+    if (name == "secElapsed")
+        return stats->ElapsedTime();
+    if (name == "percentComplete")
+        return stats->PercentComplete();
+    if (name == "samplesPerPixel")
+        return stats->SamplesPerPixel();
+    if (name == "samplesPerSecond")
+        return stats->SamplesPerSecond();
+    return 0.0;
+}
 extern "C" void luxEnableDebugMode() {}
 extern "C" void luxDisableRandomMode() {}
 
