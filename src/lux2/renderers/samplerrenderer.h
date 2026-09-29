@@ -52,9 +52,13 @@ namespace lux2
 
         // Cooperative controls are safe to call from any thread while Render()
         // runs on another.
-        void Pause() { m_state.store(RenderState::Pause); }
-        void Resume() { m_state.store(RenderState::Run); }
-        void Terminate() { m_state.store(RenderState::Terminate); }
+        void Pause() override { m_state.store(RenderState::Pause); }
+        void Resume() override { m_state.store(RenderState::Run); }
+        void Terminate() override { m_state.store(RenderState::Terminate); }
+        bool IsRendering() const override
+        {
+            return m_state.load() == RenderState::Run;
+        }
         RenderState State() const { return m_state.load(); }
 
         static std::shared_ptr<Renderer> CreateRenderer(const PluginContext &ctx);

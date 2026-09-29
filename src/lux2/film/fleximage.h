@@ -34,8 +34,9 @@ namespace lux2
 {
 
     struct PluginContext;
+    class ToneMap;
 
-    // Fleximage accumulates per-pixel XYZ with filter weights.
+    // Fleximage accumulates XYZ with filter weights.
     class FlexImageFilm : public Film
     {
     public:
@@ -94,6 +95,12 @@ namespace lux2
         void GetPixelNormalized(int x, int y, float xyz[3],
                                 float *alpha) const;
 
+        // Display framebuffer.
+        void UpdateFrameBuffer() override;
+        unsigned char *GetFrameBuffer() override;
+        float *GetFloatFrameBuffer() override;
+        float *GetAlphaBuffer() override;
+
         // Raw accumulation buffers, crop-window indexed.
         const std::vector<float> &BufX() const { return m_bX; }
         const std::vector<float> &BufY() const { return m_bY; }
@@ -118,6 +125,7 @@ namespace lux2
 
         // Tonemap/colorspace state.
         int TonemapKernelValue() const { return m_tonemapKernel; }
+        float Gamma() const { return m_gamma; }
         float LinearSensitivity() const { return m_linearSensitivity; }
         float LinearExposure() const { return m_linearExposure; }
         float LinearFStop() const { return m_linearFStop; }
@@ -133,12 +141,20 @@ namespace lux2
         static std::shared_ptr<Film> CreateFilm(const PluginContext &ctx);
 
     private:
-        // Private-block constructor: explicit geometry + filter, zeroed
-        // buffers, default output config, no filename. Used by
-        // MakePrivateBlock().
         FlexImageFilm(int xres, int yres, const Filter *filter,
                       int xStart, int xCount, int yStart, int yCount,
                       bool premultiplyAlpha);
+
+        // Allocate display buffers.
+        void createFrameBuffer();
+
+        // ToneMap built from current parameters.
+        std::unique_ptr<ToneMap> BuildToneMap() const;
+
+        // Normalize, tonemap, and convert to display RGB.
+        bool BuildDisplayImage(std::vector<RGBColor> &rgb,
+                               std::vector<float> &alpha,
+                               bool applyTonemap) const;
 
         int m_xres, m_yres;
         int m_xStart, m_xCount, m_yStart, m_yCount;
@@ -150,6 +166,14 @@ namespace lux2
 
         // Guards Merge() into a shared master film (one lock per tile merge).
         mutable std::mutex m_mergeMutex;
+
+        // Serialize WriteImage() for display timer and render thread.
+        mutable std::mutex m_writeMutex;
+
+        // Display buffers.
+        std::vector<unsigned char> m_frameBuffer;
+        std::vector<float> m_floatFrameBuffer;
+        std::vector<float> m_alphaBuffer;
 
         const Filter *m_filter; // owned by the Scene
         bool m_premultiplyAlpha;
@@ -167,7 +191,7 @@ namespace lux2
         int m_haltspp = -1;
         int m_halttime = -1;
 
-        // Live tonemap/colorspace state and defaults.
+        // Tonemap/colorspace state and defaults.
         int m_tonemapKernel = TMK_AUTOLINEAR;
         int m_dTonemapKernel = TMK_AUTOLINEAR;
         float m_reinhardPreScale = 1.f, m_dReinhardPreScale = 1.f;
@@ -177,6 +201,9 @@ namespace lux2
         float m_linearExposure = 1.f, m_dLinearExposure = 1.f;
         float m_linearFStop = 2.8f, m_dLinearFStop = 2.8f;
         float m_linearGamma = 1.f, m_dLinearGamma = 1.f;
+        // Display gamma for the viewport and PNG.
+        float m_gamma = 2.2f, m_dGamma = 2.2f;
+        mutable bool m_tonemapWarned = false;
         // SMPTE primaries + white point.
         float m_csRed[2] = {0.63f, 0.34f};
         float m_csGreen[2] = {0.31f, 0.595f};

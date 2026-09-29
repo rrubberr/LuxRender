@@ -22,9 +22,14 @@
 #include "film/fleximage.h"
 
 #include "core/color.h"
+#include "core/colorsystem.h"
 #include "core/dynload.h"
+#include "core/exrio.h"
+#include "core/math.h"
 #include "core/paramset.h"
+#include "core/pngio.h"
 #include "core/register.h"
+#include "core/tonemap.h"
 
 #include <algorithm>
 #include <cmath>
@@ -109,7 +114,7 @@ namespace lux2
     {
         XYZColorP xyzP = SWCToXYZ(L, sw);
 
-        // Reject non-finite or negative Y/alpha/weight.
+        // Reject infinite or negative Y/alpha/weight.
         const FloatP Y = xyzP[1];
         MaskP active = (Y >= FloatP(0.f)) && enoki::isfinite(Y) &&
                        (alpha >= FloatP(0.f)) && enoki::isfinite(alpha) &&
@@ -256,18 +261,15 @@ namespace lux2
         {
             float *dstRow = m_bX.data() + size_t(y - m_yStart) * m_xCount +
                             (cx0 - m_xStart);
-            float *srcRow = o->m_bX.data() + size_t(y - o->m_yStart) *
-                                                 o->m_xCount +
+            float *srcRow = o->m_bX.data() + size_t(y - o->m_yStart) * o->m_xCount +
                             (cx0 - o->m_xStart);
             float *dstRowY = m_bY.data() + size_t(y - m_yStart) * m_xCount +
                              (cx0 - m_xStart);
-            float *srcRowY = o->m_bY.data() + size_t(y - o->m_yStart) *
-                                                  o->m_xCount +
+            float *srcRowY = o->m_bY.data() + size_t(y - o->m_yStart) * o->m_xCount +
                              (cx0 - o->m_xStart);
             float *dstRowZ = m_bZ.data() + size_t(y - m_yStart) * m_xCount +
                              (cx0 - m_xStart);
-            float *srcRowZ = o->m_bZ.data() + size_t(y - o->m_yStart) *
-                                                  o->m_xCount +
+            float *srcRowZ = o->m_bZ.data() + size_t(y - o->m_yStart) * o->m_xCount +
                              (cx0 - o->m_xStart);
             float *dstRowA = m_bAlpha.data() +
                              size_t(y - m_yStart) * m_xCount +
@@ -277,8 +279,7 @@ namespace lux2
                              (cx0 - o->m_xStart);
             float *dstRowW = m_bW.data() + size_t(y - m_yStart) * m_xCount +
                              (cx0 - m_xStart);
-            float *srcRowW = o->m_bW.data() + size_t(y - o->m_yStart) *
-                                                 o->m_xCount +
+            float *srcRowW = o->m_bW.data() + size_t(y - o->m_yStart) * o->m_xCount +
                              (cx0 - o->m_xStart);
             for (int i = 0; i < rowLen; ++i)
             {
@@ -323,14 +324,224 @@ namespace lux2
             *alpha = m_bAlpha[idx] * inv;
     }
 
+    // -----------------------------------------------------------------------
+    // Display pipeline
+    // -----------------------------------------------------------------------
+
+    void FlexImageFilm::createFrameBuffer()
+    {
+        const size_t n = size_t(m_xres) * size_t(m_yres);
+        if (m_frameBuffer.size() != n * 3)
+            m_frameBuffer.assign(n * 3, 0);
+        if (m_floatFrameBuffer.size() != n * 3)
+            m_floatFrameBuffer.assign(n * 3, 0.f);
+        if (m_alphaBuffer.size() != n)
+            m_alphaBuffer.assign(n, 0.f);
+    }
+
+    unsigned char *FlexImageFilm::GetFrameBuffer()
+    {
+        createFrameBuffer();
+        return m_frameBuffer.data();
+    }
+
+    float *FlexImageFilm::GetFloatFrameBuffer()
+    {
+        createFrameBuffer();
+        return m_floatFrameBuffer.data();
+    }
+
+    float *FlexImageFilm::GetAlphaBuffer()
+    {
+        createFrameBuffer();
+        return m_alphaBuffer.data();
+    }
+
+    std::unique_ptr<ToneMap> FlexImageFilm::BuildToneMap() const
+    {
+        const char *name = nullptr;
+        switch (m_tonemapKernel)
+        {
+        case TMK_LINEAR:
+            name = "linear";
+            break;
+        case TMK_AUTOLINEAR:
+            name = "autolinear";
+            break;
+        default:
+            break;
+        }
+
+        if (!name)
+        {
+            if (!m_tonemapWarned)
+            {
+                m_tonemapWarned = true;
+                LOG(LUX_WARNING, LUX_BADTOKEN)
+                    << "Tonemap kernel id " << m_tonemapKernel
+                    << " is not implemented in lux2. Using \"autolinear\".";
+            }
+            name = "autolinear";
+        }
+
+        ParamSet ps;
+        ps.AddFloat("gamma", &m_linearGamma, 1);
+        ps.AddFloat("sensitivity", &m_linearSensitivity, 1);
+        ps.AddFloat("exposure", &m_linearExposure, 1);
+        ps.AddFloat("fstop", &m_linearFStop, 1);
+        return MakeToneMap(name, ps);
+    }
+
+    bool FlexImageFilm::BuildDisplayImage(std::vector<RGBColor> &rgb,
+                                          std::vector<float> &alpha,
+                                          bool applyTonemap) const
+    {
+        const size_t nPix = size_t(m_xCount) * size_t(m_yCount);
+        rgb.resize(nPix);
+        alpha.assign(nPix, 0.f);
+
+        std::vector<XYZColor> xyz(nPix, XYZColor(0.f));
+        for (size_t i = 0; i < nPix; ++i)
+        {
+            const float w = m_bW[i];
+            if (w == 0.f)
+                continue;
+            const float inv = 1.f / w;
+            xyz[i] = XYZColor(m_bX[i] * inv, m_bY[i] * inv, m_bZ[i] * inv);
+            alpha[i] = m_bAlpha[i] * inv;
+        }
+
+        // Recover straight color for the tonemapper.
+        if (m_premultiplyAlpha)
+        {
+            for (size_t i = 0; i < nPix; ++i)
+            {
+                if (alpha[i] > 0.f)
+                    xyz[i] /= alpha[i];
+            }
+        }
+
+        if (applyTonemap)
+        {
+            std::unique_ptr<ToneMap> tm = BuildToneMap();
+            if (tm)
+                tm->Map(xyz, m_xCount, m_yCount, 1.f);
+        }
+
+        const ColorSystem cs(m_csRed[0], m_csRed[1], m_csGreen[0], m_csGreen[1],
+                             m_csBlue[0], m_csBlue[1], m_csWhite[0],
+                             m_csWhite[1], 1.f);
+        for (size_t i = 0; i < nPix; ++i)
+            rgb[i] = cs.ToRGBConstrained(xyz[i]);
+        return true;
+    }
+
+    void FlexImageFilm::UpdateFrameBuffer()
+    {
+        createFrameBuffer();
+        WriteImage(IMAGE_FRAMEBUFFER);
+    }
+
     bool FlexImageFilm::WriteImage(ImageType type)
     {
-        // File output.
-        if (type & (IMAGE_FILEOUTPUT | IMAGE_FLMOUTPUT))
+        if (!(type & (IMAGE_FILEOUTPUT | IMAGE_FRAMEBUFFER)))
+            return true;
+
+        // The viewport and the render thread can both request output.
+        std::lock_guard<std::mutex> writeLock(m_writeMutex);
+
+        const bool anyFile = (type & IMAGE_FILEOUTPUT) != 0;
+        if (!anyFile && !(type & IMAGE_FRAMEBUFFER))
+            return true;
+
+        // Straight linear EXR.
+        if (anyFile && m_writeEXR && !m_writeEXRApplyImaging)
         {
-            LOG(LUX_WARNING, LUX_UNIMPLEMENT)
-                << LUX2_UNSUPPORTED_TAG << " FlexImageFilm image/FLM output";
-            return false;
+            std::vector<RGBColor> rgb;
+            std::vector<float> alpha;
+            {
+                std::lock_guard<std::mutex> lock(m_mergeMutex);
+                BuildDisplayImage(rgb, alpha, false);
+            }
+            if (!m_premultiplyAlpha)
+            {
+                for (size_t i = 0; i < rgb.size(); ++i)
+                    rgb[i] *= alpha[i];
+            }
+            WriteOpenEXRImage(3, m_writeEXRHalf, 1, m_filename + ".exr", rgb,
+                              alpha, m_xCount, m_yCount, m_xres, m_yres,
+                              m_xStart, m_yStart);
+        }
+
+        // Tonemapped output with imaging applied.
+        const bool needTonemapped =
+            (type & IMAGE_FRAMEBUFFER) ||
+            (anyFile && ((m_writeEXR && m_writeEXRApplyImaging) || m_writePNG));
+        if (!needTonemapped)
+            return true;
+
+        std::vector<RGBColor> rgb;
+        std::vector<float> alpha;
+        {
+            std::lock_guard<std::mutex> lock(m_mergeMutex);
+            BuildDisplayImage(rgb, alpha, true);
+        }
+
+        if (anyFile && m_writeEXR && m_writeEXRApplyImaging)
+        {
+            std::vector<RGBColor> exrRgb = rgb;
+            if (!m_premultiplyAlpha)
+            {
+                for (size_t i = 0; i < exrRgb.size(); ++i)
+                    exrRgb[i] *= alpha[i];
+            }
+            WriteOpenEXRImage(3, m_writeEXRHalf, 1, m_filename + ".exr", exrRgb,
+                              alpha, m_xCount, m_yCount, m_xres, m_yres,
+                              m_xStart, m_yStart);
+        }
+
+        const ColorSystem cs(m_csRed[0], m_csRed[1], m_csGreen[0], m_csGreen[1],
+                             m_csBlue[0], m_csBlue[1], m_csWhite[0],
+                             m_csWhite[1], 1.f);
+        const float invGamma = 1.f / m_gamma;
+
+        // LDR output and the display buffer.
+        std::vector<RGBColor> displayRgb(rgb.size());
+        for (size_t i = 0; i < rgb.size(); ++i)
+            displayRgb[i] = cs.Limit(rgb[i], 0).Pow(invGamma);
+
+        if (anyFile && m_writePNG)
+        {
+            WritePngImage(2, m_writePNG16, m_filename + ".png", displayRgb,
+                          alpha, m_xCount, m_yCount, m_xres, m_yres,
+                          m_xStart, m_yStart, cs, m_gamma);
+        }
+
+        if (type & IMAGE_FRAMEBUFFER)
+        {
+            createFrameBuffer();
+            size_t i = 0;
+            for (int y = m_yStart; y < m_yStart + m_yCount; ++y)
+            {
+                for (int x = m_xStart; x < m_xStart + m_xCount; ++x, ++i)
+                {
+                    const size_t off = size_t(y) * m_xres + size_t(x);
+                    const RGBColor limited = cs.Limit(rgb[i], 0);
+                    m_floatFrameBuffer[3 * off] = limited[0];
+                    m_floatFrameBuffer[3 * off + 1] = limited[1];
+                    m_floatFrameBuffer[3 * off + 2] = limited[2];
+
+                    const RGBColor &g = displayRgb[i];
+                    m_frameBuffer[3 * off] = static_cast<unsigned char>(
+                        ClampF(255.f * g[0], 0.f, 255.f));
+                    m_frameBuffer[3 * off + 1] = static_cast<unsigned char>(
+                        ClampF(255.f * g[1], 0.f, 255.f));
+                    m_frameBuffer[3 * off + 2] = static_cast<unsigned char>(
+                        ClampF(255.f * g[2], 0.f, 255.f));
+
+                    m_alphaBuffer[off] = alpha[i];
+                }
+            }
         }
         return true;
     }
@@ -565,6 +776,7 @@ namespace lux2
             params.FindOneFloat("linear_fstop", 2.8f);
         film->m_linearGamma = film->m_dLinearGamma =
             params.FindOneFloat("linear_gamma", 1.f);
+        film->m_gamma = film->m_dGamma = params.FindOneFloat("gamma", 2.2f);
 
         GetColorspaceParam(params, "colorspace_red", film->m_csRed);
         GetColorspaceParam(params, "colorspace_green", film->m_csGreen);

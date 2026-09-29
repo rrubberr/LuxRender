@@ -25,11 +25,14 @@
 
 #include "film/fleximage.h"
 #include "core/color.h"
+#include "core/colorsystem.h"
 #include "core/dynload.h"
+#include "core/math.h"
 #include "filters/gaussian.h"
 
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -433,6 +436,209 @@ void CheckRegionMerge() {
     Check(blk->SampleCount() == 0.0, "region merge clears block count");
 }
 
+// Replicate the display pipeline from the film's raw accumulation buffers:
+// normalize, apply the named tonemap kernel, convert to RGB via the film's
+// colorspace, clamp, and gamma-encode. Returns the linear RGB and the 8-bit
+// byte for one crop pixel; `meanY` is the autolinear scene average.
+struct RefPixel {
+    float lin[3];
+    unsigned char byte[3];
+};
+
+RefPixel ExpectedPixel(const FlexImageFilm &film, int x, int y,
+                       const char *kernel) {
+    const int ix = x - film.XStart();
+    const int iy = y - film.YStart();
+    const size_t idx = size_t(iy) * film.XCount() + size_t(ix);
+    const float w = film.BufWeight()[idx];
+
+    RefPixel out{};
+    if (w == 0.f)
+        return out; // untouched pixel stays black
+
+    XYZColor xyz(film.BufX()[idx] / w, film.BufY()[idx] / w,
+                 film.BufZ()[idx] / w);
+
+    const float gamma = film.LinearGamma();
+    if (std::strcmp(kernel, "linear") == 0) {
+        const float factor =
+            film.LinearExposure() / (film.LinearFStop() * film.LinearFStop()) *
+            film.LinearSensitivity() * 0.65f / 10.f *
+            std::pow(118.f / 255.f, gamma);
+        xyz *= factor;
+    } else { // autolinear (EVOp)
+        double sum = 0.0;
+        int n = 0;
+        for (size_t i = 0; i < film.BufWeight().size(); ++i) {
+            const float ww = film.BufWeight()[i];
+            if (ww == 0.f)
+                continue;
+            const float Y = film.BufY()[i] / ww;
+            if (Y <= 0.f)
+                continue;
+            sum += Y;
+            ++n;
+        }
+        const float meanY = n > 0 ? float(sum / n) : 0.f;
+        if (meanY > 0.f)
+            xyz *= (1.25f / meanY) * std::pow(118.f / 255.f, gamma);
+    }
+
+    const ColorSystem cs(film.ColorspaceRed()[0], film.ColorspaceRed()[1],
+                         film.ColorspaceGreen()[0], film.ColorspaceGreen()[1],
+                         film.ColorspaceBlue()[0], film.ColorspaceBlue()[1],
+                         film.ColorspaceWhite()[0], film.ColorspaceWhite()[1],
+                         1.f);
+    const RGBColor limited = cs.Limit(cs.ToRGBConstrained(xyz), 0);
+    for (int c = 0; c < 3; ++c)
+        out.lin[c] = limited[c];
+
+    const RGBColor g = limited.Pow(1.f / film.Gamma());
+    for (int c = 0; c < 3; ++c)
+        out.byte[c] = static_cast<unsigned char>(ClampF(255.f * g[c], 0.f, 255.f));
+    return out;
+}
+
+void CheckFrameBufferBasics() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm film(32, 32, &f, full, "out", false);
+
+    // Lazily allocated buffers start all-zero.
+    unsigned char *fb = film.GetFrameBuffer();
+    float *ffb = film.GetFloatFrameBuffer();
+    float *ab = film.GetAlphaBuffer();
+    Check(fb != nullptr && ffb != nullptr && ab != nullptr,
+          "framebuffer pointers non-null after lazy allocation");
+
+    const size_t n = 32 * 32;
+    bool zero = true;
+    for (size_t i = 0; i < n * 3; ++i)
+        if (fb[i] != 0 || ffb[i] != 0.f)
+            zero = false;
+    for (size_t i = 0; i < n; ++i)
+        if (ab[i] != 0.f)
+            zero = false;
+    Check(zero, "framebuffer all-zero before any splat");
+}
+
+void CheckFrameBufferLinear() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm film(32, 32, &f, full, "out", false);
+
+    // Deterministic linear exposure: sensitivity=10, exposure=1, fstop=1.
+    film.SetParameterValue(LUX_FILM_TM_TONEMAPKERNEL,
+                           double(FlexImageFilm::TMK_LINEAR), 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_SENSITIVITY, 10.0, 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_EXPOSURE, 1.0, 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_FSTOP, 1.0, 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_GAMMA, 2.2, 0);
+
+    // A uniform interior splat field so the center pixel is well-defined.
+    // L is scaled so the tonemapped result lands mid-gray: saturation would
+    // make the linear and gamma'd buffers indistinguishable at 1.0.
+    const float wl = 550.f;
+    for (int py = 6; py < 26; ++py)
+        for (int px = 6; px < 26; ++px)
+            SplatOne(film, float(px) + 0.5f, float(py) + 0.5f, wl, 2e-5f, 1.f, 1.f);
+
+    film.UpdateFrameBuffer();
+    unsigned char *fb = film.GetFrameBuffer();
+    float *ffb = film.GetFloatFrameBuffer();
+
+    const RefPixel ref = ExpectedPixel(film, 16, 16, "linear");
+    const size_t off = size_t(16) * 32 + size_t(16);
+    bool linOk = std::fabs(ffb[3 * off] - ref.lin[0]) < 1e-4f &&
+                 std::fabs(ffb[3 * off + 1] - ref.lin[1]) < 1e-4f &&
+                 std::fabs(ffb[3 * off + 2] - ref.lin[2]) < 1e-4f;
+    Check(linOk, "float framebuffer matches linear reference (full-res offset)");
+
+    bool byteOk = std::abs(int(fb[3 * off]) - int(ref.byte[0])) <= 1 &&
+                  std::abs(int(fb[3 * off + 1]) - int(ref.byte[1])) <= 1 &&
+                  std::abs(int(fb[3 * off + 2]) - int(ref.byte[2])) <= 1;
+    Check(byteOk, "8-bit framebuffer matches gamma-encoded reference");
+
+    // The float buffer is linear (pre-gamma); the byte buffer is gamma'd.
+    // A monochromatic splat is saturated, so scan all three channels for one
+    // strictly in range: there linear v and gamma'd v^(1/2.2) must differ,
+    // proving gamma is applied exactly once and only to the 8-bit path.
+    bool anyInRange = false, gammaDiffers = false;
+    for (int c = 0; c < 3; ++c) {
+        const float lin = ffb[3 * off + c];
+        if (lin > 0.05f && lin < 0.95f) {
+            anyInRange = true;
+            if (std::fabs(lin - fb[3 * off + c] / 255.f) >= 1e-3f)
+                gammaDiffers = true;
+        }
+    }
+    Check(anyInRange, "tonemapped center pixel has an unsaturated channel");
+    Check(gammaDiffers, "float buffer is linear while byte buffer is gamma'd");
+
+    // A pixel with no contribution stays black in both buffers.
+    const size_t corner = size_t(0) * 32 + size_t(0);
+    Check(fb[3 * corner] == 0 && ffb[3 * corner] == 0.f,
+          "uncovered pixel stays black at full-res offset");
+}
+
+void CheckFrameBufferAutoLinear() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm film(32, 32, &f, full, "out", false);
+
+    film.SetParameterValue(LUX_FILM_TM_TONEMAPKERNEL,
+                           double(FlexImageFilm::TMK_AUTOLINEAR), 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_GAMMA, 2.2, 0);
+
+    const float wl = 500.f;
+    for (int py = 6; py < 26; ++py)
+        for (int px = 6; px < 26; ++px)
+            SplatOne(film, float(px) + 0.5f, float(py) + 0.5f, wl, 0.3f, 1.f, 1.f);
+
+    film.UpdateFrameBuffer();
+    const RefPixel ref = ExpectedPixel(film, 16, 16, "autolinear");
+    const size_t off = size_t(16) * 32 + size_t(16);
+    float *ffb = film.GetFloatFrameBuffer();
+    bool ok = std::fabs(ffb[3 * off] - ref.lin[0]) < 1e-4f &&
+              std::fabs(ffb[3 * off + 1] - ref.lin[1]) < 1e-4f &&
+              std::fabs(ffb[3 * off + 2] - ref.lin[2]) < 1e-4f;
+    Check(ok, "float framebuffer matches autolinear reference");
+}
+
+void CheckFrameBufferCropOffset() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    // Crop the right-bottom quadrant of a 64x64 frame.
+    const float crop[4] = {0.5f, 1.f, 0.5f, 1.f};
+    FlexImageFilm film(64, 64, &f, crop, "out", false);
+    Check(film.XStart() == 32 && film.YStart() == 32, "crop starts at (32,32)");
+
+    film.SetParameterValue(LUX_FILM_TM_TONEMAPKERNEL,
+                           double(FlexImageFilm::TMK_LINEAR), 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_SENSITIVITY, 10.0, 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_EXPOSURE, 1.0, 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_FSTOP, 1.0, 0);
+
+    const float wl = 550.f;
+    for (int py = 36; py < 60; ++py)
+        for (int px = 36; px < 60; ++px)
+            SplatOne(film, float(px) + 0.5f, float(py) + 0.5f, wl, 0.05f, 1.f, 1.f);
+
+    film.UpdateFrameBuffer();
+    unsigned char *fb = film.GetFrameBuffer();
+
+    // Inside the crop: written at full-res offset (48,48).
+    const size_t inside = size_t(48) * 64 + size_t(48);
+    Check(fb[3 * inside] != 0 || fb[3 * inside + 1] != 0 ||
+              fb[3 * inside + 2] != 0,
+          "crop pixel written at full-resolution offset");
+
+    // Outside the crop (top-left): must remain untouched.
+    const size_t outside = size_t(4) * 64 + size_t(4);
+    Check(fb[3 * outside] == 0 && fb[3 * outside + 1] == 0 &&
+              fb[3 * outside + 2] == 0,
+          "pixels outside the crop window stay black");
+}
+
 } // namespace
 
 int main() {
@@ -451,6 +657,10 @@ int main() {
     CheckClear();
     CheckConcurrentMerge();
     CheckRegionMerge();
+    CheckFrameBufferBasics();
+    CheckFrameBufferLinear();
+    CheckFrameBufferAutoLinear();
+    CheckFrameBufferCropOffset();
 
     if (g_failures == 0) {
         std::cout << "lux2filmcheck: ALL CHECKS PASSED" << std::endl;

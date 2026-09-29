@@ -37,6 +37,12 @@ namespace lux2
 
         // Render the scene with the given surface integrator.
         virtual void Render(const Scene &scene, SurfaceIntegrator &integrator) = 0;
+
+        // Cooperative render control.
+        virtual void Pause() {}
+        virtual void Resume() {}
+        virtual void Terminate() {}
+        virtual bool IsRendering() const { return false; }
     };
 
 } // namespace lux2
