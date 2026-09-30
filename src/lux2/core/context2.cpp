@@ -413,9 +413,8 @@ namespace lux2
         // Statistics reference the committed film.
         if (m_scene->IsCommitted())
         {
-            const double targetSpp = double(m_scene->GetSampler().SampleCount());
             m_stats = std::make_unique<RenderStatistics>(
-                m_scene->GetFilm(), targetSpp, RenderThreadPool::Get().Count());
+                m_scene->GetFilm(), RenderThreadPool::Get().Count());
             m_registry.Insert(m_stats.get());
             m_registry.Insert(m_stats->formattedLong.get());
             m_registry.Insert(m_stats->formattedShort.get());

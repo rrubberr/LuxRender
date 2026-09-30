@@ -88,7 +88,6 @@ namespace lux2
                 << "SamplerRenderer: correlated sampler in use; the pinned-region "
                    "scheduler is not implemented yet. Falling back to tiled.";
 
-        const uint32_t target = protoSampler.SampleCount();
         const int haltSpp = film.HaltSpp();
         const int haltTime = film.HaltTime();
 
@@ -110,8 +109,6 @@ namespace lux2
             }
 
             const double accumulated = film.SampleCount();
-            if (accumulated >= double(target))
-                break;
             if (haltSpp > 0 && accumulated >= double(haltSpp))
                 break;
             if (haltTime > 0)
@@ -124,8 +121,8 @@ namespace lux2
                     break;
             }
 
-            // Budget: never render past the spp target or the haltspp target.
-            double budget = std::min(double(m_passSpp), double(target) - accumulated);
+            // Budget = passspp clamped by remaining haltspp.
+            double budget = double(m_passSpp);
             if (haltSpp > 0)
                 budget = std::min(budget, double(haltSpp) - accumulated);
             if (budget <= 0.0)
@@ -181,7 +178,7 @@ namespace lux2
     {
         ParamSet *p = ctx.params;
         const int tileSize = p ? p->FindOneInt("tilesize", 64) : 64;
-        const int passSpp = p ? p->FindOneInt("passspp", 2) : 2;
+        const int passSpp = p ? p->FindOneInt("passspp", 16) : 16;
         return std::make_shared<SamplerRenderer>(
             tileSize, uint32_t(std::max(1, passSpp)));
     }

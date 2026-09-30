@@ -99,10 +99,8 @@ namespace lux2
     // ---------------------------------------------------------------------------
     // RenderStatistics
     // ---------------------------------------------------------------------------
-    RenderStatistics::RenderStatistics(const Film &film, double targetSpp,
-                                       unsigned int threadCount)
-        : Queryable("renderer_statistics"), m_film(film), m_targetSpp(targetSpp),
-          m_threadCount(threadCount)
+    RenderStatistics::RenderStatistics(const Film &film, unsigned int threadCount)
+        : Queryable("renderer_statistics"), m_film(film), m_threadCount(threadCount)
     {
         AddDoubleAttribute(*this, "elapsedTime", "Elapsed rendering time",
                            [this]

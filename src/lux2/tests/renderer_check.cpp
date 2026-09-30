@@ -21,7 +21,7 @@
 
 // Phase 4 verification: the "sampler" TBB tile-scheduler renderer.
 // Checks registration + Scene::Commit wiring, progressive pass termination
-// (target spp, haltspp, halttime), convergence to the analytic radiance of a
+// (haltspp, halttime), convergence to the analytic radiance of a
 // direct-view white emitter through the private-block/merge-region path, and
 // bitwise determinism across renders (pixel-hash seeding must make output
 // independent of tile/thread assignment).
@@ -169,14 +169,14 @@ int main() {
         Check(sr != nullptr, "unknown renderer name falls back to SamplerRenderer");
     }
 
-    // ---- 3. full render: termination at spp + convergence --------------
+    // ---- 3. full render: termination at haltspp + convergence ----------
     {
         const int spp = 256;
-        auto scene = MakeEmitterScene(spp, -1, -1);
+        auto scene = MakeEmitterScene(spp, spp, -1);
         scene->GetRenderer().Render(*scene, scene->GetSurfaceIntegrator());
 
         const double count = scene->GetFilm().SampleCount();
-        CheckNum("pass loop terminates at sampler spp", count, double(spp),
+        CheckNum("pass loop terminates at haltspp", count, double(spp),
                  count == double(spp));
 
         // Center pixel looks straight at the sphere: normalized Y must
@@ -199,8 +199,8 @@ int main() {
 
     // ---- 4. determinism: identical scenes render bitwise identically ---
     {
-        auto s1 = MakeEmitterScene(64, -1, -1);
-        auto s2 = MakeEmitterScene(64, -1, -1);
+        auto s1 = MakeEmitterScene(64, 64, -1);
+        auto s2 = MakeEmitterScene(64, 64, -1);
         s1->GetRenderer().Render(*s1, s1->GetSurfaceIntegrator());
         s2->GetRenderer().Render(*s2, s2->GetSurfaceIntegrator());
 

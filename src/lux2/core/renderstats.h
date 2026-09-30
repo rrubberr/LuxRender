@@ -41,7 +41,7 @@ namespace lux2
         // Rolling window length in seconds.
         static constexpr unsigned int statisticsWindowSize = 1;
 
-        RenderStatistics(const Film &film, double targetSpp, unsigned int threadCount);
+        RenderStatistics(const Film &film, unsigned int threadCount);
         ~RenderStatistics() override;
 
         void Reset();
@@ -128,7 +128,6 @@ namespace lux2
         using Clock = std::chrono::steady_clock;
 
         const Film &m_film;
-        double m_targetSpp;
         unsigned int m_threadCount;
 
         mutable std::mutex m_mutex;

@@ -187,7 +187,7 @@ void CheckStatsMath() {
     film.SetSampleCount(20.0); // per-pixel spp
     film.SetHaltSpp(40);       // 50% complete
 
-    RenderStatistics stats(film, /*targetSpp=*/40, /*threadCount=*/8);
+    RenderStatistics stats(film, /*threadCount=*/8);
 
     Check(RelClose(stats.PixelCount(), 5000.0, 1e-9), "PixelCount = XCount*YCount");
     Check(RelClose(stats.SamplesPerPixel(), 20.0, 1e-9),
@@ -229,7 +229,7 @@ void CheckFormatted() {
     FakeFilm film(64, 64);
     film.SetSampleCount(8.0);
     film.SetHaltSpp(16);
-    RenderStatistics stats(film, 16, 4);
+    RenderStatistics stats(film, 4);
 
     const std::string rec =
         stats.formattedLong->GetRecommendedString();

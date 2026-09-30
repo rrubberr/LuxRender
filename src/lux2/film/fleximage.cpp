@@ -398,8 +398,7 @@ namespace lux2
                                       std::vector<float> &bAlpha,
                                       std::vector<float> &bW) const
     {
-        // Only contiguous copies inside the lock; the image pipeline runs
-        // on the snapshot so render-thread merges stall for the minimum.
+        // Image pipeline runs on the snapshot so workers stall minimally.
         std::lock_guard<std::mutex> lock(m_mergeMutex);
         bX = m_bX;
         bY = m_bY;
@@ -485,8 +484,6 @@ namespace lux2
         if (!needLinearEXR && !needTonemapped)
             return true;
 
-        // One snapshot feeds every output of this call, so all outputs see
-        // the same sample state and merges stall for a single copy.
         std::vector<float> bX, bY, bZ, bAlpha, bW;
         SnapshotAccum(bX, bY, bZ, bAlpha, bW);
 
