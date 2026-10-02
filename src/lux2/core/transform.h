@@ -211,22 +211,22 @@ namespace lux2
             using Vector4 = Vector<Float, 4>;
 
             Vector3 dir = enoki::normalize(target - origin);
-            Vector3 left = enoki::normalize(enoki::cross(up, dir));
-            Vector3 new_up = enoki::cross(dir, left);
+            Vector3 right = enoki::normalize(enoki::cross(dir, up));
+            Vector3 new_up = enoki::cross(right, dir);
 
             Matrix result = Matrix::from_cols(
-                enoki::concat(left, Scalar(0)),
+                enoki::concat(right, Scalar(0)),
                 enoki::concat(new_up, Scalar(0)),
                 enoki::concat(dir, Scalar(0)),
                 enoki::concat(origin, Scalar(1)));
 
             // Rows are the (orthonormal) basis.
-            Vector4 bottom(-enoki::dot(left, origin),
+            Vector4 bottom(-enoki::dot(right, origin),
                            -enoki::dot(new_up, origin),
                            -enoki::dot(dir, origin),
                            Scalar(1));
             Matrix inverse = Matrix::from_rows(
-                enoki::concat(left, Scalar(0)),
+                enoki::concat(right, Scalar(0)),
                 enoki::concat(new_up, Scalar(0)),
                 enoki::concat(dir, Scalar(0)),
                 bottom);
