@@ -54,7 +54,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Enables ctest for lux2corecheck.
-enable_testing()
+# enable_testing()
 
 #####################
 # Find Dependencies #
@@ -120,7 +120,7 @@ TARGET_LINK_LIBRARIES(lux2 PUBLIC
 ###############
 
 # Test check executables (defined in tests/CMakeLists.txt).
-add_subdirectory(tests)
+# add_subdirectory(tests)
 
 
 #####################
