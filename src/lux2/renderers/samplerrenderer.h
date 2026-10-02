@@ -24,7 +24,10 @@
 
 #include "core/renderer.h"
 
+#include <tbb/task_group.h>
+
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 
@@ -32,6 +35,7 @@ namespace lux2
 {
 
     struct PluginContext;
+    class Film;
 
     // Renderer state for cooperative cancellation.
     enum class RenderState
@@ -41,12 +45,13 @@ namespace lux2
         Terminate
     };
 
-    // TBB tile-scheduler renderer.
+    // Workers render into scratch tiles and merge once per visit.
     class SamplerRenderer : public Renderer
     {
     public:
-        SamplerRenderer(int tileSize, uint32_t passSpp)
-            : m_tileSize(tileSize), m_passSpp(passSpp) {}
+        // tileSize <= 0 == auto == 2 * nWorkers target. tileSpp == 0 == auto.
+        SamplerRenderer(int tileSize, uint32_t tileSpp)
+            : m_tileSize(tileSize), m_tileSpp(tileSpp) {}
 
         void Render(const Scene &scene, SurfaceIntegrator &integrator) override;
 
@@ -64,8 +69,13 @@ namespace lux2
         static std::shared_ptr<Renderer> CreateRenderer(const PluginContext &ctx);
 
     private:
-        int m_tileSize;     // tile edge in pixels; <= 0 -> whole frame
-        uint32_t m_passSpp; // per-pass sample budget
+        // Halt check evaluated between work items.
+        bool ShouldStop(Film &film, int haltSpp, int haltTime,
+                        std::chrono::steady_clock::time_point start,
+                        tbb::task_group_context &tgc) const;
+
+        int m_tileSize;     // tile edge in pixels; <= 0 == auto == 2 * nWorkers
+        uint32_t m_tileSpp; // samples per work item; 0 == auto
         std::atomic<RenderState> m_state{RenderState::Run};
     };
 

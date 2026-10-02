@@ -25,6 +25,7 @@
 #include "core/material.h"
 #include "core/bsdf.h"
 #include "core/bsdf_type.h"
+#include "core/math.h"
 
 #include <memory>
 
@@ -33,41 +34,66 @@ namespace lux2
 
     class PluginContext;
 
+    // Legacy Null -> SingleBSDF(NullTransmission): a straight-through ghost.
+    // NullTransmission::SampleF sets wi = -wo, pdf = 1, f = 1; its type is
+    // BSDF_TRANSMISSION | BSDF_SPECULAR, so SingleBSDF's side test (sideTest
+    // = Dot(-wo,ng)/Dot(wo,ng) = -1) rejects only BRDFs and the path survives
+    // on both sides with specularBounce still set. Modelled here as a delta
+    // transmission tagged SpecularTransmission so the integrator keeps the
+    // path alive (pdf > 0) and treats it as specular for MIS/RR.
     class NullMaterial : public Material, public BSDF
     {
     public:
         uint32_t flags() const override
         {
-            return uint32_t(BSDFType::Null) | uint32_t(BSDFType::FrontSide);
+            return uint32_t(BSDFType::Null) | uint32_t(BSDFType::FrontSide) |
+                   uint32_t(BSDFType::BackSide);
         }
 
         const BSDF *GetBSDF(const DifferentialGeometryP &) const override { return this; }
 
-        void SampleF(const SpectrumWavelengthsP &, const Vector3fP &,
-                     const DifferentialGeometryP &, const FloatP &, const FloatP &,
+        void SampleF(const SpectrumWavelengthsP &, const Vector3fP &wo,
+                     const DifferentialGeometryP &dg, const FloatP &, const FloatP &,
                      const FloatP &, BSDFSampleP *s, TransportMode,
                      MaskP active) const override
         {
-            enoki::masked(s->pdf, active) = FloatP(0.f);
-            enoki::masked(s->f, active) = FloatP(0.f);
-            enoki::masked(s->sampledType, active) = UInt32P(uint32_t(BSDFType::Null));
+            // Straight through: the ghost never deflects or attenuates.
+            enoki::masked(s->wi, active) = -wo;
+            enoki::masked(s->f, active) = FloatP(1.f);
+            enoki::masked(s->eta, active) = FloatP(1.f);
+            enoki::masked(s->sampledType, active) =
+                UInt32P(uint32_t(BSDFType::Null) | uint32_t(BSDFType::SpecularTransmission));
             enoki::masked(s->specular, active) = MaskP(true);
+
+            // Legacy SingleBSDF kills the lane when |Dot(wo, ng)| is grazing
+            // (sideTest == 0). Reproduce it so a near-tangent hit terminates.
+            const FloatP cosWo = dot(wo, dg.ng);
+            enoki::masked(s->pdf, active) =
+                select(abs(cosWo) < EPS_DENOM, FloatP(0.f), FloatP(1.f));
         }
 
-        FloatP Pdf(const SpectrumWavelengthsP &, const Vector3fP &, const Vector3fP &,
+        FloatP Pdf(const SpectrumWavelengthsP &, const Vector3fP &wo, const Vector3fP &wi,
                    const DifferentialGeometryP &, uint32_t, TransportMode,
                    MaskP) const override
         {
-            return FloatP(0.f);
+            // Legacy NullTransmission::Pdf: 1 for the straight-through pair.
+            return select(dot(wo, wi) <= FloatP(-1.f) + EPS_DENOM, FloatP(1.f),
+                          FloatP(0.f));
         }
 
-        void Eval(const SpectrumWavelengthsP &, const Vector3fP &, const Vector3fP &,
+        void Eval(const SpectrumWavelengthsP &, const Vector3fP &wo, const Vector3fP &wi,
                   const DifferentialGeometryP &, TransportMode, BSDFEvalP *out,
                   MaskP active) const override
         {
-            enoki::masked(out->f, active) = SWCSpectrumP(0.f);
-            enoki::masked(out->pdf, active) = FloatP(0.f);
-            enoki::masked(out->pdfRev, active) = FloatP(0.f);
+            // Legacy NullTransmission::F: 1 only for the straight-through pair
+            // (measure-zero in NEE, but faithful).
+            const MaskP straight = dot(wo, wi) <= FloatP(-1.f) + EPS_DENOM;
+            enoki::masked(out->f, active) =
+                select(straight, SWCSpectrumP(1.f), SWCSpectrumP(0.f));
+            enoki::masked(out->pdf, active) =
+                select(straight, FloatP(1.f), FloatP(0.f));
+            enoki::masked(out->pdfRev, active) =
+                select(straight, FloatP(1.f), FloatP(0.f));
         }
 
         static std::shared_ptr<Material> CreateMaterial(const PluginContext &ctx);

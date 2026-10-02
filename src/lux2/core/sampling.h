@@ -61,7 +61,7 @@ namespace lux2
     }
 
     // Cosine sample the hemisphere around the unit axis n, was
-    // Lambertian/OrenNayar SampleF: sample the canonical hemisphere, flip
+    // Lambertian/OrenNayar. SampleF: sample the canonical hemisphere, flip
     // when dot(wo, n) < 0. The caller must reject !sameHemisphere pairs
     // where the sample is in the tangent plane.
     inline Vector3fP cosineSampleHemisphere(const Normal3fP &n,

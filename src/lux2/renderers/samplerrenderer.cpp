@@ -21,21 +21,28 @@
 
 #include "renderers/samplerrenderer.h"
 
-#include "core/dynload.h"
 #include "core/error.h"
 #include "core/film.h"
 #include "core/filter.h"
+#include "core/integrator.h"
 #include "core/register.h"
+#include "core/sampler.h"
+#include "core/schedulerpolicy.h"
 #include "core/scene.h"
 #include "core/threadpool.h"
-#include "core/tilequeue.h"
 
-#include <tbb/blocked_range.h>
-#include <tbb/parallel_for.h>
+#include <tbb/enumerable_thread_specific.h>
+#include <tbb/parallel_for_each.h>
+#include <tbb/task_group.h>
 
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
+#include <memory>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 namespace lux2
@@ -43,14 +50,75 @@ namespace lux2
 
     namespace
     {
-        // Drain a TileQueue into an indexable vector.
-        std::vector<Tile> CollectTiles(TileQueue *q)
+        // Per-worker state: a sampler clone plus one scratch buffer allocated
+        // at the largest tile window and retargeted per item via BindScratch.
+        // Lives in an enumerable_thread_specific slot, so it persists across
+        // parallel_for_each re-entries (pause/resume).
+        struct WorkerState
         {
-            std::vector<Tile> tiles;
-            Tile t;
-            while (q->Next(&t))
-                tiles.push_back(t);
-            return tiles;
+            std::unique_ptr<Sampler> sampler;
+            std::unique_ptr<Film> scratch;
+        };
+
+        // --- SplatSink seam -------------------------------------------------
+        // The write policy is selected at COMPILE time by a tag, never by a
+        // virtual call inside the integrator's Enoki splat loop. RenderTile
+        // always writes into a Film&; the sink decides how that Film reaches
+        // the shared frame and how samples are accounted. This keeps the hot
+        // path free of dispatch while letting correlated samplers drop in
+        // later without touching the scheduler loop.
+        struct UncorrelatedSink
+        {
+        }; // scratch tile -> MergeScratch once per visit
+
+        struct CorrelatedSink
+        {
+        }; // atomic splat to shared frame (MLT) — not implemented yet
+
+        // Render one work item through the given sink and commit it. The tag is
+        // a template parameter, so `if constexpr` selects exactly one branch per
+        // instantiation — no runtime dispatch, and the hot splat loop inside
+        // RenderTile is untouched.
+        template <class Sink>
+        void RunItem(const Sink &, const Scene &scene,
+                     SurfaceIntegrator &integrator, Film &film,
+                     WorkerState &ws, uint32_t tile,
+                     uint32_t count, std::atomic<uint32_t> &cursor)
+        {
+            if constexpr (std::is_same_v<Sink, UncorrelatedSink>)
+            {
+                // The tile index fully determines the scratch window and merge
+                // targets. Allocate the worker's scratch once at max size, then
+                // retarget it to this tile (which also zeroes it). No coordinate
+                // is passed by the caller, so a mismatch cannot be expressed.
+                const FilmTile ft = film.GetTile(tile);
+                const Tile tileRect{ft.x0, ft.y0, ft.x1, ft.y1};
+
+                if (!ws.scratch)
+                {
+                    ws.scratch = film.MakeWorkerScratch();
+                    if (!ws.scratch)
+                        return;
+                }
+                film.BindScratch(tile, *ws.scratch);
+
+                // Disjoint sample range per visit -> unique seed basis.
+                const uint64_t begin =
+                    cursor.fetch_add(count, std::memory_order_relaxed);
+                integrator.RenderTile(scene, tileRect, *ws.scratch, *ws.sampler,
+                                      begin, count);
+                film.MergeScratch(tile, *ws.scratch); // locks only here
+                film.AddTileSampleCount(tile, double(count));
+            }
+            else
+            {
+                // Correlated (MLT): TODO. A chain lives in the worker slot;
+                // writes go directly to the shared frame via atomic scatter_add
+                // (low splat rate, scattered addresses), with a batched splat-log
+                // as a fallback if profiling demands it. Accounting switches to a
+                // global mutation counter and the film applies a bootstrap scale
+                // at snapshot time. Intentionally empty until the MLT sink lands.
+            }
         }
     } // namespace
 
@@ -62,125 +130,212 @@ namespace lux2
         const Sampler &protoSampler = scene.GetSampler();
         const Filter &filter = scene.GetFilter();
 
-        // Crop window bounds.
-        const int x0 = film.XStart(), y0 = film.YStart();
-        const int x1 = x0 + film.XCount(), y1 = y0 + film.YCount();
-
-        // Worker sampler slots keyed by arena thread index.
         RenderThreadPool &pool = RenderThreadPool::Get();
         if (pool.Count() == 0)
             pool.Init(0); // default: hardware_concurrency
-        std::vector<std::unique_ptr<Sampler>> slots(pool.Count());
-
-        // Tiles are rendered into blocks expanded by the filter radius
-        // so splats crossing a tile edge are not clipped.
-        const int fx = int(std::ceil(filter.GetXWidth()));
-        const int fy = int(std::ceil(filter.GetYWidth()));
-
-        TileQueue queue;
-        BuildTiles(x0, y0, x1 - x0, y1 - y0, m_tileSize, &queue);
-        const std::vector<Tile> tiles = CollectTiles(&queue);
-        if (tiles.empty())
-            return;
+        const uint32_t nWorkers = std::max(1u, pool.Count());
 
         if (protoSampler.IsCorrelated())
             LOG(LUX_WARNING, LUX_NOERROR)
-                << "SamplerRenderer: correlated sampler in use; the pinned-region "
-                   "scheduler is not implemented yet. Falling back to tiled.";
+                << "SamplerRenderer: correlated sampler in use; the atomic-splat "
+                   "sink is not implemented yet. Falling back to tiled scratch.";
+
+        // Partition the film into a tile grid. Auto tile size targets
+        // 2 x nWorkers tiles (legacy-safe default), clamped by filter halo and
+        // a 128px display-granularity cap.
+        // Filter halo: how far a splat's footprint reaches past its center. The
+        // scratch window and overlap directory are grown by this so boundary
+        // splats merge into neighbors instead of clipping.
+        const int haloX = int(std::ceil(filter.GetXWidth()));
+        const int haloY = int(std::ceil(filter.GetYWidth()));
+        int tileSize = m_tileSize;
+        if (tileSize <= 0)
+        {
+            const double frameArea =
+                double(film.XCount()) * double(film.YCount());
+            const double targetTiles = double(2 * nWorkers);
+            const int minEdge =
+                std::max(int(PACKET_WIDTH),
+                         2 * std::max(haloX, haloY) + 1);
+            const int ideal =
+                int(std::sqrt(std::max(1.0, frameArea / targetTiles)));
+            tileSize = std::min(128, std::max(minEdge, ideal));
+        }
+        const int tileCount = film.SetupTiles(tileSize, haloX, haloY);
+        if (tileCount <= 0)
+            return;
+
+        // Per-tile monotonic sample cursor (seed basis source) and in-flight
+        // accounting for the global lowest-count refill policy.
+        // make_unique value-initializes the atomics to 0 and avoids the
+        // non-copyable vector<atomic> constructor.
+        auto tileCursor = std::make_unique<std::vector<std::atomic<uint32_t>>>(
+            size_t(tileCount));
+        auto inFlight = std::make_unique<std::vector<std::atomic<uint32_t>>>(
+            size_t(tileCount));
 
         const int haltSpp = film.HaltSpp();
         const int haltTime = film.HaltTime();
+        const auto startTime = std::chrono::steady_clock::now();
+
+        uint32_t tileSpp = m_tileSpp;
+        if (tileSpp == 0)
+            tileSpp = 16; // conservative default until cost-based tuning lands
+
+        TileState tileState;
+        tileState.committed = tileCursor.get();
+        tileState.inFlight = inFlight.get();
+        tileState.tileCount = tileCount;
+        tileState.baseCount = tileSpp;
+        tileState.haltSpp = haltSpp;
+
+        // Pluggable backfill policy. Uniform ships first; guided (cost-weighted
+        // redistribution) can replace it without touching the scheduler loop.
+        UniformBackfill<tbb::feeder<WorkItem>> backfill;
 
         integrator.Start(scene);
 
-        const auto startTime = std::chrono::steady_clock::now();
-        int passIndex = 0;
+        // ETS constructs each worker slot by cloning the prototype sampler;
+        // WorkerState holds unique_ptrs so it cannot be copy-constructed.
+        const Sampler *protoSamplerPtr = &protoSampler;
+        auto makeWorker = [protoSamplerPtr] {
+            WorkerState ws;
+            ws.sampler = protoSamplerPtr->Clone();
+            return ws;
+        };
 
+        // Each RunInArena call is one continuous parallel_for_each. Pause drains
+        // the current region (stop feeding), then I block until Resume and start
+        // a fresh region; per-tile cursors/counters persist, so nothing is lost.
         while (true)
         {
-            // Pause at pass boundaries.
-            RenderState st = m_state.load();
-            if (st == RenderState::Terminate)
-                break;
-            if (st == RenderState::Pause)
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                continue;
-            }
+        if (m_state.load() == RenderState::Terminate)
+            break;
 
-            const double accumulated = film.SampleCount();
-            if (haltSpp > 0 && accumulated >= double(haltSpp))
-                break;
-            if (haltTime > 0)
-            {
-                const double elapsed =
-                    std::chrono::duration<double>(
-                        std::chrono::steady_clock::now() - startTime)
-                        .count();
-                if (elapsed >= double(haltTime))
-                    break;
-            }
+        tbb::task_group_context tgc; // Terminate cancels promptly
+        RenderThreadPool::Get().RunInArena([&] {
+            tbb::enumerable_thread_specific<WorkerState> ets(makeWorker);
 
-            // Budget = passspp clamped by remaining haltspp.
-            double budget = double(m_passSpp);
-            if (haltSpp > 0)
-                budget = std::min(budget, double(haltSpp) - accumulated);
-            if (budget <= 0.0)
-                break;
-            const uint32_t sppThisPass =
-                std::max(1u, uint32_t(std::floor(budget)));
+            // Seed items per tile so stealing has something to grab; each
+            // completion feeds one more under the global policy. Clamp the seed
+            // batch to haltSpp so a small halt isn't blown past by the default
+            // batch, and drop the second seed pass when two batches would
+            // overshoot haltSpp (backfill tops up to exactly haltSpp after).
+            auto &inFlightV = *inFlight;
+            auto &cursorV = *tileCursor;
+            const uint32_t seedCount =
+                (haltSpp > 0) ? std::min(tileSpp, uint32_t(haltSpp)) : tileSpp;
+            const int seedPasses =
+                (haltSpp > 0 && 2ull * seedCount > uint64_t(haltSpp)) ? 1 : 2;
+            std::vector<WorkItem> seed;
+            seed.reserve(size_t(tileCount) * size_t(seedPasses));
+            for (int pass = 0; pass < seedPasses; ++pass)
+                for (int t = 0; t < tileCount; ++t)
+                {
+                    inFlightV[t].fetch_add(1, std::memory_order_relaxed);
+                    seed.push_back(WorkItem{uint32_t(t), seedCount});
+                }
 
-            RenderThreadPool::Get().RunInArena([&]
-                                               { tbb::parallel_for(
-                                                     tbb::blocked_range<size_t>(0, tiles.size(), 1),
-                                                     [&](const tbb::blocked_range<size_t> &r)
-                                                     {
-                                                         const int idx =
-                                                             tbb::this_task_arena::current_thread_index();
-                                                         std::unique_ptr<Sampler> &sampler = slots[size_t(idx)];
-                                                         if (!sampler)
-                                                             sampler = protoSampler.Clone();
+            tbb::parallel_for_each(
+                seed.begin(), seed.end(),
+                [&](const WorkItem &it, tbb::feeder<WorkItem> &feeder) {
+                    WorkerState &ws = ets.local();
+                    RunItem(UncorrelatedSink{}, scene, integrator, film,
+                            ws, it.tile, it.count, cursorV[it.tile]);
+                    inFlightV[it.tile].fetch_sub(1, std::memory_order_relaxed);
 
-                                                         for (size_t i = r.begin(); i != r.end(); ++i)
-                                                         {
-                                                             if (m_state.load() == RenderState::Terminate)
-                                                                 return; // cooperative cancellation per tile
+                    if (ShouldStop(film, haltSpp, haltTime, startTime, tgc))
+                        return; // halt trips: cancel + stop feeding
+                    backfill.Refill(feeder, tileState);
+                },
+                tgc);
+        });
 
-                                                             const Tile &tile = tiles[i];
-                                                             const int ex0 = std::max(tile.x0 - fx, x0);
-                                                             const int ey0 = std::max(tile.y0 - fy, y0);
-                                                             const int ex1 = std::min(tile.x1 + fx, x1);
-                                                             const int ey1 = std::min(tile.y1 + fy, y1);
+        // Region drained. Terminate or a halt ends rendering; Pause blocks
+        // until Resume, then re-enters with the same cursors/counters.
+        if (m_state.load() == RenderState::Terminate)
+            break;
+        if (haltSpp > 0 && film.SampleCount() >= double(haltSpp))
+            break;
+        if (haltTime > 0 &&
+            std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - startTime)
+                    .count() >= double(haltTime))
+            break;
+        while (m_state.load() == RenderState::Pause)
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        } // pause/resume loop
 
-                                                             std::unique_ptr<Film> block =
-                                                                 film.MakePrivateBlock(ex0, ey0, ex1, ey1);
-                                                             if (!block)
-                                                                 continue;
-
-                                                             integrator.RenderTile(scene, tile, *block,
-                                                                                   *sampler, passIndex,
-                                                                                   sppThisPass);
-
-                                                             film.MergeRegion(block.get(), ex0, ey0, ex1, ey1);
-                                                         }
-                                                     }); });
-
-            // SPP accounting is per pass, not per tile.
-            film.AddSampleCount(double(sppThisPass));
-            ++passIndex;
+        // Final top-up: with min-across-tiles halt, a hotspot can trip the halt
+        // while cheap tiles lag behind. Bring every tile up to haltspp (bounded),
+        // so the reported SPP is uniform rather than pinned by the slowest tile.
+        if (haltSpp > 0 && m_state.load() != RenderState::Terminate)
+        {
+            auto &cursorV = *tileCursor;
+            tbb::task_group_context topupCtx;
+            RenderThreadPool::Get().RunInArena([&] {
+                tbb::enumerable_thread_specific<WorkerState> ets(makeWorker);
+                std::vector<WorkItem> pending;
+                for (int t = 0; t < tileCount; ++t)
+                {
+                    const uint32_t have =
+                        cursorV[t].load(std::memory_order_relaxed);
+                    if (int(have) < haltSpp)
+                        pending.push_back(
+                            WorkItem{uint32_t(t), uint32_t(haltSpp - int(have))});
+                }
+                tbb::parallel_for_each(
+                    pending.begin(), pending.end(),
+                    [&](const WorkItem &it, tbb::feeder<WorkItem> &) {
+                        WorkerState &ws = ets.local();
+                        RunItem(UncorrelatedSink{}, scene, integrator, film,
+                                ws, it.tile, it.count,
+                                cursorV[it.tile]);
+                    },
+                    topupCtx);
+            });
         }
 
         integrator.End(scene);
+    }
+
+    bool SamplerRenderer::ShouldStop(Film &film, int haltSpp, int haltTime,
+                                     std::chrono::steady_clock::time_point start,
+        tbb::task_group_context &tgc) const
+    {
+        bool stop = false;
+        if (m_state.load() == RenderState::Terminate)
+            stop = true;
+        if (!stop && haltTime > 0)
+        {
+            const double elapsed =
+                std::chrono::duration<double>(
+                    std::chrono::steady_clock::now() - start)
+                    .count();
+            if (elapsed >= double(haltTime))
+                stop = true;
+        }
+        if (!stop && haltSpp > 0 && film.SampleCount() >= double(haltSpp))
+            stop = true;
+        // Cancel so the region stops scheduling new items promptly rather than
+        // draining a large backlog past the halt. In-flight items finish.
+        if (stop)
+            tgc.cancel_group_execution();
+        return stop;
     }
 
     std::shared_ptr<Renderer> SamplerRenderer::CreateRenderer(
         const PluginContext &ctx)
     {
         ParamSet *p = ctx.params;
-        const int tileSize = p ? p->FindOneInt("tilesize", 64) : 64;
-        const int passSpp = p ? p->FindOneInt("passspp", 16) : 16;
+        const int tileSize = p ? p->FindOneInt("tilesize", 0) : 0;
+        // Scene keys "tilespp" (and legacy "passspp") are external config and
+        // stay as-is; only the C++ symbols follow the haltSpp casing.
+        int tileSpp = p ? p->FindOneInt("tilespp", 0) : 0;
+        if (tileSpp == 0 && p)
+            tileSpp = p->FindOneInt("passspp", 0);
         return std::make_shared<SamplerRenderer>(
-            tileSize, uint32_t(std::max(1, passSpp)));
+            tileSize, uint32_t(std::max(0, tileSpp)));
     }
 
     LUX2_REGISTER_RENDERER(SamplerRenderer, "sampler");

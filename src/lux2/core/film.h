@@ -27,21 +27,41 @@
 #include "core/color.h"
 #include "core/api.h"
 
+#include <cstdint>
 #include <iosfwd>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace lux2
 {
+
+    // The intersection of a tile's scratch window with a destination tile's owned domain.
+    // Every domain lies inside both the scratch window and the destination by construction.
+    struct TileOverlap
+    {
+        uint32_t tile;      // destination tile (may be the source tile itself)
+        int x0, y0, x1, y1; // crop-window-absolute scratch destination
+    };
+
+    // A rectangular pixel region used to partition the film into lock and
+    // ownership domains. The owned domain is the tile's pixels and the scratch
+    // window adds a filter halo. ovBegin/ovCount index the overlap list.
+    struct FilmTile
+    {
+        int x0 = 0, y0 = 0, x1 = 0, y1 = 0;     // owned pixels (crop absolute)
+        int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0; // scratch window of owned pixels + halo
+        uint32_t ovBegin = 0, ovCount = 0;      // slice of the overlap list
+    };
 
     // Which outputs to write.
     enum ImageType
     {
         IMAGE_NONE = 0,
-        IMAGE_FILEOUTPUT = 1 << 0,   // Write image file(s) (PNG/EXR)
-        IMAGE_FLMOUTPUT = 1 << 1,    // Write resume FLM file
-        IMAGE_FRAMEBUFFER = 1 << 2,  // Refresh the display framebuffer
-        IMAGE_FINAL = 1 << 3,        // Final output before ending
+        IMAGE_FILEOUTPUT = 1 << 0,  // write image file(s)
+        IMAGE_FLMOUTPUT = 1 << 1,   // write resume FLM file
+        IMAGE_FRAMEBUFFER = 1 << 2, // refresh the display framebuffer
+        IMAGE_FINAL = 1 << 3,       // final output before ending
         IMAGE_FILE_ALL = IMAGE_FILEOUTPUT | IMAGE_FLMOUTPUT
     };
 
@@ -78,15 +98,47 @@ namespace lux2
         // Merge another film's buffer into this one.
         virtual void Merge(Film *other) = 0;
 
-        // Merge rectangle into this film and transfer its pending samples.
-        virtual void MergeRegion(Film *other, int x0, int y0, int x1, int y1) = 0;
-
-        // Create a private accumulation block clamped to this film's crop window.
-        virtual std::unique_ptr<Film> MakePrivateBlock(int x0, int y0,
-                                                       int x1, int y1) const
+        // The film is partitioned into tiled lock/ownership domains. A tile index
+        // determines the scratch window, the owned domain, and the merge targets.
+        // Workers allocate one scratch at max size and retarget it via BindScratch.
+        // For Enoki I need a PACKET_WIDTH aligned tile grid.
+        virtual int SetupTiles(int tileSize, int haloX, int haloY)
         {
-            (void)x0; (void)y0; (void)x1; (void)y1;
+            (void)tileSize;
+            (void)haloX;
+            (void)haloY;
+            return 0;
+        }
+        virtual int TileCount() const { return 0; }
+        virtual FilmTile GetTile(uint32_t index) const
+        {
+            (void)index;
+            return FilmTile{};
+        }
+
+        // A private accumulation buffer sized for the largest scratch window in
+        // the current directory.
+        virtual std::unique_ptr<Film> MakeWorkerScratch() const
+        {
             return nullptr;
+        }
+
+        // Point a worker scratch at a tile scratch window and zero it.
+        virtual void BindScratch(uint32_t tile, Film &scratch) const {}
+
+        // Merge a worker's scratch into the shared frame with each precomputed
+        // overlap region under that destination tile's lock.
+        virtual void MergeScratch(uint32_t tile, const Film &scratch)
+        {
+            (void)tile;
+            (void)scratch;
+        }
+
+        // Global SampleCount() is the min across tiles.
+        virtual void AddTileSampleCount(uint32_t tile, double n)
+        {
+            (void)tile;
+            (void)n;
         }
 
         // Zero the accumulation buffers.

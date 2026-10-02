@@ -50,10 +50,11 @@ namespace lux2
         // Called once before the first pass.
         virtual void Start(const Scene &scene) { (void)scene; }
 
-        // Render `spp` samples per pixel of `tile` into `dest`.
+        // Render spp samples per pixel of tile into dest. sampleBasis
+        // is a cursor used to decorrelate repeat visits to the pixel.
         virtual void RenderTile(const Scene &scene, const Tile &tile,
                                 Film &dest, Sampler &sampler,
-                                int passIndex, uint32_t spp) = 0;
+                                uint64_t sampleBasis, uint32_t spp) = 0;
 
         // Called once after the last pass. Flush pass buffers.
         virtual void End(const Scene &scene) { (void)scene; }
