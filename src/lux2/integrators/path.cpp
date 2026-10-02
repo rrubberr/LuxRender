@@ -163,8 +163,10 @@ namespace lux2
                 const Point3fP p = hit.p;
                 const Normal3fP ng = hit.ngeo;
                 const MaskP entering = dot(ray.d, ng) < FloatP(0.f);
-                const Normal3fP n =
-                    select(dot(ray.d, hit.sh_n) > FloatP(0.f), -hit.sh_n, hit.sh_n);
+                // lux never flips the shading normal to face the ray: BxDFs
+                // work in a frame built on dgShading.nn and side logic runs
+                // through ng. Here, n is the interpolated shading normal.
+                const Normal3fP n = hit.sh_n;
 
                 DifferentialGeometryP dg;
                 dg.p = p;
@@ -173,6 +175,11 @@ namespace lux2
                 dg.entering = entering;
                 dg.uv_u = hit.uv.x();
                 dg.uv_v = hit.uv.y();
+                // Shading frame from the ShadeHit UV gradient solve.
+                dg.dp_du = hit.dp_du;
+                dg.dp_dv = hit.dp_dv;
+                dg.dp_ds = hit.dp_ds;
+                dg.dp_dt = hit.dp_dt;
 
                 const Vector3fP wo = -ray.d;
                 const BSDFPtr bsdf = table.Gather(hit.matID, hitMask);
@@ -198,7 +205,7 @@ namespace lux2
                             emW = select(specularBounce, FloatP(1.f),
                                          misWeight(prevPdf, pdfLEmitter));
                         }
-                        L = select(la, L + emW * throughput * al->Le(dg, sw, la), L);
+                        L = select(la, L + emW * throughput * al->Le(dg, sw, wo, la), L);
                     }
                 }
 
@@ -245,23 +252,28 @@ namespace lux2
                         ev.f = SWCSpectrumP(0.f);
                         ev.pdf = FloatP(0.f);
                         ev.pdfRev = FloatP(0.f);
+                        // lux NEE calls bsdf->F(..., reverse=true):
+                        // Radiance == reverse (wo toward the eye), no ng
+                        // Jacobian in Eval.f.
                         bsdf->Eval(sw, wi, wo, dg, TransportMode::Radiance, &ev, la);
 
+                        // ev.f carries |cos(0ᵢ)|. cosL is hemisphere agnostic.
+                        // Degenerate (wi,wo) pairs are zeroed in ev.f by the BSDF side test.
                         const FloatP cosL = abs(dot(wi, n));
                         FloatP neeW(1.f);
                         if (FULL_MIS)
                             neeW = misWeight(pdfL, ev.pdf);
                         const MaskP ok = vis && (pdfL > FloatP(0.f)) && (cosL > FloatP(0.f));
                         const SWCSpectrumP Ld = select(
-                            ok, neeW * throughput * Le * ev.f * (cosL / pdfL),
+                            ok, neeW * throughput * Le * ev.f / max(pdfL, FloatP(EPS_DENOM)),
                             SWCSpectrumP(0.f));
                         L = L + Ld;
                     }
                 }
 
-                // BSDF sample.
+                // BSDF sample. Eye path uses reverse=true == TransportMode::Radiance.
                 BSDFSampleP sample;
-                sample.wo = Vector3fP(0.f);
+                sample.wi = Vector3fP(0.f);
                 sample.f = SWCSpectrumP(0.f);
                 sample.pdf = FloatP(0.f);
                 sample.eta = FloatP(1.f);
@@ -272,17 +284,12 @@ namespace lux2
 
                 alive &= !(hitAlive && (sample.pdf <= FloatP(0.f)));
 
-                const FloatP cosS = abs(dot(sample.wo, n));
-                const MaskP specTrans =
-                    has_flag(sample.sampledType, BSDFType::SpecularTransmission);
-
-                // Russian roulette.
+                // lux applies efficiency RR to specular transmission bounces.
                 const MaskP rrActive =
-                    alive && (depth > Int32P(3)) && !specTrans;
+                    alive && (depth > Int32P(3));
                 if (any(rrActive))
                 {
-                    const SWCSpectrumP tputF =
-                        sample.f * cosS / max(sample.pdf, FloatP(EPS_DENOM));
+                    const SWCSpectrumP tputF = sample.f;
                     FloatP q;
                     if (rrEfficiency)
                         q = min(FloatP(1.f), max(tputF, FloatP(0.f)));
@@ -296,15 +303,13 @@ namespace lux2
                 }
 
                 // Advance.
-                throughput = select(alive,
-                                    throughput * sample.f * (cosS / max(sample.pdf, FloatP(EPS_DENOM))),
-                                    throughput);
+                throughput = select(alive, throughput * sample.f, throughput);
                 specularBounce =
                     select(hitMask, has_flag(sample.sampledType, BSDFType::Specular),
                            specularBounce);
 
-                const Point3fP spawn = OffsetRay(p, ng, sample.wo, FloatP(EPS_RAY));
-                ray = RayP(spawn, sample.wo, FloatP(EPS_RAY), INF, FloatP(0.f));
+                const Point3fP spawn = OffsetRay(p, ng, sample.wi, FloatP(EPS_RAY));
+                ray = RayP(spawn, sample.wi, FloatP(EPS_RAY), INF, FloatP(0.f));
                 ray.wavelengths = sw.w;
                 ray.mask = UInt32P(0xFFFFFFFFu);
                 depth = depth + Int32P(1);
@@ -320,7 +325,7 @@ namespace lux2
 
     void PathIntegrator::RenderTile(const Scene &scene, const Tile &tile,
                                     Film &dest, Sampler &sampler,
-                                    int passIndex, uint32_t spp)
+                                    uint64_t sampleBasis, uint32_t spp)
     {
         const Camera &camera = scene.GetCamera();
 
@@ -334,7 +339,7 @@ namespace lux2
                 const FloatP y = FloatP(float(py)) + FloatP(0.5f);
 
                 const uint64_t seedOffset =
-                    (uint64_t(passIndex) * 0x9E3779B97F4A7C15ull) ^
+                    (sampleBasis * 0x9E3779B97F4A7C15ull) ^
                     (uint64_t(px) * 0xBF58476D1CE4E5B9ull) ^
                     (uint64_t(py) * 0x94D049BB133111EBull);
                 sampler.Seed(seedOffset, PACKET_WIDTH);

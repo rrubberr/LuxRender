@@ -53,7 +53,7 @@ namespace lux2
 
         void RenderTile(const Scene &scene, const Tile &tile,
                         Film &dest, Sampler &sampler,
-                        int passIndex, uint32_t spp) override;
+                        uint64_t sampleBasis, uint32_t spp) override;
 
         // Accessors.
         int MaxDepth() const { return m_maxDepth; }
