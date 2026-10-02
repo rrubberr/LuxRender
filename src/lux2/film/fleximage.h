@@ -58,10 +58,6 @@ namespace lux2
         int XRes() const override { return m_xres; }
         int YRes() const override { return m_yres; }
 
-        // Private region.
-        std::unique_ptr<Film> MakePrivateBlock(int x0, int y0,
-                                               int x1, int y1) const override;
-
         // Zero the accumulation buffers and sample count.
         void Clear() override;
 
@@ -76,10 +72,20 @@ namespace lux2
                    const FloatP &weight, int bufferId) override;
 
         void Merge(Film *other) override;
-        void MergeRegion(Film *other, int x0, int y0, int x1, int y1) override;
+
+        // Scheduler interface
+        int SetupTiles(int tileSize, int haloX, int haloY) override;
+        int TileCount() const override { return int(m_tiles.size()); }
+        FilmTile GetTile(uint32_t index) const override;
+        std::unique_ptr<Film> MakeWorkerScratch() const override;
+        void BindScratch(uint32_t tile, Film &scratch) const override;
+        void MergeScratch(uint32_t tile, const Film &scratch) override;
+        void AddTileSampleCount(uint32_t tile, double n) override;
+        // Global SPP = min across tiles once a partition exists, else a
+        // flat counter.
+        double SampleCount() const override;
 
         void AddSampleCount(double n) override { m_sampleCount += n; }
-        double SampleCount() const override { return m_sampleCount; }
 
         bool WriteImage(ImageType type) override;
 
@@ -145,11 +151,22 @@ namespace lux2
                       int xStart, int xCount, int yStart, int yCount,
                       bool premultiplyAlpha);
 
+        // A private accumulation buffer.
+        struct ScratchTag
+        {
+        };
+        FlexImageFilm(int xres, int yres, const Filter *filter,
+                      int xStart, int xCount, int yStart, int yCount,
+                      bool premultiplyAlpha, ScratchTag);
+
         // Allocate display buffers.
-        void createFrameBuffer();
+        void CreateFrameBuffer();
 
         // ToneMap built from current parameters.
         std::unique_ptr<ToneMap> BuildToneMap() const;
+
+        // Add src into this over [x0,x1)x[y0,y1).
+        void AddRegion(const FlexImageFilm &src, int x0, int y0, int x1, int y1);
 
         // Copy the accumulation buffers.
         void SnapshotAccum(std::vector<float> &bX, std::vector<float> &bY,
@@ -174,8 +191,30 @@ namespace lux2
 
         double m_sampleCount = 0.0;
 
-        // Guards Merge() into a shared master film (one lock per tile merge).
+        // Mutex Merge() into a shared master film.
         mutable std::mutex m_mergeMutex;
+
+        // Tile mutex over that tile's pixels in shared buffers.
+        // Merge takes the interior tile mutex, then each neighbor
+        // strip mutex, and snapshot walks tiles under mutex.
+        std::vector<FilmTile> m_tiles;
+        int m_tileCols = 0;
+        int m_tileRows = 0;
+        std::vector<std::unique_ptr<std::mutex>> m_tileMutexes;
+        std::vector<double> m_tileSampleCount;
+
+        // Merge directory where each tile's FilmTile.ovBegin/ovCount
+        // indexes a slice of the list.
+        std::vector<TileOverlap> m_overlaps;
+        size_t m_maxScratchArea = 0;
+        // Increment on each SetupTiles so an old directory
+        // is caught by the MergeScratch assert.
+        uint64_t m_epoch = 0;
+
+        // Scratch binding identity holds the tile and directory
+        // epoch the scratch was last bound to.
+        mutable uint32_t m_boundTile = 0;
+        mutable uint64_t m_boundEpoch = 0;
 
         // Serialize WriteImage() for display timer and render thread.
         mutable std::mutex m_writeMutex;

@@ -32,7 +32,9 @@
 #include "core/tonemap.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
+#include <mutex>
 
 namespace lux2
 {
@@ -41,6 +43,9 @@ namespace lux2
     {
         // Crop window math.
         int CeilToInt(float v) { return int(std::ceil(v)); }
+
+        // Round n up to a multiple of m (m > 0).
+        int RoundUp(int n, int m) { return ((n + m - 1) / m) * m; }
     } // namespace
 
     FlexImageFilm::FlexImageFilm(int xres, int yres, const Filter *filter,
@@ -80,20 +85,212 @@ namespace lux2
         m_bW.assign(n, 0.f);
     }
 
-    std::unique_ptr<Film> FlexImageFilm::MakePrivateBlock(int x0, int y0,
-                                                          int x1, int y1) const
+    // Create a private accumulation buffer.
+    FlexImageFilm::FlexImageFilm(int xres, int yres, const Filter *filter,
+                                 int xStart, int xCount, int yStart, int yCount,
+                                 bool premultiplyAlpha, ScratchTag)
+        : FlexImageFilm(xres, yres, filter, xStart, xCount, yStart, yCount,
+                        premultiplyAlpha)
     {
-        // Clamp the requested rect to this film's crop window.
-        const int cx0 = std::max(x0, m_xStart);
-        const int cy0 = std::max(y0, m_yStart);
-        const int cx1 = std::min(x1, m_xStart + m_xCount);
-        const int cy1 = std::min(y1, m_yStart + m_yCount);
-        if (cx1 <= cx0 || cy1 <= cy0)
-            return nullptr;
+    }
 
-        return std::unique_ptr<Film>(new FlexImageFilm(
-            m_xres, m_yres, m_filter, cx0, cx1 - cx0, cy0, cy1 - cy0,
-            m_premultiplyAlpha));
+    // -----------------------------------------------------------------------
+    // Continuous work-stealing scheduler interface
+    // -----------------------------------------------------------------------
+
+    int FlexImageFilm::SetupTiles(int tileSize, int haloX, int haloY)
+    {
+        // Tile dims rounded up to a multiple of Enoki PACKET_WIDTH so
+        // SIMD writes don't cross tile edges.
+        const int pw = int(PACKET_WIDTH);
+        const int tw = std::max(pw, RoundUp(tileSize > 0 ? tileSize : m_xCount, pw));
+        const int th = std::max(pw, RoundUp(tileSize > 0 ? tileSize : m_yCount, pw));
+
+        m_tiles.clear();
+        m_overlaps.clear();
+        m_tileCols = 0;
+        m_tileRows = 0;
+        m_maxScratchArea = 0;
+        if (m_xCount <= 0 || m_yCount <= 0)
+            return 0;
+
+        const int cropX1 = m_xStart + m_xCount, cropY1 = m_yStart + m_yCount;
+        for (int y = m_yStart; y < cropY1; y += th)
+        {
+            const int y1 = std::min(y + th, cropY1);
+            ++m_tileRows;
+            m_tileCols = 0; // recomputed per row below; all rows share the split
+            for (int x = m_xStart; x < cropX1; x += tw)
+            {
+                const int x1 = std::min(x + tw, cropX1);
+                FilmTile t;
+                t.x0 = x;
+                t.y0 = y;
+                t.x1 = x1;
+                t.y1 = y1;
+                m_tiles.push_back(t);
+                ++m_tileCols;
+            }
+        }
+
+        // One mutex and one sample counter per tile.
+        m_tileMutexes.clear();
+        m_tileMutexes.reserve(m_tiles.size());
+        for (size_t i = 0; i < m_tiles.size(); ++i)
+            m_tileMutexes.push_back(std::make_unique<std::mutex>());
+        m_tileSampleCount.assign(m_tiles.size(), 0.0);
+
+        // Scratch window domain grown by the filter halo, clamped
+        // to the crop window. Record the largest area so I only
+        // reserve once for every tile.
+        for (FilmTile &t : m_tiles)
+        {
+            t.sx0 = std::max(t.x0 - haloX, m_xStart);
+            t.sy0 = std::max(t.y0 - haloY, m_yStart);
+            t.sx1 = std::min(t.x1 + haloX, cropX1);
+            t.sy1 = std::min(t.y1 + haloY, cropY1);
+            m_maxScratchArea = std::max(
+                m_maxScratchArea, size_t(t.sx1 - t.sx0) * size_t(t.sy1 - t.sy0));
+        }
+
+        // A tile's scratch domain reaches at most ceil(halo/tileDim)
+        // grid cells per axis, so only that neighborhood can intersect it.
+        const int kx = (haloX + tw - 1) / tw;
+        const int ky = (haloY + th - 1) / th;
+        for (int r = 0; r < m_tileRows; ++r)
+        {
+            for (int c = 0; c < m_tileCols; ++c)
+            {
+                FilmTile &t = m_tiles[size_t(r) * m_tileCols + c];
+                t.ovBegin = uint32_t(m_overlaps.size());
+                for (int rr = std::max(0, r - ky); rr <= std::min(m_tileRows - 1, r + ky); ++rr)
+                {
+                    for (int cc = std::max(0, c - kx); cc <= std::min(m_tileCols - 1, c + kx); ++cc)
+                    {
+                        const uint32_t n = uint32_t(rr * m_tileCols + cc);
+                        const FilmTile &nb = m_tiles[n];
+                        TileOverlap o;
+                        o.tile = n;
+                        o.x0 = std::max(t.sx0, nb.x0);
+                        o.y0 = std::max(t.sy0, nb.y0);
+                        o.x1 = std::min(t.sx1, nb.x1);
+                        o.y1 = std::min(t.sy1, nb.y1);
+                        if (o.x1 > o.x0 && o.y1 > o.y0)
+                            m_overlaps.push_back(o);
+                    }
+                }
+                t.ovCount = uint32_t(m_overlaps.size()) - t.ovBegin;
+            }
+        }
+
+        ++m_epoch; // invalidates any scratch from the old directory
+        return int(m_tiles.size());
+    }
+
+    std::unique_ptr<Film> FlexImageFilm::MakeWorkerScratch() const
+    {
+        // Allocate at the largest scratch window in the directory.
+        auto s = std::unique_ptr<FlexImageFilm>(new FlexImageFilm(
+            m_xres, m_yres, m_filter, 0, 0, 0, 0, m_premultiplyAlpha,
+            ScratchTag{}));
+        for (auto *v : {&s->m_bX, &s->m_bY, &s->m_bZ, &s->m_bAlpha, &s->m_bW})
+            v->reserve(m_maxScratchArea);
+        return s;
+    }
+
+    void FlexImageFilm::BindScratch(uint32_t tile, Film &scratch) const
+    {
+        if (tile >= m_tiles.size())
+            return;
+        auto &s = static_cast<FlexImageFilm &>(scratch);
+        const FilmTile &t = m_tiles[tile];
+        s.m_xStart = t.sx0;
+        s.m_xCount = t.sx1 - t.sx0;
+        s.m_yStart = t.sy0;
+        s.m_yCount = t.sy1 - t.sy0;
+        const size_t n = size_t(s.m_xCount) * size_t(s.m_yCount);
+        // assign() reuses reserved capacity when n <= capacity(): memset only.
+        for (auto *v : {&s.m_bX, &s.m_bY, &s.m_bZ, &s.m_bAlpha, &s.m_bW})
+            v->assign(n, 0.f);
+        s.m_boundTile = tile;
+        s.m_boundEpoch = m_epoch;
+    }
+
+    FilmTile FlexImageFilm::GetTile(uint32_t index) const
+    {
+        if (index >= m_tiles.size())
+            return FilmTile{0, 0, 0, 0};
+        return m_tiles[index];
+    }
+
+    void FlexImageFilm::AddRegion(const FlexImageFilm &src,
+                                  int x0, int y0, int x1, int y1)
+    {
+        // The domain is guaranteed inside both films by the overlap directory.
+        const int rowLen = x1 - x0;
+        for (int y = y0; y < y1; ++y)
+        {
+            const size_t dBase = size_t(y - m_yStart) * m_xCount +
+                                 size_t(x0 - m_xStart);
+            const size_t sBase = size_t(y - src.m_yStart) * src.m_xCount +
+                                 size_t(x0 - src.m_xStart);
+            float *dX = m_bX.data() + dBase;
+            const float *sX = src.m_bX.data() + sBase;
+            float *dY = m_bY.data() + dBase;
+            const float *sY = src.m_bY.data() + sBase;
+            float *dZ = m_bZ.data() + dBase;
+            const float *sZ = src.m_bZ.data() + sBase;
+            float *dA = m_bAlpha.data() + dBase;
+            const float *sA = src.m_bAlpha.data() + sBase;
+            float *dW = m_bW.data() + dBase;
+            const float *sW = src.m_bW.data() + sBase;
+            for (int i = 0; i < rowLen; ++i)
+            {
+                dX[i] += sX[i];
+                dY[i] += sY[i];
+                dZ[i] += sZ[i];
+                dA[i] += sA[i];
+                dW[i] += sW[i];
+            }
+        }
+    }
+
+    void FlexImageFilm::MergeScratch(uint32_t tile, const Film &scratch)
+    {
+        if (tile >= m_tiles.size())
+            return;
+        const FlexImageFilm *src = dynamic_cast<const FlexImageFilm *>(&scratch);
+        if (!src || src == this)
+            return;
+
+        // The scratch must be bound to this exact tile under the current
+        // directory.
+        assert(src->m_boundTile == tile && src->m_boundEpoch == m_epoch);
+
+        // Walk the precomputed overlap list.
+        const FilmTile &t = m_tiles[tile];
+        for (uint32_t i = 0; i < t.ovCount; ++i)
+        {
+            const TileOverlap &o = m_overlaps[t.ovBegin + i];
+            std::lock_guard<std::mutex> lock(*m_tileMutexes[o.tile]);
+            AddRegion(*src, o.x0, o.y0, o.x1, o.y1);
+        }
+    }
+
+    void FlexImageFilm::AddTileSampleCount(uint32_t tile, double n)
+    {
+        if (tile < m_tileSampleCount.size())
+            m_tileSampleCount[tile] += n;
+    }
+
+    double FlexImageFilm::SampleCount() const
+    {
+        if (m_tileSampleCount.empty())
+            return m_sampleCount; // flat counter when not partitioned
+        double mn = m_tileSampleCount[0];
+        for (double v : m_tileSampleCount)
+            mn = std::min(mn, v);
+        return mn;
     }
 
     void FlexImageFilm::Clear()
@@ -237,68 +434,6 @@ namespace lux2
         m_sampleCount += o->m_sampleCount;
     }
 
-    void FlexImageFilm::MergeRegion(Film *other, int x0, int y0, int x1, int y1)
-    {
-        FlexImageFilm *o = dynamic_cast<FlexImageFilm *>(other);
-        if (!o || o == this)
-            return;
-
-        // Intersection of the requested rect with both crop windows.
-        const int cx0 = std::max(x0, std::max(m_xStart, o->m_xStart));
-        const int cy0 = std::max(y0, std::max(m_yStart, o->m_yStart));
-        const int cx1 = std::min(x1, std::min(m_xStart + m_xCount,
-                                              o->m_xStart + o->m_xCount));
-        const int cy1 = std::min(y1, std::min(m_yStart + m_yCount,
-                                              o->m_yStart + o->m_yCount));
-        if (cx1 <= cx0 || cy1 <= cy0)
-            return;
-
-        // One lock per region merge.
-        std::lock_guard<std::mutex> lock(m_mergeMutex);
-
-        const int rowLen = cx1 - cx0;
-        for (int y = cy0; y < cy1; ++y)
-        {
-            float *dstRow = m_bX.data() + size_t(y - m_yStart) * m_xCount +
-                            (cx0 - m_xStart);
-            float *srcRow = o->m_bX.data() + size_t(y - o->m_yStart) * o->m_xCount +
-                            (cx0 - o->m_xStart);
-            float *dstRowY = m_bY.data() + size_t(y - m_yStart) * m_xCount +
-                             (cx0 - m_xStart);
-            float *srcRowY = o->m_bY.data() + size_t(y - o->m_yStart) * o->m_xCount +
-                             (cx0 - o->m_xStart);
-            float *dstRowZ = m_bZ.data() + size_t(y - m_yStart) * m_xCount +
-                             (cx0 - m_xStart);
-            float *srcRowZ = o->m_bZ.data() + size_t(y - o->m_yStart) * o->m_xCount +
-                             (cx0 - o->m_xStart);
-            float *dstRowA = m_bAlpha.data() +
-                             size_t(y - m_yStart) * m_xCount +
-                             (cx0 - m_xStart);
-            float *srcRowA = o->m_bAlpha.data() +
-                             size_t(y - o->m_yStart) * o->m_xCount +
-                             (cx0 - o->m_xStart);
-            float *dstRowW = m_bW.data() + size_t(y - m_yStart) * m_xCount +
-                             (cx0 - m_xStart);
-            float *srcRowW = o->m_bW.data() + size_t(y - o->m_yStart) * o->m_xCount +
-                             (cx0 - o->m_xStart);
-            for (int i = 0; i < rowLen; ++i)
-            {
-                dstRow[i] += srcRow[i];
-                dstRowY[i] += srcRowY[i];
-                dstRowZ[i] += srcRowZ[i];
-                dstRowA[i] += srcRowA[i];
-                dstRowW[i] += srcRowW[i];
-                srcRow[i] = 0.f;
-                srcRowY[i] = 0.f;
-                srcRowZ[i] = 0.f;
-                srcRowA[i] = 0.f;
-                srcRowW[i] = 0.f;
-            }
-        }
-        m_sampleCount += o->m_sampleCount;
-        o->m_sampleCount = 0.0;
-    }
-
     void FlexImageFilm::GetPixelNormalized(int x, int y, float xyz[3],
                                            float *alpha) const
     {
@@ -328,7 +463,7 @@ namespace lux2
     // Display pipeline
     // -----------------------------------------------------------------------
 
-    void FlexImageFilm::createFrameBuffer()
+    void FlexImageFilm::CreateFrameBuffer()
     {
         const size_t n = size_t(m_xres) * size_t(m_yres);
         if (m_frameBuffer.size() != n * 3)
@@ -341,19 +476,19 @@ namespace lux2
 
     unsigned char *FlexImageFilm::GetFrameBuffer()
     {
-        createFrameBuffer();
+        CreateFrameBuffer();
         return m_frameBuffer.data();
     }
 
     float *FlexImageFilm::GetFloatFrameBuffer()
     {
-        createFrameBuffer();
+        CreateFrameBuffer();
         return m_floatFrameBuffer.data();
     }
 
     float *FlexImageFilm::GetAlphaBuffer()
     {
-        createFrameBuffer();
+        CreateFrameBuffer();
         return m_alphaBuffer.data();
     }
 
@@ -398,13 +533,36 @@ namespace lux2
                                       std::vector<float> &bAlpha,
                                       std::vector<float> &bW) const
     {
-        // Image pipeline runs on the snapshot so workers stall minimally.
-        std::lock_guard<std::mutex> lock(m_mergeMutex);
         bX = m_bX;
         bY = m_bY;
         bZ = m_bZ;
         bAlpha = m_bAlpha;
         bW = m_bW;
+
+        // A plain copy above can hold new W with old XYZ. Copy each tile under
+        // lock so all five buffers are consistent.
+        if (!m_tileMutexes.empty())
+        {
+            for (size_t t = 0; t < m_tiles.size(); ++t)
+            {
+                const FilmTile &tl = m_tiles[t];
+                std::lock_guard<std::mutex> lock(*m_tileMutexes[t]);
+                for (int y = tl.y0; y < tl.y1; ++y)
+                {
+                    const size_t base = size_t(y - m_yStart) * m_xCount +
+                                        size_t(tl.x0 - m_xStart);
+                    const size_t len = size_t(tl.x1 - tl.x0);
+                    for (size_t i = 0; i < len; ++i)
+                    {
+                        bX[base + i] = m_bX[base + i];
+                        bY[base + i] = m_bY[base + i];
+                        bZ[base + i] = m_bZ[base + i];
+                        bAlpha[base + i] = m_bAlpha[base + i];
+                        bW[base + i] = m_bW[base + i];
+                    }
+                }
+            }
+        }
     }
 
     bool FlexImageFilm::BuildDisplayImage(std::vector<RGBColor> &rgb,
@@ -458,7 +616,7 @@ namespace lux2
 
     void FlexImageFilm::UpdateFrameBuffer()
     {
-        createFrameBuffer();
+        CreateFrameBuffer();
         WriteImage(IMAGE_FRAMEBUFFER);
     }
 
@@ -542,7 +700,7 @@ namespace lux2
 
         if (type & IMAGE_FRAMEBUFFER)
         {
-            createFrameBuffer();
+            CreateFrameBuffer();
             size_t i = 0;
             for (int y = m_yStart; y < m_yStart + m_yCount; ++y)
             {
