@@ -34,13 +34,8 @@ namespace lux2
 
     class PluginContext;
 
-    // Legacy Null -> SingleBSDF(NullTransmission): a straight-through ghost.
-    // NullTransmission::SampleF sets wi = -wo, pdf = 1, f = 1; its type is
-    // BSDF_TRANSMISSION | BSDF_SPECULAR, so SingleBSDF's side test (sideTest
-    // = Dot(-wo,ng)/Dot(wo,ng) = -1) rejects only BRDFs and the path survives
-    // on both sides with specularBounce still set. Modelled here as a delta
-    // transmission tagged SpecularTransmission so the integrator keeps the
-    // path alive (pdf > 0) and treats it as specular for MIS/RR.
+    // Null passes rays straight through. Modelled as a delta transmission
+    // SpecularTransmission so the integrator keeps the path alive.
     class NullMaterial : public Material, public BSDF
     {
     public:
@@ -57,7 +52,7 @@ namespace lux2
                      const FloatP &, BSDFSampleP *s, TransportMode,
                      MaskP active) const override
         {
-            // Straight through: the ghost never deflects or attenuates.
+            // Straight through.
             enoki::masked(s->wi, active) = -wo;
             enoki::masked(s->f, active) = FloatP(1.f);
             enoki::masked(s->eta, active) = FloatP(1.f);
@@ -65,8 +60,8 @@ namespace lux2
                 UInt32P(uint32_t(BSDFType::Null) | uint32_t(BSDFType::SpecularTransmission));
             enoki::masked(s->specular, active) = MaskP(true);
 
-            // Legacy SingleBSDF kills the lane when |Dot(wo, ng)| is grazing
-            // (sideTest == 0). Reproduce it so a near-tangent hit terminates.
+            // Lux SingleBSDF kills the lane when |Dot(wo, ng)| is grazing
+            // so a near-tangent hit terminates.
             const FloatP cosWo = dot(wo, dg.ng);
             enoki::masked(s->pdf, active) =
                 select(abs(cosWo) < EPS_DENOM, FloatP(0.f), FloatP(1.f));
@@ -76,7 +71,7 @@ namespace lux2
                    const DifferentialGeometryP &, uint32_t, TransportMode,
                    MaskP) const override
         {
-            // Legacy NullTransmission::Pdf: 1 for the straight-through pair.
+            // Lux NullTransmission::Pdf is 1 for the straight through pair.
             return select(dot(wo, wi) <= FloatP(-1.f) + EPS_DENOM, FloatP(1.f),
                           FloatP(0.f));
         }
@@ -85,8 +80,8 @@ namespace lux2
                   const DifferentialGeometryP &, TransportMode, BSDFEvalP *out,
                   MaskP active) const override
         {
-            // Legacy NullTransmission::F: 1 only for the straight-through pair
-            // (measure-zero in NEE, but faithful).
+            // Lux NullTransmission::F is 1 only for the straight through pair
+            // but zero in NEE.
             const MaskP straight = dot(wo, wi) <= FloatP(-1.f) + EPS_DENOM;
             enoki::masked(out->f, active) =
                 select(straight, SWCSpectrumP(1.f), SWCSpectrumP(0.f));
