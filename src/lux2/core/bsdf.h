@@ -37,7 +37,9 @@ namespace lux2
     // TransportMode
     // ---------------------------------------------------------------------------
 
-    // Direction of radiance transport at a BSDF interaction.
+    // Direction convention at a BSDF interaction.
+    // 1. Radiance == reverse=true (wo toward the eye, eye path and NEE).
+    // 2. Importance == reverse=false (wo toward the light, light path).
     enum class TransportMode
     {
         Radiance,
@@ -49,40 +51,43 @@ namespace lux2
     // ---------------------------------------------------------------------------
 
     // Result of sampling a BSDF lobe for one packet of lanes.
+    // 1. f is the folded multiplier the integrator applies directly ( T *= f ).
+    //    It matches lux MultiBSDF::SampleF under the given TransportMode:
+    //    Radiance == legacy reverse=true (eye path) folds no ng Jacobian;
+    //    Importance == reverse=false additionally multiplies by
+    //    |Dot(ng, wi) / Dot(ng, wo)| (!= 1 under bump crossover).
+    // 2. pdf is the mixture selection density, not always the solid angle pdf.
+    //    For multi component BSDF a  specular bounce reports the component
+    //    selection probability w, and f carries the importance sampling gain F̄*R/w.
+    //    Used with integrator's FULL_MIS prevPdf, so must be sampling density.
     struct BSDFSampleP
     {
-        Vector3fP wo;   // Sampled outgoing direction (world, normalized).
-        SWCSpectrumP f; // BSDF value f(wi,wo).
+        Vector3fP wi;   // Sampled direction for the next ray (world, normalized).
+        SWCSpectrumP f; // Folded multiplier; see (1) above.
 
-        // This does NOT include the geometric |cos(theta_i)| term;
-        // Integrators must multiply by |cos| explicitly!
-        // HEED THIS COMMENT to avoid energy bugs.
-
-        FloatP pdf;          // Solid-angle probability density.
+        FloatP pdf;          // Mixture selection density; see (2) above.
         FloatP eta;          // IOR ratio.
         UInt32P sampledType; // BSDFType of the lobe chosen.
-        MaskP specular;      // True where sampledType is a delta/specular lobe.
+        MaskP specular;      // True where sampledType is delta/specular.
     };
 
     // ---------------------------------------------------------------------------
     // BSDFEvalP evaluation record
     // ---------------------------------------------------------------------------
 
-    // Result of evaluating a BSDF at a fixed (wi, wo) pair.
+    // Result of evaluating a BSDF at a (wi, wo) pair.
     struct BSDFEvalP
     {
-        SWCSpectrumP f;      // f(wi,wo), excludes geometric |cos|
-        FloatP pdf;          // pdf(wi | wo) the eye-walk forward
-        FloatP pdfRev;       // pdf(wo | wi) the reverse pdf
+        SWCSpectrumP f; // f(wi,wo) * |cos(0ᵢ)|; NEE divides by light pdf
+        FloatP pdf;     // pdf(wi | wo) the eye-walk forward
+        FloatP pdfRev;  // pdf(wo | wi) the reverse pdf
     };
 
     // ---------------------------------------------------------------------------
     // DifferentialGeometryP shading record
     // ---------------------------------------------------------------------------
 
-    // The integrator fills this from the tracer's HitP. Carries
-    // parametric derivatives and shading tangent for texture filtering,
-    // anisotropic roughness, and normal/bump mapping.
+    // The integrator fills this from the tracer's HitP.
     struct DifferentialGeometryP
     {
         Point3fP p;      // world-space hit position
@@ -114,7 +119,13 @@ namespace lux2
         virtual uint32_t flags() const = 0;
 
         // Sample an outgoing direction wi given wo (wo = -incidentDir).
-        // pdf==0 is a failed sample.
+        // 1. A lane fails when no component matches or side test is degenerate;
+        //    the integrator kills those paths. On success sample->f is the folded
+        //    multiplier and sample->pdf is the mixture selection density.
+        //    for a specular lobe in a multi-component BSDF this is the
+        //    selection probability w.
+        // 2. Side rejection follows lux: use ng with an epsilon to avoid grazing NaN,
+        //    then select reflection vs transmission from sign(Dot(ng,wi)/Dot(ng,wo)).
         virtual void SampleF(const SpectrumWavelengthsP &sw,
                              const Vector3fP &wo,
                              const DifferentialGeometryP &dg,
@@ -123,7 +134,7 @@ namespace lux2
                              TransportMode mode,
                              MaskP active) const = 0;
 
-        // Solid angle of the wi<->wo pair for lobes selected by typeMask.
+        // Solid angle of wi<->wo for lobes selected by typeMask.
         virtual FloatP Pdf(const SpectrumWavelengthsP &sw,
                            const Vector3fP &wi, const Vector3fP &wo,
                            const DifferentialGeometryP &dg,
@@ -131,13 +142,17 @@ namespace lux2
                            TransportMode mode,
                            MaskP active) const = 0;
 
-        // Evaluate f(wi,wo) and both directional pdfs at a fixed pair, writing
-        // into *out (masked by `active`, like SampleF). Naming is relative to
-        // the eye walk: `wi` is the sampled/outgoing direction, `wo` the
-        // incoming. `pdf = pdf(wi|wo)` is the forward eye-walk pdf (identical
-        // to Pdf()/SampleF.pdf, used as NEE's bsdfPdf); `pdfRev = pdf(wo|wi)`
-        // is the reverse. Delta/specular lobes have no finite pdf and write
-        // {0,0,0} (NEE never queries them).
+        // Evaluate f(wi,wo)*|cos(0ᵢ)| and both directional pdfs writing into
+        // *out masked by active. Naming is relative to the eye walk:
+        // 1. wi is the sampled/outgoing direction.
+        // 2. wo the incoming.
+        // 3. pdf = pdf(wi|wo) is the forward eye-walk pdf.
+        // 4. pdfRev = pdf(wo|wi) is the reverse.
+        // 5. Delta/specular have no finite solid angle pdf, so write
+        //    pdf = pdfRev = 0 but f MUST be evaluated. lux relies on
+        //    PowerHeuristic(lightPdf, 0) == 1 to flow the term. Eval.f under
+        //    Radiance uses the lux reverse=true convention (no ng
+        //    Jacobian); Importance applies |sideTest|.
         virtual void Eval(const SpectrumWavelengthsP &sw,
                           const Vector3fP &wi, const Vector3fP &wo,
                           const DifferentialGeometryP &dg,
@@ -147,7 +162,7 @@ namespace lux2
         ENOKI_CALL_SUPPORT_FRIEND()
     };
 
-    // Used with enoki::call for per-material dispatch.
+    // Used with enoki::call for material dispatch.
     using BSDFPtr = enoki::replace_scalar_t<FloatP, const BSDF *>;
 
 } // namespace lux2
