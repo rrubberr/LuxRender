@@ -25,6 +25,7 @@
 #include "core/material.h"
 #include "core/bsdf.h"
 #include "core/bsdf_type.h"
+#include "core/fresnel.h"
 #include "core/texture.h"
 
 #include <memory>
@@ -34,13 +35,26 @@ namespace lux2
 
     class PluginContext;
 
+    // Specular glass is a reflection & transmission delta BSDF with
+    // weighted component selection, Cauchy dispersion, thin-film
+    // on reflection, and a no-refraction mode.
+
     class GlassMaterial : public Material, public BSDF
     {
     public:
-        GlassMaterial(std::shared_ptr<ColorTexture> kr,
-                      std::shared_ptr<ColorTexture> kt,
-                      std::shared_ptr<FloatTexture> index)
-            : m_kr(std::move(kr)), m_kt(std::move(kt)), m_index(std::move(index)) {}
+        GlassMaterial(std::shared_ptr<ColorTexture> Kr,
+                      std::shared_ptr<ColorTexture> Kt,
+                      std::shared_ptr<FloatTexture> index,
+                      std::shared_ptr<FloatTexture> cauchyb,
+                      std::shared_ptr<FloatTexture> film,
+                      std::shared_ptr<FloatTexture> filmindex,
+                      bool architectural)
+            : m_Kr(std::move(Kr)), m_Kt(std::move(Kt)),
+              m_index(std::move(index)), m_cauchyb(std::move(cauchyb)),
+              m_film(std::move(film)), m_filmindex(std::move(filmindex)),
+              m_architectural(architectural)
+        {
+        }
 
         uint32_t flags() const override
         {
@@ -50,15 +64,17 @@ namespace lux2
                    uint32_t(BSDFType::BackSide);
         }
 
-        const BSDF *GetBSDF(const DifferentialGeometryP &) const override { return this; }
+        const BSDF *GetBSDF(const DifferentialGeometryP &) const override
+        {
+            return this;
+        }
 
         void SampleF(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
                      const DifferentialGeometryP &dg, const FloatP &u0,
-                     const FloatP &u1, const FloatP &u2, BSDFSampleP *s,
-                     TransportMode, MaskP active) const override;
+                     const FloatP &u1, const FloatP &u2, BSDFSampleP *sample,
+                     TransportMode mode, MaskP active) const override;
 
-        // Continuous pdf is 0; the integrator special-cases
-        // sampledType & Specular.
+        // Both lobes are delta so no finite solid-angle density.
         FloatP Pdf(const SpectrumWavelengthsP &, const Vector3fP &, const Vector3fP &,
                    const DifferentialGeometryP &, uint32_t, TransportMode,
                    MaskP) const override
@@ -66,22 +82,28 @@ namespace lux2
             return FloatP(0.f);
         }
 
-        // Delta/specular lobes have no finite pdf so NEE never queries Eval.
-        void Eval(const SpectrumWavelengthsP &, const Vector3fP &, const Vector3fP &,
-                  const DifferentialGeometryP &, TransportMode, BSDFEvalP *out,
-                  MaskP active) const override
-        {
-            enoki::masked(out->f, active) = SWCSpectrumP(0.f);
-            enoki::masked(out->pdf, active) = FloatP(0.f);
-            enoki::masked(out->pdfRev, active) = FloatP(0.f);
-        }
+        // See the NEE comment in glass.cpp.
+        void Eval(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
+                  const Vector3fP &wo, const DifferentialGeometryP &dg,
+                  TransportMode mode, BSDFEvalP *out,
+                  MaskP active) const override;
 
         static std::shared_ptr<Material> CreateMaterial(const PluginContext &ctx);
 
     private:
-        std::shared_ptr<ColorTexture> m_kr;
-        std::shared_ptr<ColorTexture> m_kt;
+        // Monochromatic lane Cauchy IOR + Fresnel at signed cosi (signed for lux
+        // two sided FresnelCauchy behavior, TIR yields F = 1).
+        FloatP FresnelAt(const SpectrumWavelengthsP &sw,
+                         const DifferentialGeometryP &dg, const FloatP &cosi,
+                         MaskP active) const;
+
+        std::shared_ptr<ColorTexture> m_Kr;
+        std::shared_ptr<ColorTexture> m_Kt;
         std::shared_ptr<FloatTexture> m_index;
+        std::shared_ptr<FloatTexture> m_cauchyb;
+        std::shared_ptr<FloatTexture> m_film;
+        std::shared_ptr<FloatTexture> m_filmindex;
+        bool m_architectural;
     };
 
 } // namespace lux2

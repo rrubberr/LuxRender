@@ -21,200 +21,208 @@
 
 #include "materials/metal2.h"
 
+#include "core/bsdf_util.h"
 #include "core/dynload.h"
 #include "core/fresnel.h"
+#include "core/material_util.h"
 #include "core/math.h"
-#include "core/paramset.h"
 #include "core/register.h"
 #include "core/schlick_distribution.h"
-#include "textures/constant.h"
+
+#include <enoki/array.h>
 
 namespace lux2
 {
 
     namespace
     {
-
-        // Local shading frame: z == n, x == tangent (dp_ds), y == cross(n, x).
-        struct Frame
+        // Roughness -> Schlick parameters.
+        inline void schlickParams(const DifferentialGeometryP &dg,
+                                  const SpectrumWavelengthsP &sw, MaskP active,
+                                  const std::shared_ptr<FloatTexture> &nu,
+                                  const std::shared_ptr<FloatTexture> &nv,
+                                  FloatP *roughness, FloatP *anisotropy)
         {
-            Vector3fP x, y, z;
-        };
-
-        Frame MakeFrame(const DifferentialGeometryP &dg)
-        {
-            Frame f;
-            f.z = Vector3fP(dg.n);
-            f.x = enoki::normalize(dg.dp_ds);
-            f.y = enoki::normalize(cross(f.z, f.x));
-            return f;
-        }
-
-        Vector3fP ToLocal(const Frame &fr, const Vector3fP &v)
-        {
-            return Vector3fP(dot(v, fr.x), dot(v, fr.y), dot(v, fr.z));
-        }
-
-        Vector3fP ToWorld(const Frame &fr, const Vector3fP &v)
-        {
-            return v.x() * fr.x + v.y() * fr.y + v.z() * fr.z;
-        }
-
-        // u*v roughness and the anisotropy term from squared roughnesses.
-        void DistrParams(const FloatP &u, const FloatP &v,
-                         FloatP *roughness, FloatP *anisotropy)
-        {
+            const FloatP u = nu->Evaluate(dg, sw, active);
+            const FloatP v = nv->Evaluate(dg, sw, active);
             const FloatP u2 = u * u;
             const FloatP v2 = v * v;
             *roughness = u * v;
-            // anisotropy = u2 < v2 ? 1 - u2/v2 : v2/u2 - 1.
-            const FloatP u2s = select(u2 > FloatP(0.f), u2, FloatP(1.f));
-            const FloatP v2s = select(v2 > FloatP(0.f), v2, FloatP(1.f));
-            const FloatP aLt = FloatP(1.f) - u2 / v2s;
-            const FloatP aGe = v2 / u2s - FloatP(1.f);
-            *anisotropy = select(u2 < v2, aLt, aGe);
+            // anisotropy = u2 < v2 ? 1 - u2/v2 : v2/u2 - 1, always >= 0.
+            // Prevent zero division because Lux degenerate u == v == 0
+            // would divide by zero.
+            const FloatP a =
+                select(u2 < v2, FloatP(1.f) - u2 / max(v2, EPS_DENOM),
+                       v2 / max(u2, EPS_DENOM) - FloatP(1.f));
+            *anisotropy = max(a, FloatP(0.f));
         }
 
+        // Legacy BSDF WorldToLocal/LocalToWorld in (sn, tn, nn).
+        struct Frame
+        {
+            Vector3fP sn, tn, nn;
+            Vector3fP toLocal(const Vector3fP &w) const
+            {
+                return Vector3fP(dot(w, sn), dot(w, tn), dot(w, nn));
+            }
+            Vector3fP toWorld(const Vector3fP &v) const
+            {
+                return sn * v.x() + tn * v.y() + nn * v.z();
+            }
+        };
+
+        inline Frame makeFrame(const DifferentialGeometryP &dg)
+        {
+            return {Vector3fP(dg.dp_ds.x(), dg.dp_ds.y(), dg.dp_ds.z()),
+                    Vector3fP(dg.dp_dt.x(), dg.dp_dt.y(), dg.dp_dt.z()),
+                    Vector3fP(dg.n.x(), dg.n.y(), dg.n.z())};
+        }
     } // namespace
 
-    void Metal2Material::SampleF(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
-                                 const DifferentialGeometryP &dg, const FloatP &u0,
-                                 const FloatP &u1, const FloatP &, BSDFSampleP *s,
-                                 TransportMode, MaskP active) const
+    void Metal2Material::SampleF(const SpectrumWavelengthsP &sw,
+                                 const Vector3fP &wo,
+                                 const DifferentialGeometryP &dg,
+                                 const FloatP &u0, const FloatP &u1,
+                                 const FloatP &, BSDFSampleP *sample,
+                                 TransportMode mode, MaskP active) const
     {
-        const Frame fr = MakeFrame(dg);
-        const Vector3fP woL = ToLocal(fr, wo);
+        if (!any(active))
+            return;
 
-        const FloatP u = m_nu->Evaluate(dg, sw, active);
-        const FloatP v = m_nv->Evaluate(dg, sw, active);
         FloatP roughness, anisotropy;
-        DistrParams(u, v, &roughness, &anisotropy);
-        const SchlickDistribution distr(roughness, anisotropy);
+        schlickParams(dg, sw, active, m_nu, m_nv, &roughness, &anisotropy);
+        const SchlickDistribution md(roughness, anisotropy);
+        const FresnelGeneralP fg = m_fresnel->Evaluate(dg, sw, active);
+        const Frame fr = makeFrame(dg);
 
+        // Lux MicrofacetReflection::SampleF in (sn,tn,nn).
+        const Vector3fP woL = fr.toLocal(wo);
         Vector3fP whL;
-        FloatP d, pdfH;
-        distr.SampleH(u0, u1, &whL, &d, &pdfH);
-        // Reflect wo about the upper half-vector.
-        whL = select(whL.z() < FloatP(0.f), -whL, whL);
-        const Vector3fP wiL = FloatP(2.f) * dot(woL, whL) * whL - woL;
+        FloatP d, pdf;
+        md.SampleH(u0, u1, &whL, &d, &pdf);
+        enoki::masked(whL, whL.z() < FloatP(0.f)) = -whL;
+
+        const Vector3fP wiL = whL * (FloatP(2.f) * dot(woL, whL)) - woL;
+        const MaskP sameHemi =
+            woL.z() * wiL.z() > FloatP(0.f); // oneSided == false
 
         const FloatP cosThetaH = dot(woL, whL);
-        const FloatP absWiZ = abs(wiL.z());
-        const FloatP absWiZSafe = select(absWiZ > FloatP(EPS_DENOM), absWiZ, FloatP(EPS_DENOM));
+        const FloatP G = md.G(woL, wiL, whL);
+        const FloatP factor =
+            d * abs(cosThetaH) / max(pdf, EPS_DENOM) * G;
+        const FloatP F = FresnelGeneralEvaluate(fg, cosThetaH);
 
-        const FresnelGeneralP fg = m_fr->Evaluate(dg, sw, active);
-        const FloatP F = FresnelGeneralEvaluate(fg, abs(cosThetaH));
+        // R == 1 (white). reverse=true (Radiance) divides by |wo.z|;
+        // reverse=false (Importance) by |wi.z|.
+        FloatP f;
+        if (mode == TransportMode::Radiance)
+            f = factor / max(abs(woL.z()), EPS_DENOM) * F;
+        else
+            f = factor / max(abs(wiL.z()), EPS_DENOM) * F;
 
-        const FloatP G = distr.G(woL, wiL, whL);
-        const FloatP factor = d * abs(cosThetaH) / pdfH * G;
-        // f excludes the geometric |cos| (integrator applies it): divide by |wi.z|.
-        const SWCSpectrumP f = (factor / absWiZSafe) * F;
+        pdf = pdf / (FloatP(4.f) * max(abs(cosThetaH), EPS_DENOM));
 
-        const FloatP pdf = pdfH / (FloatP(4.f) * abs(cosThetaH));
+        const Vector3fP wi = fr.toWorld(wiL);
+        const FloatP st = sideTest(wo, wi, dg);
+        // BRDF st > 0 required; st < 0 or grazing st == 0 kills the lane.
+        const MaskP ok = active && sameHemi && (st > FloatP(0.f));
+        f = select(ok, f * modeJacobian(mode, st), SWCSpectrumP(0.f));
 
-        const Vector3fP wi = ToWorld(fr, wiL);
-
-        enoki::masked(s->wo, active) = wi;
-        enoki::masked(s->pdf, active) = pdf;
-        enoki::masked(s->f, active) = f;
-        enoki::masked(s->sampledType, active) = UInt32P(uint32_t(BSDFType::GlossyReflection));
-        enoki::masked(s->specular, active) = MaskP(false);
+        enoki::masked(sample->wi, active) = wi;
+        enoki::masked(sample->f, active) = f;
+        enoki::masked(sample->pdf, active) = select(ok, pdf, FloatP(0.f));
+        enoki::masked(sample->eta, active) = FloatP(1.f);
+        enoki::masked(sample->sampledType, active) =
+            UInt32P(uint32_t(BSDFType::GlossyReflection));
+        enoki::masked(sample->specular, active) = MaskP(false);
     }
 
-    FloatP Metal2Material::Pdf(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
-                               const Vector3fP &wo, const DifferentialGeometryP &dg,
-                               uint32_t, TransportMode, MaskP active) const
+    FloatP Metal2Material::Pdf(const SpectrumWavelengthsP &sw,
+                               const Vector3fP &wi, const Vector3fP &wo,
+                               const DifferentialGeometryP &dg, uint32_t,
+                               TransportMode, MaskP active) const
     {
-        const Frame fr = MakeFrame(dg);
-        const Vector3fP woL = ToLocal(fr, wo);
-        const Vector3fP wiL = ToLocal(fr, wi);
-
-        const FloatP u = m_nu->Evaluate(dg, sw, active);
-        const FloatP v = m_nv->Evaluate(dg, sw, active);
+        // Legacy MicrofacetReflection::Pdf: D(wh)/(4|dot(wo,wh)|).
+        // wh = normalize(wi + wo) flipped to +z.
         FloatP roughness, anisotropy;
-        DistrParams(u, v, &roughness, &anisotropy);
-        const SchlickDistribution distr(roughness, anisotropy);
+        schlickParams(dg, sw, active, m_nu, m_nv, &roughness, &anisotropy);
+        const SchlickDistribution md(roughness, anisotropy);
+        const Frame fr = makeFrame(dg);
 
+        const Vector3fP woL = fr.toLocal(wo);
+        const Vector3fP wiL = fr.toLocal(wi);
         Vector3fP whL = wiL + woL;
-        const FloatP whLen2 = sqr(whL.x()) + sqr(whL.y()) + sqr(whL.z());
-        whL = enoki::normalize(whL);
-        whL = select(whL.z() < FloatP(0.f), -whL, whL);
+        const FloatP len2 = dot(whL, whL);
+        const MaskP valid = active && (len2 > FloatP(0.f));
+        enoki::masked(whL, valid) = whL * rsqrt(max(len2, EPS_DENOM));
+        enoki::masked(whL, whL.z() < FloatP(0.f)) = -whL;
 
-        const FloatP denom = FloatP(4.f) * abs(dot(woL, whL));
-        const FloatP denomSafe = select(denom > FloatP(EPS_DENOM), denom, FloatP(EPS_DENOM));
-        const FloatP pdf = distr.Pdf(whL) / denomSafe;
-        return select(active && (whLen2 > FloatP(0.f)), pdf, FloatP(0.f));
+        const FloatP pdf =
+            md.Pdf(whL) / (FloatP(4.f) * max(abs(dot(woL, whL)), EPS_DENOM));
+        return select(valid, pdf, FloatP(0.f));
     }
 
-    void Metal2Material::Eval(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
-                              const Vector3fP &wo, const DifferentialGeometryP &dg,
-                              TransportMode, BSDFEvalP *out, MaskP active) const
+    void Metal2Material::Eval(const SpectrumWavelengthsP &sw,
+                              const Vector3fP &wi, const Vector3fP &wo,
+                              const DifferentialGeometryP &dg,
+                              TransportMode mode, BSDFEvalP *out,
+                              MaskP active) const
     {
-        const Frame fr = MakeFrame(dg);
-        const Vector3fP woL = ToLocal(fr, wo);
-        const Vector3fP wiL = ToLocal(fr, wi);
+        if (!any(active))
+            return;
 
-        const FloatP u = m_nu->Evaluate(dg, sw, active);
-        const FloatP v = m_nv->Evaluate(dg, sw, active);
+        // Lux NEE SingleBSDF::F(sw, woW=light, wiW=eye, reverse=true) ->
+        // MicrofacetReflection::F(wo=light, wi=eye). For Lux2 the light
+        // direction is wi and the eye direction is wo!
         FloatP roughness, anisotropy;
-        DistrParams(u, v, &roughness, &anisotropy);
-        const SchlickDistribution distr(roughness, anisotropy);
+        schlickParams(dg, sw, active, m_nu, m_nv, &roughness, &anisotropy);
+        const SchlickDistribution md(roughness, anisotropy);
+        const FresnelGeneralP fg = m_fresnel->Evaluate(dg, sw, active);
+        const Frame fr = makeFrame(dg);
 
-        Vector3fP whL = wiL + woL;
-        const FloatP whLen2 = sqr(whL.x()) + sqr(whL.y()) + sqr(whL.z());
-        whL = enoki::normalize(whL);
-        whL = select(whL.z() < FloatP(0.f), -whL, whL);
+        const Vector3fP lightL = fr.toLocal(wi);
+        const Vector3fP eyeL = fr.toLocal(wo);
+        const FloatP cosO = abs(lightL.z()); // |CosTheta(wo=light)|
+        const FloatP cosI = abs(eyeL.z());   // |CosTheta(wi=eye)|
 
-        const FloatP cosThetaH = dot(woL, whL);
-        const FloatP absWiZ = abs(wiL.z());
-        const FloatP absWiZSafe = select(absWiZ > FloatP(EPS_DENOM), absWiZ, FloatP(EPS_DENOM));
+        Vector3fP whL = lightL + eyeL;
+        const FloatP len2 = dot(whL, whL);
+        const MaskP valid = active && (len2 > FloatP(0.f)) &&
+                            (cosO > FloatP(0.f)) && (cosI > FloatP(0.f));
+        enoki::masked(whL, valid) = whL * rsqrt(max(len2, EPS_DENOM));
+        enoki::masked(whL, whL.z() < FloatP(0.f)) = -whL; // oneSided == false
 
-        const FresnelGeneralP fg = m_fr->Evaluate(dg, sw, active);
-        const FloatP F = FresnelGeneralEvaluate(fg, abs(cosThetaH));
+        const FloatP cosThetaH = dot(eyeL, whL);
+        const FloatP F = FresnelGeneralEvaluate(fg, cosThetaH);
+        // f carries |cos(light)|, D(wh) * G / (4|cos_eye|) * F.
+        SWCSpectrumP f = md.D(whL) * md.G(lightL, eyeL, whL) /
+                         (FloatP(4.f) * max(cosI, EPS_DENOM)) *
+                         F;
 
-        // d == D(wh) (== pdfH in SampleH), so factor = d*|cosH|/pdfH*G = |cosH|*G.
-        const FloatP d = distr.D(whL);
-        const FloatP G = distr.G(woL, wiL, whL);
-        const FloatP factor = d * abs(cosThetaH) / distr.Pdf(whL) * G;
+        // Lux SingleBSDF::F side test where dot(wiW=eye, ng)/Dot(woW=light, ng)
+        // and st < 0 rejects the BRDF, st == 0 rejects everything.
+        const FloatP st = sideTest(wi, wo, dg);
+        const MaskP ok = valid && (st > FloatP(0.f));
+        f = select(ok, f * modeJacobian(mode, st), SWCSpectrumP(0.f));
 
-        // Forward eye-walk pdf pdf(wi|wo) == Pdf(wi,wo); reverse pdf(wo|wi).
-        const FloatP pdf = Pdf(sw, wi, wo, dg, 0, TransportMode::Radiance, active);
-        const FloatP pdfRev = Pdf(sw, wo, wi, dg, 0, TransportMode::Radiance, active);
-
-        // No valid half-vector (wi,wo back-facing) == no contribution.
-        const MaskP valid = active && (whLen2 > FloatP(0.f));
-        enoki::masked(out->f, valid) = (factor / absWiZSafe) * F;
-        enoki::masked(out->pdf, valid) = pdf;
-        enoki::masked(out->pdfRev, valid) = pdfRev;
-        // Lanes with no valid half-vector contribute nothing.
-        const MaskP invalid = active && !(whLen2 > FloatP(0.f));
-        enoki::masked(out->f, invalid) = SWCSpectrumP(0.f);
-        enoki::masked(out->pdf, invalid) = FloatP(0.f);
-        enoki::masked(out->pdfRev, invalid) = FloatP(0.f);
+        enoki::masked(out->f, active) = f;
+        // Solid angle densities for MIS, legacy MicrofacetReflection::Pdf where
+        // D(wh)/(4|dot(wo,wh)|). wh bisects the pair so |dot(eye,wh)| ==
+        // |dot(light,wh)| and pdf == pdfRev for reflection lobes.
+        const FloatP fwd =
+            md.Pdf(whL) / (FloatP(4.f) * max(abs(dot(eyeL, whL)), EPS_DENOM));
+        enoki::masked(out->pdf, active) = select(valid, fwd, FloatP(0.f));
+        enoki::masked(out->pdfRev, active) = select(valid, fwd, FloatP(0.f));
     }
 
-    std::shared_ptr<Material> Metal2Material::CreateMaterial(const PluginContext &ctx)
+    std::shared_ptr<Material> Metal2Material::CreateMaterial(
+        const PluginContext &ctx)
     {
-        std::shared_ptr<FresnelTexture> fr;
-        const std::string frName = ctx.params->FindTexture("fresnel");
-        if (!frName.empty() && ctx.fresnelTextures)
-        {
-            auto it = ctx.fresnelTextures->find(frName);
-            if (it != ctx.fresnelTextures->end())
-                fr = it->second;
-        }
-        if (!fr)
-        {
-            fr = std::make_shared<ConstantFresnelTexture>(
-                FloatP(ctx.params->FindOneFloat("fresnel", 5.f)));
-        }
-
-        auto nu = std::make_shared<ConstantFloatTexture>(
-            FloatP(ctx.params->FindOneFloat("uroughness", 0.1f)));
-        auto nv = std::make_shared<ConstantFloatTexture>(
-            FloatP(ctx.params->FindOneFloat("vroughness", 0.1f)));
-
-        return std::make_shared<Metal2Material>(std::move(fr), std::move(nu), std::move(nv));
+        auto fresnel = getFresnelTex(ctx, "fresnel", 5.f);
+        auto nu = getFloatTex(ctx, "uroughness", 0.1f);
+        auto nv = getFloatTex(ctx, "vroughness", 0.1f);
+        return std::make_shared<Metal2Material>(std::move(fresnel),
+                                                std::move(nu), std::move(nv));
     }
 
     LUX2_REGISTER_MATERIAL(Metal2Material, "metal2");

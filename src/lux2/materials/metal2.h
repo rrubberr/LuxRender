@@ -34,39 +34,55 @@ namespace lux2
 
     class PluginContext;
 
+    // metal2 color comes from a Fresnel texture (R is white); roughness u/v control
+    // Schlick distribution with anisotropy = u2<v2 ? 1-u2/v2 : v2/u2-1.
+
+    // Anisotropy microfacet runs in (dp_ds, dp_dt, n) basis via the ShadeHit
+    // UV-gradient solve.
+
     class Metal2Material : public Material, public BSDF
     {
     public:
-        Metal2Material(std::shared_ptr<FresnelTexture> fr,
+        Metal2Material(std::shared_ptr<FresnelTexture> fresnel,
                        std::shared_ptr<FloatTexture> nu,
                        std::shared_ptr<FloatTexture> nv)
-            : m_fr(std::move(fr)), m_nu(std::move(nu)), m_nv(std::move(nv)) {}
+            : m_fresnel(std::move(fresnel)), m_nu(std::move(nu)),
+              m_nv(std::move(nv))
+        {
+        }
 
         uint32_t flags() const override
         {
             return uint32_t(BSDFType::GlossyReflection) |
-                   uint32_t(BSDFType::FrontSide);
+                   uint32_t(BSDFType::FrontSide) |
+                   uint32_t(BSDFType::BackSide);
         }
 
-        const BSDF *GetBSDF(const DifferentialGeometryP &) const override { return this; }
+        const BSDF *GetBSDF(const DifferentialGeometryP &) const override
+        {
+            return this;
+        }
 
         void SampleF(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
                      const DifferentialGeometryP &dg, const FloatP &u0,
-                     const FloatP &u1, const FloatP &, BSDFSampleP *s,
-                     TransportMode, MaskP active) const override;
+                     const FloatP &u1, const FloatP &u2, BSDFSampleP *sample,
+                     TransportMode mode, MaskP active) const override;
 
-        FloatP Pdf(const SpectrumWavelengthsP &, const Vector3fP &wi,
+        // Non-delta lobe where solid-angle density D(wh)/(4|dot(wo,wh)|).
+        FloatP Pdf(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
                    const Vector3fP &wo, const DifferentialGeometryP &dg,
                    uint32_t, TransportMode, MaskP active) const override;
 
+        // Lux MicrofacetReflection::F present so keep NEE live.
         void Eval(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
                   const Vector3fP &wo, const DifferentialGeometryP &dg,
-                  TransportMode mode, BSDFEvalP *out, MaskP active) const override;
+                  TransportMode mode, BSDFEvalP *out,
+                  MaskP active) const override;
 
         static std::shared_ptr<Material> CreateMaterial(const PluginContext &ctx);
 
     private:
-        std::shared_ptr<FresnelTexture> m_fr;
+        std::shared_ptr<FresnelTexture> m_fresnel;
         std::shared_ptr<FloatTexture> m_nu;
         std::shared_ptr<FloatTexture> m_nv;
     };

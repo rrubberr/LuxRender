@@ -21,145 +21,170 @@
 
 #include "materials/matte.h"
 
+#include "core/bsdf_util.h"
 #include "core/dynload.h"
-#include "core/paramset.h"
+#include "core/material_util.h"
+#include "core/math.h"
 #include "core/register.h"
-#include "core/texture.h"
-#include "textures/constant.h"
+#include "core/sampling.h"
+
+#include <enoki/array.h>
 
 namespace lux2
 {
 
-    // Oren-Nayar evaluation in the local shading frame (z == dg.n).
-    // At sigma == 0 reproduces Lambertian (kd/pi).
-    static SWCSpectrumP OrenNayarF(const SWCSpectrumP &R, FloatP sigmaRad,
-                                   const Vector3fP &woL, const Vector3fP &wiL)
+    void MatteMaterial::coefficients(const DifferentialGeometryP &dg,
+                                     const SpectrumWavelengthsP &sw,
+                                     MaskP active, SWCSpectrumP *R,
+                                     FloatP *A, FloatP *B) const
     {
-        const FloatP sigma2 = sigmaRad * sigmaRad;
-        const FloatP A = FloatP(1.f) - sigma2 / (FloatP(2.f) * (sigma2 + FloatP(0.33f)));
-        const FloatP B = FloatP(0.45f) * sigma2 / (sigma2 + FloatP(0.09f));
+        // lordcrc's clamp where Kd is [0,1] to avoid >1 reflection.
+        // Thanks lordcrc!
+        *R = min(max(m_Kd->Evaluate(dg, sw, active), FloatP(0.f)),
+                 FloatP(1.f));
 
-        const FloatP sinthetai = sqrt(max(sqr(wiL.x()) + sqr(wiL.y()), FloatP(0.f)));
-        const FloatP sinthetao = sqrt(max(sqr(woL.x()) + sqr(woL.y()), FloatP(0.f)));
-
-        // cos(phi_i - phi_o) = cosphi_i*cosphi_o + sinphi_i*sinphi_o, guarded
-        // against the sintheta -> 0 poles where phi is undefined.
-        const MaskP useCos = (sinthetai > FloatP(EPS_RAY)) &&
-                             (sinthetao > FloatP(EPS_RAY));
-        const FloatP sinphii = select(useCos, wiL.y() / sinthetai, FloatP(0.f));
-        const FloatP cosphii = select(useCos, wiL.x() / sinthetai, FloatP(1.f));
-        const FloatP sinphio = select(useCos, woL.y() / sinthetao, FloatP(0.f));
-        const FloatP cosphio = select(useCos, woL.x() / sinthetao, FloatP(1.f));
-        const FloatP maxcos = max(FloatP(0.f), cosphii * cosphio + sinphii * sinphio);
-
-        // Oren-Nayar-specific denominator guard.
-        constexpr float EPS_COS = 1e-6f;
-        const FloatP cosT = max(abs(wiL.z()), abs(woL.z()));
-        const FloatP denom = select(cosT > FloatP(EPS_COS), cosT, FloatP(EPS_COS));
-
-        const FloatP lobe = A + B * maxcos * sinthetao * sinthetai / denom;
-        return R * (lobe * INVPI);
+        // Lux OrenNayar ctor with sigma clamped to [0,90] degrees.
+        const FloatP sig = min(max(m_sigma->Evaluate(dg, sw, active),
+                                   FloatP(0.f)),
+                               FloatP(90.f));
+        const FloatP s = sig * (PI / FloatP(180.f));
+        const FloatP sigma2 = s * s;
+        *A = FloatP(1.f) - sigma2 / (FloatP(2.f) * (sigma2 + FloatP(0.33f)));
+        *B = FloatP(0.45f) * sigma2 / (sigma2 + FloatP(0.09f));
     }
 
-    void MatteMaterial::SampleF(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
-                                const DifferentialGeometryP &dg, const FloatP &u0,
-                                const FloatP &u1, const FloatP &, BSDFSampleP *s,
-                                TransportMode, MaskP active) const
+    void MatteMaterial::SampleF(const SpectrumWavelengthsP &sw,
+                                const Vector3fP &wo,
+                                const DifferentialGeometryP &dg,
+                                const FloatP &u0, const FloatP &u1,
+                                const FloatP &, BSDFSampleP *sample,
+                                TransportMode mode, MaskP active) const
     {
-        const Vector3fP n(dg.n);
-        const auto [tx, ty] = coordinate_system(n);
+        if (!any(active))
+            return;
 
-        // Cosine weighted hemisphere sample about the z axis of the local frame.
-        const FloatP phi = FloatP(2.f) * PI * u0;
-        const FloatP cosT = sqrt(max(FloatP(0.f), FloatP(1.f) - u1));
-        const FloatP sinT = sqrt(max(FloatP(0.f), u1));
-        const Vector3fP wi = sinT * cos(phi) * tx + sinT * sin(phi) * ty + cosT * n;
+        SWCSpectrumP R;
+        FloatP A, B;
+        coefficients(dg, sw, active, &R, &A, &B);
 
-        // Oren-Nayar coefficients from sigma.
-        const FloatP sigmaDeg = clamp(m_sigma->Evaluate(dg, sw, active),
-                                      FloatP(0.f), FloatP(90.f));
-        const FloatP sigmaRad = sigmaDeg * (PI / FloatP(180.f));
+        // Lux Lambertian/OrenNayar SampleF to cosine sample the hemisphere
+        // about the unflipped shading normal and flip with wo's side.
+        const Vector3fP wi = cosineSampleHemisphere(dg.n, wo, u0, u1);
+        const MaskP sameHemi = sameHemisphere(wo, wi, dg.n);
 
-        // Express wo and wi in the local frame (z == n).
-        const Vector3fP woL(dot(wo, tx), dot(wo, ty), dot(wo, n));
-        const Vector3fP wiL(dot(wi, tx), dot(wi, ty), dot(wi, n));
+        const FloatP cosO = dot(wo, dg.n);
+        const FloatP cosI = dot(wi, dg.n);
 
-        const SWCSpectrumP kd = Clamped(m_kd->Evaluate(dg, sw, active));
-        const SWCSpectrumP f = OrenNayarF(kd, sigmaRad, woL, wiL);
+        // Oren-Nayar term that reduces to Lambertian at sigma == 0.
+        const FloatP sinI2 = max(FloatP(1.f) - cosI * cosI, FloatP(0.f));
+        const FloatP sinO2 = max(FloatP(1.f) - cosO * cosO, FloatP(0.f));
+        const FloatP sinI = sqrt(sinI2);
+        const FloatP sinO = sqrt(sinO2);
 
-        enoki::masked(s->wo, active) = wi;
-        enoki::masked(s->pdf, active) = cosT * INVPI;
-        enoki::masked(s->f, active) = f;
-        enoki::masked(s->sampledType, active) = UInt32P(uint32_t(BSDFType::DiffuseReflection));
-        enoki::masked(s->specular, active) = MaskP(false);
+        // maxcos = cos(phi_i - phi_o), cosine of the angle between the
+        // tangent plane projections. Lux uses sintheta > 1e-4 for
+        // both directions.
+        const Vector3fP n(dg.n.x(), dg.n.y(), dg.n.z());
+        const Vector3fP wiT = wi - n * cosI;
+        const Vector3fP woT = wo - n * cosO;
+        const FloatP dcos =
+            dot(wiT, woT) /
+            max(sqrt(max(dot(wiT, wiT), FloatP(0.f))) *
+                    sqrt(max(dot(woT, woT), FloatP(0.f))),
+                EPS_DENOM);
+        const MaskP phOk = (sinI > FloatP(1e-4f)) && (sinO > FloatP(1e-4f));
+        const FloatP maxcos = select(phOk, max(dcos, FloatP(0.f)),
+                                     FloatP(0.f));
+
+        const FloatP on =
+            A + B * maxcos * sinO * sinI /
+                    max(max(abs(cosI), abs(cosO)), EPS_DENOM);
+
+        // Eye path (Radiance is Lux reverse=true): f = ON * R, the
+        // cosine/pdf factors cancel. Importance folds |cos_o / cos_i|
+        // (Lux SampleF) then the ng Jacobian (SingleBSDF).
+        FloatP f = on * R;
+        if (mode == TransportMode::Importance)
+            f = f * abs(cosO / max(abs(cosI), EPS_DENOM));
+
+        const FloatP st = sideTest(wo, wi, dg);
+        // BRDF: st > 0 required; st < 0 or grazing st == 0 kills the lane.
+        const MaskP ok = active && sameHemi && (st > FloatP(0.f));
+
+        const FloatP pdf = abs(cosI) * INVPI;
+        f = select(ok, f * modeJacobian(mode, st), SWCSpectrumP(0.f));
+
+        enoki::masked(sample->wi, active) = wi;
+        enoki::masked(sample->f, active) = f;
+        enoki::masked(sample->pdf, active) = select(ok, pdf, FloatP(0.f));
+        enoki::masked(sample->eta, active) = FloatP(1.f);
+        enoki::masked(sample->sampledType, active) =
+            UInt32P(uint32_t(BSDFType::DiffuseReflection));
+        enoki::masked(sample->specular, active) = MaskP(false);
     }
 
-    FloatP MatteMaterial::Pdf(const SpectrumWavelengthsP &, const Vector3fP &wi,
-                              const Vector3fP &, const DifferentialGeometryP &dg,
-                              uint32_t, TransportMode, MaskP active) const
+    void MatteMaterial::Eval(const SpectrumWavelengthsP &sw,
+                             const Vector3fP &wi, const Vector3fP &wo,
+                             const DifferentialGeometryP &dg,
+                             TransportMode mode, BSDFEvalP *out,
+                             MaskP active) const
     {
-        const FloatP cosT = dot(wi, Vector3fP(dg.n));
-        const FloatP pdf = cosT * INVPI;
-        return select(active && (cosT > FloatP(0.f)), pdf, FloatP(0.f));
+        if (!any(active))
+            return;
+
+        // Lux NEE calls SingleBSDF::F(sw, wi_light, wo_eye, reverse=true) where
+        // Lambertian/OrenNayar F() is non-empty so matte contributes to NEE.
+        // The integrator divides by the light pdf only.
+        SWCSpectrumP R;
+        FloatP A, B;
+        coefficients(dg, sw, active, &R, &A, &B);
+
+        const FloatP cosL = abs(dot(wi, dg.n));
+        const FloatP cosE = abs(dot(wo, dg.n));
+        const FloatP sinL = sqrt(max(FloatP(1.f) - cosL * cosL, FloatP(0.f)));
+        const FloatP sinE = sqrt(max(FloatP(1.f) - cosE * cosE, FloatP(0.f)));
+
+        const Vector3fP n(dg.n.x(), dg.n.y(), dg.n.z());
+        const Vector3fP wiT = wi - n * dot(wi, dg.n);
+        const Vector3fP woT = wo - n * dot(wo, dg.n);
+        const FloatP dcos =
+            dot(wiT, woT) /
+            max(sqrt(max(dot(wiT, wiT), FloatP(0.f))) *
+                    sqrt(max(dot(woT, woT), FloatP(0.f))),
+                EPS_DENOM);
+        const MaskP phOk = (sinL > FloatP(1e-4f)) && (sinE > FloatP(1e-4f));
+        const FloatP maxcos =
+            select(phOk, max(dcos, FloatP(0.f)), FloatP(0.f));
+
+        // Lux F(wo=light, wi=eye): INVPI * |cos(light)| *
+        // (A + B * maxcos * sinL * sinE / max(|cos|,|cos|)) * R.
+        const FloatP on =
+            A + B * maxcos * sinL * sinE /
+                    max(max(cosL, cosE), EPS_DENOM);
+        SWCSpectrumP f = INVPI * cosL * on * R;
+
+        // Lux side test in F: Dot(wo_eye, ng) / Dot(wi_light, ng);
+        // st < 0 rejects the BRDF, st == 0 rejects everything.
+        const FloatP st = sideTest(wi, wo, dg);
+        const MaskP ok = active && (st > FloatP(0.f));
+        f = select(ok, f * modeJacobian(mode, st), SWCSpectrumP(0.f));
+
+        enoki::masked(out->f, active) = f;
+        // Solid angle densities for MIS (Lux BxDF::Pdf both ways).
+        const MaskP sameHemi = sameHemisphere(wo, wi, dg.n);
+        enoki::masked(out->pdf, active) =
+            select(sameHemi, abs(dot(wi, dg.n)) * INVPI, FloatP(0.f));
+        enoki::masked(out->pdfRev, active) =
+            select(sameHemi, abs(dot(wo, dg.n)) * INVPI, FloatP(0.f));
     }
 
-    void MatteMaterial::Eval(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
-                             const Vector3fP &wo, const DifferentialGeometryP &dg,
-                             TransportMode, BSDFEvalP *out, MaskP active) const
+    std::shared_ptr<Material> MatteMaterial::CreateMaterial(
+        const PluginContext &ctx)
     {
-        const Vector3fP n(dg.n);
-        const auto [tx, ty] = coordinate_system(n);
-
-        // Local frame (z == n) for both directions.
-        const Vector3fP woL(dot(wo, tx), dot(wo, ty), dot(wo, n));
-        const Vector3fP wiL(dot(wi, tx), dot(wi, ty), dot(wi, n));
-
-        const FloatP sigmaDeg = clamp(m_sigma->Evaluate(dg, sw, active),
-                                      FloatP(0.f), FloatP(90.f));
-        const FloatP sigmaRad = sigmaDeg * (PI / FloatP(180.f));
-        const SWCSpectrumP kd = Clamped(m_kd->Evaluate(dg, sw, active));
-
-        // Forward eye-walk pdf pdf(wi|wo) == Pdf(wi,wo); reverse pdf(wo|wi).
-        const FloatP pdf = Pdf(sw, wi, wo, dg, 0, TransportMode::Radiance, active);
-        const FloatP pdfRev = Pdf(sw, wo, wi, dg, 0, TransportMode::Radiance, active);
-
-        enoki::masked(out->f, active) = OrenNayarF(kd, sigmaRad, woL, wiL);
-        enoki::masked(out->pdf, active) = pdf;
-        enoki::masked(out->pdfRev, active) = pdfRev;
-    }
-
-    std::shared_ptr<Material> MatteMaterial::CreateMaterial(const PluginContext &ctx)
-    {
-        std::shared_ptr<ColorTexture> kd;
-        const std::string kdName = ctx.params->FindTexture("Kd");
-        if (!kdName.empty() && ctx.colorTextures)
-        {
-            auto it = ctx.colorTextures->find(kdName);
-            if (it != ctx.colorTextures->end())
-                kd = it->second;
-        }
-        if (!kd)
-        {
-            const RGBColor &rgb = ctx.params->FindOneRGBColor("Kd", RGBColor(0.9f));
-            const RGBColorP rgbP(FloatP(rgb.r()), FloatP(rgb.g()), FloatP(rgb.b()));
-            kd = std::make_shared<ConstantColorTexture>(rgbP);
-        }
-
-        std::shared_ptr<FloatTexture> sigma;
-        const std::string sigmaName = ctx.params->FindTexture("sigma");
-        if (!sigmaName.empty() && ctx.floatTextures)
-        {
-            auto it = ctx.floatTextures->find(sigmaName);
-            if (it != ctx.floatTextures->end())
-                sigma = it->second;
-        }
-        if (!sigma)
-        {
-            sigma = std::make_shared<ConstantFloatTexture>(
-                FloatP(ctx.params->FindOneFloat("sigma", 0.f)));
-        }
-
-        return std::make_shared<MatteMaterial>(std::move(kd), std::move(sigma));
+        auto Kd = getColorTex(ctx, "Kd", RGBColor(0.9f));
+        auto sigma = getFloatTex(ctx, "sigma", 0.f);
+        return std::make_shared<MatteMaterial>(std::move(Kd),
+                                               std::move(sigma));
     }
 
     LUX2_REGISTER_MATERIAL(MatteMaterial, "matte");
