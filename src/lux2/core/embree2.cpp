@@ -22,6 +22,7 @@
 #include "core/embree2.h"
 #include "core/scene.h"
 #include "core/shape.h"
+#include "core/math.h"
 #include "core/error.h"
 
 #include <cstring>
@@ -458,9 +459,45 @@ namespace lux2
         hit.sh_n = select(sn2 > FloatP(0.f), nhat, hit.ngeo);
 
         // UV interpolation.
-        const FloatP u = b0 * enoki::gather<FloatP>(uv0u.data(), gidx, active) + hit.b1 * enoki::gather<FloatP>(uv1u.data(), gidx, active) + hit.b2 * enoki::gather<FloatP>(uv2u.data(), gidx, active);
-        const FloatP v = b0 * enoki::gather<FloatP>(uv0v.data(), gidx, active) + hit.b1 * enoki::gather<FloatP>(uv1v.data(), gidx, active) + hit.b2 * enoki::gather<FloatP>(uv2v.data(), gidx, active);
-        hit.uv = Point2fP(u, v);
+        const FloatP u0_ = enoki::gather<FloatP>(uv0u.data(), gidx, active);
+        const FloatP v0_ = enoki::gather<FloatP>(uv0v.data(), gidx, active);
+        const FloatP u1_ = enoki::gather<FloatP>(uv1u.data(), gidx, active);
+        const FloatP v1_ = enoki::gather<FloatP>(uv1v.data(), gidx, active);
+        const FloatP u2_ = enoki::gather<FloatP>(uv2u.data(), gidx, active);
+        const FloatP v2_ = enoki::gather<FloatP>(uv2v.data(), gidx, active);
+        hit.uv = Point2fP(b0 * u0_ + hit.b1 * u1_ + hit.b2 * u2_,
+                          b0 * v0_ + hit.b1 * v1_ + hit.b2 * v2_);
+
+        // UV gradient solve for the shading frame.
+        const Vector3fP dp1(v0x_ - v2x_, v0y_ - v2y_, v0z_ - v2z_);
+        const Vector3fP dp2(v1x_ - v2x_, v1y_ - v2y_, v1z_ - v2z_);
+        const FloatP du1 = u0_ - u2_, du2 = u1_ - u2_;
+        const FloatP dv1 = v0_ - v2_, dv2 = v1_ - v2_;
+        const FloatP det = du1 * dv2 - dv1 * du2;
+        const MaskP nonDet = det != FloatP(0.f);
+        const FloatP invdet = select(nonDet, FloatP(1.f) / det, FloatP(0.f));
+        Vector3fP dpdu = (dp1 * dv2 - dp2 * dv1) * invdet;
+        Vector3fP dpdv = (dp2 * du1 - dp1 * du2) * invdet;
+        // Make sure degenerate UVs stay finite.
+        const auto fallback = coordinate_system(Vector3fP(hit.ngeo.x(),
+                                                          hit.ngeo.y(),
+                                                          hit.ngeo.z()));
+        enoki::masked(dpdu, !nonDet) = fallback.first;
+        enoki::masked(dpdv, !nonDet) = fallback.second;
+        hit.dp_du = dpdu;
+        hit.dp_dv = dpdv;
+
+        // BSDF anisotropy frame on the interpolated shading normal where
+        // sn = normalize(dpdu projected off n), tn = cross(n, sn).
+        const Vector3fP nvec(hit.sh_n.x(), hit.sh_n.y(), hit.sh_n.z());
+        const Vector3fP proj = dpdu - nvec * dot(dpdu, nvec);
+        const FloatP proj2 = dot(proj, proj);
+        const auto nBasis = coordinate_system(nvec);
+        Vector3fP sn = select(proj2 > EPS_RAY * EPS_RAY,
+                              proj * rsqrt(max(proj2, FloatP(EPS_DENOM))),
+                              nBasis.first);
+        hit.dp_ds = sn;
+        hit.dp_dt = enoki::cross(nvec, sn);
 
         hit.matID = enoki::gather<UInt32P>(matID.data(), gidx, active);
         hit.lightID = enoki::gather<Int32P>(lightID.data(), gidx, active);

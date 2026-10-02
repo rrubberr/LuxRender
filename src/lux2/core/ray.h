@@ -95,11 +95,17 @@ namespace lux2
 
         // Derived by ShadeHit().
         Point3fP p;     // interpolated position
-        Normal3fP ngeo; // face-forward geometric normal
+        Normal3fP ngeo; // face forward geometric normal
         Normal3fP sh_n; // normalized interpolated vertex normal
         Point2fP uv;    // interpolated texture coords
         UInt32P matID;  // per-triangle material index
         Int32P lightID; // per-triangle area-light index, or -1
+
+        // Shading frame from the UV gradient (Lux dpdu/dpdv and sn/tn).
+        Vector3fP dp_du;
+        Vector3fP dp_dv;
+        Vector3fP dp_ds;
+        Vector3fP dp_dt;
     };
 
 } // namespace lux2
