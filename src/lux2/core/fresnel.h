@@ -48,9 +48,14 @@ namespace lux2
     // Approximate imaginary IOR from a reflectance Fr in [0, 1]:
     //   2 * sqrt(Fr / (1 - Fr)), Fr clamped to [0, .999].
     FloatP FresnelApproxK(const FloatP &Fr);
-    // Evaluate a FresnelGeneralP at cos(theta_i).
+    // Evaluate a FresnelGeneralP at cos(theta_i) where cosi > 0 is entering and
+    // cosi < 0 exits. With backside IOR inversion, conductor F=0 on exit,
+    // and TIR F=1 like lux.
     struct FresnelGeneralP;
     FloatP FresnelGeneralEvaluate(const FresnelGeneralP &fg, const FloatP &cosi);
+
+    // Resolve a FresnelGeneralP Auto into Dielectric / Conductor / Full.
+    FresnelGeneralP ResolveAuto(const FresnelGeneralP &fg);
 } // namespace lux2
 
 #endif // LUX2_FRESNEL_H
