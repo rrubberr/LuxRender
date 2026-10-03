@@ -56,6 +56,7 @@ namespace lux2
         // Caps on lamp packet dumps.
         std::atomic<long> g_lamp_edgeDumps{0};
         std::atomic<long> g_lamp_leDumps{0};
+        std::atomic<long> g_lamp_blockDumps{0};
     } // namespace
 #endif
 
@@ -343,20 +344,65 @@ namespace lux2
                             light->Sample_L(sw, p, n, u2lpos.x(), u2lpos.y(),
                                             ulightcomp, &lightP, &wi, &lightN,
                                             &pdfPos, &Le, la);
+                        const FloatP dist = enoki::norm(lightP - p);
                         const FloatP pdfL = pdfPos * invNLights;
                         // Offset toward the side the path arrived on.
                         const Point3fP off = OffsetRay(p, ng, -ray.d, FloatP(EPS_RAY));
                         // IsInfinite() is a scalar virtual; branch directly.
-                        const FloatP tmax = light->IsInfinite()
-                                                ? INF
-                                                : enoki::norm(lightP - p) *
-                                                      (FloatP(1.f) - FloatP(EPS_RAY));
+                        // Stop short of the emitter with an absolute margin:
+                        // a purely relative shrink can still clip the
+                        // emitter's own surface near the silhouette (the
+                        // head-on NEE dark spots), while a fixed 1e-3 floor
+                        // keeps real occluders valid anywhere else.
+                        const FloatP tmax =
+                            light->IsInfinite()
+                                ? INF
+                                : dist - enoki::max(FloatP(1e-3f),
+                                                    FloatP(1e-3f) * dist);
                         RayP shadow(off, wi, FloatP(EPS_RAY), tmax, FloatP(0.f));
                         shadow.wavelengths = sw.w;
                         shadow.mask = UInt32P(0xFFFFFFFFu);
                         const MaskP tryVis = la && valid && (pdfL > FloatP(0.f));
+#ifdef LAMP_NOSHADOW
+                        // Experiment 1: force visibility. Spots vanish => the
+                        // shadow ray blocks valid samples (self-occlusion or
+                        // offset/tmax handling).
+                        const MaskP vis = tryVis;
+#elif defined(LAMP_BLOCKER)
+                        // Identify the blocker: full Intersect on the shadow
+                        // ray (visibility comes from it directly), dumping
+                        // per-lane identity of whatever occludes a sample.
+                        RayP probe = shadow;
+                        HitP sh;
+                        embree->Intersect(probe, sh, Coherent::No);
+                        const MaskP blocked = tryVis && sh.hit;
+                        if (any(blocked) && g_lamp_blockDumps.fetch_add(1) < 8)
+                        {
+                            float bt[PACKET_WIDTH], bmax[PACKET_WIDTH],
+                                  bhit[PACKET_WIDTH];
+                            int32_t blid[PACKET_WIDTH];
+                            uint32_t bgid[PACKET_WIDTH], bpid[PACKET_WIDTH];
+                            enoki::store_unaligned(bt, sh.t);
+                            enoki::store_unaligned(bmax, tmax);
+                            enoki::store_unaligned(bhit,
+                                                   select(sh.hit, FloatP(1.f), FloatP(0.f)));
+                            enoki::store_unaligned(blid, sh.lightID);
+                            enoki::store_unaligned(bgid, sh.geomID);
+                            enoki::store_unaligned(bpid, sh.primID);
+                            fprintf(stderr,
+                                    "[LAMP BLOCK packet] lane: hit t tmax geomID primID lightID\n");
+                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                                fprintf(stderr,
+                                        "  lane %zu: %3.0f %9.5f %9.5f %6u %6u %5d%s\n",
+                                        i, bhit[i], bt[i], bmax[i],
+                                        bgid[i], bpid[i], blid[i],
+                                        (blid[i] >= 0) ? " <- LAMP self-hit" : "");
+                        }
+                        const MaskP vis = tryVis && !sh.hit;
+#else
                         const MaskP vis =
                             tryVis && !embree->Occluded(shadow, tryVis, Coherent::No);
+#endif
 
                         BSDFEvalP ev;
                         ev.f = SWCSpectrumP(0.f);
@@ -365,7 +411,14 @@ namespace lux2
                         // lux NEE calls bsdf->F(..., reverse=true):
                         // Radiance == reverse (wo toward the eye), no ng
                         // Jacobian in Eval.f.
-                        bsdf->Eval(sw, wi, wo, dg, TransportMode::Radiance, &ev, la);
+                       bsdf->Eval(sw, wi, wo, dg, TransportMode::Radiance, &ev, la);
+#ifdef LAMP_LAMBERT
+                        // Experiment 2: analytic Lambert with unit albedo in
+                        // place of Eval's f (the real call above still
+                        // provides pdf for MIS). Spots vanish => Eval.f is
+                        // wrong for wi near n. Judge pattern, not brightness.
+                        ev.f = select(la, abs(dot(wi, n)) * FloatP(1.f / PI), ev.f);
+#endif
 
                         // ev.f carries |cos(0ᵢ)|. cosL is hemisphere agnostic.
                         // Degenerate (wi,wo) pairs are zeroed in ev.f by the BSDF side test.
