@@ -1,23 +1,15 @@
 /***************************************************************************
- *   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  *
- *                                                                         *
  *   This file is part of LuxRender.                                       *
  *                                                                         *
- *   LuxRender is free software; you can redistribute it and/or modify     *
- *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 3 of the License, or     *
- *   any later version.                                                    *
+ *   To the extent possible under law, the author(s) have dedicated all    *
+ *   copyright and related neighboring rights to the belowe code to the    *
+ *   public domain worldwide. The below code is distributed without any    *
+ *   warranty.                                                             *
  *                                                                         *
- *   LuxRender is distributed in the hope that it will be useful,          *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          *
- *   GNU General Public License for more details.                          *
+ *   See: <https://creativecommons.org/publicdomain/zero/1.0/>             *
  *                                                                         *
- *   You should have received a copy of the GNU General Public License     *
- *   along with this program. If not, see <http://www.gnu.org/licenses/>   *
- *                                                                         *
- *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
+// Tests are machine generated. Proceed with caution!
 
 // Verifies the infinite light.
 
