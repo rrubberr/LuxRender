@@ -596,13 +596,36 @@ static void InitParamSet(ParamSet &ps, std::uint32_t count, ParamListElem *list)
 		} else if (type == PARAM_TYPE_FLOAT) {
 			ps.AddFloat(name, static_cast<float *>(data), nItems);
 		} else if (type == PARAM_TYPE_POINT) {
-			ps.AddPoint(name, static_cast<Point3f *>(data), nItems / 3);
+			// The parser stores components packed at 4 bytes each, but the
+			// Enoki 3-vector types are alignas(16) and 16 bytes wide.
+			std::uint32_t n = nItems / 3;
+			float *fdata = static_cast<float *>(data);
+			std::vector<Point3f> v(n);
+			for (std::uint32_t j = 0; j < n; ++j)
+				v[j] = Point3f(fdata[3 * j], fdata[3 * j + 1], fdata[3 * j + 2]);
+			ps.AddPoint(name, v.data(), n);
 		} else if (type == PARAM_TYPE_VECTOR) {
-			ps.AddVector(name, static_cast<Vector3f *>(data), nItems / 3);
+			std::uint32_t n = nItems / 3;
+			float *fdata = static_cast<float *>(data);
+			std::vector<Vector3f> v(n);
+			for (std::uint32_t j = 0; j < n; ++j)
+				v[j] = Vector3f(fdata[3 * j], fdata[3 * j + 1], fdata[3 * j + 2]);
+			ps.AddVector(name, v.data(), n);
 		} else if (type == PARAM_TYPE_NORMAL) {
-			ps.AddNormal(name, static_cast<Normal3f *>(data), nItems / 3);
+			std::uint32_t n = nItems / 3;
+			float *fdata = static_cast<float *>(data);
+			std::vector<Normal3f> v(n);
+			for (std::uint32_t j = 0; j < n; ++j)
+				v[j] = Normal3f(fdata[3 * j], fdata[3 * j + 1], fdata[3 * j + 2]);
+			ps.AddNormal(name, v.data(), n);
 		} else if (type == PARAM_TYPE_COLOR) {
-			ps.AddRGBColor(name, static_cast<RGBColor *>(data), nItems / RGB_SAMPLES);
+			std::uint32_t n = nItems / RGB_SAMPLES;
+			float *fdata = static_cast<float *>(data);
+			std::vector<RGBColor> v(n);
+			for (std::uint32_t j = 0; j < n; ++j)
+				v[j] = RGBColor(fdata[RGB_SAMPLES * j], fdata[RGB_SAMPLES * j + 1],
+				                fdata[RGB_SAMPLES * j + 2]);
+			ps.AddRGBColor(name, v.data(), n);
 		} else if (type == PARAM_TYPE_STRING) {
 			std::string *strings = new std::string[nItems];
 			for (std::uint32_t j = 0; j < nItems; ++j)
