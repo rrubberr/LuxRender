@@ -52,7 +52,7 @@ namespace lux2
         theta *= PI * FloatP(0.25f);
 
         // Degeneracy at the origin (was early return).
-        const MaskP origin = (sx == FloatP(0.f)) && (sy == FloatP(0.f));
+        const MaskP origin = eq(sx, FloatP(0.f)) && eq(sy, FloatP(0.f));
         enoki::masked(r, origin) = FloatP(0.f);
         enoki::masked(theta, origin) = FloatP(0.f);
 

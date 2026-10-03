@@ -262,6 +262,7 @@ namespace lux2
         d.name = name;
         d.params = params;
         d.toWorld = m_xform.current();
+        d.reverseOrientation = gs().reverseOrientation;
         d.material = gs().material;
 
         if (gs().areaLightActive)

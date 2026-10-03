@@ -60,6 +60,9 @@ namespace lux2
         ParamSet params;   // shape parameters
         Transform toWorld; // object-to-world at declaration time
 
+        // Graphics state ReverseOrientation flag.
+        bool reverseOrientation = false;
+
         // Material binding.
         MaterialBinding material;
 

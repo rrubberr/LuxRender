@@ -36,8 +36,29 @@
 #include <cstdio>
 #include <limits>
 
+#if defined(PATH_DEBUG) || defined(LAMP_DEBUG)
+#include <atomic>
+#endif
+
 namespace lux2
 {
+#ifdef PATH_DEBUG
+    namespace
+    {
+        // First pixel dump flag.
+        std::atomic<bool> g_fb_hdr{false};
+    } // namespace
+#endif
+
+#ifdef LAMP_DEBUG
+    namespace
+    {
+        // Caps on lamp packet dumps.
+        std::atomic<long> g_lamp_edgeDumps{0};
+        std::atomic<long> g_lamp_leDumps{0};
+    } // namespace
+#endif
+
     namespace
     {
         // Power heuristic for combining two sampling strategies.
@@ -65,7 +86,8 @@ namespace lux2
     SWCSpectrumP PathIntegrator::WalkPath(const Scene &scene, Sampler &sampler,
                                           const RayP &primary,
                                           const SpectrumWavelengthsP &sw,
-                                          FloatP *alphaOut) const
+                                          FloatP *alphaOut,
+                                          SWCSpectrumP *lemOut) const
     {
         const EmbreeScene *embree = scene.GetEmbree();
         const BsdfPtrTable &table = scene.GetBsdfTable();
@@ -74,8 +96,9 @@ namespace lux2
         const FloatP invNLights =
             nLights > 0 ? FloatP(1.f / float(nLights)) : FloatP(0.f);
 
-        const bool FULL_MIS = true; // full MIS
-        const bool NEE = m_directLightSampling;
+        const bool FULL_MIS = (m_lightMode == LightMode::MIS);
+        const bool NEE =
+            (m_lightMode != LightMode::BSDF) && m_directLightSampling;
         const bool includeEnv = m_includeEnvironment;
         const int maxDepth = m_maxDepth;
         const bool rrEfficiency = (m_rrStrategy == "efficiency");
@@ -100,8 +123,6 @@ namespace lux2
 
         while (any(alive))
         {
-            // Fixed 8-dim sample budget for this bounce.
-            sampler.Advance();
             const Point2fP u2bsdf = sampler.Next2D();
             const FloatP ucomp = sampler.Next1D();
             const FloatP urr = sampler.Next1D();
@@ -142,14 +163,14 @@ namespace lux2
                                 light->Pdf_L(prevP, prevN, Point3fP(0.f),
                                              Normal3fP(0.f), la) *
                                 invNLights;
-                            envW = select(specularBounce || depth == Int32P(0),
+                            envW = select(specularBounce || eq(depth, Int32P(0)),
                                           FloatP(1.f), misWeight(prevPdf, pdfLdir));
                         }
                         L = select(la, L + envW * throughput * light->Le(ray, la), L);
                     }
                 }
                 // Escaped to the background.
-                alpha = select(miss && depth == Int32P(0), FloatP(0.f), alpha);
+                alpha = select(miss && eq(depth, Int32P(0)), FloatP(0.f), alpha);
                 alive &= !miss;
             }
 
@@ -158,14 +179,14 @@ namespace lux2
             if (any(hitMask))
             {
                 // A primary ray that lands on geometry is opaque coverage.
-                alpha = select(hitMask && depth == Int32P(0), FloatP(1.f), alpha);
+                alpha = select(hitMask && eq(depth, Int32P(0)), FloatP(1.f), alpha);
 
                 const Point3fP p = hit.p;
                 const Normal3fP ng = hit.ngeo;
                 const MaskP entering = dot(ray.d, ng) < FloatP(0.f);
-                // lux never flips the shading normal to face the ray: BxDFs
+                // lux never flips the shading normal to face the ray, BxDFs
                 // work in a frame built on dgShading.nn and side logic runs
-                // through ng. Here, n is the interpolated shading normal.
+                // through ng.
                 const Normal3fP n = hit.sh_n;
 
                 DifferentialGeometryP dg;
@@ -184,29 +205,117 @@ namespace lux2
                 const Vector3fP wo = -ray.d;
                 const BSDFPtr bsdf = table.Gather(hit.matID, hitMask);
 
+#ifdef LAMP_DEBUG
+                // Primary packet straddling the lamp silhouette.
+                {
+                    const MaskP primary = hitMask && eq(depth, Int32P(0));
+                    const MaskP lamp = primary && (hit.lightID >= Int32P(0));
+                    if (any(lamp) && any(primary && !lamp) &&
+                        g_lamp_edgeDumps.fetch_add(1) < 8)
+                    {
+                        float t[PACKET_WIDTH], prim[PACKET_WIDTH];
+                        uint32_t mat[PACKET_WIDTH];
+                        int32_t lid[PACKET_WIDTH];
+                        enoki::store_unaligned(t, hit.t);
+                        enoki::store_unaligned(mat, hit.matID);
+                        enoki::store_unaligned(lid, hit.lightID);
+                        enoki::store_unaligned(prim,
+                                               select(primary, FloatP(1.f), FloatP(0.f)));
+                        fprintf(stderr, "[LAMP EDGE packet] lane: t matID lightID\n");
+                        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                            fprintf(stderr, "  lane %zu: %8.5f %5u %4d%s\n",
+                                    i, t[i], mat[i], lid[i],
+                                    prim[i] > 0.f ? "" : " (inactive)");
+                    }
+                }
+#endif
+
                 // Emission on hit.
                 MaskP emCount = hitMask && (hit.lightID >= Int32P(0));
                 if (!FULL_MIS && NEE)
                     emCount = emCount && specularBounce;
+                SWCSpectrumP emTerm(0.f); // total emission added this bounce
+#ifdef LAMP_DEBUG
+                // Lane emission factors.
+                SWCSpectrumP dbgLe(0.f);
+                FloatP dbgEmW(0.f), dbgTput(0.f);
+                MaskP dbgLa(false);
+#endif
                 if (any(emCount))
                 {
                     const int nArea = scene.AreaLightCount();
                     for (int a = 0; a < nArea; ++a)
                     {
                         const Light *al = scene.GetAreaLight(a);
-                        const MaskP la = emCount && (hit.lightID == Int32P(a));
+                        const MaskP la = emCount && eq(hit.lightID, Int32P(a));
                         if (!any(la))
                             continue;
                         FloatP emW(1.f);
                         if (FULL_MIS && NEE)
                         {
+                            // Shading normal n.
                             const FloatP pdfLEmitter =
                                 al->Pdf_L(prevP, prevN, p, n, la) * invNLights;
                             emW = select(specularBounce, FloatP(1.f),
                                          misWeight(prevPdf, pdfLEmitter));
                         }
-                        L = select(la, L + emW * throughput * al->Le(dg, sw, wo, la), L);
+                        const SWCSpectrumP LeRaw = al->Le(dg, sw, wo, la);
+                        const SWCSpectrumP Lem = emW * throughput * LeRaw;
+#ifdef LAMP_DEBUG
+                        dbgLe = select(la, LeRaw, dbgLe);
+                        dbgEmW = select(la, emW, dbgEmW);
+                        dbgTput = select(la, throughput, dbgTput);
+                        dbgLa = dbgLa || la;
+#endif
+                        emTerm = emTerm + select(la, Lem, SWCSpectrumP(0.f));
+                        L = select(la, L + Lem, L);
                     }
+                }
+#ifdef LAMP_DEBUG
+                // Any visible lamp lane that ended up with zero emission.
+                {
+                    const MaskP lampLane =
+                        hitMask && eq(depth, Int32P(0)) && (hit.lightID >= Int32P(0));
+                    const MaskP dead = lampLane && IsBlack(emTerm);
+                    if (any(dead) && g_lamp_leDumps.fetch_add(1) < 8)
+                    {
+                        const int nArea = scene.AreaLightCount();
+                        float ngd[PACKET_WIDTH], nd[PACKET_WIDTH],
+                              em[PACKET_WIDTH], dmask[PACKET_WIDTH],
+                              hmask[PACKET_WIDTH], lamask[PACKET_WIDTH],
+                              leraw[PACKET_WIDTH], emw[PACKET_WIDTH],
+                              tput[PACKET_WIDTH];
+                        uint32_t lid[PACKET_WIDTH];
+                        enoki::store_unaligned(ngd, dot(dg.ng, wo));
+                        enoki::store_unaligned(nd, dot(dg.n, wo));
+                        enoki::store_unaligned(em, emTerm);
+                        enoki::store_unaligned(lid, hit.lightID);
+                        enoki::store_unaligned(dmask,
+                                               select(dead, FloatP(1.f), FloatP(0.f)));
+                        enoki::store_unaligned(hmask,
+                                               select(hitMask, FloatP(1.f), FloatP(0.f)));
+                        enoki::store_unaligned(lamask,
+                                               select(dbgLa, FloatP(1.f), FloatP(0.f)));
+                        enoki::store_unaligned(leraw, dbgLe);
+                        enoki::store_unaligned(emw, dbgEmW);
+                        enoki::store_unaligned(tput, dbgTput);
+                        fprintf(stderr,
+                                "[LAMP LE packet] nArea=%d lane: hit la ng.wo n.wo LeRaw emW tput emTerm lightID\n",
+                                nArea);
+                        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                            fprintf(stderr,
+                                    "  lane %zu: %3.0f %3.0f %9.5f %9.5f %9.4g %6.3f %6.3f %9.4g %4d%s\n",
+                                    i, hmask[i], lamask[i], ngd[i], nd[i],
+                                    leraw[i], emw[i], tput[i], em[i], lid[i],
+                                    dmask[i] > 0.f ? " <- dead" : "");
+                    }
+                }
+#endif
+                if (lemOut)
+                {
+                    // Visible emission only AOV.
+                    const MaskP d0 = emCount && eq(depth, Int32P(0));
+                    *lemOut = select(d0, *lemOut + emTerm, *lemOut);
                 }
 
                 // Depth limit.
@@ -222,7 +331,7 @@ namespace lux2
                     for (int k = 0; k < nLights; ++k)
                     {
                         const Light *light = lights[k].get();
-                        const MaskP la = hitAlive && (lightIdx == UInt32P(uint32_t(k)));
+                        const MaskP la = hitAlive && eq(lightIdx, UInt32P(uint32_t(k)));
                         if (!any(la))
                             continue;
                         Point3fP lightP(0.f, 0.f, 0.f);
@@ -237,7 +346,8 @@ namespace lux2
                         const FloatP pdfL = pdfPos * invNLights;
                         // Offset toward the side the path arrived on.
                         const Point3fP off = OffsetRay(p, ng, -ray.d, FloatP(EPS_RAY));
-                        const FloatP tmax = enoki::any(light->IsInfinite())
+                        // IsInfinite() is a scalar virtual; branch directly.
+                        const FloatP tmax = light->IsInfinite()
                                                 ? INF
                                                 : enoki::norm(lightP - p) *
                                                       (FloatP(1.f) - FloatP(EPS_RAY));
@@ -331,13 +441,18 @@ namespace lux2
 
         const FloatP lane = enoki::arange<FloatP>();
 
+#ifdef PATH_DEBUG
+        // Tile debug accumulators.
+        double fb_Lsum = 0., fb_LumSum = 0., fb_alphaSum = 0., fb_n = 0., fb_maxL = 0.;
+#endif
+#ifdef LAMP_DEBUG
+        long lamp_mixedPackets = 0;
+#endif
+
         for (int py = tile.y0; py < tile.y1; ++py)
         {
             for (int px = tile.x0; px < tile.x1; px += int(PACKET_WIDTH))
             {
-                const FloatP x = FloatP(float(px)) + lane + FloatP(0.5f);
-                const FloatP y = FloatP(float(py)) + FloatP(0.5f);
-
                 const uint64_t seedOffset =
                     (sampleBasis * 0x9E3779B97F4A7C15ull) ^
                     (uint64_t(px) * 0xBF58476D1CE4E5B9ull) ^
@@ -346,6 +461,12 @@ namespace lux2
 
                 for (uint32_t s = 0; s < spp; ++s)
                 {
+                    // One sample sequence per (pixel, spp).
+                    sampler.Advance();
+                    const Point2fP jitter = sampler.Next2D();
+                    const FloatP x = FloatP(float(px)) + lane + jitter.x();
+                    const FloatP y = FloatP(float(py)) + jitter.y();
+
                     SpectrumWavelengthsP sw;
                     sw.Sample(sampler.Next1D());
 
@@ -353,9 +474,19 @@ namespace lux2
                     FloatP weight;
                     camera.GenerateRay(x, y, FloatP(0.f), &ray, &weight);
                     ray.wavelengths = sw.w;
+#ifdef LAMP_DEBUG
+                    // Primary ray mask as handed to WalkPath.
+                    const UInt32P primaryMask = ray.mask;
+#endif
 
                     FloatP alpha;
+#ifdef LAMP_COVERAGE
+                    SWCSpectrumP lem(0.f);
+                    const SWCSpectrumP L =
+                        WalkPath(scene, sampler, ray, sw, &alpha, &lem);
+#else
                     const SWCSpectrumP L = WalkPath(scene, sampler, ray, sw, &alpha);
+#endif
 #ifdef PATH_DEBUG
                     {
                         float La[PACKET_WIDTH], lu[PACKET_WIDTH], aa[PACKET_WIDTH];
@@ -364,12 +495,12 @@ namespace lux2
                         enoki::store_unaligned(aa, alpha);
                         for (size_t i = 0; i < PACKET_WIDTH; ++i)
                         {
-                            g_fb_Lsum += La[i];
-                            g_fb_LumSum += lu[i];
-                            g_fb_alphaSum += aa[i] > 0.f ? 1.0 : 0.0;
-                            g_fb_n += 1.0;
-                            if (La[i] > g_fb_maxL)
-                                g_fb_maxL = La[i];
+                            fb_Lsum += La[i];
+                            fb_LumSum += lu[i];
+                            fb_alphaSum += aa[i] > 0.f ? 1.0 : 0.0;
+                            fb_n += 1.0;
+                            if (La[i] > fb_maxL)
+                                fb_maxL = La[i];
                         }
                         if (!g_fb_hdr && px == tile.x0 && py == tile.y0)
                         {
@@ -387,16 +518,75 @@ namespace lux2
                         }
                     }
 #endif
+#ifdef LAMP_DEBUG
+                    {
+                        // Mixed-coverage packet: some lanes hit, some missed.
+                        float aa[PACKET_WIDTH];
+                        enoki::store_unaligned(aa, alpha);
+                        bool mixed = false;
+                        for (size_t i = 1; i < PACKET_WIDTH; ++i)
+                            mixed |= (aa[i] > 0.f) != (aa[0] > 0.f);
+                        if (mixed && ++lamp_mixedPackets <= 8)
+                        {
+                            uint32_t pm[PACKET_WIDTH];
+                            enoki::store_unaligned(pm, primaryMask);
+                            fprintf(stderr,
+                                    "[LAMP MIXED tile(%d,%d) px=%d py=%d s=%u] alpha=[",
+                                    tile.x0, tile.y0, px, py, s);
+                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                                fprintf(stderr, "%.4g ", aa[i]);
+                            fprintf(stderr, "] primaryMask=[");
+                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                                fprintf(stderr, "%08x ", pm[i]);
+                            fprintf(stderr, "] o=[");
+                            float ox[PACKET_WIDTH], oy[PACKET_WIDTH], oz[PACKET_WIDTH];
+                            enoki::store_unaligned(ox, ray.o.x());
+                            enoki::store_unaligned(oy, ray.o.y());
+                            enoki::store_unaligned(oz, ray.o.z());
+                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                                fprintf(stderr, "(%g,%g,%g) ", ox[i], oy[i], oz[i]);
+                            fprintf(stderr, "]\n");
+                        }
+                    }
+#endif
+#ifdef LAMP_HITAOV
+                    // Hit AOV encoded by wavelength 
+                    //   lamp, facet normal faces eye  -> red   (630)
+                    //   lamp, facet normal faces away -> blue  (450)
+                    //   other geometry                -> green (530)
+                    //   miss                          -> black
+                    RayP probe = ray;
+                    HitP ph;
+                    scene.GetEmbree()->Intersect(probe, ph, Coherent::No);
+                    const MaskP isLamp = ph.hit && (ph.lightID >= Int32P(0));
+                    const MaskP lampFront =
+                        isLamp && (dot(ph.ngeo, -probe.d) > FloatP(0.f));
+                    SpectrumWavelengthsP swAov;
+                    swAov.FromWavelength(select(
+                        isLamp, select(lampFront, FloatP(630.f), FloatP(450.f)),
+                        FloatP(530.f)));
+                    const SWCSpectrumP Lout =
+                        select(ph.hit, SWCSpectrumP(1.f), SWCSpectrumP(0.f));
+                    dest.Splat(x, y, Lout, swAov, alpha, weight, 0);
+#elif defined(LAMP_COVERAGE)
+                    // Emission AOV to splat Lem with the real sw.
+                    dest.Splat(x, y, lem, sw, alpha, weight, 0);
+#else
                     dest.Splat(x, y, L, sw, alpha, weight, 0);
+#endif
                 } // spp
             }
         }
 #ifdef PATH_DEBUG
-        fprintf(stderr, "[FB AGG] n=%.0f Lsum=%.4g maxL=%.4g LumSum=%.4g alphaCount=%.0f meanLumOverAlpha=%.4g\n",
-                g_fb_n, g_fb_Lsum, g_fb_maxL, g_fb_LumSum, g_fb_alphaSum,
-                g_fb_alphaSum > 0 ? g_fb_LumSum / g_fb_alphaSum : 0.0);
-        g_fb_Lsum = g_fb_LumSum = g_fb_alphaSum = g_fb_n = g_fb_maxL = 0;
-        g_fb_hdr = false;
+        fprintf(stderr,
+                "[FB AGG tile(%d,%d)] n=%.0f Lsum=%.4g maxL=%.4g LumSum=%.4g alphaCount=%.0f meanLumOverAlpha=%.4g\n",
+                tile.x0, tile.y0, fb_n, fb_Lsum, fb_maxL, fb_LumSum, fb_alphaSum,
+                fb_alphaSum > 0 ? fb_LumSum / fb_alphaSum : 0.0);
+#endif
+#ifdef LAMP_DEBUG
+        if (lamp_mixedPackets > 0)
+            fprintf(stderr, "[LAMP tile(%d,%d)] mixedPackets=%ld\n",
+                    tile.x0, tile.y0, lamp_mixedPackets);
 #endif
     }
 
@@ -413,13 +603,21 @@ namespace lux2
             p ? p->FindOneBool("includeenvironment", true) : true;
         const bool directLightSampling =
             p ? p->FindOneBool("directlightsampling", true) : true;
+        // Debug estimator selection: "mis" (default), "nee", or "bsdf".
+        const std::string lightModeStr =
+            p ? p->FindOneString("lightmode", "mis") : "mis";
+        PathIntegrator::LightMode lightMode = PathIntegrator::LightMode::MIS;
+        if (lightModeStr == "nee")
+            lightMode = PathIntegrator::LightMode::NEE;
+        else if (lightModeStr == "bsdf")
+            lightMode = PathIntegrator::LightMode::BSDF;
         // "lightstrategy" is accepted and ignored.
         if (p)
             p->EraseString("lightstrategy");
 
         return std::make_shared<PathIntegrator>(
             maxDepth, rrContinueProb, rrStrategy,
-            includeEnvironment, directLightSampling);
+            includeEnvironment, directLightSampling, lightMode);
     }
 
     LUX2_REGISTER_SURFACE_INTEGRATOR(PathIntegrator, "path");

@@ -93,7 +93,7 @@ namespace lux2
             const Vector3f e1 = t.v1 - t.v0;
             const Vector3f e2 = t.v2 - t.v0;
             const Vector3f cr = enoki::cross(e1, e2);
-            const float area = 0.5f * std::sqrt(enoki::dot(cr, cr));
+            const float area = 0.5f * enoki::sqrt(enoki::dot(cr, cr));
             m_totalArea += area;
             m_cdf[i] = m_totalArea;
         }
@@ -101,9 +101,13 @@ namespace lux2
 
     SWCSpectrumP AreaLight::Le(const RayP &ray, MaskP active) const
     {
+        // TODO: n=(0,0,1) and uv=(0,0). Correct for constant Le textures;
+        // wrong for UV-mapped or direction dependent emitters (need a real
+        // ShadeHit dg at emitter intersection).
         DifferentialGeometryP dg;
         dg.p = ray(ray.maxt);
         dg.n = Normal3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));
+        dg.ng = dg.n;
         dg.uv_u = FloatP(0.f);
         dg.uv_v = FloatP(0.f);
 
@@ -115,10 +119,14 @@ namespace lux2
 
     SWCSpectrumP AreaLight::Le(const DifferentialGeometryP &dg,
                                const SpectrumWavelengthsP &sw,
+                               const Vector3fP &wo,
                                MaskP active) const
     {
-        // Read the emission texture at the real hit point.
-        return m_Le->Evaluate(dg, sw, active) * FloatP(m_gain);
+        // One sided emission is a geometric property, so test the face
+        // normal.
+        const MaskP front = active && (dot(dg.ng, wo) > FloatP(0.f));
+        return select(front, m_Le->Evaluate(dg, sw, front) * FloatP(m_gain),
+                      SWCSpectrumP(0.f));
     }
 
     MaskP AreaLight::Sample_L(const SpectrumWavelengthsP &sw,
@@ -209,14 +217,15 @@ namespace lux2
         enoki::masked(*lightN, active) = nl;
         enoki::masked(*pdf, active) = enoki::select(valid, pdfVal, FloatP(0.f));
 
-        // Emitted radiance: Le * gain * PI.
+        // Emitted radiance = plain Le * gain.
         DifferentialGeometryP dg;
         dg.p = lp;
         dg.n = nl;
+        dg.ng = nl; // Le's sidedness test reads the face normal.
         dg.uv_u = FloatP(0.f);
         dg.uv_v = FloatP(0.f);
         enoki::masked(*LeOut, active) =
-            m_Le->Evaluate(dg, sw, active) * FloatP(m_gain * PI);
+            m_Le->Evaluate(dg, sw, active) * FloatP(m_gain);
 
         return valid;
     }
@@ -249,7 +258,7 @@ namespace lux2
     {
         // Emission color/texture.
         std::shared_ptr<ColorTexture> le;
-        const std::string leName = ctx.params ? ctx.params->FindTexture("Le") : "";
+        const std::string leName = ctx.params ? ctx.params->FindTexture("L") : "";
         if (!leName.empty() && ctx.colorTextures)
         {
             auto it = ctx.colorTextures->find(leName);
@@ -259,7 +268,7 @@ namespace lux2
         if (!le)
         {
             const RGBColor rgb =
-                ctx.params ? ctx.params->FindOneRGBColor("Le", RGBColor(1.f))
+                ctx.params ? ctx.params->FindOneRGBColor("L", RGBColor(1.f))
                            : RGBColor(1.f);
             const RGBColorP rgbP(FloatP(rgb.r()), FloatP(rgb.g()), FloatP(rgb.b()));
             le = std::make_shared<ConstantColorTexture>(rgbP, /*illuminant=*/true);

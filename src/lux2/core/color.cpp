@@ -28,8 +28,6 @@
 namespace lux2
 {
 
-    using namespace enoki;
-
     // CIE matching functions carry this scale. Monochromatic SWA.
     static constexpr Float CIE_SCALE =
         683.f * (WAVELENGTH_END - WAVELENGTH_START);

@@ -21,6 +21,7 @@
 
 #include "core/paramset.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstring>
 #include <sstream>
@@ -1476,6 +1477,54 @@ namespace lux2
         dump("color", spectra);
         dump("string", strings);
         dump("texture", textures);
+        return oss.str();
+    }
+
+    std::string ParamSet::DedupKey() const
+    {
+        // Serialize every parameter's name and values.
+        std::ostringstream oss;
+
+        auto dumpScalar = [&oss](const char *type, const auto &v)
+        {
+            std::vector<std::pair<std::string, std::string>> rows;
+            for (const auto *item : v)
+            {
+                std::ostringstream rs;
+                for (std::uint32_t i = 0; i < item->nItems; ++i)
+                    rs << item->data[i] << ',';
+                rows.emplace_back(item->name, rs.str());
+            }
+            std::sort(rows.begin(), rows.end());
+            for (const auto &r : rows)
+                oss << type << ' ' << r.first << '=' << r.second << ';';
+        };
+
+        auto dumpVec3 = [&oss](const char *type, const auto &v)
+        {
+            std::vector<std::pair<std::string, std::string>> rows;
+            for (const auto *item : v)
+            {
+                std::ostringstream rs;
+                for (std::uint32_t i = 0; i < item->nItems; ++i)
+                    rs << item->data[i][0] << ',' << item->data[i][1] << ','
+                       << item->data[i][2] << ',';
+                rows.emplace_back(item->name, rs.str());
+            }
+            std::sort(rows.begin(), rows.end());
+            for (const auto &r : rows)
+                oss << type << ' ' << r.first << '=' << r.second << ';';
+        };
+
+        dumpScalar("int", ints);
+        dumpScalar("bool", bools);
+        dumpScalar("float", floats);
+        dumpVec3("point", points);
+        dumpVec3("vector", vectors);
+        dumpVec3("normal", normals);
+        dumpVec3("color", spectra);
+        dumpScalar("string", strings);
+        dumpScalar("tex", textures);
         return oss.str();
     }
 

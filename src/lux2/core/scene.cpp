@@ -30,6 +30,7 @@
 
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace lux2
@@ -177,8 +178,8 @@ namespace lux2
                     << m.namedRef << "'";
                 return 0;
             }
-            // Dedup by plugin name.
-            const std::string key = "!" + m.pluginName;
+            // Dedup inline bindings by plugin name and parameter value.
+            const std::string key = "!" + m.pluginName + "|" + m.params.DedupKey();
             auto it = matIds.find(key);
             if (it != matIds.end())
                 return it->second;
@@ -241,6 +242,23 @@ namespace lux2
             const std::uint32_t matID = resolveMatID(shape.material);
             MeshDesc md;
             s->Tessellate(Transform(), md.tris);
+
+            // Orientation parity with legacy DifferentialGeometry::AdjustNormal
+            // for ReverseOrientation XOR when handedness swapping is in effect.
+            // Flip both geometric and shading normal so Ng and sh_n stay consistent.
+            if (shape.reverseOrientation ^ shape.toWorld.SwapsHandedness())
+            {
+                for (auto &td : md.tris)
+                {
+                    std::swap(td.v1, td.v2);
+                    std::swap(td.n1, td.n2);
+                    std::swap(td.uv1, td.uv2);
+                    td.n0 = -td.n0;
+                    td.n1 = -td.n1;
+                    td.n2 = -td.n2;
+                }
+            }
+
             for (auto &td : md.tris)
             {
                 td.matID = matID;
@@ -385,7 +403,7 @@ namespace lux2
         {
             auto &filmReg = DynamicLoader::registeredFilms();
             const std::string fname =
-                desc.filmName.empty() ? "null" : desc.filmName;
+                desc.filmName.empty() ? "fleximage" : desc.filmName;
             auto it = filmReg.find(fname);
             if (it != filmReg.end())
             {

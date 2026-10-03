@@ -32,7 +32,7 @@ namespace lux2
         // Component wise divide.
         FloatP guarded_div(const FloatP &num, const FloatP &den)
         {
-            return select(den != FloatP(0.f), num / den, FloatP(0.f));
+            return select(neq(den, FloatP(0.f)), num / den, FloatP(0.f));
         }
 
         // FresnelModel is a per packet enum, so the predicates reduce

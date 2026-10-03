@@ -38,14 +38,24 @@ namespace lux2
     class PathIntegrator : public SurfaceIntegrator
     {
     public:
+        // Transport estimator selection (debug):
+        enum class LightMode
+        {
+            MIS,
+            NEE,
+            BSDF
+        };
+
         PathIntegrator(int maxDepth, float rrContinueProb,
                        const std::string &rrStrategy,
-                       bool includeEnvironment, bool directLightSampling)
+                       bool includeEnvironment, bool directLightSampling,
+                       LightMode lightMode = LightMode::MIS)
             : m_maxDepth(maxDepth),
               m_rrContinueProb(rrContinueProb),
               m_rrStrategy(rrStrategy),
               m_includeEnvironment(includeEnvironment),
-              m_directLightSampling(directLightSampling) {}
+              m_directLightSampling(directLightSampling),
+              m_lightMode(lightMode) {}
 
         int PassCount() const override { return 1; }
 
@@ -61,22 +71,26 @@ namespace lux2
         const std::string &RRStrategy() const { return m_rrStrategy; }
         bool IncludeEnvironment() const { return m_includeEnvironment; }
         bool DirectLightSampling() const { return m_directLightSampling; }
+        LightMode GetLightMode() const { return m_lightMode; }
 
         static std::shared_ptr<SurfaceIntegrator> CreateSurfaceIntegrator(
             const PluginContext &ctx);
 
     private:
-        // Packet random walk.
+        // Packet random walk. When lemOut is real it receives the
+        // emission on hit term only for the debug AOV)
         SWCSpectrumP WalkPath(const Scene &scene, Sampler &sampler,
                               const RayP &primary,
                               const SpectrumWavelengthsP &sw,
-                              FloatP *alpha) const;
+                              FloatP *alpha,
+                              SWCSpectrumP *lemOut = nullptr) const;
 
         int m_maxDepth;
         float m_rrContinueProb;
         std::string m_rrStrategy;
         bool m_includeEnvironment;
         bool m_directLightSampling;
+        LightMode m_lightMode;
 
         const Scene *m_scene = nullptr;
     };

@@ -236,6 +236,27 @@ namespace lux2
 
         // Properties
 
+        // True when the linear part has a negative determinant, i.e. the
+        // transform mirrors space and flips surface orientation.
+        template <size_t N = Size, enoki::enable_if_t<N == 4> = 0>
+        bool SwapsHandedness() const
+        {
+            // m[row][col] = matrix.coeff(col).coeff(row); det of upper-left 3x3.
+            const Scalar a00 = matrix.coeff(0).coeff(0),
+                         a01 = matrix.coeff(1).coeff(0),
+                         a02 = matrix.coeff(2).coeff(0),
+                         a10 = matrix.coeff(0).coeff(1),
+                         a11 = matrix.coeff(1).coeff(1),
+                         a12 = matrix.coeff(2).coeff(1),
+                         a20 = matrix.coeff(0).coeff(2),
+                         a21 = matrix.coeff(1).coeff(2),
+                         a22 = matrix.coeff(2).coeff(2);
+            const Scalar det = a00 * (a11 * a22 - a12 * a21) -
+                               a01 * (a10 * a22 - a12 * a20) +
+                               a02 * (a10 * a21 - a11 * a20);
+            return det < Scalar(0);
+        }
+
         // Test for a scale component.
         Mask has_scale() const
         {

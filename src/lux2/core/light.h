@@ -51,9 +51,12 @@ namespace lux2
         // Radiance emitted along `ray`.
         virtual SWCSpectrumP Le(const RayP &ray, MaskP active = MaskP(true)) const = 0;
 
-        // Radiance emitted from a surface point for the hit emission term.
+        // wo is the direction from the hitpoint towards the ray origin (-ray.d).
+        // Area lights are one sided so must return 0 where shading normal faces
+        // away from wo; infinite lights ignore.
         virtual SWCSpectrumP Le(const DifferentialGeometryP &dg,
                                 const SpectrumWavelengthsP &sw,
+                                const Vector3fP &wo,
                                 MaskP active = MaskP(true)) const = 0;
 
         // NEE / photon-emission position sampler.

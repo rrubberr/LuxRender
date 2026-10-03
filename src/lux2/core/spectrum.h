@@ -73,13 +73,10 @@ namespace lux2
         Value_ MaxComponent() const { return hmax(*this); }
 
         // Average across wavelength samples.
-        Value_ Average() const
-        {
-            return hsum(*this) * (Scalar(1.f) / Scalar(Size_));
-        }
+        Value_ Average() const { return hmean(*this); }
 
         // True where every wavelength sample is exactly zero.
-        auto IsBlack() const { return all(*this == Value_(0.f)); }
+        auto IsBlack() const { return all(eq(*this, Value_(0.f))); }
     };
 
     // Lane masking.
@@ -100,7 +97,7 @@ namespace lux2
     using SWCSpectrumP = FloatP;
 
     inline FloatP Clamped(const FloatP &s) { return enoki::max(s, FloatP(0.f)); }
-    inline MaskP IsBlack(const FloatP &s) { return s == FloatP(0.f); }
+    inline MaskP IsBlack(const FloatP &s) { return eq(s, FloatP(0.f)); }
 
     // ---------------------------------------------------------------------------
     // RGBColor
@@ -137,10 +134,7 @@ namespace lux2
         }
 
         // Unweighted mean of the channels.
-        Value_ Filter() const
-        {
-            return hsum(*this) * (Scalar(1.f) / Scalar(Size_));
-        }
+        Value_ Filter() const { return hmean(*this); }
 
         // Componentwise power.
         RGBColor_ Pow(const Value_ &e) const

@@ -45,15 +45,15 @@ namespace lux2
         FloatP time;        // motion blur time
         FloatP wavelengths; // SWA wavelengths
 
-        // Visibility-group bitmask.
-        UInt32P mask;
+        // Visibility-group bitmask. Default to all.
+        UInt32P mask = UInt32P(0xFFFFFFFFu);
 
         // Integrator payload
-        SWCSpectrumP throughput; // accumulated spectral throughput
-        FloatP pdf;              // PDF of the current direction
-        Int32P depth;            // bounce count
-        MaskP specularBounce;    // previous vertex was a specular interaction
-        MaskP alive;             // lane activity mask
+        SWCSpectrumP throughput = SWCSpectrumP(1.f); // accumulated spectral throughput
+        FloatP pdf = FloatP(0.f);                    // PDF of the current direction
+        Int32P depth = Int32P(0);                    // bounce count
+        MaskP specularBounce = MaskP(false);         // previous vertex was a specular interaction
+        MaskP alive = MaskP(true);                   // lane activity mask
 
         RayP() = default;
 

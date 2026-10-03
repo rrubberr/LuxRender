@@ -144,6 +144,9 @@ namespace lux2
         void Clear();
         std::string ToString() const;
 
+        // Serialization used to dedup inline materials.
+        std::string DedupKey() const;
+
     private:
         std::vector<ParamSetItem<int> *> ints;
         std::vector<ParamSetItem<bool> *> bools;

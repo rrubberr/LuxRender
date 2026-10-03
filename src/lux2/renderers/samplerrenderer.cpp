@@ -50,35 +50,24 @@ namespace lux2
 
     namespace
     {
-        // Per-worker state: a sampler clone plus one scratch buffer allocated
+        // Worker state holds a sampler clone plus one scratch buffer allocated
         // at the largest tile window and retargeted per item via BindScratch.
-        // Lives in an enumerable_thread_specific slot, so it persists across
-        // parallel_for_each re-entries (pause/resume).
         struct WorkerState
         {
             std::unique_ptr<Sampler> sampler;
             std::unique_ptr<Film> scratch;
         };
 
-        // --- SplatSink seam -------------------------------------------------
-        // The write policy is selected at COMPILE time by a tag, never by a
-        // virtual call inside the integrator's Enoki splat loop. RenderTile
-        // always writes into a Film&; the sink decides how that Film reaches
-        // the shared frame and how samples are accounted. This keeps the hot
-        // path free of dispatch while letting correlated samplers drop in
-        // later without touching the scheduler loop.
+        // The write policy is selected by COMPILE time for now.
         struct UncorrelatedSink
         {
         }; // scratch tile -> MergeScratch once per visit
 
         struct CorrelatedSink
         {
-        }; // atomic splat to shared frame (MLT) — not implemented yet
+        }; // atomic splat to shared frame (MLT)
 
-        // Render one work item through the given sink and commit it. The tag is
-        // a template parameter, so `if constexpr` selects exactly one branch per
-        // instantiation — no runtime dispatch, and the hot splat loop inside
-        // RenderTile is untouched.
+        // Render one work item through the given sink and commit it.
         template <class Sink>
         void RunItem(const Sink &, const Scene &scene,
                      SurfaceIntegrator &integrator, Film &film,
@@ -87,10 +76,8 @@ namespace lux2
         {
             if constexpr (std::is_same_v<Sink, UncorrelatedSink>)
             {
-                // The tile index fully determines the scratch window and merge
-                // targets. Allocate the worker's scratch once at max size, then
-                // retarget it to this tile (which also zeroes it). No coordinate
-                // is passed by the caller, so a mismatch cannot be expressed.
+                // The tile index determines the scratch window and merge
+                // targets. Allocate the worker's scratch once at max size.
                 const FilmTile ft = film.GetTile(tile);
                 const Tile tileRect{ft.x0, ft.y0, ft.x1, ft.y1};
 
@@ -102,7 +89,7 @@ namespace lux2
                 }
                 film.BindScratch(tile, *ws.scratch);
 
-                // Disjoint sample range per visit -> unique seed basis.
+                // Disjoint sample range per visit gives unique seed basis.
                 const uint64_t begin =
                     cursor.fetch_add(count, std::memory_order_relaxed);
                 integrator.RenderTile(scene, tileRect, *ws.scratch, *ws.sampler,
@@ -141,11 +128,9 @@ namespace lux2
                    "sink is not implemented yet. Falling back to tiled scratch.";
 
         // Partition the film into a tile grid. Auto tile size targets
-        // 2 x nWorkers tiles (legacy-safe default), clamped by filter halo and
-        // a 128px display-granularity cap.
-        // Filter halo: how far a splat's footprint reaches past its center. The
-        // scratch window and overlap directory are grown by this so boundary
-        // splats merge into neighbors instead of clipping.
+        // 2 * nWorkers tiles (Lux default), clamped by filter halo and
+        // a 128px granularity cap.
+        // Filter halo is how far a splat's footprint reaches past its center.
         const int haloX = int(std::ceil(filter.GetXWidth()));
         const int haloY = int(std::ceil(filter.GetYWidth()));
         int tileSize = m_tileSize;
@@ -329,11 +314,7 @@ namespace lux2
     {
         ParamSet *p = ctx.params;
         const int tileSize = p ? p->FindOneInt("tilesize", 0) : 0;
-        // Scene keys "tilespp" (and legacy "passspp") are external config and
-        // stay as-is; only the C++ symbols follow the haltSpp casing.
         int tileSpp = p ? p->FindOneInt("tilespp", 0) : 0;
-        if (tileSpp == 0 && p)
-            tileSpp = p->FindOneInt("passspp", 0);
         return std::make_shared<SamplerRenderer>(
             tileSize, uint32_t(std::max(0, tileSpp)));
     }

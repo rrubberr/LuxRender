@@ -68,7 +68,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 
 ADD_DEFINITIONS(-march=native -ftree-vectorize -funroll-loops -DHAVE_PTHREAD_H)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O2")
-add_compile_options(-w)
 
 # Where the finished binaries are collected.
 if(NOT DEFINED LUX2_RELEASE_DIR)
@@ -145,6 +144,24 @@ SET_TARGET_PROPERTIES(lux2console PROPERTIES
 	BUILD_WITH_INSTALL_RPATH TRUE
 	INSTALL_RPATH "$ORIGIN"
 )
+
+# Sanitizer compile & link flags (for debugging).
+set(SANITIZER_FLAGS
+    -O3
+    -g
+    -fno-omit-frame-pointer
+    -fno-strict-aliasing
+    -fno-optimize-sibling-calls
+    -fsanitize=address,undefined
+    -fno-sanitize-recover=all
+)
+
+# Apply to shared library and executable targets
+# target_compile_options(lux2 PRIVATE ${SANITIZER_FLAGS})
+# target_link_options(lux2 PRIVATE -fsanitize=address,undefined)
+
+# target_compile_options(lux2console PRIVATE ${SANITIZER_FLAGS})
+# target_link_options(lux2console PRIVATE -fsanitize=address,undefined)
 
 ####################
 # Collect binaries #

@@ -474,7 +474,7 @@ namespace lux2
         const FloatP du1 = u0_ - u2_, du2 = u1_ - u2_;
         const FloatP dv1 = v0_ - v2_, dv2 = v1_ - v2_;
         const FloatP det = du1 * dv2 - dv1 * du2;
-        const MaskP nonDet = det != FloatP(0.f);
+        const MaskP nonDet = neq(det, FloatP(0.f));
         const FloatP invdet = select(nonDet, FloatP(1.f) / det, FloatP(0.f));
         Vector3fP dpdu = (dp1 * dv2 - dp2 * dv1) * invdet;
         Vector3fP dpdv = (dp2 * du1 - dp1 * du2) * invdet;
