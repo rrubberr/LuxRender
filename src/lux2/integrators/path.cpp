@@ -36,7 +36,7 @@
 #include <cstdio>
 #include <limits>
 
-#if defined(PATH_DEBUG) || defined(LAMP_DEBUG)
+#if defined(PATH_DEBUG) || defined(LAMP_DEBUG) || defined(PACKET_OCCUPANCY)
 #include <atomic>
 #endif
 
@@ -57,6 +57,18 @@ namespace lux2
         std::atomic<long> g_lamp_edgeDumps{0};
         std::atomic<long> g_lamp_leDumps{0};
         std::atomic<long> g_lamp_blockDumps{0};
+    } // namespace
+#endif
+
+#ifdef PACKET_OCCUPANCY
+    namespace
+    {
+        // Per worker occupancy accumulators.
+        thread_local double g_occ_laneSum = 0.;
+        thread_local double g_occ_iters = 0.;
+        // Global cap on printed tile summaries to prevent log spam.
+        std::atomic<long> g_occ_tileDumps{0};
+        constexpr long OCC_MAX_DUMPS = 64;
     } // namespace
 #endif
 
@@ -124,6 +136,11 @@ namespace lux2
 
         while (any(alive))
         {
+#ifdef PACKET_OCCUPANCY
+            // Live lanes entering this bounce; occupancy = laneSum / iters.
+            g_occ_laneSum += double(enoki::count(alive));
+            g_occ_iters += 1.;
+#endif
             const Point2fP u2bsdf = sampler.Next2D();
             const FloatP ucomp = sampler.Next1D();
             const FloatP urr = sampler.Next1D();
@@ -495,6 +512,11 @@ namespace lux2
 #ifdef LAMP_DEBUG
         long lamp_mixedPackets = 0;
 #endif
+#ifdef PACKET_OCCUPANCY
+        // The summary reflects this tile's paths only.
+        g_occ_laneSum = 0.;
+        g_occ_iters = 0.;
+#endif
 
         for (int py = tile.y0; py < tile.y1; ++py)
         {
@@ -634,6 +656,29 @@ namespace lux2
         if (lamp_mixedPackets > 0)
             fprintf(stderr, "[LAMP tile(%d,%d)] mixedPackets=%ld\n",
                     tile.x0, tile.y0, lamp_mixedPackets);
+#endif
+#ifdef PACKET_OCCUPANCY
+        // Mean live lanes per bounce for this tile.
+        if (g_occ_iters > 0.)
+        {
+            const long dumpIdx =
+                g_occ_tileDumps.fetch_add(1, std::memory_order_relaxed);
+            if (dumpIdx < OCC_MAX_DUMPS)
+            {
+                fprintf(stderr,
+                        "[OCCUPANCY tile(%d,%d)] meanLanes=%.2f/%u "
+                        "occupancy=%.1f%% iters=%.0f\n",
+                        tile.x0, tile.y0, g_occ_laneSum / g_occ_iters,
+                        unsigned(PACKET_WIDTH),
+                        100. * (g_occ_laneSum / g_occ_iters) / double(PACKET_WIDTH),
+                        g_occ_iters);
+                if (dumpIdx == OCC_MAX_DUMPS - 1)
+                    fprintf(stderr,
+                            "[OCCUPANCY] summary cap (%ld) reached; "
+                            "suppressing further tile summaries\n",
+                            OCC_MAX_DUMPS);
+            }
+        }
 #endif
     }
 

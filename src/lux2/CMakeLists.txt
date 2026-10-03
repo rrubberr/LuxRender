@@ -66,7 +66,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 # Set compiler flags #
 ######################
 
-ADD_DEFINITIONS(-march=native -g -ftree-vectorize -funroll-loops -DHAVE_PTHREAD_H)
+ADD_DEFINITIONS(-march=native -g -ftree-vectorize -funroll-loops -DPACKET_OCCUPANCY -DHAVE_PTHREAD_H)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O2")
 
 # Where the finished binaries are collected.
