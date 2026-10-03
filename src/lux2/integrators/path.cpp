@@ -349,11 +349,8 @@ namespace lux2
                         // Offset toward the side the path arrived on.
                         const Point3fP off = OffsetRay(p, ng, -ray.d, FloatP(EPS_RAY));
                         // IsInfinite() is a scalar virtual; branch directly.
-                        // Stop short of the emitter with an absolute margin:
-                        // a purely relative shrink can still clip the
-                        // emitter's own surface near the silhouette (the
-                        // head-on NEE dark spots), while a fixed 1e-3 floor
-                        // keeps real occluders valid anywhere else.
+                        // Stop short of the emitter with an absolute margin because
+                        // a relative shrink can still clip the emitter surface.
                         const FloatP tmax =
                             light->IsInfinite()
                                 ? INF
@@ -365,13 +362,11 @@ namespace lux2
                         const MaskP tryVis = la && valid && (pdfL > FloatP(0.f));
 #ifdef LAMP_NOSHADOW
                         // Experiment 1: force visibility. Spots vanish => the
-                        // shadow ray blocks valid samples (self-occlusion or
-                        // offset/tmax handling).
+                        // shadow ray blocks valid samples.
                         const MaskP vis = tryVis;
 #elif defined(LAMP_BLOCKER)
-                        // Identify the blocker: full Intersect on the shadow
-                        // ray (visibility comes from it directly), dumping
-                        // per-lane identity of whatever occludes a sample.
+                        // Identify the blocker with full Intersect on the shadow
+                        // ray.
                         RayP probe = shadow;
                         HitP sh;
                         embree->Intersect(probe, sh, Coherent::No);
@@ -414,9 +409,8 @@ namespace lux2
                        bsdf->Eval(sw, wi, wo, dg, TransportMode::Radiance, &ev, la);
 #ifdef LAMP_LAMBERT
                         // Experiment 2: analytic Lambert with unit albedo in
-                        // place of Eval's f (the real call above still
-                        // provides pdf for MIS). Spots vanish => Eval.f is
-                        // wrong for wi near n. Judge pattern, not brightness.
+                        // place of Eval's f. Spots vanish => Eval.f is
+                        // wrong for wi near n.
                         ev.f = select(la, abs(dot(wi, n)) * FloatP(1.f / PI), ev.f);
 #endif
 

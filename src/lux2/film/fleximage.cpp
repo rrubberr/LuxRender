@@ -138,7 +138,8 @@ namespace lux2
         m_tileMutexes.reserve(m_tiles.size());
         for (size_t i = 0; i < m_tiles.size(); ++i)
             m_tileMutexes.push_back(std::make_unique<std::mutex>());
-        m_tileSampleCount.assign(m_tiles.size(), 0.0);
+        // Initialize each atomic to 0.
+        m_tileSampleCount = std::vector<std::atomic<double>>(m_tiles.size());
 
         // Scratch window domain grown by the filter halo, clamped
         // to the crop window. Record the largest area so I only
@@ -280,16 +281,16 @@ namespace lux2
     void FlexImageFilm::AddTileSampleCount(uint32_t tile, double n)
     {
         if (tile < m_tileSampleCount.size())
-            m_tileSampleCount[tile] += n;
+            m_tileSampleCount[tile].fetch_add(n, std::memory_order_relaxed);
     }
 
     double FlexImageFilm::SampleCount() const
     {
         if (m_tileSampleCount.empty())
             return m_sampleCount; // flat counter when not partitioned
-        double mn = m_tileSampleCount[0];
-        for (double v : m_tileSampleCount)
-            mn = std::min(mn, v);
+        double mn = m_tileSampleCount[0].load(std::memory_order_relaxed);
+        for (const std::atomic<double> &v : m_tileSampleCount)
+            mn = std::min(mn, v.load(std::memory_order_relaxed));
         return mn;
     }
 

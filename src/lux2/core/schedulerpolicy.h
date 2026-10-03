@@ -22,6 +22,7 @@
 #ifndef LUX2_SCHEDULERPOLICY_H
 #define LUX2_SCHEDULERPOLICY_H
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <vector>
@@ -29,74 +30,50 @@
 namespace lux2
 {
 
-    // A unit of work handed to the scheduler to advance tile by count
-    // samples this visit.
-    struct WorkItem
+    // A claimed unit of work.
+    struct Claim
     {
         uint32_t tile;
+        uint32_t begin;
         uint32_t count;
     };
 
-    // Read only view of tile scheduling state to decide where to feed.
-    // committed[t] is samples already drawn for the tile by the seed basis cursor.
-    // inFlight[t] is items queued but not yet finished.
-    struct TileState
+    // Pick the tile with the fewest claimed samples.
+    // Returns false when every tile has reached haltSpp.
+    inline bool ClaimNext(std::vector<std::atomic<uint32_t>> &cursor,
+                          int haltSpp, uint32_t chunk, uint32_t startHint,
+                          Claim &out)
     {
-        std::vector<std::atomic<uint32_t>> *committed;
-        std::vector<std::atomic<uint32_t>> *inFlight;
-        int tileCount = 0;
-        uint32_t baseCount = 16; // tileSpp
-        int haltSpp = 0;         // <= 0 disables the spp clamp
-    };
-
-    // Given current tile loads, choose the next item to feed
-    // and bump its inFlight, or decline to keep feeding.
-    template <class Feeder>
-    class BackfillPolicy
-    {
-    public:
-        virtual ~BackfillPolicy() = default;
-        virtual void Refill(Feeder &feeder, const TileState &state) = 0;
-    };
-
-    // Uniform samplers feed the tile with the fewest committed + in-flight
-    // samples so tiles converge together. Batches are clamped to not
-    // overshoot halt spp.
-    template <class Feeder>
-    class UniformBackfill final : public BackfillPolicy<Feeder>
-    {
-    public:
-        void Refill(Feeder &feeder, const TileState &state) override
+        const uint32_t n = uint32_t(cursor.size());
+        for (;;)
         {
-            uint32_t best = 0;
-            uint64_t bestLoad = UINT64_MAX;
-            for (int t = 0; t < state.tileCount; ++t)
+            uint32_t best = 0, bestV = UINT32_MAX;
+            for (uint32_t i = 0; i < n; ++i) // tiles are few; a scan is cheap
             {
-                const uint64_t load =
-                    uint64_t((*state.committed)[t].load(std::memory_order_relaxed)) +
-                    (*state.inFlight)[t].load(std::memory_order_relaxed);
-                if (load < bestLoad)
+                const uint32_t t = (i + startHint) % n;
+                const uint32_t v = cursor[t].load(std::memory_order_relaxed);
+                if (v < bestV)
                 {
-                    bestLoad = load;
-                    best = uint32_t(t);
+                    bestV = v;
+                    best = t;
                 }
             }
+            if (haltSpp > 0 && bestV >= uint32_t(haltSpp))
+                return false;
 
-            uint32_t count = state.baseCount;
-            if (state.haltSpp > 0)
+            const uint32_t c = haltSpp > 0
+                                   ? std::min(chunk, uint32_t(haltSpp) - bestV)
+                                   : chunk;
+            uint32_t expected = bestV;
+            if (cursor[best].compare_exchange_weak(expected, bestV + c,
+                                                   std::memory_order_relaxed))
             {
-                const uint64_t room =
-                    uint64_t(state.haltSpp) -
-                    std::min(uint64_t(state.haltSpp), bestLoad);
-                if (room == 0)
-                    return; // every tile is complete, stop feeding
-                count = uint32_t(std::min<uint64_t>(count, room));
+                out = Claim{best, bestV, c};
+                return true;
             }
-
-            (*state.inFlight)[best].fetch_add(1, std::memory_order_relaxed);
-            feeder.add(WorkItem{best, count});
+            // Lost the race for that tile; rescan and try again.
         }
-    };
+    }
 
 } // namespace lux2
 

@@ -25,6 +25,7 @@
 #include "core/film.h"
 #include "core/filter.h"
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -194,14 +195,13 @@ namespace lux2
         // Mutex Merge() into a shared master film.
         mutable std::mutex m_mergeMutex;
 
-        // Tile mutex over that tile's pixels in shared buffers.
-        // Merge takes the interior tile mutex, then each neighbor
-        // strip mutex, and snapshot walks tiles under mutex.
+        // Tile mutex over tile's pixels in shared buffers.
         std::vector<FilmTile> m_tiles;
         int m_tileCols = 0;
         int m_tileRows = 0;
         std::vector<std::unique_ptr<std::mutex>> m_tileMutexes;
-        std::vector<double> m_tileSampleCount;
+        // Tile sample count.
+        std::vector<std::atomic<double>> m_tileSampleCount;
 
         // Merge directory where each tile's FilmTile.ovBegin/ovCount
         // indexes a slice of the list.
