@@ -19,7 +19,7 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "samplers/ldsampler.h"
+#include "samplers/lowdiscrepancy.h"
 
 #include "core/dynload.h"
 #include "core/paramset.h"
@@ -80,28 +80,46 @@ namespace lux2
         m_sampleIndex++;
     }
 
-    FloatP LDSampler::Next1D(MaskP /*active*/)
+    FloatP LDSampler::Get1D(const UInt32P &seed, const UInt32P &sidx,
+                            const UInt32P &dim, MaskP /*active*/) const
     {
         // Shuffle the sample order per dimension, then bit-reverse.
-        const UInt32P permSeed =
-            m_scrambleSeed + UInt32P(m_dimensionIndex++);
-        const UInt32P i = permute(UInt32P(m_sampleIndex), m_sampleCount, permSeed);
-        const UInt32P scramble = sample_tea_32(m_scrambleSeed, UInt32P(0x48bc48ebu));
+        const UInt32P permSeed = seed + dim;
+        const UInt32P i = permute(sidx, m_sampleCount, permSeed);
+        const UInt32P scramble = sample_tea_32(seed, UInt32P(0x48bc48ebu));
         return radical_inverse_2(i, scramble);
     }
 
-    Point2fP LDSampler::Next2D(MaskP /*active*/)
+    Point2fP LDSampler::Get2D(const UInt32P &seed, const UInt32P &sidx,
+                              const UInt32P &dim, MaskP /*active*/) const
     {
-        const UInt32P permSeed =
-            m_scrambleSeed + UInt32P(m_dimensionIndex++);
-        const UInt32P i = permute(UInt32P(m_sampleIndex), m_sampleCount, permSeed);
-        const UInt32P scrambleX = sample_tea_32(m_scrambleSeed, UInt32P(0x98bc51abu));
-        const UInt32P scrambleY = sample_tea_32(m_scrambleSeed, UInt32P(0x04223e2du));
+        // One stream with two components via scramble.
+        const UInt32P permSeed = seed + dim;
+        const UInt32P i = permute(sidx, m_sampleCount, permSeed);
+        const UInt32P scrambleX = sample_tea_32(seed, UInt32P(0x98bc51abu));
+        const UInt32P scrambleY = sample_tea_32(seed, UInt32P(0x04223e2du));
 
         Point2fP result;
         result.x() = radical_inverse_2(i, scrambleX);
         result.y() = sobol_2(i, scrambleY);
         return result;
+    }
+
+    FloatP LDSampler::Next1D(MaskP active)
+    {
+        // Sequential view of current (scramble, sampleIndex, dimensionIndex).
+        const UInt32P dim(m_dimensionIndex);
+        FloatP v = Get1D(m_scrambleSeed, UInt32P(m_sampleIndex), dim, active);
+        ++m_dimensionIndex;
+        return v;
+    }
+
+    Point2fP LDSampler::Next2D(MaskP active)
+    {
+        const UInt32P dim(m_dimensionIndex);
+        Point2fP v = Get2D(m_scrambleSeed, UInt32P(m_sampleIndex), dim, active);
+        ++m_dimensionIndex;
+        return v;
     }
 
     std::shared_ptr<Sampler> LDSampler::CreateSampler(const PluginContext &ctx)
@@ -115,6 +133,6 @@ namespace lux2
             static_cast<uint32_t>(count), static_cast<uint64_t>(seed));
     }
 
-    LUX2_REGISTER_SAMPLER(LDSampler, "ldsampler");
+    LUX2_REGISTER_SAMPLER(LDSampler, "lowdiscrepancy");
 
 } // namespace lux2

@@ -19,8 +19,8 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_LDSAMPLER_H
-#define LUX2_LDSAMPLER_H
+#ifndef LUX2_LOWDISCREPANCY_H
+#define LUX2_LOWDISCREPANCY_H
 
 #include "core/sampler.h"
 #include "core/vecp.h"
@@ -44,10 +44,18 @@ namespace lux2
             return std::make_unique<LDSampler>(*this);
         }
 
+        uint64_t BaseSeed() const override { return m_baseSeed; }
+
         void Seed(uint64_t seedOffset, size_t wavefrontSize) override;
         void Advance() override;
         FloatP Next1D(MaskP active = MaskP(true)) override;
         Point2fP Next2D(MaskP active = MaskP(true)) override;
+        FloatP Get1D(const UInt32P &seed, const UInt32P &sidx,
+                     const UInt32P &dim,
+                     MaskP active = MaskP(true)) const override;
+        Point2fP Get2D(const UInt32P &seed, const UInt32P &sidx,
+                       const UInt32P &dim,
+                       MaskP active = MaskP(true)) const override;
         uint32_t SampleCount() const override { return m_sampleCount; }
 
         static std::shared_ptr<Sampler> CreateSampler(const PluginContext &ctx);
@@ -62,4 +70,4 @@ namespace lux2
 
 } // namespace lux2
 
-#endif // LUX2_LDSAMPLER_H
+#endif // LUX2_LOWDISCREPANCY_H

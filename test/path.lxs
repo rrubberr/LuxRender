@@ -2,7 +2,7 @@
 
 Renderer "sampler"
 
-Sampler "ldsampler"
+Sampler "lowdiscrepancy"
 
 Accelerator "embree"
 
@@ -57,7 +57,7 @@ Film "fleximage"
 	"integer displayinterval" [10]
 	"integer writeinterval" [180]
 	"integer flmwriteinterval" [900]
-	"integer halttime" [30]
+	"integer halttime" [60]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]
 

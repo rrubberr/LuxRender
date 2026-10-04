@@ -346,7 +346,7 @@ namespace lux2
         {
             auto &samplerReg = DynamicLoader::registeredSamplers();
             const std::string sname =
-                desc.samplerName.empty() ? "ldsampler" : desc.samplerName;
+                desc.samplerName.empty() ? "lowdiscrepancy" : desc.samplerName;
             auto it = samplerReg.find(sname);
             if (it != samplerReg.end())
             {

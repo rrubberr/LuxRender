@@ -101,7 +101,7 @@ std::unique_ptr<Scene> MakeEmitterScene(int spp, int haltspp, int halttime) {
     if (halttime >= 0) d.filmParams.AddInt("halttime", &halttime, 1);
 
     d.rendererName = "sampler";
-    d.samplerName = "ldsampler";
+    d.samplerName = "";
     d.samplerParams.AddInt("count", &spp, 1);
 
     d.cameraName = "perspective";
@@ -236,7 +236,7 @@ int main() {
         // Small tiles keep the per-tile cancellation latency short.
         const int tileSize = 8;
         d.rendererParams.AddInt("tilesize", &tileSize, 1);
-        d.samplerName = "ldsampler";
+        d.samplerName = "lowdiscrepancy";
         const int spp = 100000;
         d.samplerParams.AddInt("count", &spp, 1);
         d.cameraName = "perspective";

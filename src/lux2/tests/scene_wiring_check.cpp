@@ -130,7 +130,7 @@ int main() {
     // ---- 5. explicit plugin names honored -------------------------------
     {
         SceneDescription desc;
-        desc.samplerName = "ldsampler";
+        desc.samplerName = "lowdiscrepancy";
         desc.filterName = "gaussian";
         desc.cameraName = "perspective";
 

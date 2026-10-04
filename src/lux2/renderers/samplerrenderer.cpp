@@ -157,7 +157,7 @@ namespace lux2
 
         uint32_t tileSpp = m_tileSpp;
         if (tileSpp == 0)
-            tileSpp = 16; // conservative default until cost-based tuning lands
+            tileSpp = 32; // BindScratch/MergeScratch cost per visit
 
         integrator.Start(scene);
 

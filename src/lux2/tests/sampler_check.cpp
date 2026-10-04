@@ -13,8 +13,11 @@
 
 // Verifies the LDSampler.
 
-#include "samplers/ldsampler.h"
+#include "samplers/lowdiscrepancy.h"
+#include "core/qmc.h"
 #include "core/vecp.h"
+
+#include <enoki/array.h>
 
 #include <cmath>
 #include <iostream>
@@ -118,6 +121,56 @@ int main() {
         for (size_t l = 1; l < PACKET_WIDTH; ++l)
             if (float(v[l]) != float(v[0])) lanesDiffer = true;
         Check(lanesDiffer, "lanes (sequences) produce distinct values");
+    }
+
+    // ---- 6. random access == sequential, per lane -----------------------
+    // The compaction refactor reads via Get1D/Get2D(seed, sidx, dim). For a
+    // given scramble base and sample index it must yield exactly what the
+    // sequential Next* cursor produces, lane by lane (not just per packet),
+    // so compacted renders match non-compacted ones.
+    {
+        constexpr uint32_t spp = 16;
+        constexpr uint32_t nDim = 8; // covers a primary + one bounce's streams
+        LDSampler s(spp, 31);
+        s.Seed(0, PACKET_WIDTH);
+
+        // Reconstruct each lane's scramble base the way Seed() does:
+        // sample_tea_32(seq, laneIdx) with seq = baseSeed + seedOffset.
+        const UInt32P seq(uint32_t(31u) + uint32_t(0u));
+        const UInt32P scramble = sample_tea_32(seq, enoki::arange<UInt32P>());
+        bool match = true;
+        for (uint32_t i = 0; i < spp; ++i) {
+            // Snapshot the sequential draws for this sample index.
+            FloatP s1[nDim];
+            Point2fP s2[nDim];
+            // Interleave to mirror a plausible consumption order, but the
+            // pure form is order-independent, so just pull each dim once.
+            for (uint32_t d = 0; d < nDim; ++d) {
+                if (d & 1u)
+                    s2[d] = s.Next2D();
+                else
+                    s1[d] = s.Next1D();
+            }
+            s.Advance();
+
+            // Now the pure random-access form for the same (seed, sidx=i).
+            const UInt32P sidx(i);
+            for (uint32_t d = 0; d < nDim; ++d) {
+                if (d & 1u) {
+                    const Point2fP p =
+                        s.Get2D(scramble, sidx, UInt32P(d));
+                    for (size_t l = 0; l < PACKET_WIDTH; ++l) {
+                        if (float(p.x()[l]) != float(s2[d].x()[l])) match = false;
+                        if (float(p.y()[l]) != float(s2[d].y()[l])) match = false;
+                    }
+                } else {
+                    const FloatP v = s.Get1D(scramble, sidx, UInt32P(d));
+                    for (size_t l = 0; l < PACKET_WIDTH; ++l)
+                        if (float(v[l]) != float(s1[d][l])) match = false;
+                }
+            }
+        }
+        Check(match, "Get1D/Get2D equal sequential Next* per lane");
     }
 
     std::cout << (g_failures == 0 ? "ALL PASSED" : "FAILURES")

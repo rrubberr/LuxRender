@@ -36,30 +36,12 @@
 #include <cstdio>
 #include <limits>
 
-#if defined(PATH_DEBUG) || defined(LAMP_DEBUG) || defined(PACKET_OCCUPANCY)
+#ifdef PACKET_OCCUPANCY
 #include <atomic>
 #endif
 
 namespace lux2
 {
-#ifdef PATH_DEBUG
-    namespace
-    {
-        // First pixel dump flag.
-        std::atomic<bool> g_fb_hdr{false};
-    } // namespace
-#endif
-
-#ifdef LAMP_DEBUG
-    namespace
-    {
-        // Caps on lamp packet dumps.
-        std::atomic<long> g_lamp_edgeDumps{0};
-        std::atomic<long> g_lamp_leDumps{0};
-        std::atomic<long> g_lamp_blockDumps{0};
-    } // namespace
-#endif
-
 #ifdef PACKET_OCCUPANCY
     namespace
     {
@@ -96,63 +78,100 @@ namespace lux2
         m_scene = &scene;
     }
 
-    SWCSpectrumP PathIntegrator::WalkPath(const Scene &scene, Sampler &sampler,
-                                          const RayP &primary,
-                                          const SpectrumWavelengthsP &sw,
-                                          FloatP *alphaOut,
-                                          SWCSpectrumP *lemOut) const
+    namespace
     {
-        const EmbreeScene *embree = scene.GetEmbree();
-        const BsdfPtrTable &table = scene.GetBsdfTable();
-        const std::vector<std::shared_ptr<Light>> &lights = scene.GetLights();
-        const int nLights = static_cast<int>(lights.size());
-        const FloatP invNLights =
-            nLights > 0 ? FloatP(1.f / float(nLights)) : FloatP(0.f);
-
-        const bool FULL_MIS = (m_lightMode == LightMode::MIS);
-        const bool NEE =
-            (m_lightMode != LightMode::BSDF) && m_directLightSampling;
-        const bool includeEnv = m_includeEnvironment;
-        const int maxDepth = m_maxDepth;
-        const bool rrEfficiency = (m_rrStrategy == "efficiency");
-        const FloatP rrProb = FloatP(m_rrContinueProb);
-
-        const FloatP INF = std::numeric_limits<float>::infinity();
-
-        RayP ray = primary;
-        ray.alive = MaskP(true);
-
-        SWCSpectrumP L(0.f);
-        SWCSpectrumP throughput(1.f);
-        // Coverage starts transparent.
-        FloatP alpha(0.f);
-
-        Int32P depth(0);
-        MaskP specularBounce(true);
-        MaskP alive(true);
-        Point3fP prevP = ray.o;
-        Normal3fP prevN(0.f, 0.f, 0.f);
-        FloatP prevPdf(0.f);
-
-        while (any(alive))
+        // Tile context for a compacted walk.
+        struct WalkCtx
         {
-#ifdef PACKET_OCCUPANCY
-            // Live lanes entering this bounce; occupancy = laneSum / iters.
-            g_occ_laneSum += double(enoki::count(alive));
-            g_occ_iters += 1.;
-#endif
-            const Point2fP u2bsdf = sampler.Next2D();
-            const FloatP ucomp = sampler.Next1D();
-            const FloatP urr = sampler.Next1D();
-            const FloatP ulight = sampler.Next1D();
-            const Point2fP u2lpos = sampler.Next2D();
-            const FloatP ulightcomp = sampler.Next1D();
+            const Scene *scene;
+            const EmbreeScene *embree;
+            const BsdfPtrTable *table;
+            const std::vector<std::shared_ptr<Light>> *lights;
+            int nLights;
+            FloatP invNLights;
+            bool FULL_MIS, NEE, includeEnv, rrEfficiency;
+            int maxDepth;
+            FloatP rrProb, INF;
+        };
+
+        // Persistent path state per SIMD lane.
+        struct PathLanes
+        {
+            RayP ray;
+            SpectrumWavelengthsP sw;
+            SWCSpectrumP L, throughput;
+            FloatP alpha, prevPdf;
+            Point3fP prevP;
+            Normal3fP prevN;
+            Int32P depth;
+            MaskP alive, specularBounce;
+            FloatP x, y, camWeight;  // film position and weight for retire
+            UInt32P seed, sampleIdx; // sampler addressing
+            SWCSpectrumP lem;        // emission on hit AOV accumulator
+        };
+
+        // Sample source adapter so MLT can reuse.
+        struct SamplerSource
+        {
+            const Sampler &sampler;
+            const UInt32P seed;
+            const UInt32P sidx;
+            FloatP Get1D(const UInt32P &dim) const
+            {
+                return sampler.Get1D(seed, sidx, dim);
+            }
+            Point2fP Get2D(const UInt32P &dim) const
+            {
+                return sampler.Get2D(seed, sidx, dim);
+            }
+        };
+
+        // Advance every live lane by one bounce.
+        template <class SampleSourceT>
+        void StepBounce(const WalkCtx &ctx, const SampleSourceT &src,
+                        PathLanes &st)
+        {
+            const EmbreeScene *embree = ctx.embree;
+            const BsdfPtrTable &table = *ctx.table;
+            const std::vector<std::shared_ptr<Light>> &lights = *ctx.lights;
+            const int nLights = ctx.nLights;
+            const FloatP invNLights = ctx.invNLights;
+            const bool FULL_MIS = ctx.FULL_MIS;
+            const bool NEE = ctx.NEE;
+            const bool includeEnv = ctx.includeEnv;
+            const int maxDepth = ctx.maxDepth;
+            const bool rrEfficiency = ctx.rrEfficiency;
+            const FloatP rrProb = ctx.rrProb;
+            const FloatP INF = ctx.INF;
+            const Scene &scene = *ctx.scene;
+
+            RayP &ray = st.ray;
+            SWCSpectrumP &L = st.L;
+            SWCSpectrumP &throughput = st.throughput;
+            FloatP &alpha = st.alpha;
+            Int32P &depth = st.depth;
+            MaskP &specularBounce = st.specularBounce;
+            MaskP &alive = st.alive;
+            Point3fP &prevP = st.prevP;
+            Normal3fP &prevN = st.prevN;
+            FloatP &prevPdf = st.prevPdf;
+            const SpectrumWavelengthsP &sw = st.sw;
+
+            // Lane stream base.
+            const UInt32P d0 =
+                UInt32P(2u) + UInt32P(depth) * UInt32P(6u);
+            const Point2fP u2bsdf = src.Get2D(d0);
+            const FloatP ucomp = src.Get1D(d0 + UInt32P(1u));
+            const FloatP urr = src.Get1D(d0 + UInt32P(2u));
+            const FloatP ulight = src.Get1D(d0 + UInt32P(3u));
+            const Point2fP u2lpos = src.Get2D(d0 + UInt32P(4u));
+            const FloatP ulightcomp = src.Get1D(d0 + UInt32P(5u));
 
             ray.alive = alive;
             HitP hit;
             embree->Intersect(ray, hit, Coherent::No);
 
-            // Environment / infinite light
+            // Environment / infinite light.
             const MaskP miss = alive && !hit.hit;
             if (any(miss))
             {
@@ -223,42 +242,11 @@ namespace lux2
                 const Vector3fP wo = -ray.d;
                 const BSDFPtr bsdf = table.Gather(hit.matID, hitMask);
 
-#ifdef LAMP_DEBUG
-                // Primary packet straddling the lamp silhouette.
-                {
-                    const MaskP primary = hitMask && eq(depth, Int32P(0));
-                    const MaskP lamp = primary && (hit.lightID >= Int32P(0));
-                    if (any(lamp) && any(primary && !lamp) &&
-                        g_lamp_edgeDumps.fetch_add(1) < 8)
-                    {
-                        float t[PACKET_WIDTH], prim[PACKET_WIDTH];
-                        uint32_t mat[PACKET_WIDTH];
-                        int32_t lid[PACKET_WIDTH];
-                        enoki::store_unaligned(t, hit.t);
-                        enoki::store_unaligned(mat, hit.matID);
-                        enoki::store_unaligned(lid, hit.lightID);
-                        enoki::store_unaligned(prim,
-                                               select(primary, FloatP(1.f), FloatP(0.f)));
-                        fprintf(stderr, "[LAMP EDGE packet] lane: t matID lightID\n");
-                        for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                            fprintf(stderr, "  lane %zu: %8.5f %5u %4d%s\n",
-                                    i, t[i], mat[i], lid[i],
-                                    prim[i] > 0.f ? "" : " (inactive)");
-                    }
-                }
-#endif
-
                 // Emission on hit.
                 MaskP emCount = hitMask && (hit.lightID >= Int32P(0));
                 if (!FULL_MIS && NEE)
                     emCount = emCount && specularBounce;
                 SWCSpectrumP emTerm(0.f); // total emission added this bounce
-#ifdef LAMP_DEBUG
-                // Lane emission factors.
-                SWCSpectrumP dbgLe(0.f);
-                FloatP dbgEmW(0.f), dbgTput(0.f);
-                MaskP dbgLa(false);
-#endif
                 if (any(emCount))
                 {
                     const int nArea = scene.AreaLightCount();
@@ -279,61 +267,14 @@ namespace lux2
                         }
                         const SWCSpectrumP LeRaw = al->Le(dg, sw, wo, la);
                         const SWCSpectrumP Lem = emW * throughput * LeRaw;
-#ifdef LAMP_DEBUG
-                        dbgLe = select(la, LeRaw, dbgLe);
-                        dbgEmW = select(la, emW, dbgEmW);
-                        dbgTput = select(la, throughput, dbgTput);
-                        dbgLa = dbgLa || la;
-#endif
                         emTerm = emTerm + select(la, Lem, SWCSpectrumP(0.f));
                         L = select(la, L + Lem, L);
                     }
                 }
-#ifdef LAMP_DEBUG
-                // Any visible lamp lane that ended up with zero emission.
-                {
-                    const MaskP lampLane =
-                        hitMask && eq(depth, Int32P(0)) && (hit.lightID >= Int32P(0));
-                    const MaskP dead = lampLane && IsBlack(emTerm);
-                    if (any(dead) && g_lamp_leDumps.fetch_add(1) < 8)
-                    {
-                        const int nArea = scene.AreaLightCount();
-                        float ngd[PACKET_WIDTH], nd[PACKET_WIDTH],
-                              em[PACKET_WIDTH], dmask[PACKET_WIDTH],
-                              hmask[PACKET_WIDTH], lamask[PACKET_WIDTH],
-                              leraw[PACKET_WIDTH], emw[PACKET_WIDTH],
-                              tput[PACKET_WIDTH];
-                        uint32_t lid[PACKET_WIDTH];
-                        enoki::store_unaligned(ngd, dot(dg.ng, wo));
-                        enoki::store_unaligned(nd, dot(dg.n, wo));
-                        enoki::store_unaligned(em, emTerm);
-                        enoki::store_unaligned(lid, hit.lightID);
-                        enoki::store_unaligned(dmask,
-                                               select(dead, FloatP(1.f), FloatP(0.f)));
-                        enoki::store_unaligned(hmask,
-                                               select(hitMask, FloatP(1.f), FloatP(0.f)));
-                        enoki::store_unaligned(lamask,
-                                               select(dbgLa, FloatP(1.f), FloatP(0.f)));
-                        enoki::store_unaligned(leraw, dbgLe);
-                        enoki::store_unaligned(emw, dbgEmW);
-                        enoki::store_unaligned(tput, dbgTput);
-                        fprintf(stderr,
-                                "[LAMP LE packet] nArea=%d lane: hit la ng.wo n.wo LeRaw emW tput emTerm lightID\n",
-                                nArea);
-                        for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                            fprintf(stderr,
-                                    "  lane %zu: %3.0f %3.0f %9.5f %9.5f %9.4g %6.3f %6.3f %9.4g %4d%s\n",
-                                    i, hmask[i], lamask[i], ngd[i], nd[i],
-                                    leraw[i], emw[i], tput[i], em[i], lid[i],
-                                    dmask[i] > 0.f ? " <- dead" : "");
-                    }
-                }
-#endif
-                if (lemOut)
                 {
                     // Visible emission only AOV.
-                    const MaskP d0 = emCount && eq(depth, Int32P(0));
-                    *lemOut = select(d0, *lemOut + emTerm, *lemOut);
+                    const MaskP lemMask = emCount && eq(depth, Int32P(0));
+                    st.lem = select(lemMask, st.lem + emTerm, st.lem);
                 }
 
                 // Depth limit.
@@ -377,62 +318,19 @@ namespace lux2
                         shadow.wavelengths = sw.w;
                         shadow.mask = UInt32P(0xFFFFFFFFu);
                         const MaskP tryVis = la && valid && (pdfL > FloatP(0.f));
-#ifdef LAMP_NOSHADOW
-                        // Experiment 1: force visibility. Spots vanish => the
-                        // shadow ray blocks valid samples.
-                        const MaskP vis = tryVis;
-#elif defined(LAMP_BLOCKER)
-                        // Identify the blocker with full Intersect on the shadow
-                        // ray.
-                        RayP probe = shadow;
-                        HitP sh;
-                        embree->Intersect(probe, sh, Coherent::No);
-                        const MaskP blocked = tryVis && sh.hit;
-                        if (any(blocked) && g_lamp_blockDumps.fetch_add(1) < 8)
-                        {
-                            float bt[PACKET_WIDTH], bmax[PACKET_WIDTH],
-                                  bhit[PACKET_WIDTH];
-                            int32_t blid[PACKET_WIDTH];
-                            uint32_t bgid[PACKET_WIDTH], bpid[PACKET_WIDTH];
-                            enoki::store_unaligned(bt, sh.t);
-                            enoki::store_unaligned(bmax, tmax);
-                            enoki::store_unaligned(bhit,
-                                                   select(sh.hit, FloatP(1.f), FloatP(0.f)));
-                            enoki::store_unaligned(blid, sh.lightID);
-                            enoki::store_unaligned(bgid, sh.geomID);
-                            enoki::store_unaligned(bpid, sh.primID);
-                            fprintf(stderr,
-                                    "[LAMP BLOCK packet] lane: hit t tmax geomID primID lightID\n");
-                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                fprintf(stderr,
-                                        "  lane %zu: %3.0f %9.5f %9.5f %6u %6u %5d%s\n",
-                                        i, bhit[i], bt[i], bmax[i],
-                                        bgid[i], bpid[i], blid[i],
-                                        (blid[i] >= 0) ? " <- LAMP self-hit" : "");
-                        }
-                        const MaskP vis = tryVis && !sh.hit;
-#else
                         const MaskP vis =
                             tryVis && !embree->Occluded(shadow, tryVis, Coherent::No);
-#endif
 
                         BSDFEvalP ev;
                         ev.f = SWCSpectrumP(0.f);
                         ev.pdf = FloatP(0.f);
                         ev.pdfRev = FloatP(0.f);
-                        // lux NEE calls bsdf->F(..., reverse=true):
                         // Radiance == reverse (wo toward the eye), no ng
                         // Jacobian in Eval.f.
-                       bsdf->Eval(sw, wi, wo, dg, TransportMode::Radiance, &ev, la);
-#ifdef LAMP_LAMBERT
-                        // Experiment 2: analytic Lambert with unit albedo in
-                        // place of Eval's f. Spots vanish => Eval.f is
-                        // wrong for wi near n.
-                        ev.f = select(la, abs(dot(wi, n)) * FloatP(1.f / PI), ev.f);
-#endif
+                        bsdf->Eval(sw, wi, wo, dg, TransportMode::Radiance, &ev, la);
 
                         // ev.f carries |cos(0ᵢ)|. cosL is hemisphere agnostic.
-                        // Degenerate (wi,wo) pairs are zeroed in ev.f by the BSDF side test.
+                        // Degenerate (wi,wo) pairs are zeroed in ev.f.
                         const FloatP cosL = abs(dot(wi, n));
                         FloatP neeW(1.f);
                         if (FULL_MIS)
@@ -458,7 +356,7 @@ namespace lux2
 
                 alive &= !(hitAlive && (sample.pdf <= FloatP(0.f)));
 
-                // lux applies efficiency RR to specular transmission bounces.
+                // Lux applies efficiency RR to specular transmission bounces.
                 const MaskP rrActive =
                     alive && (depth > Int32P(3));
                 if (any(rrActive))
@@ -493,9 +391,218 @@ namespace lux2
             }
         }
 
-        *alphaOut = alpha;
-        return L;
-    }
+        // Pixel sample handed to each lane.
+        struct Job
+        {
+            int px, py;
+            uint32_t s;
+        };
+
+        // Enumerates (px, py, s) jobs over tiles in scanline order.
+        struct JobCursor
+        {
+            int x0, y0, x1, y1;
+            uint32_t spp;
+            int px, py;
+            uint32_t s = 0;
+
+            JobCursor(const Tile &t, uint32_t n)
+                : x0(t.x0), y0(t.y0), x1(t.x1), y1(t.y1), spp(n),
+                  px(t.x0), py(t.y0) {}
+
+            bool Next(Job &j)
+            {
+                if (s >= spp || x1 <= x0 || y1 <= y0)
+                    return false;
+                j = Job{px, py, s};
+                if (++px == x1)
+                {
+                    px = x0;
+                    if (++py == y1)
+                    {
+                        py = y0;
+                        ++s;
+                    }
+                }
+                return true;
+            }
+        };
+
+        // Fill dead lanes with the next jobs.
+        template <class SamplerT>
+        void Refill(const Camera &camera, const SamplerT &sampler,
+                    JobCursor &jobs, uint64_t sampleBasis, PathLanes &st,
+                    int k = 2)
+        {
+            const int nDead = enoki::count(!st.alive);
+            if (nDead < k)
+                return;
+
+            // Read lane state as floats.
+            alignas(64) float aliveF[PACKET_WIDTH];
+            enoki::store_unaligned(aliveF, select(st.alive, FloatP(1.f), FloatP(0.f)));
+
+            alignas(64) float fillF[PACKET_WIDTH] = {};
+            alignas(64) float pxs[PACKET_WIDTH] = {}, pys[PACKET_WIDTH] = {};
+            alignas(64) uint32_t seeds[PACKET_WIDTH] = {}, sidxs[PACKET_WIDTH] = {};
+
+            // Fold the sampler's configured base seed.
+            const uint64_t baseSeed = sampler.BaseSeed();
+
+            bool anyFill = false;
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+            {
+                if (aliveF[i] > 0.f)
+                    continue; // lane still live
+                Job j;
+                if (!jobs.Next(j))
+                    break; // jobs exhausted
+                fillF[i] = 1.f;
+                pxs[i] = float(j.px);
+                pys[i] = float(j.py);
+                sidxs[i] = j.s;
+                // Scramble.
+                const uint64_t h =
+                    ((sampleBasis ^ baseSeed) * 0x9E3779B97F4A7C15ull) ^
+                    (uint64_t(j.px) * 0xBF58476D1CE4E5B9ull) ^
+                    (uint64_t(j.py) * 0x94D049BB133111EBull);
+                seeds[i] = uint32_t(h >> 32);
+                anyFill = true;
+            }
+            if (!anyFill)
+                return;
+
+            // fillF is 1.0/0.0 floats; derive the mask from a comparison.
+            const MaskP fillMask =
+                enoki::load_unaligned<FloatP>(fillF) > FloatP(0.5f);
+
+            const UInt32P vseed = enoki::load_unaligned<UInt32P>(seeds);
+            const UInt32P vidx = enoki::load_unaligned<UInt32P>(sidxs);
+            const FloatP pxf = enoki::load_unaligned<FloatP>(pxs);
+            const FloatP pyf = enoki::load_unaligned<FloatP>(pys);
+
+            // Primary sample streams.
+            const Point2fP jit = sampler.Get2D(vseed, vidx, UInt32P(0u));
+            SpectrumWavelengthsP newSw;
+            newSw.Sample(sampler.Get1D(vseed, vidx, UInt32P(1u)));
+
+            const FloatP x = pxf + jit.x();
+            const FloatP y = pyf + jit.y();
+
+            RayP cam;
+            FloatP w;
+            camera.GenerateRay(x, y, FloatP(0.f), &cam, &w);
+            cam.wavelengths = newSw.w;
+            cam.mask = UInt32P(0xFFFFFFFFu);
+
+            // Fully reset a lane.
+            st.ray.o = select(fillMask, cam.o, st.ray.o);
+            st.ray.d = select(fillMask, cam.d, st.ray.d);
+            st.ray.mint = select(fillMask, cam.mint, st.ray.mint);
+            st.ray.maxt = select(fillMask, cam.maxt, st.ray.maxt);
+            st.ray.time = select(fillMask, cam.time, st.ray.time);
+            st.ray.wavelengths =
+                select(fillMask, cam.wavelengths, st.ray.wavelengths);
+            st.ray.mask = select(fillMask, cam.mask, st.ray.mask);
+
+            st.sw.w = select(fillMask, newSw.w, st.sw.w);
+            st.sw.binRGB = select(fillMask, newSw.binRGB, st.sw.binRGB);
+            st.sw.offsetRGB = select(fillMask, newSw.offsetRGB, st.sw.offsetRGB);
+            st.sw.binXYZ = select(fillMask, newSw.binXYZ, st.sw.binXYZ);
+            st.sw.offsetXYZ = select(fillMask, newSw.offsetXYZ, st.sw.offsetXYZ);
+
+            st.L = select(fillMask, SWCSpectrumP(0.f), st.L);
+            st.throughput = select(fillMask, SWCSpectrumP(1.f), st.throughput);
+            st.alpha = select(fillMask, FloatP(0.f), st.alpha);
+            st.depth = select(fillMask, Int32P(0), st.depth);
+            // First bounce is treated as specular for MIS weighting.
+            st.specularBounce = select(fillMask, MaskP(true), st.specularBounce);
+            st.prevP = select(fillMask, cam.o, st.prevP);
+            st.prevN = select(fillMask, Normal3fP(0.f, 0.f, 0.f), st.prevN);
+            st.prevPdf = select(fillMask, FloatP(0.f), st.prevPdf);
+            st.lem = select(fillMask, SWCSpectrumP(0.f), st.lem);
+
+            st.x = select(fillMask, x, st.x);
+            st.y = select(fillMask, y, st.y);
+            st.camWeight = select(fillMask, w, st.camWeight);
+            st.seed = select(fillMask, vseed, st.seed);
+            st.sampleIdx = select(fillMask, vidx, st.sampleIdx);
+
+            // Recompute the reciprocal direction for filled lanes.
+            const Vector3fP newRcp = enoki::rcp(st.ray.d);
+            st.ray.d_rcp = select(fillMask, newRcp, st.ray.d_rcp);
+
+            st.alive = st.alive || fillMask;
+        }
+
+        // One finished path's film contribution.
+        struct Retired
+        {
+            float x, y, L, wl, alpha, weight;
+        };
+
+        // Batches retired paths.
+        struct RetireBuffer
+        {
+            Retired buf[2 * PACKET_WIDTH];
+            size_t n = 0;
+
+            void Push(const PathLanes &st, const MaskP &finished)
+            {
+                alignas(64) float fx[PACKET_WIDTH], fy[PACKET_WIDTH];
+                alignas(64) float fL[PACKET_WIDTH], fw[PACKET_WIDTH];
+                alignas(64) float fa[PACKET_WIDTH], fwt[PACKET_WIDTH];
+                alignas(64) float ff[PACKET_WIDTH];
+                enoki::store_unaligned(fx, st.x);
+                enoki::store_unaligned(fy, st.y);
+                enoki::store_unaligned(fL, st.L);
+                enoki::store_unaligned(fw, st.sw.w);
+                enoki::store_unaligned(fa, st.alpha);
+                enoki::store_unaligned(fwt, st.camWeight);
+                enoki::store_unaligned(ff,
+                                       select(finished, FloatP(1.f), FloatP(0.f)));
+                for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                    if (ff[i] > 0.f)
+                        buf[n++] = Retired{fx[i], fy[i], fL[i], fw[i], fa[i], fwt[i]};
+            }
+
+            // Emit whole packets while they accumulate.
+            void Flush(Film &dest, bool all)
+            {
+                while (n >= PACKET_WIDTH || (all && n > 0))
+                {
+                    const size_t take =
+                        n < PACKET_WIDTH ? n : size_t(PACKET_WIDTH);
+                    alignas(64) float fx[PACKET_WIDTH], fy[PACKET_WIDTH];
+                    alignas(64) float fL[PACKET_WIDTH], fw[PACKET_WIDTH];
+                    alignas(64) float fa[PACKET_WIDTH], fwt[PACKET_WIDTH];
+                    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                    {
+                        const bool real = i < take;
+                        const Retired &r = buf[real ? i : 0];
+                        fx[i] = r.x;
+                        fy[i] = r.y;
+                        fw[i] = r.wl;
+                        fL[i] = real ? r.L : 0.f;
+                        fa[i] = real ? r.alpha : 0.f;
+                        fwt[i] = real ? r.weight : 0.f;
+                    }
+                    SpectrumWavelengthsP sw;
+                    sw.FromWavelength(enoki::load_unaligned<FloatP>(fw));
+                    dest.Splat(enoki::load_unaligned<FloatP>(fx),
+                               enoki::load_unaligned<FloatP>(fy),
+                               SWCSpectrumP(enoki::load_unaligned<FloatP>(fL)),
+                               sw, enoki::load_unaligned<FloatP>(fa),
+                               enoki::load_unaligned<FloatP>(fwt), 0);
+                    // Compact the remainder to the front.
+                    const size_t rem = n - take;
+                    for (size_t i = 0; i < rem; ++i)
+                        buf[i] = buf[take + i];
+                    n = rem;
+                }
+            }
+        };
+    } // namespace
 
     void PathIntegrator::RenderTile(const Scene &scene, const Tile &tile,
                                     Film &dest, Sampler &sampler,
@@ -503,160 +610,58 @@ namespace lux2
     {
         const Camera &camera = scene.GetCamera();
 
-        const FloatP lane = enoki::arange<FloatP>();
-
-#ifdef PATH_DEBUG
-        // Tile debug accumulators.
-        double fb_Lsum = 0., fb_LumSum = 0., fb_alphaSum = 0., fb_n = 0., fb_maxL = 0.;
-#endif
-#ifdef LAMP_DEBUG
-        long lamp_mixedPackets = 0;
-#endif
 #ifdef PACKET_OCCUPANCY
         // The summary reflects this tile's paths only.
         g_occ_laneSum = 0.;
         g_occ_iters = 0.;
 #endif
 
-        for (int py = tile.y0; py < tile.y1; ++py)
+        // Tile constant config.
+        WalkCtx ctx;
+        ctx.scene = &scene;
+        ctx.embree = scene.GetEmbree();
+        ctx.table = &scene.GetBsdfTable();
+        ctx.lights = &scene.GetLights();
+        ctx.nLights = static_cast<int>(ctx.lights->size());
+        ctx.invNLights =
+            ctx.nLights > 0 ? FloatP(1.f / float(ctx.nLights)) : FloatP(0.f);
+        ctx.FULL_MIS = (m_lightMode == LightMode::MIS);
+        ctx.NEE = (m_lightMode != LightMode::BSDF) && m_directLightSampling;
+        ctx.includeEnv = m_includeEnvironment;
+        ctx.maxDepth = m_maxDepth;
+        ctx.rrEfficiency = (m_rrStrategy == "efficiency");
+        ctx.rrProb = FloatP(m_rrContinueProb);
+        ctx.INF = std::numeric_limits<float>::infinity();
+
+        // All lanes start dead.
+        PathLanes st;
+        st.alive = MaskP(false);
+        JobCursor jobs(tile, spp);
+        RetireBuffer retire;
+
+        Refill(camera, sampler, jobs, sampleBasis, st, 1);
+        while (any(st.alive))
         {
-            for (int px = tile.x0; px < tile.x1; px += int(PACKET_WIDTH))
+#ifdef PACKET_OCCUPANCY
+            // Active lanes this bounce.
+            g_occ_laneSum += double(enoki::count(st.alive));
+            g_occ_iters += 1.;
+#endif
+            const MaskP before = st.alive;
+            StepBounce(ctx, SamplerSource{sampler, st.seed, st.sampleIdx}, st);
+
+            // Paths that retired this bounce.
+            const MaskP finished = before && !st.alive;
+            if (any(finished))
             {
-                const uint64_t seedOffset =
-                    (sampleBasis * 0x9E3779B97F4A7C15ull) ^
-                    (uint64_t(px) * 0xBF58476D1CE4E5B9ull) ^
-                    (uint64_t(py) * 0x94D049BB133111EBull);
-                sampler.Seed(seedOffset, PACKET_WIDTH);
-
-                for (uint32_t s = 0; s < spp; ++s)
-                {
-                    // One sample sequence per (pixel, spp).
-                    sampler.Advance();
-                    const Point2fP jitter = sampler.Next2D();
-                    const FloatP x = FloatP(float(px)) + lane + jitter.x();
-                    const FloatP y = FloatP(float(py)) + jitter.y();
-
-                    SpectrumWavelengthsP sw;
-                    sw.Sample(sampler.Next1D());
-
-                    RayP ray;
-                    FloatP weight;
-                    camera.GenerateRay(x, y, FloatP(0.f), &ray, &weight);
-                    ray.wavelengths = sw.w;
-#ifdef LAMP_DEBUG
-                    // Primary ray mask as handed to WalkPath.
-                    const UInt32P primaryMask = ray.mask;
-#endif
-
-                    FloatP alpha;
-#ifdef LAMP_COVERAGE
-                    SWCSpectrumP lem(0.f);
-                    const SWCSpectrumP L =
-                        WalkPath(scene, sampler, ray, sw, &alpha, &lem);
-#else
-                    const SWCSpectrumP L = WalkPath(scene, sampler, ray, sw, &alpha);
-#endif
-#ifdef PATH_DEBUG
-                    {
-                        float La[PACKET_WIDTH], lu[PACKET_WIDTH], aa[PACKET_WIDTH];
-                        enoki::store_unaligned(La, L);
-                        enoki::store_unaligned(lu, SWCY(L, sw) * weight);
-                        enoki::store_unaligned(aa, alpha);
-                        for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                        {
-                            fb_Lsum += La[i];
-                            fb_LumSum += lu[i];
-                            fb_alphaSum += aa[i] > 0.f ? 1.0 : 0.0;
-                            fb_n += 1.0;
-                            if (La[i] > fb_maxL)
-                                fb_maxL = La[i];
-                        }
-                        if (!g_fb_hdr && px == tile.x0 && py == tile.y0)
-                        {
-                            g_fb_hdr = true;
-                            fprintf(stderr, "[FB first-pixel] L=[");
-                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                fprintf(stderr, "%.4g ", La[i]);
-                            fprintf(stderr, "] alpha=[");
-                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                fprintf(stderr, "%.4g ", aa[i]);
-                            fprintf(stderr, "] SWCY(L)*w=[");
-                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                fprintf(stderr, "%.4g ", lu[i]);
-                            fprintf(stderr, "]\n");
-                        }
-                    }
-#endif
-#ifdef LAMP_DEBUG
-                    {
-                        // Mixed-coverage packet: some lanes hit, some missed.
-                        float aa[PACKET_WIDTH];
-                        enoki::store_unaligned(aa, alpha);
-                        bool mixed = false;
-                        for (size_t i = 1; i < PACKET_WIDTH; ++i)
-                            mixed |= (aa[i] > 0.f) != (aa[0] > 0.f);
-                        if (mixed && ++lamp_mixedPackets <= 8)
-                        {
-                            uint32_t pm[PACKET_WIDTH];
-                            enoki::store_unaligned(pm, primaryMask);
-                            fprintf(stderr,
-                                    "[LAMP MIXED tile(%d,%d) px=%d py=%d s=%u] alpha=[",
-                                    tile.x0, tile.y0, px, py, s);
-                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                fprintf(stderr, "%.4g ", aa[i]);
-                            fprintf(stderr, "] primaryMask=[");
-                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                fprintf(stderr, "%08x ", pm[i]);
-                            fprintf(stderr, "] o=[");
-                            float ox[PACKET_WIDTH], oy[PACKET_WIDTH], oz[PACKET_WIDTH];
-                            enoki::store_unaligned(ox, ray.o.x());
-                            enoki::store_unaligned(oy, ray.o.y());
-                            enoki::store_unaligned(oz, ray.o.z());
-                            for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                                fprintf(stderr, "(%g,%g,%g) ", ox[i], oy[i], oz[i]);
-                            fprintf(stderr, "]\n");
-                        }
-                    }
-#endif
-#ifdef LAMP_HITAOV
-                    // Hit AOV encoded by wavelength 
-                    //   lamp, facet normal faces eye  -> red   (630)
-                    //   lamp, facet normal faces away -> blue  (450)
-                    //   other geometry                -> green (530)
-                    //   miss                          -> black
-                    RayP probe = ray;
-                    HitP ph;
-                    scene.GetEmbree()->Intersect(probe, ph, Coherent::No);
-                    const MaskP isLamp = ph.hit && (ph.lightID >= Int32P(0));
-                    const MaskP lampFront =
-                        isLamp && (dot(ph.ngeo, -probe.d) > FloatP(0.f));
-                    SpectrumWavelengthsP swAov;
-                    swAov.FromWavelength(select(
-                        isLamp, select(lampFront, FloatP(630.f), FloatP(450.f)),
-                        FloatP(530.f)));
-                    const SWCSpectrumP Lout =
-                        select(ph.hit, SWCSpectrumP(1.f), SWCSpectrumP(0.f));
-                    dest.Splat(x, y, Lout, swAov, alpha, weight, 0);
-#elif defined(LAMP_COVERAGE)
-                    // Emission AOV to splat Lem with the real sw.
-                    dest.Splat(x, y, lem, sw, alpha, weight, 0);
-#else
-                    dest.Splat(x, y, L, sw, alpha, weight, 0);
-#endif
-                } // spp
+                retire.Push(st, finished);
+                retire.Flush(dest, false);
             }
+            // Refill the packet from the job queue.
+            Refill(camera, sampler, jobs, sampleBasis, st);
         }
-#ifdef PATH_DEBUG
-        fprintf(stderr,
-                "[FB AGG tile(%d,%d)] n=%.0f Lsum=%.4g maxL=%.4g LumSum=%.4g alphaCount=%.0f meanLumOverAlpha=%.4g\n",
-                tile.x0, tile.y0, fb_n, fb_Lsum, fb_maxL, fb_LumSum, fb_alphaSum,
-                fb_alphaSum > 0 ? fb_LumSum / fb_alphaSum : 0.0);
-#endif
-#ifdef LAMP_DEBUG
-        if (lamp_mixedPackets > 0)
-            fprintf(stderr, "[LAMP tile(%d,%d)] mixedPackets=%ld\n",
-                    tile.x0, tile.y0, lamp_mixedPackets);
-#endif
+        retire.Flush(dest, true);
+
 #ifdef PACKET_OCCUPANCY
         // Mean live lanes per bounce for this tile.
         if (g_occ_iters > 0.)

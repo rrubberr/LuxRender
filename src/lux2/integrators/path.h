@@ -77,14 +77,6 @@ namespace lux2
             const PluginContext &ctx);
 
     private:
-        // Packet random walk. When lemOut is real it receives the
-        // emission on hit term only for the debug AOV)
-        SWCSpectrumP WalkPath(const Scene &scene, Sampler &sampler,
-                              const RayP &primary,
-                              const SpectrumWavelengthsP &sw,
-                              FloatP *alpha,
-                              SWCSpectrumP *lemOut = nullptr) const;
-
         int m_maxDepth;
         float m_rrContinueProb;
         std::string m_rrStrategy;

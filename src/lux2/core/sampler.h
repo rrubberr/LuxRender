@@ -46,6 +46,9 @@ namespace lux2
         // Correlated samplers route each contribution through feedback.
         virtual bool RequiresFeedback() const { return false; }
 
+        // Renderer configured base seed.
+        virtual uint64_t BaseSeed() const { return 0; }
+
         // Seed for a wavefront of `wavefrontSize` lanes.
         virtual void Seed(uint64_t seedOffset, size_t wavefrontSize) = 0;
 
@@ -56,6 +59,15 @@ namespace lux2
         // Next 1D / 2D component of the current sample.
         virtual FloatP Next1D(MaskP active = MaskP(true)) = 0;
         virtual Point2fP Next2D(MaskP active = MaskP(true)) = 0;
+
+        // Random access into a sequence independent of cursor state.
+        // Used for lane compaction.
+        virtual FloatP Get1D(const UInt32P &seed, const UInt32P &sidx,
+                             const UInt32P &dim,
+                             MaskP active = MaskP(true)) const = 0;
+        virtual Point2fP Get2D(const UInt32P &seed, const UInt32P &sidx,
+                               const UInt32P &dim,
+                               MaskP active = MaskP(true)) const = 0;
 
         // Samples per pixel.
         virtual uint32_t SampleCount() const = 0;
