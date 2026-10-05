@@ -17,7 +17,6 @@
 #include "core/scene.h"
 #include "core/transform.h"
 #include "lights/area.h"
-#include "lights/infinite.h"
 
 #include <cmath>
 #include <iostream>
@@ -90,7 +89,7 @@ int main() {
               "camera honors film yresolution");
     }
 
-    // ---- 3. non-area light (infinite) instantiates ----------------------
+    // ---- 3. unknown non-area light plugin is skipped gracefully ---------
     {
         SceneDescription desc;
         LightDesc ld; ld.name = "infinite"; ld.toWorld = Transform();
@@ -98,11 +97,8 @@ int main() {
 
         Scene scene;
         scene.Commit(desc);
-        Check(scene.GetLights().size() == 1, "one light wired");
-        if (!scene.GetLights().empty()) {
-            Check(scene.GetLights()[0]->IsInfinite(),
-                  "wired light is infinite");
-        }
+        Check(scene.GetLights().empty(),
+              "unregistered light plugin skipped (no crash)");
     }
 
     // ---- 4. area light receives its tagged triangles --------------------

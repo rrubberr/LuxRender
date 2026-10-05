@@ -74,7 +74,7 @@ struct TestDiffuse : public BSDF {
         ++calls;
         // Every write MUST be masked or a mixed-packet partition clobbers the
         // lanes owned by the other material (correction A).
-        enoki::masked(s->wo, active) = Vector3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));
+        enoki::masked(s->wi, active) = Vector3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));
         enoki::masked(s->pdf, active) = FloatP(0.5f);
         enoki::masked(s->f, active) = SWCSpectrumP(FloatP(0.5f));
         enoki::masked(s->sampledType, active) =
@@ -114,7 +114,7 @@ struct TestSpecular : public BSDF {
                  const FloatP &, BSDFSampleP *s, TransportMode,
                  MaskP active) const override {
         ++calls;
-        enoki::masked(s->wo, active) = Vector3fP(FloatP(1.f), FloatP(0.f), FloatP(0.f));
+        enoki::masked(s->wi, active) = Vector3fP(FloatP(1.f), FloatP(0.f), FloatP(0.f));
         enoki::masked(s->pdf, active) = FloatP(0.9f);
         enoki::masked(s->f, active) = SWCSpectrumP(FloatP(0.9f));
         enoki::masked(s->sampledType, active) =
@@ -261,7 +261,7 @@ void CheckSampleFMixed(const BsdfPtrTable &table) {
 
     BSDFSampleP s;
     // Sentinels: if a partition clobbers, or a write is unmasked, these show.
-    s.wo = Vector3fP(FloatP(-999.f), FloatP(-999.f), FloatP(-999.f));
+    s.wi = Vector3fP(FloatP(-999.f), FloatP(-999.f), FloatP(-999.f));
     s.pdf = FloatP(-999.f);
     s.f = SWCSpectrumP(FloatP(-999.f));
     s.sampledType = UInt32P(0xFFFFFFFFu);
@@ -274,9 +274,9 @@ void CheckSampleFMixed(const BsdfPtrTable &table) {
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
         bool even = (i % 2 == 0);
         pdfOk = pdfOk && (lane(s.pdf, i) == (even ? 0.5f : 0.9f));
-        // diffuse wo = +Z, specular wo = +X.
-        woOk = woOk && (lane(s.wo.x(), i) == (even ? 0.f : 1.f)) &&
-                        (lane(s.wo.z(), i) == (even ? 1.f : 0.f));
+        // diffuse wi = +Z, specular wi = +X.
+        woOk = woOk && (lane(s.wi.x(), i) == (even ? 0.f : 1.f)) &&
+                        (lane(s.wi.z(), i) == (even ? 1.f : 0.f));
         fOk = fOk && (lane(s.f, i) == (even ? 0.5f : 0.9f));
         typeOk = typeOk && (lane(s.sampledType, i) ==
                             (even ? uint32_t(BSDFType::DiffuseReflection)
@@ -310,7 +310,7 @@ void CheckSampleFInactive(const BsdfPtrTable &table) {
         active[i] = (i % 2 == 0);  // only even (diffuse) lanes active
 
     BSDFSampleP s;
-    s.wo = Vector3fP(FloatP(-999.f), FloatP(-999.f), FloatP(-999.f));
+    s.wi = Vector3fP(FloatP(-999.f), FloatP(-999.f), FloatP(-999.f));
     s.pdf = FloatP(-999.f);
     s.f = SWCSpectrumP(FloatP(-999.f));
     s.sampledType = UInt32P(0xFFFFFFFFu);

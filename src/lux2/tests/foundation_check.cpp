@@ -17,9 +17,12 @@
 #include "core/context2.h"
 #include "core/scene.h"
 
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <thread>
 
 using namespace lux2;
 
@@ -55,12 +58,13 @@ void CheckRecorder(const std::string &plyPath) {
 	Context2::SetActive(&ctx);
 	Check(Context2::GetActive() == &ctx, "active context get/set");
 
-	// Options block.
+	// Options block. Only "lowdiscrepancy" and "gaussian" are registered
+	// in-tree right now; Commit logs and skips unknown names.
 	ctx.Renderer("sampler", ParamSet());
-	ctx.Sampler("random", ParamSet());
+	ctx.Sampler("lowdiscrepancy", ParamSet());
 	ctx.SurfaceIntegrator("path", FloatParam("maxdepth", 8.f));
 	ctx.VolumeIntegrator("none", ParamSet());
-	ctx.PixelFilter("blackmanharris", FloatParam("xwidth", 3.3f));
+	ctx.PixelFilter("gaussian", FloatParam("xwidth", 3.3f));
 	ctx.Camera("perspective", FloatParam("fov", 39.6f));
 	ctx.Film("fleximage", FloatParam("gamma", 2.2f));
 
@@ -107,12 +111,13 @@ void CheckRecorder(const std::string &plyPath) {
 	ctx.Shape("sphere", FloatParam("radius", 0.1f));
 	ctx.AttributeEnd();
 
-	// A non-area light source.
+	// A non-area light source. "infinite" is out of the tree; Commit must
+	// skip the unregistered plugin without derailing the rest.
 	{
 		const float power = 50.f;
-		ParamSet sun;
-		sun.AddFloat("power", &power, 1);
-		ctx.LightSource("sun", sun);
+		ParamSet env;
+		env.AddFloat("power", &power, 1);
+		ctx.LightSource("infinite", env);
 	}
 
 	ctx.WorldEnd();
@@ -136,7 +141,7 @@ void CheckRecorder(const std::string &plyPath) {
 		"shape 1 is an area light");
 	Check(lamp.lightGroup == "default", "area light group recorded");
 
-	Check(d.lights[0].name == "sun", "light plugin name recorded");
+	Check(d.lights[0].name == "infinite", "light plugin name recorded");
 
 	// Commit validates and tallies.
 	Scene scene;
@@ -177,16 +182,20 @@ void CheckAPI() {
 
 	// --- Options block via the V dispatchers -----------------------------
 	luxRendererV("sampler", 0, nullptr, nullptr);
-	luxSamplerV("random", 0, nullptr, nullptr);
-	luxPixelFilterV("blackmanharris", 0, nullptr, nullptr);
+	luxSamplerV("lowdiscrepancy", 0, nullptr, nullptr);
+	luxPixelFilterV("gaussian", 0, nullptr, nullptr);
 	luxSurfaceIntegratorV("path", 0, nullptr, nullptr);
 	luxVolumeIntegratorV("none", 0, nullptr, nullptr);
 
 	{
-		const int xres = 320, yres = 240;
-		const LuxToken toks[] = {"integer xresolution", "integer yresolution"};
-		const LuxPointer ps[] = {(const char *)&xres, (const char *)&yres};
-		luxFilmV("fleximage", 2, toks, ps);
+		// haltspp bounds the render that luxStart() launches below; without
+		// it the pass loop only ends when luxExit()/luxWait() land.
+		const int xres = 320, yres = 240, haltspp = 16;
+		const LuxToken toks[] = {"integer xresolution", "integer yresolution",
+		                         "integer haltspp"};
+		const LuxPointer ps[] = {(const char *)&xres, (const char *)&yres,
+		                         (const char *)&haltspp};
+		luxFilmV("fleximage", 3, toks, ps);
 	}
 	{
 		const float fov = 45.f;
@@ -244,11 +253,18 @@ void CheckAPI() {
 
 	luxWorldEnd();
 
+	// WorldEnd commits the description and — because startRenderingAfterParse
+	// defaults to true — spawns the render thread right here, before any
+	// luxStart() call. Record that so a later hang is attributed correctly.
+	Context2 *ctx = Context2::GetActive();
+	std::cout << "  trace: after WorldEnd: rendering="
+		<< (ctx->IsRendering() ? "true" : "false") << std::endl;
+
 	// --- Verify the recorded description ---------------------------------
 	SceneDescription &d = Context2::GetActive()->Description();
 	Check(d.rendererName == "sampler", "C API: renderer recorded");
-	Check(d.samplerName == "random", "C API: sampler recorded");
-	Check(d.filterName == "blackmanharris", "C API: filter recorded");
+	Check(d.samplerName == "lowdiscrepancy", "C API: sampler recorded");
+	Check(d.filterName == "gaussian", "C API: filter recorded");
 	Check(d.surfIntName == "path", "C API: surface integrator recorded");
 	Check(d.cameraName == "perspective", "C API: camera recorded");
 	Check(d.filmName == "fleximage", "C API: film recorded");
@@ -256,6 +272,8 @@ void CheckAPI() {
 		"C API: film xresolution guessed from integer token");
 	Check(d.filmParams.FindOneInt("yresolution", -1) == 240,
 		"C API: film yresolution guessed from integer token");
+	Check(d.filmParams.FindOneInt("haltspp", -999) == 16,
+		"C API: film haltspp guessed from integer token");
 	Check(std::fabs(d.cameraParams.FindOneFloat("fov", 0.f) - 45.f) < 1e-5f,
 		"C API: camera fov guessed from float token");
 
@@ -291,12 +309,65 @@ void CheckAPI() {
 	Check(scene.GetSummary().namedMaterialCount == 1,
 		"C API: summary named-material count");
 
-	// --- Deferred stubs must be safe to call -----------------------------
+	// --- Render control (instrumented) ------------------------------------
+	// Every call is timestamped and samples the committed film, so a hang
+	// identifies exactly where the test entered an unbounded render.
+	const auto t0 = std::chrono::steady_clock::now();
+	auto ms = [&] {
+		return std::chrono::duration_cast<std::chrono::milliseconds>(
+			std::chrono::steady_clock::now() - t0).count();
+	};
+	auto trace = [&](const char *where) {
+		Scene *s = ctx->GetScene();
+		std::cout << "  trace: " << ms() << "ms " << where;
+		if (s && s->IsCommitted())
+			std::cout << " state=" << (ctx->IsRendering() ? "Run" : "not-Run")
+			          << " spp=" << s->GetFilm().SampleCount();
+		else
+			std::cout << " state=no-scene";
+		std::cout << std::endl;
+	};
+	if (Scene *s = ctx->GetScene(); s && s->IsCommitted())
+		std::cout << "  trace: committed film haltSpp=" << s->GetFilm().HaltSpp()
+		          << " haltTime=" << s->GetFilm().HaltTime() << std::endl;
+
 	luxStart();
+	trace("after luxStart");
 	luxPause();
+	trace("after luxPause");
 	luxExit();
+	trace("after luxExit");
 	luxAbort();
-	luxWait();
+	trace("after luxAbort");
+	{
+		// luxWait() blocks; run it on a helper thread and poll film progress
+		// so a runaway render fails loudly instead of stalling ctest.
+		std::atomic<bool> waitDone{false};
+		std::thread waiter([&] { luxWait(); waitDone.store(true); });
+		const long budgetMs = 15000;
+		long lastPrint = 0;
+		while (!waitDone.load() && ms() < budgetMs) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(250));
+			if (ms() - lastPrint >= 1000) {
+				lastPrint = ms();
+				trace("luxWait pending");
+			}
+		}
+		if (!waitDone.load()) {
+			std::cerr << "  FAIL: luxWait did not return within " << budgetMs
+			          << "ms — render is unbounded" << std::endl;
+			if (Scene *s = ctx->GetScene(); s && s->IsCommitted())
+				std::cerr << "  diag: spp=" << s->GetFilm().SampleCount()
+				          << " haltSpp=" << s->GetFilm().HaltSpp()
+				          << " haltTime=" << s->GetFilm().HaltTime() << std::endl;
+			std::cout.flush();
+			// The render thread ignores Terminate; exiting the process is
+			// the only escape. Status 2 marks a hang, not a check failure.
+			std::_Exit(2);
+		}
+		waiter.join();
+	}
+	trace("after luxWait");
 	luxSetThreadCount(4);
 	Check(luxGetThreadCount() == 4, "C API: luxGetThreadCount reflects set");
 	luxUpdateFramebuffer();
@@ -333,10 +404,10 @@ void CheckMaterials(const std::string &plyPath) {
 	Context2::SetActive(&ctx);
 
 	ctx.Renderer("sampler", ParamSet());
-	ctx.Sampler("random", ParamSet());
+	ctx.Sampler("lowdiscrepancy", ParamSet());
 	ctx.SurfaceIntegrator("path", ParamSet());
 	ctx.VolumeIntegrator("none", ParamSet());
-	ctx.PixelFilter("blackmanharris", ParamSet());
+	ctx.PixelFilter("gaussian", ParamSet());
 	ctx.Camera("perspective", ParamSet());
 	ctx.Film("fleximage", ParamSet());
 

@@ -189,7 +189,11 @@ int main() {
         }
     }
 
-    // ---- 4. determinism: identical scenes render bitwise identically ---
+    // ---- 4. determinism: identical scenes render identically -----------
+    // Bitwise equality is no longer the contract: work stealing varies the
+    // order halo-bleed merges hit each boundary pixel's accumulator, so
+    // float rounding can differ run to run. Per-sample seeding is still
+    // thread-independent, so buffers must agree to float epsilon.
     {
         auto s1 = MakeEmitterScene(64, 64, -1);
         auto s2 = MakeEmitterScene(64, 64, -1);
@@ -197,12 +201,21 @@ int main() {
         s2->GetRenderer().Render(*s2, s2->GetSurfaceIntegrator());
 
         const FlexImageFilm *f1 = AsFlex(*s1), *f2 = AsFlex(*s2);
-        bool same = f1 && f2 &&
-                    f1->BufY() == f2->BufY() &&
-                    f1->BufX() == f2->BufX() &&
-                    f1->BufZ() == f2->BufZ() &&
-                    f1->BufWeight() == f2->BufWeight();
-        Check(same, "two renders are bitwise identical (thread-independent seeding)");
+        bool same = f1 && f2 && f1->BufY().size() == f2->BufY().size();
+        if (same) {
+            for (size_t i = 0; i < f1->BufY().size() && same; ++i) {
+                const auto close = [](float a, float b) {
+                    return a == b ||
+                           std::fabs(a - b) <=
+                               1e-5f * (1.f + std::fabs(a) + std::fabs(b));
+                };
+                same = close(f1->BufX()[i], f2->BufX()[i]) &&
+                       close(f1->BufY()[i], f2->BufY()[i]) &&
+                       close(f1->BufZ()[i], f2->BufZ()[i]) &&
+                       close(f1->BufWeight()[i], f2->BufWeight()[i]);
+            }
+        }
+        Check(same, "two renders agree to float epsilon (thread-independent seeding)");
     }
 
     // ---- 5. haltspp early-out -------------------------------------------

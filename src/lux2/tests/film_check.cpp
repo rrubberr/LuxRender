@@ -271,41 +271,49 @@ bool BuffersEqual(const FlexImageFilm &a, const FlexImageFilm &b,
     return true;
 }
 
-// A private block accumulates independently.
-void CheckPrivateBlock() {
+// A worker scratch accumulates a tile's window; MergeScratch maps it into
+// the master. With one full-frame tile the scratch window is the crop.
+void CheckScratchMerge() {
     GaussianFilter f(2.f, 2.f, 2.f);
     const float full[4] = {0.f, 1.f, 0.f, 1.f};
     FlexImageFilm master(64, 64, &f, full, "out", false);
     FlexImageFilm ref(64, 64, &f, full, "out", false);
 
-    auto block = master.MakePrivateBlock(0, 0, 64, 64);
-    Check(block != nullptr, "MakePrivateBlock returns a film");
-    if (!block)
+    const int tiles = master.SetupTiles(64, 3, 3);
+    Check(tiles == 1, "SetupTiles yields one tile for a full-frame grid");
+
+    auto scratch = master.MakeWorkerScratch();
+    Check(scratch != nullptr, "MakeWorkerScratch returns a film");
+    if (!scratch)
         return;
 
     // Geometry matches the master.
-    Check(block->XRes() == master.XRes() && block->YRes() == master.YRes(),
-          "block resolution matches master");
+    Check(scratch->XRes() == master.XRes() && scratch->YRes() == master.YRes(),
+          "scratch resolution matches master");
 
-    FlexImageFilm *blk = dynamic_cast<FlexImageFilm *>(block.get());
-    Check(blk != nullptr, "block is a FlexImageFilm");
+    FlexImageFilm *blk = dynamic_cast<FlexImageFilm *>(scratch.get());
+    Check(blk != nullptr, "scratch is a FlexImageFilm");
     if (!blk)
         return;
-    Check(blk->XStart() == master.XStart() && blk->XCount() == master.XCount() &&
-              blk->YStart() == master.YStart() && blk->YCount() == master.YCount(),
-          "block crop window matches master");
 
-    // Splat into the block and the reference.
+    master.BindScratch(0, *scratch);
+    const FilmTile t = master.GetTile(0);
+    Check(blk->XStart() == t.sx0 && blk->XCount() == t.sx1 - t.sx0 &&
+              blk->YStart() == t.sy0 && blk->YCount() == t.sy1 - t.sy0,
+          "bound scratch window matches the tile's halo window");
+
+    // Splat into the scratch and the reference.
     const float wl = 560.f;
     SplatOne(*blk, 24.5f, 30.5f, wl, 1.3f, 1.f, 1.f);
     SplatOne(ref, 24.5f, 30.5f, wl, 1.3f, 1.f, 1.f);
-    blk->AddSampleCount(3.0);
+
+    master.MergeScratch(0, *scratch);
+    master.AddTileSampleCount(0, 3.0);
     ref.AddSampleCount(3.0);
 
-    master.Merge(block.get());
-    Check(BuffersEqual(master, ref), "block merge equals direct accumulation");
+    Check(BuffersEqual(master, ref), "scratch merge equals direct accumulation");
     Check(Close(float(master.SampleCount()), float(ref.SampleCount())),
-          "block merge carries sample count");
+          "scratch merge carries sample count");
 }
 
 // Clear() zeroes the buffers and sample count so a block can be reused.
@@ -344,8 +352,8 @@ void CheckConcurrentMerge() {
     std::vector<std::unique_ptr<Film>> blocks;
     blocks.reserve(nWorkers);
     for (int w = 0; w < nWorkers; ++w) {
-        auto b = FlexImageFilm(64, 64, &f, full, "out", false)
-                     .MakePrivateBlock(0, 0, 64, 64);
+        auto b = std::make_unique<FlexImageFilm>(64, 64, &f, full, "out",
+                                                 false);
         for (int i = 0; i < splatsPerWorker; ++i) {
             const float px = 8.f + float((w * 7 + i * 3) % 47);
             const float py = 8.f + float((w * 5 + i * 11) % 47);
@@ -378,8 +386,10 @@ void CheckConcurrentMerge() {
           "concurrent merges carry total sample count");
 }
 
-// A region block accumulates a sub-rect. MergeRegion maps it into the master.
-void CheckRegionMerge() {
+// A multi-tile partition: splats near a tile edge bleed into the scratch
+// halo and land in neighbouring tiles' owned pixels through the overlap
+// directory. Global SampleCount() is the min across tiles.
+void CheckTileHaloMerge() {
     GaussianFilter f(2.f, 2.f, 2.f);
     const float full[4] = {0.f, 1.f, 0.f, 1.f};
     const float wl = 560.f;
@@ -387,45 +397,48 @@ void CheckRegionMerge() {
     FlexImageFilm master(64, 64, &f, full, "out", false);
     FlexImageFilm ref(64, 64, &f, full, "out", false);
 
-    // Preexisting data outside the region must survive the merge.
+    // Preexisting data outside a tile's domain must survive the merge.
     SplatOne(master, 4.5f, 4.5f, wl, 1.f, 1.f, 1.f);
     SplatOne(ref, 4.5f, 4.5f, wl, 1.f, 1.f, 1.f);
 
-    // Owned region is [16,32) x [16,32).
-    auto block = master.MakePrivateBlock(14, 14, 34, 34);
-    Check(block != nullptr, "region MakePrivateBlock returns a film");
-    if (!block)
+    const int halo = 3; // >= ceil(filter radius)
+    const int tiles = master.SetupTiles(32, halo, halo);
+    Check(tiles == 4, "SetupTiles yields a 2x2 tile grid");
+    if (tiles != 4)
         return;
-    FlexImageFilm *blk = dynamic_cast<FlexImageFilm *>(block.get());
-    Check(blk && blk->XStart() == 14 && blk->XCount() == 20 &&
-              blk->YStart() == 14 && blk->YCount() == 20,
-          "region block crop window is the requested rect");
 
-    // Splat inside the region on both the block and the reference.
-    for (int i = 0; i < 25; ++i) {
-        const float px = 17.f + float(i % 5) + 0.5f;
-        const float py = 17.f + float(i / 5) + 0.5f;
-        SplatOne(*blk, px, py, wl, 1.f, 1.f, 1.f);
-        SplatOne(ref, px, py, wl, 1.f, 1.f, 1.f);
+    // One scratch reused across tiles, as the renderer does: BindScratch
+    // retargets and zeroes it per visit.
+    auto scratch = master.MakeWorkerScratch();
+    if (!scratch)
+        return;
+    for (int ti = 0; ti < tiles; ++ti) {
+        const FilmTile t = master.GetTile(uint32_t(ti));
+        master.BindScratch(uint32_t(ti), *scratch);
+
+        // Centers hug the owned-domain edges so footprints bleed across
+        // tile boundaries.
+        const float cx[3] = {float(t.x0) + 0.5f,
+                             float(t.x0 + t.x1 - 1) + 0.5f,
+                             float((t.x0 + t.x1) / 2) + 0.5f};
+        const float cy[3] = {float(t.y0) + 0.5f,
+                             float(t.y0 + t.y1 - 1) + 0.5f,
+                             float((t.y0 + t.y1) / 2) + 0.5f};
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j) {
+                SplatOne(*scratch, cx[i], cy[j], wl, 1.f, 1.f, 1.f);
+                SplatOne(ref, cx[i], cy[j], wl, 1.f, 1.f, 1.f);
+            }
+
+        master.MergeScratch(uint32_t(ti), *scratch);
+        master.AddTileSampleCount(uint32_t(ti), 9.0);
+        ref.AddSampleCount(9.0);
     }
-    blk->AddSampleCount(25.0);
-    ref.AddSampleCount(25.0);
-
-    master.MergeRegion(block.get(), 14, 14, 34, 34);
 
     Check(BuffersEqual(master, ref),
-          "region merge equals direct accumulation (incl. out-of-region)");
-    Check(Close(float(master.SampleCount()), float(ref.SampleCount())),
-          "region merge carries sample count");
-
-    bool zeroed = true;
-    for (size_t i = 0; i < blk->BufWeight().size(); ++i)
-        if (blk->BufWeight()[i] != 0.f || blk->BufX()[i] != 0.f ||
-            blk->BufY()[i] != 0.f || blk->BufZ()[i] != 0.f ||
-            blk->BufAlpha()[i] != 0.f)
-            zeroed = false;
-    Check(zeroed, "region merge zeroes the block for reuse");
-    Check(blk->SampleCount() == 0.0, "region merge clears block count");
+          "tiled halo merge equals direct accumulation (incl. bleed)");
+    Check(Close(float(master.SampleCount()), 9.f),
+          "global SPP is the min across tiles");
 }
 
 // Replicate the display pipeline from the film's raw accumulation buffers:
@@ -645,10 +658,10 @@ int main() {
     CheckValidity();
     CheckPremultiply();
     CheckParameters();
-    CheckPrivateBlock();
+    CheckScratchMerge();
     CheckClear();
     CheckConcurrentMerge();
-    CheckRegionMerge();
+    CheckTileHaloMerge();
     CheckFrameBufferBasics();
     CheckFrameBufferLinear();
     CheckFrameBufferAutoLinear();

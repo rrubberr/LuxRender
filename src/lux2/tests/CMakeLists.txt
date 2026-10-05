@@ -78,12 +78,6 @@ add_lux2_check(
 )
 
 add_lux2_check(
-	NAME lux2infinitelightcheck
-	SOURCES infinite_light_check.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
 	NAME lux2filmcheck
 	SOURCES film_check.cpp
 	LINKS lux2

@@ -12,20 +12,19 @@
 // Tests are machine generated. Proceed with caution!
 
 // Stage 2: statistical validation of the per-packet path walk. Builds small
-// scenes programmatically and checks the NullFilm's accumulated luminance
-// against analytic expectations: black scene, direct emitter, convex diffuse
-// object in a uniform environment (NEE on and off), enclosed opaque shell
-// under an environment (interior must stay black), and a closed furnace.
+// scenes programmatically and checks a luminance-probe film's accumulated
+// luminance against analytic expectations: black scene, and a direct emitter
+// (maxdepth=0). Environment cases were dropped along with InfiniteLight.
 // Also checks termination and finiteness.
 
 #include "core/color.h"
 #include "core/dynload.h"
+#include "core/film.h"
 #include "core/paramset.h"
 #include "core/scene.h"
 #include "core/spectrum.h"
 #include "core/tilequeue.h"
 #include "core/transform.h"
-#include "film/null.h"
 #include "integrators/path.h"
 
 #include <cmath>
@@ -73,8 +72,64 @@ double First(const FloatP &p) {
     return double(buf[0]);
 }
 
+// A Film that keeps no pixels: folds each lane's spectral radiance into a
+// luminance sum at its own wavelength. This is the former library NullFilm,
+// dropped from the tree once FlexImageFilm covered production needs; the
+// statistical checks below still want pixel-free luminance accounting.
+class LuminanceProbe : public Film {
+public:
+    LuminanceProbe(int xres, int yres) : m_xres(xres), m_yres(yres) {}
+
+    int XRes() const override { return m_xres; }
+    int YRes() const override { return m_yres; }
+
+    void Splat(const FloatP &, const FloatP &, const SWCSpectrumP &L,
+               const SpectrumWavelengthsP &sw, const FloatP &alpha,
+               const FloatP &weight, int) override {
+        const FloatP lum = SWCY(L, sw) * weight;
+        const MaskP active = alpha > FloatP(0.f);
+
+        float lumArr[PACKET_WIDTH];
+        uint32_t actArr[PACKET_WIDTH];
+        enoki::store_unaligned(lumArr, lum);
+        enoki::store_unaligned(actArr, active);
+
+        for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+            if (actArr[i] != 0u && enoki::isfinite(lumArr[i])) {
+                m_sumLuminance += double(lumArr[i]);
+                m_count += 1.0;
+            }
+        }
+    }
+
+    void Merge(Film *other) override {
+        LuminanceProbe *o = dynamic_cast<LuminanceProbe *>(other);
+        if (!o)
+            return;
+        m_sumLuminance += o->m_sumLuminance;
+        m_count += o->m_count;
+        m_sampleCount += o->m_sampleCount;
+    }
+
+    bool WriteImage(ImageType) override { return true; }
+
+    void AddSampleCount(double n) override { m_sampleCount += n; }
+    double SampleCount() const override { return m_sampleCount; }
+
+    double MeanLuminance() const {
+        return m_count > 0.0 ? m_sumLuminance / m_count : 0.0;
+    }
+
+private:
+    int m_xres, m_yres;
+    double m_sumLuminance = 0.0;
+    double m_count = 0.0;
+    double m_sampleCount = 0.0;
+};
+
 // Mean luminance of a white (1,1,1) emitter of radiance `Le`, averaged over
-// the wavelength range — the same normalization NullFilm applies per lane.
+// the wavelength range — the same normalization LuminanceProbe applies per
+// lane.
 double WhiteLeMeanLum(double Le) {
     double sum = 0.0;
     int n = 0;
@@ -91,12 +146,12 @@ double WhiteLeMeanLum(double Le) {
 
 // A committed scene: camera at `camPos` looking at `target`; a sphere of
 // `radius` at the origin. If `emissive`, the sphere is a white area light of
-// radiance `le`. If `env`, a white infinite light of radiance `envLe` is added.
-// `target` must differ from `camPos` or look_at degenerates (normalize(0)).
+// radiance `le`. `target` must differ from `camPos` or look_at degenerates
+// (normalize(0)).
 std::unique_ptr<Scene> MakeScene(const Point3f &camPos, const Point3f &target,
                                  float radius,
                                  const std::string &mat, bool emissive,
-                                 double le, bool env, double envLe, int spp) {
+                                 double le, int spp) {
     SceneDescription d;
     const int xr = 16, yr = 16;
     d.filmParams.AddInt("xresolution", &xr, 1);
@@ -135,29 +190,20 @@ std::unique_ptr<Scene> MakeScene(const Point3f &camPos, const Point3f &target,
     }
     d.shapes.push_back(sd);
 
-    if (env) {
-        LightDesc ld;
-        ld.name = "infinite";
-        const RGBColor leRGB = RGBColor(Float(envLe), Float(envLe), Float(envLe));
-        ld.params.AddRGBColor("Le", &leRGB, 1);
-        d.lights.push_back(ld);
-    }
-
     auto scene = std::make_unique<Scene>();
     scene->Commit(d);
     return scene;
 }
 
-// Render one frame tile into the film.
+// Render one frame tile into a fresh luminance probe.
 double RunPass(SurfaceIntegrator &integ, Scene &scene) {
     integ.Start(scene);
     Tile t;
     t.x0 = 0; t.y0 = 0; t.x1 = 16; t.y1 = 16;
+    LuminanceProbe probe(16, 16);
     auto sampler = scene.GetSampler().Clone();
-    integ.RenderTile(scene, t, scene.GetFilm(), *sampler, 0,
-                     sampler->SampleCount());
-    auto *film = dynamic_cast<NullFilm *>(&scene.GetFilm());
-    return film ? film->MeanLuminance() : -1.0;
+    integ.RenderTile(scene, t, probe, *sampler, 0, sampler->SampleCount());
+    return probe.MeanLuminance();
 }
 
 std::shared_ptr<SurfaceIntegrator> MakeIntegrator(int maxdepth, bool nee,
@@ -182,9 +228,7 @@ int main() {
 
     // ---- 1. registration + construction ------------------------------
     {
-        auto &filmReg = DynamicLoader::registeredFilms();
         auto &siReg = DynamicLoader::registeredSurfaceIntegrators();
-        Check(filmReg.count("null") == 1, "NullFilm registered as 'null'");
         Check(siReg.count("path") == 1, "PathIntegrator registered as 'path'");
         auto integ = MakeIntegrator(6, true, true);
         Check(integ != nullptr, "PathIntegrator constructed via registry");
@@ -195,23 +239,23 @@ int main() {
         }
     }
 
-    // ---- 2. black scene: no lights, no env -> L == 0 -----------------
+    // ---- 2. black scene: no lights -> L == 0 --------------------------
     {
         auto scene = MakeScene(Point3f(0.f, 0.f, 4.f), Point3f(0.f, 0.f, 0.f),
                                1.f, "matte",
-                               false, 0.0, false, 0.0, 64);
+                               false, 0.0, 64);
         auto integ = MakeIntegrator(6, true, true);
         const double mean = RunPass(*integ, *scene);
         Check(std::isfinite(mean), "black scene: finite");
         Check(mean < 1e-6, "black scene: L == 0");
     }
 
-    // ---- 3. direct emitter visible (maxdepth=0) -> mean == Le --------
+    // ---- 3. direct emitter visible (maxdepth=0) -> mean == Le ---------
     {
         const double Le = 1.0;
         auto scene = MakeScene(Point3f(0.f, 0.f, 4.f), Point3f(0.f, 0.f, 0.f),
                                1.f, "",
-                               true, Le, false, 0.0, 64);
+                               true, Le, 64);
         auto integ = MakeIntegrator(0, true, true);
         const double mean = RunPass(*integ, *scene);
         const double expected = WhiteLeMeanLum(Le);
@@ -220,45 +264,11 @@ int main() {
                  Close(mean, expected, 0.15));
     }
 
-    // ---- 4. convex diffuse (rho=0.5) in uniform env: L ~ rho*Le ------
-    {
-        const double envLe = 1.0;
-        const double expected = WhiteLeMeanLum(0.5 * envLe);
+    // ---- 4. environment cases: DROPPED --------------------------------
+    // The uniform-environment NEE and enclosed-shell cases required
+    // InfiniteLight, which is out of the tree pending its return.
 
-        auto sOn = MakeScene(Point3f(0.f, 0.f, 4.f), Point3f(0.f, 0.f, 0.f),
-                             1.f, "matte",
-                             false, 0.0, true, envLe, 256);
-        auto integOn = MakeIntegrator(8, true, true);
-        const double meanOn = RunPass(*integOn, *sOn);
-        Check(std::isfinite(meanOn), "env NEE-on: finite");
-        CheckNum("env NEE-on: L ~ rho*Le (order of magnitude)", meanOn, expected,
-                 meanOn > 0.1 * expected && meanOn < 4.0 * expected);
-
-        auto sOff = MakeScene(Point3f(0.f, 0.f, 4.f), Point3f(0.f, 0.f, 0.f),
-                              1.f, "matte",
-                              false, 0.0, true, envLe, 256);
-        auto integOff = MakeIntegrator(8, false, true);
-        const double meanOff = RunPass(*integOff, *sOff);
-        Check(std::isfinite(meanOff), "env NEE-off: finite");
-        CheckNum("env NEE-off: L ~ rho*Le (order of magnitude)", meanOff, expected,
-                 meanOff > 0.1 * expected && meanOff < 4.0 * expected);
-    }
-
-    // ---- 5. enclosed opaque shell under env -> interior black --------
-    // Camera inside a closed non-emissive matte shell; the environment must
-    // not light the interior through the walls (catches a missing shadow ray
-    // on infinite-light NEE).
-    {
-        auto scene = MakeScene(Point3f(0.f, 0.f, 0.f), Point3f(0.f, 0.f, -1.f),
-                               5.f, "matte",
-                               false, 0.0, true, 1.0, 64);
-        auto integ = MakeIntegrator(8, true, true);
-        const double mean = RunPass(*integ, *scene);
-        Check(std::isfinite(mean), "enclosed: finite");
-        Check(mean < 0.05, "enclosed box: interior black (env occluded)");
-    }
-
-    // ---- 6. furnace: DEFERRED ------------------------------------------
+    // ---- 5. furnace: DEFERRED ------------------------------------------
     // A closed emissive cavity with albedo 1 has no equilibrium: L diverges
     // as the geometric series Le/(1-rho), so the integrator's maxdepth-
     // truncated value grows with depth rather than converging to Le. A correct

@@ -288,20 +288,20 @@ void CheckTransform() {
 		"transform inverse round-trip");
 
 	// Hand-computed look_at: camera at origin looking down -Z with +Y up.
-	// The camera-to-world basis is left=(-1,0,0), up=(0,1,0), dir=(0,0,-1),
-	// so a camera-space point (1,0,0) maps to world (-1,0,0), and the inverse
-	// (world-to-camera) maps it back.
+	// Right-handed camera-to-world ("Fix camera-to-world handedness"):
+	// right = cross(dir, up) = (+1,0,0), so a camera-space point (1,0,0)
+	// maps to world (1,0,0), and the inverse (world-to-camera) maps it back.
 	const Transform c2w = Transform::look_at(Point3f(0.f, 0.f, 0.f),
 		Point3f(0.f, 0.f, -1.f), Vector3f(0.f, 1.f, 0.f));
-	Check(Close(c2w * Point3f(1.f, 0.f, 0.f), Point3f(-1.f, 0.f, 0.f)),
+	Check(Close(c2w * Point3f(1.f, 0.f, 0.f), Point3f(1.f, 0.f, 0.f)),
 		"look_at camera->world");
-	Check(Close(c2w.inverse() * Point3f(-1.f, 0.f, 0.f), Point3f(1.f, 0.f, 0.f)),
+	Check(Close(c2w.inverse() * Point3f(1.f, 0.f, 0.f), Point3f(1.f, 0.f, 0.f)),
 		"look_at world->camera");
 
 	// LookAt composed with a translation: moving the camera along its own +X
-	// (which is world -X) shifts the world image accordingly.
+	// (which is world +X under this basis) shifts the world image accordingly.
 	const Transform moved = c2w * Transform::translate(Vector3f(1.f, 0.f, 0.f));
-	Check(Close(moved * Point3f(0.f, 0.f, 0.f), Point3f(-1.f, 0.f, 0.f)),
+	Check(Close(moved * Point3f(0.f, 0.f, 0.f), Point3f(1.f, 0.f, 0.f)),
 		"look_at * translate");
 }
 

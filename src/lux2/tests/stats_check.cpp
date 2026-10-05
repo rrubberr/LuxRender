@@ -59,7 +59,6 @@ public:
                const SpectrumWavelengthsP &, const FloatP &, const FloatP &,
                int) override {}
     void Merge(Film *) override {}
-    void MergeRegion(Film *, int, int, int, int) override {}
     bool WriteImage(ImageType) override { return true; }
 
     void AddSampleCount(double n) override { m_sampleCount += n; }

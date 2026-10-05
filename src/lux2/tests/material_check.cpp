@@ -59,6 +59,8 @@ DifferentialGeometryP MakeDG() {
     DifferentialGeometryP dg;
     dg.p = Point3fP(FloatP(0.f), FloatP(0.f), FloatP(0.f));
     dg.n = Normal3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));
+    // sideTest() reads ng; a zero ng kills every lane (st == 0).
+    dg.ng = Normal3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));
     dg.uv_u = FloatP(0.f);
     dg.uv_v = FloatP(0.f);
     dg.dp_du = Vector3fP(FloatP(1.f), FloatP(0.f), FloatP(0.f));
@@ -81,14 +83,9 @@ std::shared_ptr<MatteMaterial> MakeMatte(float sigmaDeg) {
     return std::make_shared<MatteMaterial>(kd, sigma);
 }
 
-// wo pointing into the surface from above (front side: dot(wo, n) < 0).
-Vector3fP MakeWo() {
-    Vector3fP wo(FloatP(0.3f), FloatP(-0.2f), FloatP(-1.f));
-    return enoki::normalize(wo);
-}
-
 // wo on the +n hemisphere (lux2 convention: wo = -incidentDir, face-forward).
-// Required by the reflection lobe (lux rejects wo.z <= 0).
+// Reflection requires wi on the same hemisphere as wo (sameHemisphere and
+// sideTest both key off it), so every reflection case uses this.
 Vector3fP MakeWoRefl() {
     Vector3fP wo(FloatP(0.3f), FloatP(-0.2f), FloatP(1.f));
     return enoki::normalize(wo);
@@ -96,16 +93,19 @@ Vector3fP MakeWoRefl() {
 
 void CheckFlags() {
     auto m = MakeMatte(0.f);
+    // Lux matte is two-sided: FrontSide | BackSide.
     const uint32_t expected = uint32_t(BSDFType::DiffuseReflection) |
-                              uint32_t(BSDFType::FrontSide);
-    Check(m->flags() == expected, "matte flags == DiffuseReflection | FrontSide");
+                              uint32_t(BSDFType::FrontSide) |
+                              uint32_t(BSDFType::BackSide);
+    Check(m->flags() == expected,
+          "matte flags == DiffuseReflection | Front | Back");
 }
 
 void CheckSample() {
     auto m = MakeMatte(0.f);
     const DifferentialGeometryP dg = MakeDG();
     const SpectrumWavelengthsP sw = MakeSW();
-    const Vector3fP wo = MakeWo();
+    const Vector3fP wo = MakeWoRefl();
 
     BSDFSampleP s;
     s.pdf = FloatP(-999.f);
@@ -117,7 +117,7 @@ void CheckSample() {
         if (!(lane(s.pdf, i) >= 0.f)) pdfOk = false;
         float x = lane(s.f, i);
         if (!(x >= 0.f) || !(x < 1e30f)) fFinite = false;
-        float dn = lane(s.wo, 2)[i];  // z component (n == +Z)
+        float dn = lane(s.wi, 2)[i];  // z component (n == +Z)
         if (!(dn > 0.f)) hemiOk = false;
         if (lane(s.sampledType, i) != uint32_t(BSDFType::DiffuseReflection))
             typeOk = false;
@@ -134,7 +134,7 @@ void CheckPdf() {
     auto m = MakeMatte(0.f);
     const DifferentialGeometryP dg = MakeDG();
     const SpectrumWavelengthsP sw = MakeSW();
-    const Vector3fP wo = MakeWo();
+    const Vector3fP wo = MakeWoRefl();
 
     // Front-side direction: expect cos(theta) * INVPI.
     Vector3fP wiF = enoki::normalize(Vector3fP(FloatP(0.2f), FloatP(0.1f), FloatP(0.9f)));
@@ -157,11 +157,14 @@ void CheckPdf() {
     Check(backOk, "Pdf == 0 on the back side");
 }
 
-// Mean per-lane difference between the sampled lobe and kd/pi.
+// Mean per-lane difference between the sampled folded multiplier and kd.
+// Under the new BSDFSampleP contract f is the multiplier the integrator
+// applies directly (T *= f): the cosine/pdf factors cancel, so at
+// sigma == 0 f equals kd, not kd/pi.
 float MeanLobeRatio(const MatteMaterial &m) {
     const DifferentialGeometryP dg = MakeDG();
     const SpectrumWavelengthsP sw = MakeSW();
-    const Vector3fP wo = MakeWo();
+    const Vector3fP wo = MakeWoRefl();
 
     BSDFSampleP s;
     m.SampleF(sw, wo, dg, FloatP(0.37f), FloatP(0.61f), FloatP(0.5f),
@@ -175,7 +178,7 @@ float MeanLobeRatio(const MatteMaterial &m) {
     float sum = 0.f;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
         float lobe = lane(s.f, i);
-        float ref = lane(kdS, i) * INVPI;
+        float ref = lane(kdS, i);
         sum += (lobe - ref);
     }
     return sum / float(PACKET_WIDTH);
@@ -185,15 +188,15 @@ void CheckLambertian() {
     auto m = MakeMatte(0.f);
     float diff = MeanLobeRatio(*m);
     Check(std::fabs(diff) < 1e-4f,
-          "sigma==0 lobe equals kd/pi (Lambertian)");
+          "sigma==0 folded f equals kd (Lambertian)");
 }
 
 void CheckOrenNayar() {
     auto m = MakeMatte(35.f);
     float diff = MeanLobeRatio(*m);
-    // At sigma>0 the Oren--Nayar lobe must differ from the Lambertian kd/pi.
+    // At sigma>0 the Oren--Nayar lobe must differ from the Lambertian kd.
     Check(std::fabs(diff) > 1e-3f,
-          "sigma>0 lobe deviates from kd/pi (Oren--Nayar active)");
+          "sigma>0 f deviates from kd (Oren--Nayar active)");
 }
 
 // -----------------------------------------------------------------------
@@ -210,9 +213,12 @@ std::shared_ptr<Metal2Material> MakeMetal2(float rough) {
 
 void CheckMetal2Flags() {
     auto m = MakeMetal2(0.01f);
+    // Lux metal2 is two-sided: FrontSide | BackSide.
     const uint32_t expected = uint32_t(BSDFType::GlossyReflection) |
-                              uint32_t(BSDFType::FrontSide);
-    Check(m->flags() == expected, "metal2 flags == GlossyReflection | FrontSide");
+                              uint32_t(BSDFType::FrontSide) |
+                              uint32_t(BSDFType::BackSide);
+    Check(m->flags() == expected,
+          "metal2 flags == GlossyReflection | Front | Back");
 }
 
 void CheckMetal2Sample() {
@@ -231,7 +237,7 @@ void CheckMetal2Sample() {
         if (!(lane(s.pdf, i) > 0.f)) pdfPos = false;
         float x = lane(s.f, i);
         if (!(x >= 0.f) || !(x < 1e30f)) fFinite = false;
-        if (!(lane(s.wo, 2)[i] > 0.f)) hemiOk = false;
+        if (!(lane(s.wi, 2)[i] > 0.f)) hemiOk = false;
         if (lane(s.sampledType, i) != uint32_t(BSDFType::GlossyReflection))
             typeOk = false;
         if (lane(s.specular, i)) specOk = false;
@@ -254,7 +260,7 @@ void CheckMetal2PdfConsistency() {
     m->SampleF(sw, wo, dg, FloatP(0.31f), FloatP(0.72f), FloatP(0.5f),
                &s, TransportMode::Radiance, MaskP(true));
 
-    FloatP pdfEval = m->Pdf(sw, s.wo, wo, dg, uint32_t(BSDFType::All),
+    FloatP pdfEval = m->Pdf(sw, s.wi, wo, dg, uint32_t(BSDFType::All),
                             TransportMode::Radiance, MaskP(true));
 
     bool ok = true;
@@ -294,7 +300,11 @@ std::shared_ptr<GlassMaterial> MakeGlass(float index) {
     auto kt = std::make_shared<ConstantColorTexture>(
         RGBColorP(FloatP(0.8f), FloatP(0.8f), FloatP(0.8f)));
     auto idx = std::make_shared<ConstantFloatTexture>(FloatP(index));
-    return std::make_shared<GlassMaterial>(kr, kt, idx);
+    auto cauchyb = std::make_shared<ConstantFloatTexture>(FloatP(0.f));
+    auto film = std::make_shared<ConstantFloatTexture>(FloatP(0.f));
+    auto filmindex = std::make_shared<ConstantFloatTexture>(FloatP(1.5f));
+    return std::make_shared<GlassMaterial>(kr, kt, idx, cauchyb, film,
+                                           filmindex, false);
 }
 
 void CheckGlassFlags() {
