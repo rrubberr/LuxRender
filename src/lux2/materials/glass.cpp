@@ -169,7 +169,7 @@ namespace lux2
         }
         else if (mode == TransportMode::Radiance)
         {
-            // Lux reverse=true: (1 - F(cost)) * eta^2 * T. Fresnel is
+            // Lux reverse=true where (1 - F(cost)) * eta^2 * T. Fresnel is
             // evaluated at the signed transmitted cosine and eta^2 is the
             // radiance Jacobian on the eye path.
             const FloatP Ft = FresnelAt(sw, dg, cosT, active);
@@ -191,12 +191,13 @@ namespace lux2
 
         // Lux side test against the geometric normal with a grazing
         // epsilon where st > 0 rejects BTDFs, st < 0 rejects BRDFs,
-        // st == 0 rejects everything.
+        // st == 0 rejects everything. TIR only kills the transmission
+        // lobe.
         const FloatP st = sideTest(wo, wi, dg);
         const MaskP lobeOk = select(pickR, st > FloatP(0.f),
-                                    st < FloatP(0.f));
+                                    (st < FloatP(0.f)) && !tir);
 
-        const MaskP ok = active && selOk && lobeOk && !tir && (w > FloatP(0.f));
+        const MaskP ok = active && selOk && lobeOk && (w > FloatP(0.f));
         // Lux applies the ng Jacobian only when reverse=false
         // (Importance); the eye path (Radiance) skips it.
         f = select(ok, f * modeJacobian(mode, st), SWCSpectrumP(0.f));
