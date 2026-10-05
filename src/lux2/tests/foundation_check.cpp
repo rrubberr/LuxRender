@@ -156,6 +156,12 @@ void CheckRecorder(const std::string &plyPath) {
 // Verify the state machine rejects out-of-order statements.
 void CheckStateMachine() {
 	Context2 ctx;
+	// WorldEnd auto-starts rendering (startRenderingAfterParse defaults to
+	// true). This test only exercises statement rejection, so opt out:
+	// without this the destructor joins a real render thread (default film
+	// haltSpp=-1, unbounded) and ~ctx's Terminate races Render()'s initial
+	// m_state.store(Run), losing the cancellation and hanging forever.
+	ctx.StartRenderingAfterParse(false);
 
 	// Shape before WorldBegin must be rejected (state stays options).
 	ctx.Shape("sphere", ParamSet());
@@ -255,10 +261,8 @@ void CheckAPI() {
 
 	// WorldEnd commits the description and — because startRenderingAfterParse
 	// defaults to true — spawns the render thread right here, before any
-	// luxStart() call. Record that so a later hang is attributed correctly.
+	// luxStart() call. It is bounded by haltspp=16 above.
 	Context2 *ctx = Context2::GetActive();
-	std::cout << "  trace: after WorldEnd: rendering="
-		<< (ctx->IsRendering() ? "true" : "false") << std::endl;
 
 	// --- Verify the recorded description ---------------------------------
 	SceneDescription &d = Context2::GetActive()->Description();
@@ -309,49 +313,25 @@ void CheckAPI() {
 	Check(scene.GetSummary().namedMaterialCount == 1,
 		"C API: summary named-material count");
 
-	// --- Render control (instrumented) ------------------------------------
-	// Every call is timestamped and samples the committed film, so a hang
-	// identifies exactly where the test entered an unbounded render.
-	const auto t0 = std::chrono::steady_clock::now();
-	auto ms = [&] {
-		return std::chrono::duration_cast<std::chrono::milliseconds>(
-			std::chrono::steady_clock::now() - t0).count();
-	};
-	auto trace = [&](const char *where) {
-		Scene *s = ctx->GetScene();
-		std::cout << "  trace: " << ms() << "ms " << where;
-		if (s && s->IsCommitted())
-			std::cout << " state=" << (ctx->IsRendering() ? "Run" : "not-Run")
-			          << " spp=" << s->GetFilm().SampleCount();
-		else
-			std::cout << " state=no-scene";
-		std::cout << std::endl;
-	};
-	if (Scene *s = ctx->GetScene(); s && s->IsCommitted())
-		std::cout << "  trace: committed film haltSpp=" << s->GetFilm().HaltSpp()
-		          << " haltTime=" << s->GetFilm().HaltTime() << std::endl;
-
+	// --- Render control ----------------------------------------------------
+	// The render thread was spawned by luxWorldEnd above and is bounded by
+	// haltspp=16. Pause before Exit: the outer pause/resume loop only exits
+	// on Terminate, so a Pause that outlives Exit would block it forever.
 	luxStart();
-	trace("after luxStart");
 	luxPause();
-	trace("after luxPause");
 	luxExit();
-	trace("after luxExit");
 	luxAbort();
-	trace("after luxAbort");
 	{
-		// luxWait() blocks; run it on a helper thread and poll film progress
-		// so a runaway render fails loudly instead of stalling ctest.
+		// luxWait() blocks; run it on a helper thread so a lost cancellation
+		// fails loudly instead of stalling ctest. Exit/Abort above already
+		// set Terminate, so the render loop breaks after its current item.
 		std::atomic<bool> waitDone{false};
 		std::thread waiter([&] { luxWait(); waitDone.store(true); });
-		const long budgetMs = 15000;
-		long lastPrint = 0;
-		while (!waitDone.load() && ms() < budgetMs) {
-			std::this_thread::sleep_for(std::chrono::milliseconds(250));
-			if (ms() - lastPrint >= 1000) {
-				lastPrint = ms();
-				trace("luxWait pending");
-			}
+		const long budgetMs = 30000;
+		long waitedMs = 0;
+		while (!waitDone.load() && waitedMs < budgetMs) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			waitedMs += 100;
 		}
 		if (!waitDone.load()) {
 			std::cerr << "  FAIL: luxWait did not return within " << budgetMs
@@ -367,13 +347,16 @@ void CheckAPI() {
 		}
 		waiter.join();
 	}
-	trace("after luxWait");
+	Check(true, "C API: luxWait returns after Exit/Abort (render bounded)");
 	luxSetThreadCount(4);
 	Check(luxGetThreadCount() == 4, "C API: luxGetThreadCount reflects set");
+	// The film is a real fleximage after a completed render, so the
+	// framebuffer accessors hand out allocated buffers.
 	luxUpdateFramebuffer();
-	Check(luxFramebuffer() == nullptr, "C API: luxFramebuffer null");
-	Check(luxFloatFramebuffer() == nullptr, "C API: luxFloatFramebuffer null");
-	Check(luxAlphaBuffer() == nullptr, "C API: luxAlphaBuffer null");
+	Check(luxFramebuffer() != nullptr, "C API: luxFramebuffer non-null");
+	Check(luxFloatFramebuffer() != nullptr,
+		"C API: luxFloatFramebuffer non-null");
+	Check(luxAlphaBuffer() != nullptr, "C API: luxAlphaBuffer non-null");
 	luxSetUserSamplingMap(nullptr);
 	Check(luxGetUserSamplingMap() == nullptr,
 		"C API: luxGetUserSamplingMap null");

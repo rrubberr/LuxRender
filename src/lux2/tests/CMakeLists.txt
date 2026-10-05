@@ -47,6 +47,8 @@ add_lux2_check(
 	LINKS lux2
 )
 
+set_tests_properties(lux2foundationcheck PROPERTIES TIMEOUT 120)
+
 add_lux2_check(
 	NAME lux2qmccheck
 	SOURCES qmc_check.cpp

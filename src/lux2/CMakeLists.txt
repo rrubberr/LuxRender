@@ -53,8 +53,8 @@ PROJECT(lux2)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Enables ctest for lux2corecheck.
-# enable_testing()
+# Enables ctest for lux2 check executables.
+enable_testing()
 
 #####################
 # Find Dependencies #
@@ -83,6 +83,7 @@ file(GLOB LUX2_CORE_SRC CONFIGURE_DEPENDS
 	shapes/*.cpp
 	textures/*.cpp
 	materials/*.cpp
+	media/*.cpp
 	samplers/*.cpp
 	filters/*.cpp
 	cameras/*.cpp
@@ -119,7 +120,7 @@ TARGET_LINK_LIBRARIES(lux2 PUBLIC
 ###############
 
 # Test check executables (defined in tests/CMakeLists.txt).
-# add_subdirectory(tests)
+add_subdirectory(tests)
 
 
 #####################
