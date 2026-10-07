@@ -30,6 +30,8 @@
 #include "core/bsdf_type.h"
 #include "core/ray.h"
 
+#include <enoki/array.h>
+
 namespace lux2
 {
 
@@ -37,6 +39,8 @@ namespace lux2
     class Light
     {
     public:
+        ENOKI_CALL_SUPPORT_FRIEND()
+
         virtual ~Light() = default;
 
         // Lobe types this light emits into for MIS weighting.

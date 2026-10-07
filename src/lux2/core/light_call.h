@@ -19,23 +19,26 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "filters/gaussian.h"
+#ifndef LUX2_LIGHT_CALL_H
+#define LUX2_LIGHT_CALL_H
 
-#include "core/dynload.h"
-#include "core/paramset.h"
-#include "core/register.h"
+#include "core/light.h"
+#include "core/vecp.h"
+
+#include <enoki/array.h>
 
 namespace lux2
 {
-
-    std::shared_ptr<Filter> GaussianFilter::CreateFilter(const PluginContext &ctx)
-    {
-        const float xw = ctx.params ? ctx.params->FindOneFloat("xwidth", 2.f) : 2.f;
-        const float yw = ctx.params ? ctx.params->FindOneFloat("ywidth", 2.f) : 2.f;
-        const float alpha = ctx.params ? ctx.params->FindOneFloat("alpha", 1.f) : 1.f;
-        return std::make_shared<GaussianFilter>(xw, yw, alpha);
-    }
-
-    LUX2_REGISTER_FILTER(GaussianFilter, "gaussian");
-
+    // Light pointer array.
+    using LightPtr = enoki::replace_scalar_t<FloatP, const Light *>;
 } // namespace lux2
+
+// IsInfinite() returns a scalar bool and is not dispatched.y.
+ENOKI_CALL_SUPPORT_BEGIN(lux2::Light)
+ENOKI_CALL_SUPPORT_METHOD(flags)
+ENOKI_CALL_SUPPORT_METHOD(Le)
+ENOKI_CALL_SUPPORT_METHOD(Sample_L)
+ENOKI_CALL_SUPPORT_METHOD(Pdf_L)
+ENOKI_CALL_SUPPORT_END(lux2::Light)
+
+#endif // LUX2_LIGHT_CALL_H

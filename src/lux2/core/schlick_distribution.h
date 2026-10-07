@@ -55,13 +55,14 @@ namespace lux2
     private:
         FloatP SchlickG(const FloatP &costheta) const
         {
-            return costheta / (costheta * (FloatP(1.f) - m_roughness) + m_roughness);
+            return costheta /
+                   fmadd(costheta, FloatP(1.f) - m_roughness, m_roughness);
         }
 
         FloatP SchlickZ(const FloatP &cosNH) const
         {
             const FloatP cosNH2 = cosNH * cosNH;
-            const FloatP d = cosNH2 * m_roughness + (FloatP(1.f) - cosNH2);
+            const FloatP d = fmadd(cosNH2, m_roughness, FloatP(1.f) - cosNH2);
             // (r/d)/d avoids overflow in d*d.
             return (m_roughness / d) / d;
         }
@@ -73,7 +74,8 @@ namespace lux2
             const FloatP hSafe = select(nonzero, h, FloatP(1.f));
             const FloatP w = select(m_anisotropy > FloatP(0.f), H.x(), H.y()) / hSafe;
             const FloatP p = FloatP(1.f) - abs(m_anisotropy);
-            const FloatP a = sqrt(p / (p * p + w * w * (FloatP(1.f) - p * p)));
+            const FloatP a =
+                sqrt(p / fmadd(w * w, FloatP(1.f) - p * p, p * p));
             return select(nonzero, a, FloatP(1.f));
         }
 

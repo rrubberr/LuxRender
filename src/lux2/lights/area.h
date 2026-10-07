@@ -26,6 +26,8 @@
 #include "core/shape.h"
 #include "core/texture.h"
 
+#include <enoki/array.h>
+
 #include <memory>
 #include <vector>
 
@@ -33,6 +35,15 @@ namespace lux2
 {
 
     struct PluginContext;
+
+    // One emitting triangle in packed form.
+    template <typename Value>
+    struct AreaTriangle
+    {
+        enoki::Array<Value, 3> v0, v1, v2; // vertices
+        enoki::Array<Value, 3> n0, n1, n2; // smooth shading normals
+        ENOKI_STRUCT(AreaTriangle, v0, v1, v2, n0, n1, n2)
+    };
 
     class AreaLight : public Light
     {
@@ -77,18 +88,16 @@ namespace lux2
         float m_gain;
         UInt m_group = 0;
 
-        // Emitting-triangle tables, for gather-based sampling.
-        std::vector<float> m_v0x, m_v0y, m_v0z;
-        std::vector<float> m_v1x, m_v1y, m_v1z;
-        std::vector<float> m_v2x, m_v2y, m_v2z;
-        std::vector<float> m_n0x, m_n0y, m_n0z;
-        std::vector<float> m_n1x, m_n1y, m_n1z;
-        std::vector<float> m_n2x, m_n2y, m_n2z;
+        // Emitting triangle table for gather sampling.
+        std::vector<AreaTriangle<float>> m_tris;
         std::vector<float> m_cdf; // Cumulative per-triangle areas.
         float m_totalArea = 0.f;
         std::uint32_t m_triCount = 0;
     };
 
 } // namespace lux2
+
+// Must be at global scope.
+ENOKI_STRUCT_SUPPORT(lux2::AreaTriangle, v0, v1, v2, n0, n1, n2)
 
 #endif // LUX2_LIGHT_AREA_H

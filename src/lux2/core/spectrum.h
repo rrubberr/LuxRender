@@ -128,9 +128,9 @@ namespace lux2
         // Rec.709 luma.
         Value_ Y() const
         {
-            return Value_(0.212671f) * (*this)[0] +
-                   Value_(0.715160f) * (*this)[1] +
-                   Value_(0.072169f) * (*this)[2];
+            return fmadd(Value_(0.212671f), (*this)[0],
+                         fmadd(Value_(0.715160f), (*this)[1],
+                               Value_(0.072169f) * (*this)[2]));
         }
 
         // Unweighted mean of the channels.

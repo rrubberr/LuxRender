@@ -66,13 +66,13 @@ namespace lux2
     FloatP FrCond(const FloatP &cosi, const FloatP &eta, const FloatP &k)
     {
         const FloatP one(1.f);
-        const FloatP eta2k2 = eta * eta + k * k;
+        const FloatP eta2k2 = fmadd(eta, eta, k * k);
         const FloatP two_eta_cos = (FloatP(2.f) * eta) * cosi;
 
-        const FloatP tmp = eta2k2 * (cosi * cosi) + one;
+        const FloatP tmp = fmadd(eta2k2, cosi * cosi, one);
         const FloatP Rparl2 = guarded_div(tmp - two_eta_cos, tmp + two_eta_cos);
 
-        const FloatP tmp_f = eta2k2 + cosi * cosi;
+        const FloatP tmp_f = fmadd(cosi, cosi, eta2k2);
         const FloatP Rperp2 = guarded_div(tmp_f - two_eta_cos, tmp_f + two_eta_cos);
 
         return (Rparl2 + Rperp2) * 0.5f;
@@ -81,14 +81,14 @@ namespace lux2
     FloatP FrFull(const FloatP &cosi, const FloatP &cost,
                   const FloatP &eta, const FloatP &k)
     {
-        const FloatP eta2k2 = eta * eta + k * k;
+        const FloatP eta2k2 = fmadd(eta, eta, k * k);
         const FloatP two_cos_cos = (FloatP(2.f) * cosi) * cost;
         const FloatP common = two_cos_cos * eta;
 
-        const FloatP tmp = eta2k2 * (cosi * cosi) + cost * cost;
+        const FloatP tmp = fmadd(eta2k2, cosi * cosi, cost * cost);
         const FloatP Rparl2 = guarded_div(tmp - common, tmp + common);
 
-        const FloatP tmp_f = eta2k2 * (cost * cost) + cosi * cosi;
+        const FloatP tmp_f = fmadd(eta2k2, cost * cost, cosi * cosi);
         const FloatP Rperp2 = guarded_div(tmp_f - common, tmp_f + common);
 
         return (Rparl2 + Rperp2) * 0.5f;
@@ -149,8 +149,9 @@ namespace lux2
         // Complex-IOR refraction where exiting applies the conjugate inverse
         // transform eta -> eta/d^2, k -> -k/d^2 with d^2 = eta^2 + k^2.
         const FloatP a = FloatP(2.f) * fg.k * fg.k * sint2;
-        const FloatP cost = sqrt((cost2 + sqrt(cost2 * cost2 + a * a)) * FloatP(0.5f));
-        const FloatP d2 = fg.eta * fg.eta + fg.k * fg.k;
+        const FloatP cost =
+            sqrt((cost2 + sqrt(fmadd(cost2, cost2, a * a))) * FloatP(0.5f));
+        const FloatP d2 = fmadd(fg.eta, fg.eta, fg.k * fg.k);
         const FloatP etaExit = fg.eta / d2;
         const FloatP kExit = -fg.k / d2;
         const FloatP eta = select(cosi > FloatP(0.f), fg.eta, etaExit);

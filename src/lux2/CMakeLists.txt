@@ -66,7 +66,8 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 # Set compiler flags #
 ######################
 
-ADD_DEFINITIONS(-march=native -g -ftree-vectorize -funroll-loops -DHAVE_PTHREAD_H)
+# GCC miscompiles Enoki's raw_coeff_ without -fno-strict-aliasing.
+ADD_DEFINITIONS(-march=native -g -ftree-vectorize -funroll-loops -fno-strict-aliasing -DHAVE_PTHREAD_H)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O2")
 
 # Where the finished binaries are collected.

@@ -60,7 +60,7 @@ namespace lux2
                                 const FloatP &, BSDFSampleP *sample,
                                 TransportMode mode, MaskP active) const
     {
-        if (!any(active))
+        if (none(active))
             return;
 
         SWCSpectrumP R;
@@ -129,7 +129,7 @@ namespace lux2
                              TransportMode mode, BSDFEvalP *out,
                              MaskP active) const
     {
-        if (!any(active))
+        if (none(active))
             return;
 
         // Lux NEE calls SingleBSDF::F(sw, wi_light, wo_eye, reverse=true) where

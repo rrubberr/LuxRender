@@ -74,8 +74,9 @@ namespace lux2
         const FloatP pz = sqrt(max(FloatP(1.f) - px * px - py * py,
                                    FloatP(0.f)));
         const auto basis = coordinate_system(Vector3fP(n.x(), n.y(), n.z()));
-        Vector3fP wi(basis.first * px + basis.second * py +
-                     Vector3fP(n.x(), n.y(), n.z()) * pz);
+        const Vector3fP nn(n.x(), n.y(), n.z());
+        Vector3fP wi(fmadd(basis.first, px,
+                           fmadd(basis.second, py, nn * pz)));
         enoki::masked(wi, dot(wo, n) < FloatP(0.f)) = -wi;
         return wi;
     }

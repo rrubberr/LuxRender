@@ -296,8 +296,9 @@ namespace lux2
             }
 
             // Miss lanes have Ng==0.
-            const FloatP ng2 = ngeo.x() * ngeo.x() + ngeo.y() * ngeo.y() +
-                               ngeo.z() * ngeo.z();
+            const FloatP ng2 = fmadd(ngeo.x(), ngeo.x(),
+                                     fmadd(ngeo.y(), ngeo.y(),
+                                           ngeo.z() * ngeo.z()));
             const FloatP ngInv = select(ng2 > FloatP(0.f), rsqrt(ng2), FloatP(0.f));
             ngeo = Normal3fP(ngeo.x() * ngInv, ngeo.y() * ngInv, ngeo.z() * ngInv);
 
@@ -388,7 +389,7 @@ namespace lux2
 
     void EmbreeScene::Intersect(RayP &ray, HitP &hit, Coherent hint) const
     {
-        if (!m_scene || !any(ray.alive))
+        if (!m_scene || none(ray.alive))
             return;
 
         IntersectPacket<PACKET_WIDTH>(m_scene, ray, hit, hint);
@@ -402,7 +403,7 @@ namespace lux2
     MaskP EmbreeScene::Occluded(const RayP &ray, MaskP active,
                                 Coherent hint) const
     {
-        if (!m_scene || !any(active))
+        if (!m_scene || none(active))
             return MaskP(false);
 
         return OccludedPacket<PACKET_WIDTH>(m_scene, ray, active, hint);
@@ -415,7 +416,7 @@ namespace lux2
     void EmbreeScene::ShadeHit(const RayP &ray, HitP &hit) const
     {
         const MaskP active = hit.hit;
-        if (!any(active))
+        if (none(active))
             return;
 
         // Global triangle index per lane. Enoki gather requires a signed index.
@@ -451,9 +452,9 @@ namespace lux2
         const FloatP n2x_ = enoki::gather<FloatP>(n2x.data(), gidx, active);
         const FloatP n2y_ = enoki::gather<FloatP>(n2y.data(), gidx, active);
         const FloatP n2z_ = enoki::gather<FloatP>(n2z.data(), gidx, active);
-        const Normal3fP n(b0 * n0x_ + hit.b1 * n1x_ + hit.b2 * n2x_,
-                          b0 * n0y_ + hit.b1 * n1y_ + hit.b2 * n2y_,
-                          b0 * n0z_ + hit.b1 * n1z_ + hit.b2 * n2z_);
+        const Normal3fP n(fmadd(b0, n0x_, fmadd(hit.b1, n1x_, hit.b2 * n2x_)),
+                          fmadd(b0, n0y_, fmadd(hit.b1, n1y_, hit.b2 * n2y_)),
+                          fmadd(b0, n0z_, fmadd(hit.b1, n1z_, hit.b2 * n2z_)));
         const FloatP sn2 = squared_norm(n);
         const Normal3fP nhat(n * rsqrt(sn2));
         hit.sh_n = select(sn2 > FloatP(0.f), nhat, hit.ngeo);
@@ -465,8 +466,8 @@ namespace lux2
         const FloatP v1_ = enoki::gather<FloatP>(uv1v.data(), gidx, active);
         const FloatP u2_ = enoki::gather<FloatP>(uv2u.data(), gidx, active);
         const FloatP v2_ = enoki::gather<FloatP>(uv2v.data(), gidx, active);
-        hit.uv = Point2fP(b0 * u0_ + hit.b1 * u1_ + hit.b2 * u2_,
-                          b0 * v0_ + hit.b1 * v1_ + hit.b2 * v2_);
+        hit.uv = Point2fP(fmadd(b0, u0_, fmadd(hit.b1, u1_, hit.b2 * u2_)),
+                          fmadd(b0, v0_, fmadd(hit.b1, v1_, hit.b2 * v2_)));
 
         // UV gradient solve for the shading frame.
         const Vector3fP dp1(v0x_ - v2x_, v0y_ - v2y_, v0z_ - v2z_);

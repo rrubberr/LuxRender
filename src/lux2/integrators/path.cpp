@@ -27,6 +27,7 @@
 #include "core/dynload.h"
 #include "core/embree2.h"
 #include "core/light.h"
+#include "core/light_call.h"
 #include "core/math.h"
 #include "core/register.h"
 #include "core/scene.h"
@@ -34,6 +35,7 @@
 #include <enoki/array.h>
 
 #include <cstdio>
+#include <cstring>
 #include <limits>
 
 #ifdef PACKET_OCCUPANCY
@@ -89,6 +91,11 @@ namespace lux2
             const std::vector<std::shared_ptr<Light>> *lights;
             int nLights;
             FloatP invNLights;
+            // Light pointers and infinite flags indexed by light id.
+            std::vector<const Light *> lightPtrs;
+            std::vector<float> lightInf;
+            // Area light pointers indexed by light ID.
+            std::vector<const Light *> areaPtrs;
             bool FULL_MIS, NEE, includeEnv, rrEfficiency;
             int maxDepth;
             FloatP rrProb, INF;
@@ -191,7 +198,7 @@ namespace lux2
                         if (!light->IsInfinite())
                             continue;
                         const MaskP la = envCount;
-                        if (!any(la))
+                        if (none(la))
                             continue;
                         FloatP envW(1.f);
                         if (FULL_MIS && NEE)
@@ -249,27 +256,23 @@ namespace lux2
                 SWCSpectrumP emTerm(0.f); // total emission added this bounce
                 if (any(emCount))
                 {
-                    const int nArea = scene.AreaLightCount();
-                    for (int a = 0; a < nArea; ++a)
+                    // One area light per lane selected by id.
+                    const MaskP la = emCount;
+                    const LightPtr al =
+                        enoki::gather<LightPtr>(ctx.areaPtrs.data(), hit.lightID, la);
+                    FloatP emW(1.f);
+                    if (FULL_MIS && NEE)
                     {
-                        const Light *al = scene.GetAreaLight(a);
-                        const MaskP la = emCount && eq(hit.lightID, Int32P(a));
-                        if (!any(la))
-                            continue;
-                        FloatP emW(1.f);
-                        if (FULL_MIS && NEE)
-                        {
-                            // Shading normal n.
-                            const FloatP pdfLEmitter =
-                                al->Pdf_L(prevP, prevN, p, n, la) * invNLights;
-                            emW = select(specularBounce, FloatP(1.f),
-                                         misWeight(prevPdf, pdfLEmitter));
-                        }
-                        const SWCSpectrumP LeRaw = al->Le(dg, sw, wo, la);
-                        const SWCSpectrumP Lem = emW * throughput * LeRaw;
-                        emTerm = emTerm + select(la, Lem, SWCSpectrumP(0.f));
-                        L = select(la, L + Lem, L);
+                        // Shading normal n.
+                        const FloatP pdfLEmitter =
+                            al->Pdf_L(prevP, prevN, p, n, la) * invNLights;
+                        emW = select(specularBounce, FloatP(1.f),
+                                     misWeight(prevPdf, pdfLEmitter));
                     }
+                    const SWCSpectrumP LeRaw = al->Le(dg, sw, wo, la);
+                    const SWCSpectrumP Lem = emW * throughput * LeRaw;
+                    emTerm = emTerm + select(la, Lem, SWCSpectrumP(0.f));
+                    L = select(la, L + Lem, L);
                 }
                 {
                     // Visible emission only AOV.
@@ -281,66 +284,62 @@ namespace lux2
                 alive &= !(hitMask && depth >= Int32P(maxDepth));
                 const MaskP hitAlive = hitMask && alive;
 
-                // NEE.
+                // NEE. One light per lane.
                 if (NEE && nLights > 0 && any(hitAlive))
                 {
                     const UInt32P lightIdx =
                         min(UInt32P(uint32_t(nLights - 1)),
-                            UInt32P(floor(ulight * FloatP(float(nLights)))));
-                    for (int k = 0; k < nLights; ++k)
-                    {
-                        const Light *light = lights[k].get();
-                        const MaskP la = hitAlive && eq(lightIdx, UInt32P(uint32_t(k)));
-                        if (!any(la))
-                            continue;
-                        Point3fP lightP(0.f, 0.f, 0.f);
-                        Vector3fP wi(0.f, 0.f, 0.f);
-                        Normal3fP lightN(0.f, 0.f, 0.f);
-                        FloatP pdfPos(0.f);
-                        SWCSpectrumP Le(0.f);
-                        const MaskP valid =
-                            light->Sample_L(sw, p, n, u2lpos.x(), u2lpos.y(),
-                                            ulightcomp, &lightP, &wi, &lightN,
-                                            &pdfPos, &Le, la);
-                        const FloatP dist = enoki::norm(lightP - p);
-                        const FloatP pdfL = pdfPos * invNLights;
-                        // Offset toward the side the path arrived on.
-                        const Point3fP off = OffsetRay(p, ng, -ray.d, FloatP(EPS_RAY));
-                        // IsInfinite() is a scalar virtual; branch directly.
-                        // Stop short of the emitter with an absolute margin because
-                        // a relative shrink can still clip the emitter surface.
-                        const FloatP tmax =
-                            light->IsInfinite()
-                                ? INF
-                                : dist - enoki::max(FloatP(1e-3f),
-                                                    FloatP(1e-3f) * dist);
-                        RayP shadow(off, wi, FloatP(EPS_RAY), tmax, FloatP(0.f));
-                        shadow.wavelengths = sw.w;
-                        shadow.mask = UInt32P(0xFFFFFFFFu);
-                        const MaskP tryVis = la && valid && (pdfL > FloatP(0.f));
-                        const MaskP vis =
-                            tryVis && !embree->Occluded(shadow, tryVis, Coherent::No);
+                            floor2int<UInt32P>(ulight * FloatP(float(nLights))));
+                    const MaskP la = hitAlive;
+                    const LightPtr light =
+                        enoki::gather<LightPtr>(ctx.lightPtrs.data(), lightIdx, la);
+                    const FloatP infF =
+                        enoki::gather<FloatP>(ctx.lightInf.data(), lightIdx, la);
 
-                        BSDFEvalP ev;
-                        ev.f = SWCSpectrumP(0.f);
-                        ev.pdf = FloatP(0.f);
-                        ev.pdfRev = FloatP(0.f);
-                        // Radiance == reverse (wo toward the eye), no ng
-                        // Jacobian in Eval.f.
-                        bsdf->Eval(sw, wi, wo, dg, TransportMode::Radiance, &ev, la);
+                    Point3fP lightP(0.f, 0.f, 0.f);
+                    Vector3fP wi(0.f, 0.f, 0.f);
+                    Normal3fP lightN(0.f, 0.f, 0.f);
+                    FloatP pdfPos(0.f);
+                    SWCSpectrumP Le(0.f);
+                    const MaskP valid = light->Sample_L(
+                        sw, p, n, u2lpos.x(), u2lpos.y(), ulightcomp, &lightP,
+                        &wi, &lightN, &pdfPos, &Le, la);
+                    const FloatP dist = enoki::norm(lightP - p);
+                    const FloatP pdfL = pdfPos * invNLights;
+                    // Offset toward the side the path arrived on.
+                    const Point3fP off = OffsetRay(p, ng, -ray.d, FloatP(EPS_RAY));
+                    // Stop short of a finite emitter with an absolute margin
+                    // because a relative shrink can still clip its surface.
+                    const FloatP tmax =
+                        select(infF > FloatP(0.5f), INF,
+                               dist - enoki::max(FloatP(1e-3f),
+                                                 FloatP(1e-3f) * dist));
+                    RayP shadow(off, wi, FloatP(EPS_RAY), tmax, FloatP(0.f));
+                    shadow.wavelengths = sw.w;
+                    shadow.mask = UInt32P(0xFFFFFFFFu);
+                    const MaskP tryVis = la && valid && (pdfL > FloatP(0.f));
+                    const MaskP vis =
+                        tryVis && !embree->Occluded(shadow, tryVis, Coherent::No);
 
-                        // ev.f carries |cos(0ᵢ)|. cosL is hemisphere agnostic.
-                        // Degenerate (wi,wo) pairs are zeroed in ev.f.
-                        const FloatP cosL = abs(dot(wi, n));
-                        FloatP neeW(1.f);
-                        if (FULL_MIS)
-                            neeW = misWeight(pdfL, ev.pdf);
-                        const MaskP ok = vis && (pdfL > FloatP(0.f)) && (cosL > FloatP(0.f));
-                        const SWCSpectrumP Ld = select(
-                            ok, neeW * throughput * Le * ev.f / max(pdfL, FloatP(EPS_DENOM)),
-                            SWCSpectrumP(0.f));
-                        L = L + Ld;
-                    }
+                    BSDFEvalP ev;
+                    ev.f = SWCSpectrumP(0.f);
+                    ev.pdf = FloatP(0.f);
+                    ev.pdfRev = FloatP(0.f);
+                    // Radiance == reverse (wo toward the eye), no ng
+                    // Jacobian in Eval.f.
+                    bsdf->Eval(sw, wi, wo, dg, TransportMode::Radiance, &ev, la);
+
+                    // ev.f carries |cos(0ᵢ)|. cosL is hemisphere agnostic.
+                    // Degenerate (wi,wo) pairs are zeroed in ev.f.
+                    const FloatP cosL = abs(dot(wi, n));
+                    FloatP neeW(1.f);
+                    if (FULL_MIS)
+                        neeW = misWeight(pdfL, ev.pdf);
+                    const MaskP ok = vis && (pdfL > FloatP(0.f)) && (cosL > FloatP(0.f));
+                    const SWCSpectrumP Ld = select(
+                        ok, neeW * throughput * Le * ev.f / max(pdfL, FloatP(EPS_DENOM)),
+                        SWCSpectrumP(0.f));
+                    L = L + Ld;
                 }
 
                 // BSDF sample. Eye path uses reverse=true == TransportMode::Radiance.
@@ -535,35 +534,27 @@ namespace lux2
             st.alive = st.alive || fillMask;
         }
 
-        // One finished path's film contribution.
-        struct Retired
-        {
-            float x, y, L, wl, alpha, weight;
-        };
-
-        // Batches retired paths.
+        // Batch retired paths so Push can compact finished lanes with
+        // enoki::compress and Flush can load whole packets.
         struct RetireBuffer
         {
-            Retired buf[2 * PACKET_WIDTH];
+            // compress() writes packet granularly with n <= 2W-1 pending
+            // and up to W new entries.
+            static constexpr size_t CAP = 3 * PACKET_WIDTH;
+            float bx[CAP], by[CAP], bL[CAP], bwl[CAP], ba[CAP], bwt[CAP];
             size_t n = 0;
 
             void Push(const PathLanes &st, const MaskP &finished)
             {
-                alignas(64) float fx[PACKET_WIDTH], fy[PACKET_WIDTH];
-                alignas(64) float fL[PACKET_WIDTH], fw[PACKET_WIDTH];
-                alignas(64) float fa[PACKET_WIDTH], fwt[PACKET_WIDTH];
-                alignas(64) float ff[PACKET_WIDTH];
-                enoki::store_unaligned(fx, st.x);
-                enoki::store_unaligned(fy, st.y);
-                enoki::store_unaligned(fL, st.L);
-                enoki::store_unaligned(fw, st.sw.w);
-                enoki::store_unaligned(fa, st.alpha);
-                enoki::store_unaligned(fwt, st.camWeight);
-                enoki::store_unaligned(ff,
-                                       select(finished, FloatP(1.f), FloatP(0.f)));
-                for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                    if (ff[i] > 0.f)
-                        buf[n++] = Retired{fx[i], fy[i], fL[i], fw[i], fa[i], fwt[i]};
+                float *px = bx + n, *py = by + n, *pL = bL + n;
+                float *pwl = bwl + n, *pa = ba + n, *pwt = bwt + n;
+                const size_t c = enoki::compress(px, st.x, finished);
+                enoki::compress(py, st.y, finished);
+                enoki::compress(pL, st.L, finished);
+                enoki::compress(pwl, st.sw.w, finished);
+                enoki::compress(pa, st.alpha, finished);
+                enoki::compress(pwt, st.camWeight, finished);
+                n += c;
             }
 
             // Emit whole packets while they accumulate.
@@ -573,31 +564,27 @@ namespace lux2
                 {
                     const size_t take =
                         n < PACKET_WIDTH ? n : size_t(PACKET_WIDTH);
-                    alignas(64) float fx[PACKET_WIDTH], fy[PACKET_WIDTH];
-                    alignas(64) float fL[PACKET_WIDTH], fw[PACKET_WIDTH];
-                    alignas(64) float fa[PACKET_WIDTH], fwt[PACKET_WIDTH];
-                    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                    // Tail lanes contribute nothing.
+                    const MaskP real =
+                        enoki::arange<FloatP>() < FloatP(float(take));
+                    auto loadMasked = [&](const float *b)
                     {
-                        const bool real = i < take;
-                        const Retired &r = buf[real ? i : 0];
-                        fx[i] = r.x;
-                        fy[i] = r.y;
-                        fw[i] = r.wl;
-                        fL[i] = real ? r.L : 0.f;
-                        fa[i] = real ? r.alpha : 0.f;
-                        fwt[i] = real ? r.weight : 0.f;
-                    }
+                        return select(real, enoki::load_unaligned<FloatP>(b),
+                                      FloatP(0.f));
+                    };
                     SpectrumWavelengthsP sw;
-                    sw.FromWavelength(enoki::load_unaligned<FloatP>(fw));
-                    dest.Splat(enoki::load_unaligned<FloatP>(fx),
-                               enoki::load_unaligned<FloatP>(fy),
-                               SWCSpectrumP(enoki::load_unaligned<FloatP>(fL)),
-                               sw, enoki::load_unaligned<FloatP>(fa),
-                               enoki::load_unaligned<FloatP>(fwt), 0);
+                    sw.FromWavelength(loadMasked(bwl));
+                    dest.Splat(loadMasked(bx), loadMasked(by),
+                               SWCSpectrumP(loadMasked(bL)), sw,
+                               loadMasked(ba), loadMasked(bwt), 0);
                     // Compact the remainder to the front.
                     const size_t rem = n - take;
-                    for (size_t i = 0; i < rem; ++i)
-                        buf[i] = buf[take + i];
+                    std::memmove(bx, bx + take, rem * sizeof(float));
+                    std::memmove(by, by + take, rem * sizeof(float));
+                    std::memmove(bL, bL + take, rem * sizeof(float));
+                    std::memmove(bwl, bwl + take, rem * sizeof(float));
+                    std::memmove(ba, ba + take, rem * sizeof(float));
+                    std::memmove(bwt, bwt + take, rem * sizeof(float));
                     n = rem;
                 }
             }
@@ -625,6 +612,17 @@ namespace lux2
         ctx.nLights = static_cast<int>(ctx.lights->size());
         ctx.invNLights =
             ctx.nLights > 0 ? FloatP(1.f / float(ctx.nLights)) : FloatP(0.f);
+        ctx.lightPtrs.reserve(ctx.nLights);
+        ctx.lightInf.reserve(ctx.nLights);
+        for (const auto &l : *ctx.lights)
+        {
+            ctx.lightPtrs.push_back(l.get());
+            ctx.lightInf.push_back(l->IsInfinite() ? 1.f : 0.f);
+        }
+        const int nArea = scene.AreaLightCount();
+        ctx.areaPtrs.reserve(nArea);
+        for (int a = 0; a < nArea; ++a)
+            ctx.areaPtrs.push_back(scene.GetAreaLight(a));
         ctx.FULL_MIS = (m_lightMode == LightMode::MIS);
         ctx.NEE = (m_lightMode != LightMode::BSDF) && m_directLightSampling;
         ctx.includeEnv = m_includeEnvironment;

@@ -45,8 +45,8 @@ namespace lux2
         {
             const FloatP u = nu->Evaluate(dg, sw, active);
             const FloatP v = nv->Evaluate(dg, sw, active);
-            const FloatP u2 = u * u;
-            const FloatP v2 = v * v;
+            const FloatP u2 = sqr(u);
+            const FloatP v2 = sqr(v);
             *roughness = u * v;
             // anisotropy = u2 < v2 ? 1 - u2/v2 : v2/u2 - 1, always >= 0.
             // Prevent zero division because Lux degenerate u == v == 0
@@ -67,7 +67,7 @@ namespace lux2
             }
             Vector3fP toWorld(const Vector3fP &v) const
             {
-                return sn * v.x() + tn * v.y() + nn * v.z();
+                return fmadd(sn, v.x(), fmadd(tn, v.y(), nn * v.z()));
             }
         };
 
@@ -86,7 +86,7 @@ namespace lux2
                                  const FloatP &, BSDFSampleP *sample,
                                  TransportMode mode, MaskP active) const
     {
-        if (!any(active))
+        if (none(active))
             return;
 
         FloatP roughness, anisotropy;
@@ -168,7 +168,7 @@ namespace lux2
                               TransportMode mode, BSDFEvalP *out,
                               MaskP active) const
     {
-        if (!any(active))
+        if (none(active))
             return;
 
         // Lux NEE SingleBSDF::F(sw, woW=light, wiW=eye, reverse=true) ->

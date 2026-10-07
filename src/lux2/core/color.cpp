@@ -50,12 +50,12 @@ namespace lux2
         // Smits RGB basis bins.
         const FloatP xRGB = (wl - FloatP(WAVELENGTH_START)) *
                             FloatP(INV_SMITS_DELTA);
-        binRGB = floor(xRGB);
+        binRGB = floor2int<Int32P>(xRGB);
         offsetRGB = xRGB - FloatP(binRGB);
 
         // CIE bins.
         const FloatP xCIE = wl - FloatP(CIE_START);
-        binXYZ = floor(xCIE);
+        binXYZ = floor2int<Int32P>(xCIE);
         offsetXYZ = xCIE - FloatP(binXYZ);
     }
 

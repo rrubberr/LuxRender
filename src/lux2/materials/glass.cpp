@@ -50,7 +50,7 @@ namespace lux2
             const FloatP s =
                 sqrt(max(filmindex * filmindex - sinTheta2, FloatP(0.f)));
             const FloatP pd =
-                (FloatP(4.f) * PI * film / lambdaNm) * s + FloatP(PI);
+                fmadd(FloatP(4.f) * PI * film / lambdaNm, s, FloatP(PI));
             const FloatP c = cos(pd);
             return c * c;
         }
@@ -77,7 +77,7 @@ namespace lux2
                                 const FloatP &ucomp, BSDFSampleP *sample,
                                 TransportMode mode, MaskP active) const
     {
-        if (!any(active))
+        if (none(active))
             return;
 
         // Lux evaluates (sn, tn, dgShading.nn) with signed cosines
@@ -101,7 +101,7 @@ namespace lux2
             // SimpleSpecularTransmission::Weight needs passthrough from
             // back, double-bounce attenuation from front.
             const FloatP one(1.f);
-            const FloatP Fp = F * (one + (one - F) * (one - F));
+            const FloatP Fp = F * fmadd(one - F, one - F, one);
             wT = select(cosi < FloatP(0.f), FloatP(1.f), one - Fp);
         }
         else
@@ -150,7 +150,7 @@ namespace lux2
         const MaskP tir = sint2 >= FloatP(1.f);
         const FloatP cost = sqrt(max(FloatP(1.f) - sint2, FloatP(0.f)));
         const FloatP cosT = select(entering, -cost, cost);
-        Vector3fP wiT = wo * (FloatP(-eta)) + n * (eta * cosi + cosT);
+        Vector3fP wiT = fmadd(n, fmadd(eta, cosi, cosT), wo * (-eta));
         if (m_architectural)
             wiT = -wo; // straight through without refraction
 
@@ -165,7 +165,7 @@ namespace lux2
                                   ? select(entering, FloatP(0.f),
                                            FresnelAt(sw, dg, -cosi, active))
                                   : select(entering, F, FloatP(0.f));
-            fT = T * (one - Fe * (one + (one - Fe) * (one - Fe)));
+            fT = T * (one - Fe * fmadd(one - Fe, one - Fe, one));
         }
         else if (mode == TransportMode::Radiance)
         {
@@ -219,7 +219,7 @@ namespace lux2
                              const DifferentialGeometryP &dg, TransportMode mode,
                              BSDFEvalP *out, MaskP active) const
     {
-        if (!any(active))
+        if (none(active))
             return;
 
         // lux NEE evaluates MultiBSDF::F(reverse=true) so non-architectural
@@ -251,7 +251,8 @@ namespace lux2
             const MaskP straight =
                 dot(wo, wi) <= (FloatP(-1.f) + EPS_DENOM);
             const MaskP ok = active && straight && !tir && (st < FloatP(0.f));
-            f = select(ok, T * (one - Fe * (one + (one - Fe) * (one - Fe))),
+            f = select(ok,
+                       T * (one - Fe * fmadd(one - Fe, one - Fe, one)),
                        SWCSpectrumP(0.f));
             // Legacy SingleBSDF::F applies |sideTest| only when reverse=false.
             f = f * modeJacobian(mode, st);

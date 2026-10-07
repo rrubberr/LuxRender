@@ -46,48 +46,20 @@ namespace lux2
     void AreaLight::BindGeometry(const std::vector<TriangleDesc> &tris)
     {
         m_triCount = static_cast<std::uint32_t>(tris.size());
-        m_v0x.resize(m_triCount);
-        m_v0y.resize(m_triCount);
-        m_v0z.resize(m_triCount);
-        m_v1x.resize(m_triCount);
-        m_v1y.resize(m_triCount);
-        m_v1z.resize(m_triCount);
-        m_v2x.resize(m_triCount);
-        m_v2y.resize(m_triCount);
-        m_v2z.resize(m_triCount);
-        m_n0x.resize(m_triCount);
-        m_n0y.resize(m_triCount);
-        m_n0z.resize(m_triCount);
-        m_n1x.resize(m_triCount);
-        m_n1y.resize(m_triCount);
-        m_n1z.resize(m_triCount);
-        m_n2x.resize(m_triCount);
-        m_n2y.resize(m_triCount);
-        m_n2z.resize(m_triCount);
+        m_tris.resize(m_triCount);
         m_cdf.resize(m_triCount);
 
         m_totalArea = 0.f;
         for (std::uint32_t i = 0; i < m_triCount; ++i)
         {
             const TriangleDesc &t = tris[i];
-            m_v0x[i] = t.v0.x();
-            m_v0y[i] = t.v0.y();
-            m_v0z[i] = t.v0.z();
-            m_v1x[i] = t.v1.x();
-            m_v1y[i] = t.v1.y();
-            m_v1z[i] = t.v1.z();
-            m_v2x[i] = t.v2.x();
-            m_v2y[i] = t.v2.y();
-            m_v2z[i] = t.v2.z();
-            m_n0x[i] = t.n0.x();
-            m_n0y[i] = t.n0.y();
-            m_n0z[i] = t.n0.z();
-            m_n1x[i] = t.n1.x();
-            m_n1y[i] = t.n1.y();
-            m_n1z[i] = t.n1.z();
-            m_n2x[i] = t.n2.x();
-            m_n2y[i] = t.n2.y();
-            m_n2z[i] = t.n2.z();
+            AreaTriangle<float> &at = m_tris[i];
+            at.v0 = t.v0;
+            at.v1 = t.v1;
+            at.v2 = t.v2;
+            at.n0 = t.n0;
+            at.n1 = t.n1;
+            at.n2 = t.n2;
 
             // Triangle area = 0.5 * |(v1-v0) x (v2-v0)|.
             const Vector3f e1 = t.v1 - t.v0;
@@ -161,24 +133,29 @@ namespace lux2
         }
 
         // Gather the selected triangle's vertices and normals.
-        const FloatP v0x = enoki::gather<FloatP>(m_v0x.data(), triIdx, active);
-        const FloatP v0y = enoki::gather<FloatP>(m_v0y.data(), triIdx, active);
-        const FloatP v0z = enoki::gather<FloatP>(m_v0z.data(), triIdx, active);
-        const FloatP v1x = enoki::gather<FloatP>(m_v1x.data(), triIdx, active);
-        const FloatP v1y = enoki::gather<FloatP>(m_v1y.data(), triIdx, active);
-        const FloatP v1z = enoki::gather<FloatP>(m_v1z.data(), triIdx, active);
-        const FloatP v2x = enoki::gather<FloatP>(m_v2x.data(), triIdx, active);
-        const FloatP v2y = enoki::gather<FloatP>(m_v2y.data(), triIdx, active);
-        const FloatP v2z = enoki::gather<FloatP>(m_v2z.data(), triIdx, active);
-        const FloatP n0x = enoki::gather<FloatP>(m_n0x.data(), triIdx, active);
-        const FloatP n0y = enoki::gather<FloatP>(m_n0y.data(), triIdx, active);
-        const FloatP n0z = enoki::gather<FloatP>(m_n0z.data(), triIdx, active);
-        const FloatP n1x = enoki::gather<FloatP>(m_n1x.data(), triIdx, active);
-        const FloatP n1y = enoki::gather<FloatP>(m_n1y.data(), triIdx, active);
-        const FloatP n1z = enoki::gather<FloatP>(m_n1z.data(), triIdx, active);
-        const FloatP n2x = enoki::gather<FloatP>(m_n2x.data(), triIdx, active);
-        const FloatP n2y = enoki::gather<FloatP>(m_n2y.data(), triIdx, active);
-        const FloatP n2z = enoki::gather<FloatP>(m_n2z.data(), triIdx, active);
+        constexpr size_t kStride = sizeof(AreaTriangle<float>);
+        const float *base = reinterpret_cast<const float *>(m_tris.data());
+        const float *memberBase[6] = {
+            base + offsetof(AreaTriangle<float>, v0) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, v1) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, v2) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, n0) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, n1) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, n2) / sizeof(float)};
+        auto gatherV = [memberBase](int member, UInt32P idx, MaskP m)
+        {
+            const float *p = memberBase[member];
+            return enoki::Array<FloatP, 3>(
+                enoki::gather<FloatP, kStride>(p + 0, idx, m),
+                enoki::gather<FloatP, kStride>(p + 1, idx, m),
+                enoki::gather<FloatP, kStride>(p + 2, idx, m));
+        };
+        const enoki::Array<FloatP, 3> v0 = gatherV(0, triIdx, active);
+        const enoki::Array<FloatP, 3> v1 = gatherV(1, triIdx, active);
+        const enoki::Array<FloatP, 3> v2 = gatherV(2, triIdx, active);
+        const enoki::Array<FloatP, 3> n0 = gatherV(3, triIdx, active);
+        const enoki::Array<FloatP, 3> n1 = gatherV(4, triIdx, active);
+        const enoki::Array<FloatP, 3> n2 = gatherV(5, triIdx, active);
 
         // Uniform barycentrics.
         const FloatP su = enoki::sqrt(u1);
@@ -186,13 +163,13 @@ namespace lux2
         const FloatP b1 = su * (FloatP(1.f) - u2);
         const FloatP b2 = su * u2;
 
-        const Point3fP lp(fmadd(b0, v0x, fmadd(b1, v1x, b2 * v2x)),
-                          fmadd(b0, v0y, fmadd(b1, v1y, b2 * v2y)),
-                          fmadd(b0, v0z, fmadd(b1, v1z, b2 * v2z)));
+        const Point3fP lp(fmadd(b0, v0.x(), fmadd(b1, v1.x(), b2 * v2.x())),
+                          fmadd(b0, v0.y(), fmadd(b1, v1.y(), b2 * v2.y())),
+                          fmadd(b0, v0.z(), fmadd(b1, v1.z(), b2 * v2.z())));
 
-        Normal3fP nl(fmadd(b0, n0x, fmadd(b1, n1x, b2 * n2x)),
-                     fmadd(b0, n0y, fmadd(b1, n1y, b2 * n2y)),
-                     fmadd(b0, n0z, fmadd(b1, n1z, b2 * n2z)));
+        Normal3fP nl(fmadd(b0, n0.x(), fmadd(b1, n1.x(), b2 * n2.x())),
+                     fmadd(b0, n0.y(), fmadd(b1, n1.y(), b2 * n2.y())),
+                     fmadd(b0, n0.z(), fmadd(b1, n1.z(), b2 * n2.z())));
         nl = enoki::normalize(nl);
 
         const Vector3fP delta(lp - p);
@@ -215,6 +192,7 @@ namespace lux2
         enoki::masked(*lightP, active) = lp;
         enoki::masked(*wi, active) = w;
         enoki::masked(*lightN, active) = nl;
+        // Callers are not guaranteed to zero *pdf.
         enoki::masked(*pdf, active) = enoki::select(valid, pdfVal, FloatP(0.f));
 
         // Emitted radiance = plain Le * gain.

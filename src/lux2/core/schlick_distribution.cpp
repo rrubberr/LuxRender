@@ -42,7 +42,8 @@ namespace lux2
     {
         const FloatP u2 = u2in * FloatP(4.f);
 
-        const FloatP cos2Theta = u1 / (m_roughness * (FloatP(1.f) - u1) + u1);
+        const FloatP cos2Theta =
+            u1 / fmadd(m_roughness, FloatP(1.f) - u1, u1);
         const FloatP cosTheta = sqrt(max(FloatP(0.f), cos2Theta));
         const FloatP sinTheta = sqrt(max(FloatP(0.f), FloatP(1.f) - cos2Theta));
         const FloatP p = FloatP(1.f) - abs(m_anisotropy);

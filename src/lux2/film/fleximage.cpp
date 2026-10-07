@@ -41,9 +41,6 @@ namespace lux2
 
     namespace
     {
-        // Crop window math.
-        int CeilToInt(float v) { return int(std::ceil(v)); }
-
         // Round n up to a multiple of m (m > 0).
         int RoundUp(int n, int m) { return ((n + m - 1) / m) * m; }
     } // namespace
@@ -56,10 +53,12 @@ namespace lux2
           m_filter(filter), m_premultiplyAlpha(premultiplyAlpha)
     {
         // Crop window in pixels.
-        m_xStart = CeilToInt(float(xres) * crop[0]);
-        m_xCount = std::max(1, CeilToInt(float(xres) * crop[1]) - m_xStart);
-        m_yStart = CeilToInt(float(yres) * crop[2]);
-        m_yCount = std::max(1, CeilToInt(float(yres) * crop[3]) - m_yStart);
+        m_xStart = enoki::ceil2int<int>(float(xres) * crop[0]);
+        m_xCount = std::max(1, enoki::ceil2int<int>(float(xres) * crop[1]) -
+                                   m_xStart);
+        m_yStart = enoki::ceil2int<int>(float(yres) * crop[2]);
+        m_yCount = std::max(1, enoki::ceil2int<int>(float(yres) * crop[3]) -
+                                   m_yStart);
 
         const size_t n = size_t(m_xCount) * size_t(m_yCount);
         m_bX.assign(n, 0.f);
@@ -337,13 +336,13 @@ namespace lux2
 
         // Footprint bounds per lane.
         Int32P loX, loY, hiX, hiY;
-        loX = enoki::ceil(dx - FloatP(xWidth));
-        hiX = enoki::floor(dx + FloatP(xWidth));
-        loY = enoki::ceil(dy - FloatP(yWidth));
-        hiY = enoki::floor(dy + FloatP(yWidth));
+        loX = enoki::ceil2int<Int32P>(dx - FloatP(xWidth));
+        hiX = enoki::floor2int<Int32P>(dx + FloatP(xWidth));
+        loY = enoki::ceil2int<Int32P>(dy - FloatP(yWidth));
+        hiY = enoki::floor2int<Int32P>(dy + FloatP(yWidth));
 
-        const int nx = int(std::floor(2.f * xWidth + 1e-4f)) + 1;
-        const int ny = int(std::floor(2.f * yWidth + 1e-4f)) + 1;
+        const int nx = enoki::floor2int<int>(2.f * xWidth + 1e-4f) + 1;
+        const int ny = enoki::floor2int<int>(2.f * yWidth + 1e-4f) + 1;
 
         // Per-axis weight tables.
         FloatP wx[64], wy[64];

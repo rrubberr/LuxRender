@@ -128,8 +128,8 @@ namespace lux2
         // Partition the film into a tile grid. Auto tile size targets
         // 2 * nWorkers tiles, clamped by filter halo and 128pxy.
         // Halo is how far a splat's footprint reaches past its center.
-        const int haloX = int(std::ceil(filter.GetXWidth()));
-        const int haloY = int(std::ceil(filter.GetYWidth()));
+        const int haloX = enoki::ceil2int<int>(filter.GetXWidth());
+        const int haloY = enoki::ceil2int<int>(filter.GetYWidth());
         int tileSize = m_tileSize;
         if (tileSize <= 0)
         {
