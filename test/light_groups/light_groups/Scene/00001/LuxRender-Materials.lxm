@@ -1,0 +1,47 @@
+# Materials File
+
+MakeNamedMaterial "Glass"
+	"bool architectural" ["false"]
+	"float cauchyb" [0.000000000000000]
+	"float film" [0.000000000000000]
+	"float filmindex" [1.333299994468689]
+	"float index" [1.519999980926514]
+	"color Kr" [0.69999999 0.69999999 0.69999999]
+	"color Kt" [1.00000000 1.00000000 1.00000000]
+	"string type" ["glass"]
+
+Texture "Mirror_nk" "fresnel" "preset"
+	"string name" ["aluminium"]
+
+MakeNamedMaterial "Mirror"
+	"float uroughness" [0.004999999888241]
+	"float vroughness" [0.004999999888241]
+	"texture fresnel" ["Mirror_nk"]
+	"string type" ["metal2"]
+
+MakeNamedMaterial "Matte-White"
+	"color Kd" [0.63999999 0.63999999 0.63999999]
+	"float sigma" [0.300000011920929]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Matte-Red"
+	"color Kd" [0.44798833 0.06372359 0.07583998]
+	"float sigma" [0.300000011920929]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Matte-Green"
+	"color Kd" [0.06762595 0.44798833 0.06372359]
+	"float sigma" [0.300000011920929]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Blue"
+	"string type" ["null"]
+
+MakeNamedMaterial "Green"
+	"string type" ["null"]
+
+MakeNamedMaterial "White"
+	"string type" ["null"]
+
+MakeNamedMaterial "Red"
+	"string type" ["null"]
