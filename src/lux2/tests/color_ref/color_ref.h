@@ -115,6 +115,18 @@ public:
         }
     }
 
+    // Single wavelength sample.
+    float SampleAt(float lambda) const
+    {
+        if (nSamples <= 1 || lambda < lambdaMin || lambda > lambdaMax)
+            return 0.f;
+        const float x = (lambda - lambdaMin) * invDelta;
+        const unsigned b0 = Floor2UInt(x);
+        const unsigned b1 = Min(b0 + 1, nSamples - 1);
+        const float dx = x - float(b0);
+        return Lerp(dx, samples[b0], samples[b1]);
+    }
+
     void InitRegular(float lMin, float lMax, const float *s, unsigned n)
     {
         lambdaMin = lMin;
@@ -182,6 +194,25 @@ public:
         InitRegular(lMin, lMax, s, n);
         Scale(scale);
     }
+};
+
+// ---------------------------------------------------------------------------
+// BlackbodySPD
+// ---------------------------------------------------------------------------
+
+// Port of legacy luxrays::BlackbodySPD: Planck sampled on a 256-point grid
+// over [380, 720] nm, normalized to peak and clamped. ToXYZ integrates against
+// the CIE matching functions over the full table and scales by 683.
+class BlackbodySPD : public SPD
+{
+public:
+    explicit BlackbodySPD(float t);
+
+    // XYZ of the (unnormalized) blackbody, matching legacy SPD::ToXYZ.
+    void ToXYZ(float out[3]) const;
+
+private:
+    void Init(float t);
 };
 
 // ---------------------------------------------------------------------------

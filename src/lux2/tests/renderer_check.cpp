@@ -26,6 +26,7 @@
 #include "core/transform.h"
 #include "film/fleximage.h"
 #include "renderers/samplerrenderer.h"
+#include "renderers/grouppass.h"
 
 #include <atomic>
 #include <chrono>
@@ -127,6 +128,52 @@ std::unique_ptr<Scene> MakeEmitterScene(int spp, int haltspp, int halttime) {
 
 const FlexImageFilm *AsFlex(const Scene &s) {
     return dynamic_cast<const FlexImageFilm *>(&s.GetFilm());
+}
+
+// Two emissive spheres far apart, each in its own named light group (0 and 1).
+// Camera frames both. Used to check per-group routing and the wrapper loop.
+std::unique_ptr<Scene> MakeTwoGroupScene(int spp) {
+    SceneDescription d;
+    const int xr = 32, yr = 32;
+    d.filmName = "fleximage";
+    d.filmParams.AddInt("xresolution", &xr, 1);
+    d.filmParams.AddInt("yresolution", &yr, 1);
+    d.filmParams.AddInt("haltspp", &spp, 1);
+    d.rendererName = "sampler";
+    d.samplerName = "lowdiscrepancy";
+    d.samplerParams.AddInt("count", &spp, 1);
+    d.cameraName = "perspective";
+    d.cameraTransform = Transform::look_at(Point3f(0.f, 0.f, 8.f),
+                                           Point3f(0.f, 0.f, 0.f),
+                                           Vector3f(0.f, 1.f, 0.f));
+    auto emitter = [&](float x, std::uint32_t groupIndex) {
+        ShapeDesc sd;
+        sd.name = "sphere";
+        sd.toWorld = Transform::translate(Vector3f(x, 0.f, 0.f));
+        const float r = 1.f;
+        sd.params.AddFloat("radius", &r, 1);
+        sd.isAreaLight = true;
+        sd.areaLightName = "area";
+        const double le = 1.0;
+        const RGBColor leRGB = RGBColor(Float(le), Float(le), Float(le));
+        sd.areaLightParams.AddRGBColor("L", &leRGB, 1);
+        sd.lightGroupIndex = groupIndex;
+        d.shapes.push_back(sd);
+    };
+    emitter(-3.f, 0u);
+    emitter(3.f, 1u);
+    d.lightGroups = {"A", "B"};
+    auto scene = std::make_unique<Scene>();
+    scene->Commit(d);
+    return scene;
+}
+
+// Sum of the active group's BufY (call after film.SetActiveGroup(g)).
+double ActiveBufYSum(const FlexImageFilm &f) {
+    double s = 0.0;
+    for (float v : f.BufY())
+        s += double(v);
+    return s;
 }
 
 } // namespace
@@ -321,6 +368,91 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         Check(scene->GetFilm().SampleCount() == finalCount,
               "sample count stable after Terminate()");
+    }
+
+    // ---- 8. Stage 5: GroupRenderPass wrapper ----------------------------
+    {
+        // (a) Re-entrancy contract: two Render() calls with no Clear() in
+        //     between must ACCUMULATE into the film's buffers, not reset them.
+        //     NB: SampleCount() is NOT the invariant -- SetupTiles (run by
+        //     every Render) resets per-tile bookkeeping, so it reflects only
+        //     the last pass. The accumulation buffers are what must persist
+        //     and grow; two equal-budget passes should roughly double them.
+        const int spp = 32;
+        auto scene = MakeEmitterScene(spp, spp, -1);
+        Renderer &r = scene->GetRenderer();
+        r.Render(*scene, scene->GetSurfaceIntegrator());
+        const FlexImageFilm *f = AsFlex(*scene);
+        const double y1 = f ? ActiveBufYSum(*f) : 0.0;
+        r.Render(*scene, scene->GetSurfaceIntegrator());
+        const double y2 = f ? ActiveBufYSum(*f) : 0.0;
+        Check(y1 > 0.0 && y2 > y1,
+              "re-entrancy: accumulation grows (not reset) across passes");
+        CheckNum("re-entrancy: two equal passes ~double the buffer",
+                 y2, 2.0 * y1, Close(y2, 2.0 * y1, 0.05));
+
+        // (b) Per-group routing: the wrapper drives one pass per group; each
+        //     group's buffer set holds only its own emitter's contribution.
+        auto gs = MakeTwoGroupScene(64);
+        Check(gs->LightGroupCount() == 2, "wrapper: two groups committed");
+        RunGroupPasses(gs->GetRenderer(), *gs, gs->GetSurfaceIntegrator());
+        // Non-const: reading a specific group's buffer selects it first.
+        FlexImageFilm *gf =
+            dynamic_cast<FlexImageFilm *>(&gs->GetFilm());
+        Check(gf != nullptr, "wrapper: film is a FlexImageFilm");
+        if (gf) {
+            const double sumA = [&] { gf->SetActiveGroup(0); return ActiveBufYSum(*gf); }();
+            const double sumB = [&] { gf->SetActiveGroup(1); return ActiveBufYSum(*gf); }();
+            Check(sumA > 0.0, "wrapper: group A buffer accumulated");
+            Check(sumB > 0.0, "wrapper: group B buffer accumulated");
+            // The wrapper restores activeGroup to -1 (composite sees all).
+            Check(gs->GetActiveGroup() == -1,
+                  "wrapper: activeGroup restored to -1 after loop");
+        }
+
+        // (c) D9 fast path: a single default group with an identity convert
+        //     must be bit-identical to a direct Render(). RunGroupPasses
+        //     takes the early-return branch (no per-group seed change).
+        {
+            auto s_direct = MakeEmitterScene(48, 48, -1);
+            s_direct->GetRenderer().Render(*s_direct,
+                                           s_direct->GetSurfaceIntegrator());
+            auto s_wrapper = MakeEmitterScene(48, 48, -1);
+            RunGroupPasses(s_wrapper->GetRenderer(), *s_wrapper,
+                           s_wrapper->GetSurfaceIntegrator());
+            // Compare to float epsilon, not bitwise: work stealing varies the
+            // order halo-bleed merges hit each boundary pixel (see test 4), so
+            // two runs of the same code differ in low bits. The fast path must
+            // match a direct render as closely as two direct renders match.
+            const FlexImageFilm *fd = AsFlex(*s_direct);
+            const FlexImageFilm *fw = AsFlex(*s_wrapper);
+            bool same = fd && fw && fd->BufY().size() == fw->BufY().size();
+            if (same) {
+                for (size_t i = 0; i < fd->BufY().size() && same; ++i) {
+                    const float a = fd->BufY()[i], b = fw->BufY()[i];
+                    same = a == b ||
+                           std::fabs(a - b) <=
+                               1e-5f * (1.f + std::fabs(a) + std::fabs(b));
+                }
+            }
+            Check(same, "D9 fast path: single-group wrapper == direct render");
+        }
+
+        // (d) Seed decorrelation: two groups at the same spp must NOT be
+        //     identical noise (they'd be scaled copies under a shared seed).
+        //     GroupPassSeed(base,0,0) != GroupPassSeed(base,0,1) is the
+        //     mechanism; verify the seeds differ and are deterministic.
+        {
+            const uint64_t base = 0x12345678ull;
+            const uint64_t s0 = GroupPassSeed(base, 0, 0);
+            const uint64_t s1 = GroupPassSeed(base, 0, 1);
+            const uint64_t s0_again = GroupPassSeed(base, 0, 0);
+            Check(s0 != s1, "decorrelation: group seeds differ");
+            Check(s0 == s0_again, "decorrelation: seed is deterministic");
+            // Round advances the basis (progressive re-render adds info).
+            Check(GroupPassSeed(base, 1, 0) != s0,
+                  "decorrelation: round advances the seed");
+        }
     }
 
     std::cout << (g_failures == 0 ? "ALL PASS" : "FAILURES") << std::endl;

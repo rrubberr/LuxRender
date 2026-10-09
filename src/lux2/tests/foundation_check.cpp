@@ -363,16 +363,46 @@ void CheckAPI() {
 	luxGetHistogramImage(nullptr, 0, 0, 0);
 	Check(luxSaveEXR("out.exr", false, false, 0, false) == 0,
 		"C API: luxSaveEXR stub returns 0");
+
+	// --- Film parameter access (live routing) ----------------------------
+	// The active scene committed a real fleximage film; the render has
+	// already exited/aborted above, so mutating its parameters is safe.
+	Check(luxGetDefaultParameterValue(LUX_FILM, LUX_FILM_TM_LINEAR_GAMMA) == 1.0,
+		"C API: luxGetDefaultParameterValue reports film default gamma");
 	luxSetParameterValue(LUX_FILM, LUX_FILM_TM_LINEAR_GAMMA, 2.2);
-	Check(luxGetParameterValue(LUX_FILM, LUX_FILM_TM_LINEAR_GAMMA) == 0.0,
-		"C API: luxGetParameterValue stub returns 0");
-	Check(luxGetDefaultParameterValue(LUX_FILM, LUX_FILM_TM_LINEAR_GAMMA) == 0.0,
-		"C API: luxGetDefaultParameterValue stub returns 0");
+	// Stored as float; compare with a tolerance wider than float rounding.
+	Check(std::fabs(luxGetParameterValue(LUX_FILM, LUX_FILM_TM_LINEAR_GAMMA) - 2.2) < 1e-6,
+		"C API: luxSet/GetParameterValue round-trips gamma");
+
+	// --- Light-group parameters via the C ABI ----------------------------
+	// This scene has a single lazily created "default" group holding its one
+	// area light.
+	Check(luxGetParameterValue(LUX_FILM, LUX_FILM_LG_COUNT) == 1.0,
+		"C API: LG_COUNT reports the committed group count");
+	Check(luxGetParameterValue(LUX_FILM, LUX_FILM_LG_ENABLE, 0) == 1.0,
+		"C API: LG_ENABLE defaults enabled");
+	luxSetParameterValue(LUX_FILM, LUX_FILM_LG_ENABLE, 0.0, 0);
+	Check(luxGetParameterValue(LUX_FILM, LUX_FILM_LG_ENABLE, 0) == 0.0,
+		"C API: LG_ENABLE set/get round-trips");
+	luxSetParameterValue(LUX_FILM, LUX_FILM_LG_TEMPERATURE, 6500.0, 0);
+	Check(std::fabs(luxGetParameterValue(LUX_FILM, LUX_FILM_LG_TEMPERATURE, 0) - 6500.0) < 1e-4,
+		"C API: LG_TEMPERATURE set/get round-trips");
+	// SCALE_RED is a read-modify-write of the group's rgb scale.
+	luxSetParameterValue(LUX_FILM, LUX_FILM_LG_SCALE_RED, 0.5, 0);
+	Check(std::fabs(luxGetParameterValue(LUX_FILM, LUX_FILM_LG_SCALE_RED, 0) - 0.5) < 1e-6,
+		"C API: LG_SCALE_RED set/get round-trips");
+	Check(std::fabs(luxGetParameterValue(LUX_FILM, LUX_FILM_LG_SCALE_GREEN, 0) - 1.0) < 1e-6,
+		"C API: LG_SCALE_RED leaves the green channel untouched");
 	{
-		char buf[8];
-		Check(luxGetStringParameterValue(LUX_FILM, LUX_FILM_TM_TONEMAPKERNEL,
-			buf, sizeof(buf)) == 0,
-			"C API: luxGetStringParameterValue stub returns 0");
+		char name[16];
+		Check(luxGetDefaultStringParameterValue(LUX_FILM, LUX_FILM_LG_NAME,
+			name, sizeof(name), 0) == 0,
+			"C API: LG_NAME default is empty");
+		luxSetStringParameterValue(LUX_FILM, LUX_FILM_LG_NAME, "key", 0);
+		const unsigned int n = luxGetStringParameterValue(
+			LUX_FILM, LUX_FILM_LG_NAME, name, sizeof(name), 0);
+		Check(n == 3 && std::string(name) == "key",
+			"C API: LG_NAME string set/get round-trips");
 	}
 
 	luxCleanup();
@@ -509,6 +539,182 @@ void CheckMaterials(const std::string &plyPath) {
 		"materials: fresnelcolor texture recorded as fresnel");
 }
 
+// Verify light-group plumbing: first-use ordering, lazy default, undefined
+// fallback, area + non-area group(), and the empty-group check.
+void CheckLightGroups(const std::string &plyPath) {
+	Context2 ctx;
+	Context2::SetActive(&ctx);
+	ctx.StartRenderingAfterParse(false);
+
+	ctx.Renderer("sampler", ParamSet());
+	ctx.Sampler("lowdiscrepancy", ParamSet());
+	ctx.SurfaceIntegrator("path", ParamSet());
+	ctx.VolumeIntegrator("none", ParamSet());
+	ctx.PixelFilter("gaussian", ParamSet());
+	ctx.Camera("perspective", ParamSet());
+	ctx.Film("fleximage", ParamSet());
+
+	ctx.WorldBegin();
+
+	// A light before any LightGroup statement: resolves to a lazily created
+	// "default" at index 0 (legacy first-use ordering). Uses an area light so
+	// it also instantiates at Commit ("infinite" is not registered in-tree).
+	ctx.AttributeBegin();
+	{
+		const RGBColor L(1.f, 1.f, 1.f);
+		ParamSet al;
+		al.AddRGBColor("L", &L, 1);
+		ctx.AreaLightSource("area", al);
+	}
+	ctx.Shape("sphere", FloatParam("radius", 0.1f));
+	ctx.AttributeEnd();
+
+	// An explicitly declared group used by an area light.
+	ctx.LightGroup("key", ParamSet());
+	ctx.AttributeBegin();
+	{
+		const RGBColor L(1.f, 1.f, 1.f);
+		ParamSet al;
+		al.AddRGBColor("L", &L, 1);
+		ctx.AreaLightSource("area", al);
+	}
+	ctx.Shape("sphere", FloatParam("radius", 0.1f));
+	ctx.AttributeEnd();
+
+	// A second declared group used by an area light.
+	ctx.LightGroup("fill", ParamSet());
+	ctx.AttributeBegin();
+	{
+		const RGBColor L(1.f, 1.f, 1.f);
+		ParamSet al;
+		al.AddRGBColor("L", &L, 1);
+		ctx.AreaLightSource("area", al);
+	}
+	ctx.Shape("sphere", FloatParam("radius", 0.1f));
+	ctx.AttributeEnd();
+
+	// Re-declaring an existing group is a no-op for the ordered list (dedup)
+	// and re-points subsequent lights at it.
+	ctx.LightGroup("key", ParamSet());
+	ctx.AttributeBegin();
+	{
+		const RGBColor L(1.f, 1.f, 1.f);
+		ParamSet al;
+		al.AddRGBColor("L", &L, 1);
+		ctx.AreaLightSource("area", al);
+	}
+	ctx.Shape("sphere", FloatParam("radius", 0.1f));
+	ctx.AttributeEnd();
+
+	SceneDescription &d = ctx.Description();
+	ctx.WorldEnd();
+
+	// Ordered names: default (lazy, from the first light), key, fill. The
+	// second "key" declaration dedups and does not add a fourth entry.
+	Check(d.lightGroups.size() == 3, "lg: three groups (default/key/fill)");
+	if (d.lightGroups.size() == 3) {
+		Check(d.lightGroups[0] == "default", "lg: lazy default at index 0");
+		Check(d.lightGroups[1] == "key", "lg: key at index 1");
+		Check(d.lightGroups[2] == "fill", "lg: fill at index 2");
+	}
+
+	// Resolved indices on the area-light shape descriptors (in declaration
+	// order): default, key, fill, then key again (dedup re-points).
+	Check(d.shapes.size() == 4, "lg: four area-light shapes recorded");
+	if (d.shapes.size() == 4) {
+		Check(d.shapes[0].lightGroupIndex == 0 && d.shapes[0].lightGroup == "default",
+			"lg: first light -> lazy default index 0");
+		Check(d.shapes[1].lightGroupIndex == 1 && d.shapes[1].lightGroup == "key",
+			"lg: key light -> index 1");
+		Check(d.shapes[2].lightGroupIndex == 2 && d.shapes[2].lightGroup == "fill",
+			"lg: fill light -> index 2");
+		Check(d.shapes[3].lightGroupIndex == 1 && d.shapes[3].lightGroup == "key",
+			"lg: re-declared key dedups to index 1");
+	}
+
+	// After Commit: scene tables.
+	Scene scene;
+	scene.Commit(d);
+	Check(scene.LightGroupCount() == 3, "lg: scene group count == 3");
+	if (scene.LightGroupCount() == 3) {
+		Check(scene.LightGroupName(0) == "default", "lg: name 0 default");
+		Check(scene.LightGroupName(1) == "key", "lg: name 1 key");
+		Check(scene.LightGroupName(2) == "fill", "lg: name 2 fill");
+	}
+
+	// Area lights report their group via the lightID-indexed table.
+	Check(scene.AreaLightGroup(0) == 0, "lg: area light 0 in default (0)");
+	Check(scene.AreaLightGroup(1) == 1, "lg: area light 1 in key (1)");
+	Check(scene.AreaLightGroup(2) == 2, "lg: area light 2 in fill (2)");
+	Check(scene.AreaLightGroup(3) == 1, "lg: area light 3 in key (1)");
+	Check(scene.AreaLightGroup(-1) == -1, "lg: out-of-range area id -> -1");
+
+	// Group membership counts every light in the group.
+	Check(scene.GroupHasLights(0) && scene.GroupLights(0).size() == 1,
+		"lg: default group has 1 light");
+	Check(scene.GroupHasLights(1) && scene.GroupLights(1).size() == 2,
+		"lg: key group has 2 lights");
+	Check(scene.GroupHasLights(2) && scene.GroupLights(2).size() == 1,
+		"lg: fill group has 1 light");
+
+	// A LightGroup that is declared but never used by a light is still defined
+// (registration happens at the statement), but has no lights.
+	{
+		Scene emptyProbe;
+		Context2 ctx2;
+		Context2::SetActive(&ctx2);
+		ctx2.StartRenderingAfterParse(false);
+		ctx2.Renderer("sampler", ParamSet());
+		ctx2.Sampler("lowdiscrepancy", ParamSet());
+		ctx2.SurfaceIntegrator("path", ParamSet());
+		ctx2.VolumeIntegrator("none", ParamSet());
+		ctx2.PixelFilter("gaussian", ParamSet());
+		ctx2.Camera("perspective", ParamSet());
+		ctx2.Film("fleximage", ParamSet());
+		ctx2.WorldBegin();
+		ctx2.LightGroup("unused", ParamSet());
+		SceneDescription &d2 = ctx2.Description();
+		ctx2.WorldEnd();
+		emptyProbe.Commit(d2);
+		Check(emptyProbe.LightGroupCount() == 1 &&
+			emptyProbe.LightGroupName(0) == "unused",
+			"lg: declared group is defined");
+		Check(!emptyProbe.GroupHasLights(0),
+			"lg: declared-but-unused group has no lights");
+	}
+
+	// A light under a never-declared group falls back to "default"; the
+	// referenced name is not added.
+	{
+		Scene probe;
+		Context2 ctx3;
+		Context2::SetActive(&ctx3);
+		ctx3.StartRenderingAfterParse(false);
+		ctx3.Renderer("sampler", ParamSet());
+		ctx3.Sampler("lowdiscrepancy", ParamSet());
+		ctx3.SurfaceIntegrator("path", ParamSet());
+		ctx3.VolumeIntegrator("none", ParamSet());
+		ctx3.PixelFilter("gaussian", ParamSet());
+		ctx3.Camera("perspective", ParamSet());
+		ctx3.Film("fleximage", ParamSet());
+		ctx3.WorldBegin();
+		// No LightGroup statement: the light resolves to lazy "default".
+		{
+			const RGBColor L(1.f, 1.f, 1.f);
+			ParamSet al;
+			al.AddRGBColor("L", &L, 1);
+			ctx3.AreaLightSource("area", al);
+		}
+		ctx3.Shape("sphere", FloatParam("radius", 0.1f));
+		SceneDescription &d3 = ctx3.Description();
+		ctx3.WorldEnd();
+		probe.Commit(d3);
+		Check(probe.LightGroupCount() == 1 &&
+			probe.LightGroupName(0) == "default" && probe.GroupHasLights(0),
+			"lg: undeclared light -> lazy default with a light");
+	}
+}
+
 } // anonymous namespace
 
 int main(int argc, char **argv) {
@@ -519,6 +725,7 @@ int main(int argc, char **argv) {
 	CheckStateMachine();
 	CheckAPI();
 	CheckMaterials(plyPath);
+	CheckLightGroups(plyPath);
 
 	if (g_failures == 0) {
 		std::cout << "lux2foundationcheck: ALL CHECKS PASSED" << std::endl;

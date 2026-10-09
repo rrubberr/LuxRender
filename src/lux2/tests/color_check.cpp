@@ -324,6 +324,82 @@ void CheckLimit() {
 	Check(ok, "Limit lum/hue produce in-range results");
 }
 
+// ---------------------------------------------------------------------------
+// lux2::ColorAdaptator (legacy luxrays::ColorAdaptator port)
+// ---------------------------------------------------------------------------
+
+void CheckColorAdaptator() {
+	// Adapt(white, white) is the identity within float rounding.
+	const lux2::XYZColor white(0.95f, 1.f, 1.08f);
+	const lux2::ColorAdaptator id(white, white);
+	bool ok = true;
+	for (int i = 0; i < 32; ++i) {
+		const lux2::XYZColor c(RandUnit() * 2.f, RandUnit() * 2.f,
+		                       RandUnit() * 2.f);
+		const lux2::XYZColor a = id.Adapt(c);
+		ok = ok && Close(a[0], c[0], 1e-4f) && Close(a[1], c[1], 1e-4f) &&
+		     Close(a[2], c[2], 1e-4f);
+	}
+	Check(ok, "ColorAdaptator(white,white) is identity");
+
+	// Composition: (A*B).Adapt(c) == B.Adapt(A.Adapt(c)).
+	const lux2::XYZColor from(0.95f, 1.f, 1.08f);
+	const lux2::XYZColor mid(1.1f, 1.f, 0.85f);
+	const lux2::XYZColor to(0.83f, 1.f, 0.97f);
+	const lux2::ColorAdaptator A(from, mid), B(mid, to), AB(from, to);
+	ok = true;
+	for (int i = 0; i < 32; ++i) {
+		const lux2::XYZColor c(RandUnit(), RandUnit(), RandUnit());
+		const lux2::XYZColor lhs = (A * B).Adapt(c);
+		const lux2::XYZColor rhs = AB.Adapt(c);
+		ok = ok && Close(lhs[0], rhs[0], 1e-4f) && Close(lhs[1], rhs[1], 1e-4f) &&
+		     Close(lhs[2], rhs[2], 1e-4f);
+	}
+	Check(ok, "ColorAdaptator composition matches direct adapt");
+
+	// operator*=(s) scales the adapted result linearly.
+	lux2::ColorAdaptator s(from, to);
+	const lux2::XYZColor c(0.3f, 0.6f, 0.2f);
+	const lux2::XYZColor base = s.Adapt(c);
+	s *= 2.5f;
+	const lux2::XYZColor scaled = s.Adapt(c);
+	ok = Close(scaled[0], base[0] * 2.5f, 1e-4f) &&
+	     Close(scaled[1], base[1] * 2.5f, 1e-4f) &&
+	     Close(scaled[2], base[2] * 2.5f, 1e-4f);
+	Check(ok, "ColorAdaptator operator*= scales the result");
+}
+
+// ---------------------------------------------------------------------------
+// lux2::BlackbodyToXYZ (legacy BlackbodySPD port)
+// ---------------------------------------------------------------------------
+
+void CheckBlackbody() {
+	// Cross-check against the scalar colorref BlackbodySPD at several temps.
+	const float temps[] = {1900.f, 3200.f, 5600.f, 6500.f, 9300.f};
+	bool ok = true;
+	for (float t : temps) {
+		const colorref::BlackbodySPD ref(t);
+		float r[3];
+		ref.ToXYZ(r);
+		const lux2::XYZColor got = lux2::BlackbodyToXYZ(t);
+		if (!Close(got[0], r[0], 1e-5f) || !Close(got[1], r[1], 1e-5f) ||
+		    !Close(got[2], r[2], 1e-5f)) {
+			std::cerr << "  [dbg bb t=" << t << " got=(" << got[0] << ","
+				<< got[1] << "," << got[2] << ") ref=(" << r[0] << "," << r[1]
+				<< "," << r[2] << ")]\n";
+			ok = false;
+		}
+	}
+	Check(ok, "BlackbodyToXYZ matches scalar reference (~1e-5)");
+
+	// Y is positive and hotter bodies are bluer (Z/Y rises with temperature).
+	const lux2::XYZColor warm = lux2::BlackbodyToXYZ(2500.f);
+	const lux2::XYZColor cool = lux2::BlackbodyToXYZ(9000.f);
+	Check(warm[1] > 0.f && cool[1] > 0.f, "Blackbody Y positive");
+	Check((cool[2] / cool[1]) > (warm[2] / warm[1]),
+	      "Blackbody gets bluer as temperature rises");
+}
+
 } // namespace
 
 int main() {
@@ -338,6 +414,8 @@ int main() {
 	CheckColorSystemRoundTrip();
 	CheckConstrain();
 	CheckLimit();
+	CheckColorAdaptator();
+	CheckBlackbody();
 
 	if (g_failures == 0) {
 		std::cout << "lux2colorcheck: ALL CHECKS PASSED" << std::endl;

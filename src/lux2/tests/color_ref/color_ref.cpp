@@ -76,6 +76,57 @@ const RegularSPD SpectrumWavelengths::spd_ciez(lux2::CIE_Z, lux2::CIEstart,
     683.f * float(WAVELENGTH_END - WAVELENGTH_START) / WAVELENGTH_SAMPLES);
 
 // ---------------------------------------------------------------------------
+// BlackbodySPD
+// ---------------------------------------------------------------------------
+
+BlackbodySPD::BlackbodySPD(float t) { Init(t); }
+
+void BlackbodySPD::Init(float t)
+{
+    constexpr float BB_START = 380.f;
+    constexpr float BB_END = 720.f;
+    constexpr unsigned BB_SAMPLES = 256;
+
+    const float delta = (BB_END - BB_START) / float(BB_SAMPLES - 1);
+    invDelta = 1.f / delta;
+    lambdaMin = BB_START;
+    lambdaMax = BB_END;
+    nSamples = BB_SAMPLES;
+    samples.reset(new float[BB_SAMPLES]);
+
+    for (unsigned i = 0; i < BB_SAMPLES; ++i)
+    {
+        const float w = 1e-9f * (BB_START + delta * i);
+        samples[i] = 0.4e-9f * (3.74183e-16f * std::pow(w, -5.f)) /
+                     (std::exp(1.4388e-2f / (w * t)) - 1.f);
+    }
+
+    // Normalize to peak, then clamp (legacy Normalize + Clamp).
+    float max = 0.f;
+    for (unsigned i = 0; i < BB_SAMPLES; ++i)
+        if (samples[i] > max)
+            max = samples[i];
+    const float scale = 1.f / max;
+    Scale(scale);
+    Clamp();
+}
+
+void BlackbodySPD::ToXYZ(float out[3]) const
+{
+    out[0] = out[1] = out[2] = 0.f;
+    for (unsigned i = 0; i < lux2::nCIE; ++i)
+    {
+        const float s = SampleAt(float(lux2::CIEstart + i));
+        out[0] += s * lux2::CIE_X[i];
+        out[1] += s * lux2::CIE_Y[i];
+        out[2] += s * lux2::CIE_Z[i];
+    }
+    out[0] *= 683.f;
+    out[1] *= 683.f;
+    out[2] *= 683.f;
+}
+
+// ---------------------------------------------------------------------------
 // SWCSpectrum
 // ---------------------------------------------------------------------------
 

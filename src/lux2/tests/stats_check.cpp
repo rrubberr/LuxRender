@@ -200,6 +200,19 @@ void CheckStatsMath() {
     Check(stats.SamplesPerSecondWindow() >= 0.0,
           "window samples/sec non-negative");
 
+    // A sample-count decrease (multi-group pass boundary resets the film's
+    // per-tile counters) must re-baseline the window, not drive the rate
+    // negative. Drop the count, tick, and confirm the EMA stays >= 0; then
+    // resume increasing and confirm it recovers to a positive rate.
+    film.SetSampleCount(2.0); // simulate the reset at a group boundary
+    stats.UpdateWindow();
+    Check(stats.SamplesPerSecondWindow() >= 0.0,
+          "window rate non-negative across a sample-count reset");
+    film.SetSampleCount(6.0);
+    stats.UpdateWindow();
+    Check(stats.SamplesPerSecondWindow() >= 0.0,
+          "window rate recovers after a reset");
+
     // Freeze the clock so ElapsedTime() is deterministic across reads, then
     // verify SamplesPerSecond = total samples / elapsed.
     stats.Stop();

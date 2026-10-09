@@ -20,6 +20,7 @@
 #include "core/pngio.h"
 #include "core/tiffio.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <iostream>
@@ -620,8 +621,67 @@ namespace
         std::remove("corrupt.tif");
     }
 
+    // Multi-channel named-plane writer + general reader helpers.
+    void CheckExrMultiChannel()
+    {
+        const int w = 4, h = 3;
+        const std::size_t n = std::size_t(w) * h;
+        std::vector<float> br(n), bg(n), bb(n), a(n), kr(n);
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            const float t = float(i) / float(n - 1);
+            br[i] = t;
+            bg[i] = 2.f * t;
+            bb[i] = 0.5f - t;
+            a[i] = t;
+            kr[i] = 3.f + t; // distinct range so mixups are visible
+        }
+        std::vector<EXRChannel> chans = {
+            {"beauty.R", br.data()}, {"beauty.G", bg.data()},
+            {"beauty.B", bb.data()}, {"A", a.data()},
+            {"KeyLight.R", kr.data()},
+        };
+        Check(WriteOpenEXRChannels(false, 1, "multi.exr", chans, w, h, w, h, 0, 0),
+              "EXR write multi-channel (named planes)");
+
+        std::vector<std::string> names;
+        Check(ListOpenEXRChannels("multi.exr", &names),
+              "EXR list channels");
+        // All five names present (OpenEXR stores them alphabetically).
+        auto has = [&](const char *nm)
+        { return std::find(names.begin(), names.end(), nm) != names.end(); };
+        Check(has("beauty.R") && has("beauty.G") && has("beauty.B") &&
+                  has("A") && has("KeyLight.R"),
+              "EXR channel list contains all written names");
+        Check(names.size() == 5, "EXR channel count is 5");
+
+        // Per-channel float round-trip.
+        std::vector<float> got;
+        Check(ReadOpenEXRChannel("multi.exr", "KeyLight.R", &got) &&
+                  got.size() == n,
+              "EXR read named channel");
+        bool px = got.size() == n;
+        for (std::size_t i = 0; i < n && px; ++i)
+            px = RelClose(got[i], kr[i], 1e-6f);
+        Check(px, "EXR named channel pixels exact round-trip");
+
+        // A second channel reads back its own data (no cross-contamination).
+        std::vector<float> gotB;
+        bool bpx = ReadOpenEXRChannel("multi.exr", "beauty.G", &gotB) &&
+                   gotB.size() == n;
+        for (std::size_t i = 0; i < n && bpx; ++i)
+            bpx = RelClose(gotB[i], bg[i], 1e-6f);
+        Check(bpx, "EXR second named channel not contaminated");
+
+        // Missing channel returns false.
+        std::vector<float> none;
+        Check(!ReadOpenEXRChannel("multi.exr", "nope.R", &none),
+              "EXR read missing channel fails");
+    }
+
     void Cleanup()
     {
+        std::remove("multi.exr");
         std::remove("rt_rgb8.png");
         std::remove("rt_rgba8.png");
         std::remove("rt_gray8.png");
@@ -660,6 +720,7 @@ int main()
     CheckExrRoundTripHalf();
     CheckExrYModes();
     CheckExrCropMapping();
+    CheckExrMultiChannel();
     CheckJpegRoundTrip();
     CheckJpegCrop();
     CheckTiffRoundTrip();

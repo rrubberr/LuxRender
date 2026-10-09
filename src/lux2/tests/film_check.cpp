@@ -644,6 +644,161 @@ void CheckFrameBufferCropOffset() {
           "pixels outside the crop window stay black");
 }
 
+// ---------------------------------------------------------------------------
+// Stage 3: light-group buffer-sets, routing, and composite
+// ---------------------------------------------------------------------------
+
+// A single group with an identity convert must reproduce bX/W exactly
+// (D9 regression anchor).
+void CheckGroupSingleIdentity() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm film(64, 64, &f, full, "out", false);
+    Check(film.GroupCount() == 1, "default film has one group");
+    Check(film.GroupConvertIsIdentity(0), "default group convert is identity");
+
+    const float wl = 550.f;
+    for (int py = 8; py < 24; ++py)
+        for (int px = 8; px < 24; ++px)
+            SplatOne(film, float(px) + 0.5f, float(py) + 0.5f, wl, 0.4f, 1.f,
+                     1.f);
+
+    // GetPixelNormalized must equal the raw bX/W for the identity group.
+    const size_t idx = size_t(16) * film.XCount() + size_t(16);
+    const float w = film.BufWeight()[idx];
+    Check(w > 0.f, "single-group pixel has weight");
+    float xyz[3], alpha;
+    film.GetPixelNormalized(16, 16, xyz, &alpha);
+    const bool ok = Close(xyz[0], film.BufX()[idx] / w) &&
+                    Close(xyz[1], film.BufY()[idx] / w) &&
+                    Close(xyz[2], film.BufZ()[idx] / w) &&
+                    Close(alpha, film.BufAlpha()[idx] / w);
+    Check(ok, "single identity group readback is exactly bX/W");
+}
+
+// Splat routing: with two groups, a splat lands only in the active set.
+void CheckGroupRouting() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm film(64, 64, &f, full, "out", false);
+    film.SetLightGroupCount(2);
+    Check(film.GroupCount() == 2, "SetLightGroupCount grows to two sets");
+
+    const float wl = 550.f;
+    // Group 0 contribution.
+    film.SetActiveGroup(0);
+    SplatOne(film, 16.5f, 16.5f, wl, 1.f, 1.f, 1.f);
+    // Group 1 contribution at a distinct pixel.
+    film.SetActiveGroup(1);
+    SplatOne(film, 40.5f, 40.5f, wl, 1.f, 1.f, 1.f);
+
+    const size_t i0 = size_t(16) * film.XCount() + size_t(16);
+    const size_t i1 = size_t(40) * film.XCount() + size_t(40);
+    // BufWeight() reads the active set (group 1 now).
+    Check(film.BufWeight()[i1] > 0.f, "active set (g1) has weight at its splat");
+    Check(film.BufWeight()[i0] == 0.f,
+          "active set (g1) empty where only g0 splatted");
+}
+
+// Composite: two groups with scale 2 / disabled. Group A scaled by 2 doubles
+// its contribution; group B disabled contributes nothing.
+void CheckGroupCompositeScaleDisable() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm film(64, 64, &f, full, "out", false);
+    film.SetLightGroupCount(2);
+
+    // Linear tonemap so the composite is a plain linear sum of adapted XYZ.
+    film.SetParameterValue(LUX_FILM_TM_TONEMAPKERNEL,
+                           double(FlexImageFilm::TMK_LINEAR), 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_SENSITIVITY, 10.0, 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_EXPOSURE, 1.0, 0);
+    film.SetParameterValue(LUX_FILM_TM_LINEAR_FSTOP, 1.0, 0);
+
+    const float wl = 550.f;
+    // Same splat into both groups at the same pixel.
+    film.SetActiveGroup(0);
+    SplatOne(film, 32.5f, 32.5f, wl, 1.f, 1.f, 1.f);
+    film.SetActiveGroup(1);
+    SplatOne(film, 32.5f, 32.5f, wl, 1.f, 1.f, 1.f);
+
+    // Reference: expected XYZ for a single group at this pixel (bX/W).
+    const size_t idx = size_t(32) * film.XCount() + size_t(32);
+    const float w = film.BufWeight()[idx];
+    Check(w > 0.f, "composite pixel has weight in active set");
+    const XYZColor single(film.BufX()[idx] / w, film.BufY()[idx] / w,
+                          film.BufZ()[idx] / w);
+
+    // Case 1: both enabled, group A scale 2, group B identity.
+    film.SetGroupGlobalScale(0, 2.f);
+    float xyzA[3], aA;
+    film.GetPixelNormalized(32, 32, xyzA, &aA);
+    // Expected = 2*single + single = 3*single (both groups same pixel).
+    const bool scaleOk = Close(xyzA[0], 3.f * single[0]) &&
+                         Close(xyzA[1], 3.f * single[1]) &&
+                         Close(xyzA[2], 3.f * single[2]);
+    Check(scaleOk, "two-group composite: scale 2 + identity sums to 3x");
+
+    // Case 2: disable group B -> only scaled group A remains (2*single).
+    film.SetGroupEnable(1, false);
+    float xyzB[3], aB;
+    film.GetPixelNormalized(32, 32, xyzB, &aB);
+    const bool disOk = Close(xyzB[0], 2.f * single[0]) &&
+                       Close(xyzB[1], 2.f * single[1]) &&
+                       Close(xyzB[2], 2.f * single[2]);
+    Check(disOk, "disabled group contributes nothing");
+}
+
+// A not-yet-started group (W==0) must contribute nothing to the composite.
+void CheckGroupNotStartedGuard() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm film(64, 64, &f, full, "out", false);
+    film.SetLightGroupCount(2);
+
+    const float wl = 550.f;
+    // Only group 0 receives samples; group 1 stays empty.
+    film.SetActiveGroup(0);
+    SplatOne(film, 32.5f, 32.5f, wl, 1.f, 1.f, 1.f);
+
+    const size_t idx = size_t(32) * film.XCount() + size_t(32);
+    const float w0 = film.BufWeight()[idx]; // active set is group 0
+    const XYZColor single(film.BufX()[idx] / w0, film.BufY()[idx] / w0,
+                          film.BufZ()[idx] / w0);
+
+    float xyz[3], alpha;
+    film.GetPixelNormalized(32, 32, xyz, &alpha);
+    const bool ok = Close(xyz[0], single[0]) && Close(xyz[1], single[1]) &&
+                    Close(xyz[2], single[2]);
+    Check(ok, "empty group (W==0) contributes nothing to composite");
+}
+
+// Alpha is averaged over the started groups.
+void CheckGroupAlphaAverage() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    FlexImageFilm film(64, 64, &f, full, "out", false);
+    film.SetLightGroupCount(3);
+
+    const float wl = 550.f;
+    // Groups 0 and 1 splat alpha 1.0 at the same pixel; group 2 stays empty.
+    film.SetActiveGroup(0);
+    SplatOne(film, 32.5f, 32.5f, wl, 1.f, 1.f, 1.f);
+    film.SetActiveGroup(1);
+    SplatOne(film, 32.5f, 32.5f, wl, 1.f, 1.f, 1.f);
+
+    float xyz[3], alpha;
+    film.GetPixelNormalized(32, 32, xyz, &alpha);
+    Check(Close(alpha, 1.f), "alpha averaged over two started groups == 1");
+
+    // A pixel where only one group splatted: alpha still 1 (mean over one).
+    film.SetActiveGroup(0);
+    SplatOne(film, 20.5f, 20.5f, wl, 1.f, 1.f, 1.f);
+    float xyz2[3], alpha2;
+    film.GetPixelNormalized(20, 20, xyz2, &alpha2);
+    Check(Close(alpha2, 1.f), "alpha over a single started group == 1");
+}
+
 } // namespace
 
 int main() {
@@ -666,6 +821,11 @@ int main() {
     CheckFrameBufferLinear();
     CheckFrameBufferAutoLinear();
     CheckFrameBufferCropOffset();
+    CheckGroupSingleIdentity();
+    CheckGroupRouting();
+    CheckGroupCompositeScaleDisable();
+    CheckGroupNotStartedGuard();
+    CheckGroupAlphaAverage();
 
     if (g_failures == 0) {
         std::cout << "lux2filmcheck: ALL CHECKS PASSED" << std::endl;

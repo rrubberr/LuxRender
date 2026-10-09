@@ -186,7 +186,9 @@ std::unique_ptr<Scene> MakeScene(const Point3f &camPos, const Point3f &target,
         sd.isAreaLight = true;
         sd.areaLightName = "area";
         const RGBColor leRGB = RGBColor(Float(le), Float(le), Float(le));
-        sd.areaLightParams.AddRGBColor("Le", &leRGB, 1);
+        // The area-light plugin reads the radiance parameter as "L"; a
+        // misspelled key falls back silently to RGBColor(1.f).
+        sd.areaLightParams.AddRGBColor("L", &leRGB, 1);
     }
     d.shapes.push_back(sd);
 
@@ -204,6 +206,48 @@ double RunPass(SurfaceIntegrator &integ, Scene &scene) {
     auto sampler = scene.GetSampler().Clone();
     integ.RenderTile(scene, t, probe, *sampler, 0, sampler->SampleCount());
     return probe.MeanLuminance();
+}
+
+// Two emissive spheres far apart (no mutual visibility), each in its own named
+// light group. The camera frames both. Used to check per-group filtering: a
+// pass with group g active sees only emitter g.
+std::unique_ptr<Scene> MakeTwoGroupScene(double leA, double leB, int spp) {
+    SceneDescription d;
+    const int xr = 16, yr = 16;
+    d.filmParams.AddInt("xresolution", &xr, 1);
+    d.filmParams.AddInt("yresolution", &yr, 1);
+    d.samplerParams.AddInt("count", &spp, 1);
+
+    d.cameraName = "perspective";
+    d.cameraTransform =
+        Transform::look_at(Point3f(0.f, 0.f, 8.f), Point3f(0.f, 0.f, 0.f),
+                           Vector3f(0.f, 1.f, 0.f));
+
+    // Groups are normally resolved at parse time (Context2::ResolveLightGroup).
+    // This test builds the description directly, so assign indices and the
+    // ordered name list by hand: group 0 = "A", group 1 = "B".
+    auto emitter = [&](float x, double radiance, std::uint32_t groupIndex) {
+        ShapeDesc sd;
+        sd.name = "sphere";
+        sd.toWorld = Transform::translate(Vector3f(x, 0.f, 0.f));
+        float r = 1.f;
+        sd.params.AddFloat("radius", &r, 1);
+        sd.isAreaLight = true;
+        sd.areaLightName = "area";
+        const RGBColor leRGB =
+            RGBColor(Float(radiance), Float(radiance), Float(radiance));
+        // Radiance parameter key is "L" (see MakeScene); "Le" is ignored.
+        sd.areaLightParams.AddRGBColor("L", &leRGB, 1);
+        sd.lightGroupIndex = groupIndex;
+        d.shapes.push_back(sd);
+    };
+    emitter(-3.f, leA, 0u);
+    emitter(3.f, leB, 1u);
+    d.lightGroups = {"A", "B"};
+
+    auto scene = std::make_unique<Scene>();
+    scene->Commit(d);
+    return scene;
 }
 
 std::shared_ptr<SurfaceIntegrator> MakeIntegrator(int maxdepth, bool nee,
@@ -264,6 +308,22 @@ int main() {
                  Close(mean, expected, 0.15));
     }
 
+    // ---- 3b. radiance scaling guard ------------------------------------
+    // Section 3 uses Le == 1, which coincides with the area-light default, so
+    // a misspelled/ignored radiance parameter would pass it by accident. This
+    // variant uses Le == 2: if the parameter is dead the mean stays at the
+    // Le == 1 level and this check fails, catching the silent fallback.
+    {
+        auto scene = MakeScene(Point3f(0.f, 0.f, 4.f), Point3f(0.f, 0.f, 0.f),
+                               1.f, "",
+                               true, 2.0, 64);
+        auto integ = MakeIntegrator(0, true, true);
+        const double mean2 = RunPass(*integ, *scene);
+        const double expected2 = WhiteLeMeanLum(2.0);
+        CheckNum("direct emitter: Le=2 doubles the radiance", mean2, expected2,
+                 Close(mean2, expected2, 0.15));
+    }
+
     // ---- 4. environment cases: DROPPED --------------------------------
     // The uniform-environment NEE and enclosed-shell cases required
     // InfiniteLight, which is out of the tree pending its return.
@@ -274,6 +334,54 @@ int main() {
     // truncated value grows with depth rather than converging to Le. A correct
     // furnace test needs rho < 1 (expect Le/(1-rho)) or a blackbody (rho == 0,
     // expect Le). Removed pending a properly-posed cavity case.
+
+    // ---- 6. per-group light filtering (Stage 4) ------------------------
+    // Two emitters in groups A and B. With group g active the pass sees only
+    // emitter g; the sum of the two group passes matches the combined render
+    // within statistical tolerance (guards the MIS restricted-pdf invariant).
+    {
+        const double LeA = 1.0, LeB = 2.0;
+        const int spp = 512;
+
+        auto scene = MakeTwoGroupScene(LeA, LeB, spp);
+        Check(scene->LightGroupCount() == 2, "groups: two groups committed");
+        Check(scene->AreaLightGroup(0) == 0 && scene->AreaLightGroup(1) == 1,
+              "groups: area lights in distinct groups");
+
+        auto integ = MakeIntegrator(0, true, true); // direct emitter only
+
+        // Each emitter covers roughly half the frame, so a group pass sees
+        // about half its own Le. The exact coverage fraction is not asserted;
+        // what matters is that each pass isolates its emitter and the passes
+        // sum to the combined render (the MIS restricted-pdf invariant).
+        const double expA = 0.5 * WhiteLeMeanLum(LeA);
+        const double expB = 0.5 * WhiteLeMeanLum(LeB);
+
+        // Group A active -> only emitter A (Le=1) contributes.
+        scene->SetActiveGroup(0);
+        const double meanA = RunPass(*integ, *scene);
+        Check(meanA > 1e-4, "group A pass: nonzero (emitter A visible)");
+        CheckNum("group A pass ~= half Le_A", meanA, expA,
+                 Close(meanA, expA, 0.2));
+
+        // Group B active -> only emitter B (Le=2).
+        scene->SetActiveGroup(1);
+        const double meanB = RunPass(*integ, *scene);
+        CheckNum("group B pass ~= half Le_B", meanB, expB,
+                 Close(meanB, expB, 0.2));
+
+        // Group B's emitter is twice as bright, so its pass must exceed A's.
+        Check(meanB > 1.5 * meanA, "group B pass exceeds group A (Le ratio)");
+
+        // Combined (no active group) -> both emitters; the two group passes sum
+        // to the combined render within tolerance.
+        scene->SetActiveGroup(-1);
+        const double meanAll = RunPass(*integ, *scene);
+        Check(meanAll > meanA && meanAll > meanB,
+              "combined render exceeds either single group");
+        CheckNum("sum of group passes ~= combined", meanA + meanB, meanAll,
+                 Close(meanA + meanB, meanAll, 0.1));
+    }
 
     std::cout << (g_failures == 0 ? "ALL PASS" : "FAILURES")
               << " (" << g_failures << ")" << std::endl;
