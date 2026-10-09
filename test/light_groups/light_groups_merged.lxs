@@ -19,6 +19,7 @@ SurfaceIntegrator "path"
 	"bool directlightsampling" ["true"]
 	"integer shadowraycount" [1]
 	"string lightstrategy" ["auto"]
+	"string lightmode" ["nee"]
 
 VolumeIntegrator "multi"
 
@@ -48,14 +49,14 @@ Film "fleximage"
 	"bool write_resume_flm" ["false"]
 	"bool restart_resume_flm" ["false"]
 	"bool write_flm_direct" ["false"]
-	"bool write_exr_halftype" ["true"]
-	"bool write_exr_applyimaging" ["false"]
+	"bool write_exr_halftype" ["false"]
+	"bool write_exr_applyimaging" ["true"]
 	"bool write_exr_ZBuf" ["false"]
 	"string write_exr_compressiontype" ["PIZ (lossless)"]
 	"string write_exr_zbuf_normalizationtype" ["None"]
-	"bool write_exr" ["true"]
+	"bool write_exr" ["false"]
 	"string write_exr_channels" ["RGB"]
-	"bool write_png" ["false"]
+	"bool write_png" ["true"]
 	"string write_png_channels" ["RGB"]
 	"bool write_png_16bit" ["false"]
 	"bool write_tga" ["false"]
@@ -68,7 +69,7 @@ Film "fleximage"
 	"integer variancerejectionwarmup" [0]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]
-	"integer haltspp" [4096]
+	"integer haltspp" [512]
 
 WorldBegin
 
@@ -80,7 +81,7 @@ AttributeBegin #  "Blue"
 
 Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.500000000000000 -0.500000000000000 2.100000143051147 1.000000000000000]
 
-LightGroup "Blue"
+LightGroup "default"
 
 NamedMaterial "Blue"
 
@@ -103,7 +104,7 @@ AttributeBegin #  "Green"
 
 Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 -0.500000000000000 -0.500000000000000 2.100000143051147 1.000000000000000]
 
-LightGroup "Green"
+LightGroup "default"
 
 NamedMaterial "Green"
 
@@ -126,7 +127,7 @@ AttributeBegin #  "White"
 
 Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.500000000000000 0.500000000000000 2.100000143051147 1.000000000000000]
 
-LightGroup "White"
+LightGroup "default"
 
 NamedMaterial "White"
 
@@ -149,7 +150,7 @@ AttributeBegin #  "Red"
 
 Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 -0.500000000000000 0.500000000000000 2.100000143051147 1.000000000000000]
 
-LightGroup "Red"
+LightGroup "default"
 
 NamedMaterial "Red"
 
