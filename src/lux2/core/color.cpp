@@ -231,6 +231,9 @@ namespace lux2
         for (int i = 0; i < BB_CACHE_SAMPLES; ++i)
             if (samples[i] > max)
                 max = samples[i];
+        // Very low temperature.
+        if (!(max > 0.f))
+            return XYZColor(0.f);
         const float scale = 1.f / max;
         for (int i = 0; i < BB_CACHE_SAMPLES; ++i)
         {

@@ -830,8 +830,16 @@ extern "C" double luxStatistics(const char *statName)
         return stats->SamplesPerSecond();
     return 0.0;
 }
-extern "C" void luxEnableDebugMode() {}
-extern "C" void luxDisableRandomMode() {}
+extern "C" void luxEnableDebugMode()
+{
+    if (Context2 *c = Context2::GetActive())
+        c->EnableDebugMode();
+}
+extern "C" void luxDisableRandomMode()
+{
+    if (Context2 *c = Context2::GetActive())
+        c->DisableRandomMode();
+}
 
 extern "C" double luxMagnitudeReduce(double number)
 {

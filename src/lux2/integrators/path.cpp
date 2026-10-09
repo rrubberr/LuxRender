@@ -88,7 +88,6 @@ namespace lux2
             const Scene *scene;
             const EmbreeScene *embree;
             const BsdfPtrTable *table;
-            const std::vector<std::shared_ptr<Light>> *lights;
             int nLights;
             FloatP invNLights;
             // Light pointers and infinite flags indexed by light id.
@@ -98,7 +97,8 @@ namespace lux2
             std::vector<const Light *> areaPtrs;
             // Group index of each area light.
             std::vector<std::int32_t> areaGroup;
-            int activeGroup = -1;
+            int activeGroup = 0;
+            bool multiGroup = false;
             bool FULL_MIS, NEE, includeEnv, rrEfficiency;
             int maxDepth;
             FloatP rrProb, INF;
@@ -257,7 +257,7 @@ namespace lux2
                 if (!FULL_MIS && NEE)
                     emCount = emCount && specularBounce;
                 // Only area lights belonging to the active lightgroup emit.
-                if (ctx.activeGroup >= 0 && any(emCount))
+                if (ctx.multiGroup && any(emCount))
                 {
                     const Int32P g = enoki::gather<Int32P>(
                         ctx.areaGroup.data(), hit.lightID, emCount);
@@ -622,22 +622,9 @@ namespace lux2
         // Active lightgroup filtering.
         const int activeGroup = scene.GetActiveGroup();
         ctx.activeGroup = activeGroup;
-        if (activeGroup >= 0)
-        {
-            ctx.lightPtrs = scene.GroupLights(activeGroup);
-            ctx.lightInf = scene.GroupLightInf(activeGroup);
-        }
-        else
-        {
-            ctx.lights = &scene.GetLights();
-            ctx.lightPtrs.reserve(ctx.lights->size());
-            ctx.lightInf.reserve(ctx.lights->size());
-            for (const auto &l : *ctx.lights)
-            {
-                ctx.lightPtrs.push_back(l.get());
-                ctx.lightInf.push_back(l->IsInfinite() ? 1.f : 0.f);
-            }
-        }
+        ctx.multiGroup = scene.LightGroupCount() > 1;
+        ctx.lightPtrs = scene.GroupLights(activeGroup);
+        ctx.lightInf = scene.GroupLightInf(activeGroup);
         ctx.nLights = static_cast<int>(ctx.lightPtrs.size());
         ctx.invNLights =
             ctx.nLights > 0 ? FloatP(1.f / float(ctx.nLights)) : FloatP(0.f);
@@ -646,7 +633,7 @@ namespace lux2
         ctx.areaPtrs.reserve(nArea);
         for (int a = 0; a < nArea; ++a)
             ctx.areaPtrs.push_back(scene.GetAreaLight(a));
-        if (activeGroup >= 0)
+        if (ctx.multiGroup)
         {
             ctx.areaGroup.resize(nArea);
             for (int a = 0; a < nArea; ++a)

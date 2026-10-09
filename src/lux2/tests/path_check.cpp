@@ -210,8 +210,11 @@ double RunPass(SurfaceIntegrator &integ, Scene &scene) {
 
 // Two emissive spheres far apart (no mutual visibility), each in its own named
 // light group. The camera frames both. Used to check per-group filtering: a
-// pass with group g active sees only emitter g.
-std::unique_ptr<Scene> MakeTwoGroupScene(double leA, double leB, int spp) {
+// pass with group g active sees only emitter g. With singleGroup, both
+// emitters share group 0 so one render is the combined reference (the
+// sequential design has no all-groups pass).
+std::unique_ptr<Scene> MakeTwoGroupScene(double leA, double leB, int spp,
+                                         bool singleGroup = false) {
     SceneDescription d;
     const int xr = 16, yr = 16;
     d.filmParams.AddInt("xresolution", &xr, 1);
@@ -242,8 +245,9 @@ std::unique_ptr<Scene> MakeTwoGroupScene(double leA, double leB, int spp) {
         d.shapes.push_back(sd);
     };
     emitter(-3.f, leA, 0u);
-    emitter(3.f, leB, 1u);
-    d.lightGroups = {"A", "B"};
+    emitter(3.f, leB, singleGroup ? 0u : 1u);
+    d.lightGroups = singleGroup ? std::vector<std::string>{"A"}
+                                : std::vector<std::string>{"A", "B"};
 
     auto scene = std::make_unique<Scene>();
     scene->Commit(d);
@@ -373,10 +377,12 @@ int main() {
         // Group B's emitter is twice as bright, so its pass must exceed A's.
         Check(meanB > 1.5 * meanA, "group B pass exceeds group A (Le ratio)");
 
-        // Combined (no active group) -> both emitters; the two group passes sum
-        // to the combined render within tolerance.
-        scene->SetActiveGroup(-1);
-        const double meanAll = RunPass(*integ, *scene);
+        // Combined reference: the same two emitters placed in a single group,
+        // so one render sees both. The sequential design has no all-groups
+        // pass; the sum of the per-group passes matches this combined render
+        // within statistical tolerance (the MIS restricted-pdf invariant).
+        auto combined = MakeTwoGroupScene(LeA, LeB, spp, /*singleGroup=*/true);
+        const double meanAll = RunPass(*integ, *combined);
         Check(meanAll > meanA && meanAll > meanB,
               "combined render exceeds either single group");
         CheckNum("sum of group passes ~= combined", meanA + meanB, meanAll,

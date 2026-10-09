@@ -37,16 +37,23 @@ namespace lux2
         return x ^ (x >> 31);
     }
 
+    uint64_t RoundSeed(uint64_t baseSeed, int round)
+    {
+        // Additive salt.
+        return baseSeed + uint64_t(uint32_t(round)) * 0x9E3779B97F4A7C15ull;
+    }
+
     uint64_t GroupPassSeed(uint64_t baseSeed, int round, int group)
     {
-        const uint64_t rg =
-            (uint64_t(uint32_t(round)) << 32) | uint32_t(group);
-        return SplitMix64(baseSeed ^ rg);
+        // Decorrelated.
+        return SplitMix64(RoundSeed(baseSeed, round) ^
+                          uint64_t(uint32_t(group)));
     }
 
     void RunGroupPasses(Renderer &renderer, Scene &scene,
                         SurfaceIntegrator &integrator,
-                        const std::atomic<bool> *aborted)
+                        const std::atomic<bool> *aborted,
+                        int round, bool decorrelateGroups)
     {
         Film &film = scene.GetFilm();
         const int groupCount = scene.LightGroupCount();
@@ -65,16 +72,17 @@ namespace lux2
             if (aborted && aborted->load())
                 break; // abort skips remaining passes
             if (!scene.GroupHasLights(g))
-                continue; // D10: empty group, no AOV
-            // ActiveGroup is set between passes.
+                continue; // empty group, no AOV
             scene.SetActiveGroup(g);
             film.SetActiveGroup(g);
-            sampler.SetBaseSeed(GroupPassSeed(baseSeed, 0, g));
+            // Correlated.
+            sampler.SetBaseSeed(decorrelateGroups
+                                    ? GroupPassSeed(baseSeed, round, g)
+                                    : RoundSeed(baseSeed, round));
             renderer.Render(scene, integrator);
         }
-        // Restore.
-        scene.SetActiveGroup(-1);
-        film.SetActiveGroup(-1);
+        // Restore the base seed.
+        sampler.SetBaseSeed(baseSeed);
     }
 
 } // namespace lux2

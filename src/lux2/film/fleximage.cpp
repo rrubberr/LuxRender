@@ -35,6 +35,7 @@
 #include <cassert>
 #include <cmath>
 #include <mutex>
+#include <optional>
 
 namespace lux2
 {
@@ -480,52 +481,14 @@ namespace lux2
 
         const size_t idx = size_t(iy) * m_xCount + size_t(ix);
 
-        // A single identity group is bX/W.
-        if (m_groups.size() == 1 && GroupConvertIsIdentity(0))
-        {
-            const BufferSet &s = m_groups[0];
-            const float w = s.bW[idx];
-            if (w == 0.f)
-                return;
-            const float inv = 1.f / w;
-            xyz[0] = s.bX[idx] * inv;
-            xyz[1] = s.bY[idx] * inv;
-            xyz[2] = s.bZ[idx] * inv;
-            if (alpha)
-                *alpha = s.bAlpha[idx] * inv;
-            return;
-        }
-
-        // Multi-group: legacy composite for one pixel. Normalize each enabled
-        // set by its own weight, adapt, accumulate; alpha averaged over the
-        // started groups.
-        const ColorSystem cs(m_csRed[0], m_csRed[1], m_csGreen[0], m_csGreen[1],
-                             m_csBlue[0], m_csBlue[1], m_csWhite[0],
-                             m_csWhite[1], 1.f);
-        const XYZColor white = cs.ToXYZ(RGBColor(1.f));
-        float aSum = 0.f;
-        int started = 0;
-        for (size_t g = 0; g < m_groups.size(); ++g)
-        {
-            if (g >= m_gmod.size() || !m_gmod[g].enable)
-                continue;
-            const BufferSet &s = m_groups[g];
-            const float w = s.bW[idx];
-            if (w == 0.f)
-                continue;
-            const float inv = 1.f / w;
-            const ColorAdaptator conv = ComputeConvert(cs, white, m_gmod[g]);
-            const XYZColor p =
-                conv.Adapt(XYZColor(s.bX[idx] * inv, s.bY[idx] * inv,
-                                    s.bZ[idx] * inv));
-            xyz[0] += p[0];
-            xyz[1] += p[1];
-            xyz[2] += p[2];
-            aSum += s.bAlpha[idx] * inv;
-            ++started;
-        }
-        if (alpha && started > 0)
-            *alpha = aSum / float(started);
+        const SnapshotColor sc = MakeSnapshotColor();
+        float a = 0.f;
+        const XYZColor c = CompositePixel(m_groups, sc, idx, a);
+        xyz[0] = c[0];
+        xyz[1] = c[1];
+        xyz[2] = c[2];
+        if (alpha)
+            *alpha = a;
     }
 
     // -----------------------------------------------------------------------
@@ -612,13 +575,63 @@ namespace lux2
         return conv;
     }
 
+    FlexImageFilm::SnapshotColor FlexImageFilm::MakeSnapshotColor() const
+    {
+        SnapshotColor sc;
+        sc.cs = ColorSystem(m_csRed[0], m_csRed[1], m_csGreen[0],
+                            m_csGreen[1], m_csBlue[0], m_csBlue[1],
+                            m_csWhite[0], m_csWhite[1], 1.f);
+        sc.white = sc.cs.ToXYZ(RGBColor(1.f));
+        sc.converts.reserve(m_groups.size());
+        for (size_t g = 0; g < m_groups.size(); ++g)
+        {
+            const GroupModifier &m =
+                (g < m_gmod.size()) ? m_gmod[g] : GroupModifier{};
+            sc.converts.push_back(ComputeConvert(sc.cs, sc.white, m));
+        }
+        return sc;
+    }
+
+    XYZColor FlexImageFilm::CompositePixel(
+        const std::vector<BufferSet> &sets, const SnapshotColor &sc,
+        size_t idx, float &alpha) const
+    {
+        // For G==1 with an identity convert this reduces to bX/W.
+        XYZColor acc(0.f);
+        float aSum = 0.f;
+        int started = 0;
+        for (size_t g = 0; g < sets.size(); ++g)
+        {
+            const BufferSet &s = sets[g];
+            const float w = s.bW[idx];
+            if (w == 0.f)
+                continue;
+            const float inv = 1.f / w;
+            // Alpha is gthe verage over every started set.
+            aSum += s.bAlpha[idx] * inv;
+            ++started;
+            // Color contributes only from enabled groups.
+            if (g >= m_gmod.size() || !m_gmod[g].enable)
+                continue;
+            const XYZColor c(s.bX[idx] * inv, s.bY[idx] * inv,
+                             s.bZ[idx] * inv);
+            acc += GroupConvertIsIdentity(g) ? c : sc.converts[g].Adapt(c);
+        }
+        alpha = started > 0 ? aSum / float(started) : 0.f;
+        return acc;
+    }
+
     void FlexImageFilm::SnapshotAccum(std::vector<BufferSet> &out) const
     {
+        // Bulk copy.
         out = m_groups;
 
-        // Copy with a mutex for consistency.
         if (!m_tileMutexes.empty())
         {
+            // Only the active set mutates during a sequential pass.
+            const size_t g = static_cast<size_t>(m_activeGroup);
+            BufferSet &d = out[g];
+            const BufferSet &s = m_groups[g];
             for (size_t t = 0; t < m_tiles.size(); ++t)
             {
                 const FilmTile &tl = m_tiles[t];
@@ -628,18 +641,13 @@ namespace lux2
                     const size_t base = size_t(y - m_yStart) * m_xCount +
                                         size_t(tl.x0 - m_xStart);
                     const size_t len = size_t(tl.x1 - tl.x0);
-                    for (size_t g = 0; g < out.size(); ++g)
+                    for (size_t i = 0; i < len; ++i)
                     {
-                        BufferSet &d = out[g];
-                        const BufferSet &s = m_groups[g];
-                        for (size_t i = 0; i < len; ++i)
-                        {
-                            d.bX[base + i] = s.bX[base + i];
-                            d.bY[base + i] = s.bY[base + i];
-                            d.bZ[base + i] = s.bZ[base + i];
-                            d.bAlpha[base + i] = s.bAlpha[base + i];
-                            d.bW[base + i] = s.bW[base + i];
-                        }
+                        d.bX[base + i] = s.bX[base + i];
+                        d.bY[base + i] = s.bY[base + i];
+                        d.bZ[base + i] = s.bZ[base + i];
+                        d.bAlpha[base + i] = s.bAlpha[base + i];
+                        d.bW[base + i] = s.bW[base + i];
                     }
                 }
             }
@@ -655,53 +663,12 @@ namespace lux2
         rgb.resize(nPix);
         alpha.assign(nPix, 0.f);
 
-        std::vector<XYZColor> xyz(nPix, XYZColor(0.f));
+        // One color setup for the whole snapshot.
+        const SnapshotColor sc = MakeSnapshotColor();
 
-        // A single enabled group is exactly bX/W..
-        if (sets.size() == 1 && GroupConvertIsIdentity(0))
-        {
-            const BufferSet &s = sets[0];
-            for (size_t i = 0; i < nPix; ++i)
-            {
-                const float w = s.bW[i];
-                if (w == 0.f)
-                    continue;
-                const float inv = 1.f / w;
-                xyz[i] = XYZColor(s.bX[i] * inv, s.bY[i] * inv, s.bZ[i] * inv);
-                alpha[i] = s.bAlpha[i] * inv;
-            }
-        }
-        else
-        {
-            // For each enabled group normalize by that set's weight.
-            const ColorSystem cs(m_csRed[0], m_csRed[1], m_csGreen[0],
-                                 m_csGreen[1], m_csBlue[0], m_csBlue[1],
-                                 m_csWhite[0], m_csWhite[1], 1.f);
-            const XYZColor white = cs.ToXYZ(RGBColor(1.f));
-            std::vector<float> aSum(nPix, 0.f);
-            std::vector<int> started(nPix, 0);
-            for (size_t g = 0; g < sets.size(); ++g)
-            {
-                if (g >= m_gmod.size() || !m_gmod[g].enable)
-                    continue;
-                const ColorAdaptator conv = ComputeConvert(cs, white, m_gmod[g]);
-                const BufferSet &s = sets[g];
-                for (size_t i = 0; i < nPix; ++i)
-                {
-                    const float w = s.bW[i];
-                    if (w == 0.f)
-                        continue;
-                    const float inv = 1.f / w;
-                    xyz[i] += conv.Adapt(XYZColor(s.bX[i] * inv, s.bY[i] * inv,
-                                                  s.bZ[i] * inv));
-                    aSum[i] += s.bAlpha[i] * inv;
-                    ++started[i];
-                }
-            }
-            for (size_t i = 0; i < nPix; ++i)
-                if (started[i] > 0)
-                    alpha[i] = aSum[i] / float(started[i]);
-        }
+        std::vector<XYZColor> xyz(nPix, XYZColor(0.f));
+        for (size_t i = 0; i < nPix; ++i)
+            xyz[i] = CompositePixel(sets, sc, i, alpha[i]);
 
         // Recover straight color for the tonemapper.
         if (m_premultiplyAlpha)
@@ -720,11 +687,8 @@ namespace lux2
                 tm->Map(xyz, m_xCount, m_yCount, 1.f);
         }
 
-        const ColorSystem cs(m_csRed[0], m_csRed[1], m_csGreen[0], m_csGreen[1],
-                             m_csBlue[0], m_csBlue[1], m_csWhite[0],
-                             m_csWhite[1], 1.f);
         for (size_t i = 0; i < nPix; ++i)
-            rgb[i] = cs.ToRGBConstrained(xyz[i]);
+            rgb[i] = sc.cs.ToRGBConstrained(xyz[i]);
         return true;
     }
 
@@ -791,9 +755,9 @@ namespace lux2
             const size_t g = size_t(gi);
             const BufferSet &s = sets[g];
             // Raw radiance by default.
-            const ColorAdaptator conv =
-                m_bakeGroupState ? ComputeConvert(cs, white, m_gmod[g])
-                                 : ColorAdaptator(white, white);
+            std::optional<ColorAdaptator> baked;
+            if (m_bakeGroupState)
+                baked = ComputeConvert(cs, white, m_gmod[g]);
             std::vector<float> r(nPix), gg(nPix), bb(nPix);
             for (size_t i = 0; i < nPix; ++i)
             {
@@ -802,8 +766,8 @@ namespace lux2
                     continue;
                 const float inv = 1.f / w;
                 XYZColor xyz(s.bX[i] * inv, s.bY[i] * inv, s.bZ[i] * inv);
-                if (m_bakeGroupState)
-                    xyz = conv.Adapt(xyz);
+                if (baked)
+                    xyz = baked->Adapt(xyz);
                 RGBColor rgb = cs.ToRGB(xyz); // raw radiance
                 const float a = m_premultiplyAlpha ? 1.f : s.bAlpha[i] * inv;
                 r[i] = rgb[0] * a;

@@ -275,24 +275,27 @@ namespace lux2
         if (gs().currentLightGroup.empty())
             gs().currentLightGroup = "default";
 
-        std::vector<std::string> &groups = m_desc.lightGroups;
-        for (std::size_t i = 0; i < groups.size(); ++i)
+        for (;;)
         {
-            if (gs().currentLightGroup == groups[i])
-                return static_cast<std::uint32_t>(i);
-        }
+            std::vector<std::string> &groups = m_desc.lightGroups;
+            for (std::size_t i = 0; i < groups.size(); ++i)
+            {
+                if (gs().currentLightGroup == groups[i])
+                    return static_cast<std::uint32_t>(i);
+            }
 
-        if (gs().currentLightGroup == "default")
-        {
-            groups.push_back("default");
-            return static_cast<std::uint32_t>(groups.size() - 1);
-        }
+            if (gs().currentLightGroup == "default")
+            {
+                groups.push_back("default");
+                return static_cast<std::uint32_t>(groups.size() - 1);
+            }
 
-        LOG(LUX_ERROR, LUX_BADFILE)
-            << "Undefined lightgroup '" << gs().currentLightGroup
-            << "', using 'default' instead";
-        gs().currentLightGroup.clear();
-        return ResolveLightGroup();
+            LOG(LUX_ERROR, LUX_BADFILE)
+                << "Undefined lightgroup '" << gs().currentLightGroup
+                << "', using 'default' instead";
+            // Retry resolves or creates default.
+            gs().currentLightGroup = "default";
+        }
     }
 
     void Context2::Shape(const std::string &name, const ParamSet &params)
@@ -450,8 +453,13 @@ namespace lux2
         // Build from the parsed description.
         m_aborted.store(false);
         m_terminated.store(false);
+        m_renderRound = 0; // first render is round 0
         m_scene = std::make_unique<Scene>();
         m_scene->Commit(m_desc);
+
+        // Set a fixed seed for animations or debugging.
+        if (m_debugMode || !m_randomMode)
+            m_scene->GetSampler().SetBaseSeed(1001);
 
         // Statistics reference the committed film.
         if (m_scene->IsCommitted())
@@ -503,7 +511,8 @@ namespace lux2
 
         // Light-group wrapper.
         RunGroupPasses(renderer, *m_scene, m_scene->GetSurfaceIntegrator(),
-                       &m_aborted);
+                       &m_aborted, m_renderRound, m_randomMode);
+        ++m_renderRound;
 
         if (m_stats)
             m_stats->Stop();

@@ -85,6 +85,12 @@ namespace lux2
         Scene *GetScene() { return m_scene.get(); }
         bool IsCommitted() const { return m_scene && m_scene->IsCommitted(); }
 
+        // Reproducibility flags.
+        void EnableDebugMode() { m_debugMode = true; }
+        void DisableRandomMode() { m_randomMode = false; }
+        bool DebugMode() const { return m_debugMode; }
+        bool RandomMode() const { return m_randomMode; }
+
         // Render control.
         void Pause();
         void Resume();
@@ -192,6 +198,13 @@ namespace lux2
 
         unsigned int m_shapeNo = 0; // anonymous shape counter
         bool m_startRenderingAfterParse = true;
+
+        // Reproducibility (legacy parity): debugMode or !randomMode pins the
+        // base seed. randomMode also selects decorrelated group passes.
+        bool m_debugMode = false;
+        bool m_randomMode = true;
+        // Progressive round counter, advanced once per render invocation.
+        int m_renderRound = 0;
 
         QueryableRegistry m_registry;
         // Created when a scene commits.

@@ -294,6 +294,21 @@ namespace lux2
                                       const XYZColor &white,
                                       const GroupModifier &m) const;
 
+        // Color setup shared.
+        struct SnapshotColor
+        {
+            ColorSystem cs;
+            XYZColor white;
+            // Group convert.
+            std::vector<ColorAdaptator> converts;
+        };
+        SnapshotColor MakeSnapshotColor() const;
+
+        // Composite one pixel.
+        XYZColor CompositePixel(const std::vector<BufferSet> &sets,
+                                const SnapshotColor &sc, size_t idx,
+                                float &alpha) const;
+
         // Copy the buffers of every set.
         void SnapshotAccum(std::vector<BufferSet> &out) const;
 

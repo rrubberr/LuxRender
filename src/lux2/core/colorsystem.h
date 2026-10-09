@@ -86,6 +86,9 @@ namespace lux2
         ColorAdaptator &operator*=(float s);
 
     private:
+        // Uninitialized matrix for operator* which fills conv.
+        ColorAdaptator() {}
+
         float conv[3][3];
     };
 

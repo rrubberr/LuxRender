@@ -339,7 +339,7 @@ namespace lux2
 
     ColorAdaptator ColorAdaptator::operator*(const ColorAdaptator &ca) const
     {
-        ColorAdaptator result(XYZColor(1.f), XYZColor(1.f));
+        ColorAdaptator result; // conv written by Multiply3x3
         Multiply3x3(conv, ca.conv, result.conv);
         return result;
     }

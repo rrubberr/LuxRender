@@ -32,16 +32,20 @@ namespace lux2
     class Scene;
     class SurfaceIntegrator;
 
-    // Ensure a render is reproducible for a given base seed.
+    // 64-bit mixer.
     uint64_t SplitMix64(uint64_t x);
 
-    // Distinct sampler base seed per lightgroup.
+    // Correlated mode uses a shared base seed for every group.
+    uint64_t RoundSeed(uint64_t baseSeed, int round);
+
+    // Seed for decorrelated mode
     uint64_t GroupPassSeed(uint64_t baseSeed, int round, int group);
 
     // Lightgroup render wrapper.
     void RunGroupPasses(Renderer &renderer, Scene &scene,
                         SurfaceIntegrator &integrator,
-                        const std::atomic<bool> *aborted = nullptr);
+                        const std::atomic<bool> *aborted = nullptr,
+                        int round = 0, bool decorrelateGroups = false);
 
 } // namespace lux2
 

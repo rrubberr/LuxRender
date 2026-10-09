@@ -405,9 +405,11 @@ int main() {
             const double sumB = [&] { gf->SetActiveGroup(1); return ActiveBufYSum(*gf); }();
             Check(sumA > 0.0, "wrapper: group A buffer accumulated");
             Check(sumB > 0.0, "wrapper: group B buffer accumulated");
-            // The wrapper restores activeGroup to -1 (composite sees all).
-            Check(gs->GetActiveGroup() == -1,
-                  "wrapper: activeGroup restored to -1 after loop");
+            // The wrapper leaves activeGroup on a valid group (no -1
+            // sentinel); composite reads all sets regardless.
+            const int ag = gs->GetActiveGroup();
+            Check(ag >= 0 && ag < gs->LightGroupCount(),
+                  "wrapper: activeGroup is a valid index after loop");
         }
 
         // (c) D9 fast path: a single default group with an identity convert
@@ -438,20 +440,27 @@ int main() {
             Check(same, "D9 fast path: single-group wrapper == direct render");
         }
 
-        // (d) Seed decorrelation: two groups at the same spp must NOT be
-        //     identical noise (they'd be scaled copies under a shared seed).
-        //     GroupPassSeed(base,0,0) != GroupPassSeed(base,0,1) is the
-        //     mechanism; verify the seeds differ and are deterministic.
+        // (d) Seed modes. Correlated (RoundSeed): one basis shared by all
+        //     groups so comp layers align; equals baseSeed exactly at round 0
+        //     (the D9 anchor). Decorrelated (GroupPassSeed): distinct per
+        //     group. Both advance with round so progressive re-renders add
+        //     information.
         {
             const uint64_t base = 0x12345678ull;
+            // Correlated: group-independent, exact at round 0, advances per
+            // round.
+            Check(RoundSeed(base, 0) == base,
+                  "correlated: round 0 seed is exactly the base seed");
+            Check(RoundSeed(base, 1) != RoundSeed(base, 0),
+                  "correlated: round advances the seed");
+            // Decorrelated: distinct per group, deterministic.
             const uint64_t s0 = GroupPassSeed(base, 0, 0);
             const uint64_t s1 = GroupPassSeed(base, 0, 1);
-            const uint64_t s0_again = GroupPassSeed(base, 0, 0);
-            Check(s0 != s1, "decorrelation: group seeds differ");
-            Check(s0 == s0_again, "decorrelation: seed is deterministic");
-            // Round advances the basis (progressive re-render adds info).
+            Check(s0 != s1, "decorrelated: group seeds differ");
+            Check(s0 == GroupPassSeed(base, 0, 0),
+                  "decorrelated: seed is deterministic");
             Check(GroupPassSeed(base, 1, 0) != s0,
-                  "decorrelation: round advances the seed");
+                  "decorrelated: round advances the seed");
         }
     }
 
