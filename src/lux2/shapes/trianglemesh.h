@@ -19,56 +19,45 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_LOWDISCREPANCY_H
-#define LUX2_LOWDISCREPANCY_H
+#ifndef LUX2_SHAPE_TRIANGLEMESH_H
+#define LUX2_SHAPE_TRIANGLEMESH_H
 
-#include "core/sampler.h"
-#include "core/vecp.h"
+#include "core/shape.h"
+#include "core/bbox.h"
+#include "core/transform.h"
 
-#include <cstdint>
+#include <array>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace lux2
 {
 
-    struct PluginContext;
+    class PluginContext;
 
-    class LDSampler : public Sampler
+    // Inline triangle mesh.
+    class TriangleMeshShape : public Shape
     {
     public:
-        // spp is rounded up to a square power of two.
-        LDSampler(uint32_t sampleCount, uint64_t baseSeed);
+        TriangleMeshShape(const Transform &toWorld, std::vector<Point3f> P,
+                          std::vector<Normal3f> N, std::vector<UV> uv,
+                          std::vector<std::array<int, 3>> tris);
 
-        std::unique_ptr<Sampler> Clone() const override
-        {
-            return std::make_unique<LDSampler>(*this);
-        }
+        void Tessellate(const Transform &worldToCamera,
+                        std::vector<TriangleDesc> &out) const override;
+        BBox WorldBound() const override;
 
-        uint64_t BaseSeed() const override { return m_baseSeed; }
-        void SetBaseSeed(uint64_t seed) override { m_baseSeed = seed; }
-
-        void Seed(uint64_t seedOffset, size_t wavefrontSize) override;
-        void Advance() override;
-        FloatP Next1D(MaskP active = MaskP(true)) override;
-        Point2fP Next2D(MaskP active = MaskP(true)) override;
-        FloatP Get1D(const UInt32P &seed, const UInt32P &sidx,
-                     const UInt32P &dim,
-                     MaskP active = MaskP(true)) const override;
-        Point2fP Get2D(const UInt32P &seed, const UInt32P &sidx,
-                       const UInt32P &dim,
-                       MaskP active = MaskP(true)) const override;
-        uint32_t SampleCount() const override { return m_sampleCount; }
-
-        static std::shared_ptr<Sampler> CreateSampler(const PluginContext &ctx);
+        static std::shared_ptr<Shape> CreateShape(const PluginContext &ctx);
 
     private:
-        uint32_t m_sampleCount;     // res^2
-        uint32_t m_dimensionIndex;  // per-sample stream counter
-        uint32_t m_sampleIndex;     // current sample within the sequence
-        uint64_t m_baseSeed;
-        UInt32P m_scrambleSeed;     // per-lane scramble
+        Transform m_toWorld;
+        std::vector<Point3f> m_P;
+        std::vector<Normal3f> m_N; // empty -> flat face normals
+        std::vector<UV> m_uv;      // empty -> (0,0)
+        std::vector<std::array<int, 3>> m_tris;
     };
 
 } // namespace lux2
 
-#endif // LUX2_LOWDISCREPANCY_H
+#endif // LUX2_SHAPE_TRIANGLEMESH_H

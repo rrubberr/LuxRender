@@ -25,6 +25,7 @@
 #include "core/film.h"
 #include "core/sampler.h"
 #include "core/threadpool.h"
+#include "renderers/grouppass.h"
 
 namespace lux2
 {
@@ -233,6 +234,8 @@ namespace lux2
         d.name = name;
         d.params = params;
         d.toWorld = m_xform.current();
+        // Undefined lights placed in default.
+        d.lightGroupIndex = ResolveLightGroup();
         d.lightGroup = gs().currentLightGroup;
         m_desc.lights.push_back(d);
     }
@@ -251,7 +254,45 @@ namespace lux2
         if (!RequireWorld("LightGroup"))
             return;
         (void)params;
+        // Register the light group.
+        bool found = false;
+        for (const std::string &g : m_desc.lightGroups)
+        {
+            if (g == name)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            m_desc.lightGroups.push_back(name);
         gs().currentLightGroup = name;
+    }
+
+    std::uint32_t Context2::ResolveLightGroup()
+    {
+        // Unassigned lights placed in default.
+        if (gs().currentLightGroup.empty())
+            gs().currentLightGroup = "default";
+
+        std::vector<std::string> &groups = m_desc.lightGroups;
+        for (std::size_t i = 0; i < groups.size(); ++i)
+        {
+            if (gs().currentLightGroup == groups[i])
+                return static_cast<std::uint32_t>(i);
+        }
+
+        if (gs().currentLightGroup == "default")
+        {
+            groups.push_back("default");
+            return static_cast<std::uint32_t>(groups.size() - 1);
+        }
+
+        LOG(LUX_ERROR, LUX_BADFILE)
+            << "Undefined lightgroup '" << gs().currentLightGroup
+            << "', using 'default' instead";
+        gs().currentLightGroup.clear();
+        return ResolveLightGroup();
     }
 
     void Context2::Shape(const std::string &name, const ParamSet &params)
@@ -270,6 +311,7 @@ namespace lux2
             d.isAreaLight = true;
             d.areaLightName = gs().areaLightName;
             d.areaLightParams = gs().areaLightParams;
+            d.lightGroupIndex = ResolveLightGroup();
             d.lightGroup = gs().currentLightGroup;
             // An area light applies to exactly one following shape.
             gs().areaLightActive = false;
@@ -459,7 +501,9 @@ namespace lux2
         if (m_stats)
             m_stats->Start();
 
-        renderer.Render(*m_scene, m_scene->GetSurfaceIntegrator());
+        // Light-group wrapper.
+        RunGroupPasses(renderer, *m_scene, m_scene->GetSurfaceIntegrator(),
+                       &m_aborted);
 
         if (m_stats)
             m_stats->Stop();

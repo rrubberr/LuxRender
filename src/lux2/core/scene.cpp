@@ -153,9 +153,9 @@ namespace lux2
             m_bsdfTable.ptrs.push_back(mat->GetBSDF(DifferentialGeometryP{}));
         }
 
-        // Dedup map: binding key -> material id.
+        // Deduplicate inlined materials binding key -> material id.
         std::map<std::string, std::uint32_t> matIds;
-        // Pre-populate named materials.
+        // Populate named materials.
         {
             std::uint32_t idx = 1;
             for (const auto &kv : desc.namedMaterials)
@@ -178,7 +178,7 @@ namespace lux2
                     << m.namedRef << "'";
                 return 0;
             }
-            // Dedup inline bindings by plugin name and parameter value.
+            // Deduplicate by plugin name and parameter value.
             const std::string key = "!" + m.pluginName + "|" + m.params.DedupKey();
             auto it = matIds.find(key);
             if (it != matIds.end())
@@ -199,6 +199,7 @@ namespace lux2
         {
             std::string name;
             const ParamSet *params;
+            std::uint32_t groupIndex;
         };
         std::vector<AreaLightRecord> areaLightRecords;
 
@@ -214,7 +215,8 @@ namespace lux2
                     LOG(LUX_ERROR, LUX_SYNTAX) << "Area-light shape has no light plugin name";
                 lightID = nextAreaLightID++;
                 areaLightRecords.push_back({shape.areaLightName,
-                                            &shape.areaLightParams});
+                                            &shape.areaLightParams,
+                                            shape.lightGroupIndex});
             }
 
             // Instantiate the shape plugin and tessellate to world space triangles.
@@ -243,8 +245,6 @@ namespace lux2
             MeshDesc md;
             s->Tessellate(Transform(), md.tris);
 
-            // Orientation parity with legacy DifferentialGeometry::AdjustNormal
-            // for ReverseOrientation XOR when handedness swapping is in effect.
             // Flip both geometric and shading normal so Ng and sh_n stay consistent.
             if (shape.reverseOrientation ^ shape.toWorld.SwapsHandedness())
             {
@@ -300,11 +300,14 @@ namespace lux2
             pctx.floatTextures = &floatTexTable;
             auto l = it->second(pctx);
             if (l)
+            {
+                l->SetGroup(light.lightGroupIndex);
                 m_lights.push_back(std::move(l));
+            }
         }
 
-        // Instantiate the "area" plugin per lightID, then gather the
-        // triangles tagged with that lightID and bind them.
+        // Instantiate the area light plugin per lightID, bind the
+        // triangles tagged with that lightID.
         for (std::size_t i = 0; i < areaLightRecords.size(); ++i)
         {
             const AreaLightRecord &rec = areaLightRecords[i];
@@ -337,9 +340,33 @@ namespace lux2
             auto area = std::dynamic_pointer_cast<AreaLight>(l);
             if (area)
                 area->BindGeometry(tris);
+            l->SetGroup(rec.groupIndex);
             // Store in lightID order (i == lightID) for HitP.lightID lookup.
             m_areaLights.push_back(l);
             m_lights.push_back(std::move(l));
+        }
+
+        // Build light group tables.
+        m_lightGroups = desc.lightGroups;
+        const int groupCount = static_cast<int>(m_lightGroups.size());
+        m_groupLights.assign(groupCount, {});
+        m_groupInf.assign(groupCount, {});
+
+        // Indexed by HitP.lightID (i == lightID).
+        m_lightGroupOfArea.clear();
+        m_lightGroupOfArea.reserve(areaLightRecords.size());
+        for (const AreaLightRecord &rec : areaLightRecords)
+            m_lightGroupOfArea.push_back(static_cast<int>(rec.groupIndex));
+
+        // Per-group NEE/env list.
+        for (const auto &l : m_lights)
+        {
+            const int g = static_cast<int>(l->group());
+            if (g >= 0 && g < groupCount)
+            {
+                m_groupLights[g].push_back(l.get());
+                m_groupInf[g].push_back(l->IsInfinite() ? 1.f : 0.f);
+            }
         }
 
         // Sampler/filter/camera.
@@ -411,6 +438,9 @@ namespace lux2
                 pctx.params = &desc.filmParams;
                 pctx.filter = m_filter.get();
                 m_film = it->second(pctx);
+                // Size the film's buffers and ordered group names.
+                m_film->SetLightGroupCount(groupCount);
+                m_film->SetLightGroupNames(desc.lightGroups);
             }
             else
             {

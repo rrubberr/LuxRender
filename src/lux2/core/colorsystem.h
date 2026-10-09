@@ -69,6 +69,26 @@ namespace lux2
         float RGBToXYZ[3][3];
     };
 
+    // Color space white point conversion for blackbody.
+    class ColorAdaptator
+    {
+    public:
+        // Build the conversion from the initial color to the final color.
+        ColorAdaptator(const XYZColor &from, const XYZColor &to);
+
+        // Convert a color into the adapted colorspace.
+        XYZColor Adapt(const XYZColor &color) const;
+
+        // Composition of two adaptators (this applied after ca).
+        ColorAdaptator operator*(const ColorAdaptator &ca) const;
+
+        // Scale every matrix entry by s.
+        ColorAdaptator &operator*=(float s);
+
+    private:
+        float conv[3][3];
+    };
+
 } // namespace lux2
 
 #endif // LUX2_COLORSYSTEM_H

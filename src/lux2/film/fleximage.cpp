@@ -60,12 +60,7 @@ namespace lux2
         m_yCount = std::max(1, enoki::ceil2int<int>(float(yres) * crop[3]) -
                                    m_yStart);
 
-        const size_t n = size_t(m_xCount) * size_t(m_yCount);
-        m_bX.assign(n, 0.f);
-        m_bY.assign(n, 0.f);
-        m_bZ.assign(n, 0.f);
-        m_bAlpha.assign(n, 0.f);
-        m_bW.assign(n, 0.f);
+        AllocateSets(1);
     }
 
     // Private constructor.
@@ -76,12 +71,7 @@ namespace lux2
           m_yStart(yStart), m_yCount(yCount), m_filter(filter),
           m_premultiplyAlpha(premultiplyAlpha)
     {
-        const size_t n = size_t(m_xCount) * size_t(m_yCount);
-        m_bX.assign(n, 0.f);
-        m_bY.assign(n, 0.f);
-        m_bZ.assign(n, 0.f);
-        m_bAlpha.assign(n, 0.f);
-        m_bW.assign(n, 0.f);
+        AllocateSets(1);
     }
 
     // Create a private accumulation buffer.
@@ -91,6 +81,30 @@ namespace lux2
         : FlexImageFilm(xres, yres, filter, xStart, xCount, yStart, yCount,
                         premultiplyAlpha)
     {
+    }
+
+    void FlexImageFilm::AllocateSets(int groupCount)
+    {
+        const size_t n = size_t(m_xCount) * size_t(m_yCount);
+        m_groups.assign(std::max(1, groupCount), BufferSet{});
+        for (BufferSet &s : m_groups)
+        {
+            s.bX.assign(n, 0.f);
+            s.bY.assign(n, 0.f);
+            s.bZ.assign(n, 0.f);
+            s.bAlpha.assign(n, 0.f);
+            s.bW.assign(n, 0.f);
+        }
+        m_gmod.assign(m_groups.size(), GroupModifier{});
+        m_activeGroup = 0;
+    }
+
+    void FlexImageFilm::SetLightGroupCount(int n)
+    {
+        // Grow only.
+        if (n <= int(m_groups.size()))
+            return;
+        AllocateSets(n);
     }
 
     // -----------------------------------------------------------------------
@@ -193,7 +207,9 @@ namespace lux2
         auto s = std::unique_ptr<FlexImageFilm>(new FlexImageFilm(
             m_xres, m_yres, m_filter, 0, 0, 0, 0, m_premultiplyAlpha,
             ScratchTag{}));
-        for (auto *v : {&s->m_bX, &s->m_bY, &s->m_bZ, &s->m_bAlpha, &s->m_bW})
+        for (auto *v : {&s->m_groups[0].bX, &s->m_groups[0].bY,
+                        &s->m_groups[0].bZ, &s->m_groups[0].bAlpha,
+                        &s->m_groups[0].bW})
             v->reserve(m_maxScratchArea);
         return s;
     }
@@ -210,7 +226,9 @@ namespace lux2
         s.m_yCount = t.sy1 - t.sy0;
         const size_t n = size_t(s.m_xCount) * size_t(s.m_yCount);
         // assign() reuses reserved capacity when n <= capacity(): memset only.
-        for (auto *v : {&s.m_bX, &s.m_bY, &s.m_bZ, &s.m_bAlpha, &s.m_bW})
+        for (auto *v : {&s.m_groups[0].bX, &s.m_groups[0].bY,
+                        &s.m_groups[0].bZ, &s.m_groups[0].bAlpha,
+                        &s.m_groups[0].bW})
             v->assign(n, 0.f);
         s.m_boundTile = tile;
         s.m_boundEpoch = m_epoch;
@@ -227,6 +245,9 @@ namespace lux2
                                   int x0, int y0, int x1, int y1)
     {
         // The domain is guaranteed inside both films by the overlap directory.
+        // A scratch carries one set and merges into this film's active group.
+        BufferSet &d = Active();
+        const BufferSet &s = src.Active();
         const int rowLen = x1 - x0;
         for (int y = y0; y < y1; ++y)
         {
@@ -234,16 +255,16 @@ namespace lux2
                                  size_t(x0 - m_xStart);
             const size_t sBase = size_t(y - src.m_yStart) * src.m_xCount +
                                  size_t(x0 - src.m_xStart);
-            float *dX = m_bX.data() + dBase;
-            const float *sX = src.m_bX.data() + sBase;
-            float *dY = m_bY.data() + dBase;
-            const float *sY = src.m_bY.data() + sBase;
-            float *dZ = m_bZ.data() + dBase;
-            const float *sZ = src.m_bZ.data() + sBase;
-            float *dA = m_bAlpha.data() + dBase;
-            const float *sA = src.m_bAlpha.data() + sBase;
-            float *dW = m_bW.data() + dBase;
-            const float *sW = src.m_bW.data() + sBase;
+            float *dX = d.bX.data() + dBase;
+            const float *sX = s.bX.data() + sBase;
+            float *dY = d.bY.data() + dBase;
+            const float *sY = s.bY.data() + sBase;
+            float *dZ = d.bZ.data() + dBase;
+            const float *sZ = s.bZ.data() + sBase;
+            float *dA = d.bAlpha.data() + dBase;
+            const float *sA = s.bAlpha.data() + sBase;
+            float *dW = d.bW.data() + dBase;
+            const float *sW = s.bW.data() + sBase;
             for (int i = 0; i < rowLen; ++i)
             {
                 dX[i] += sX[i];
@@ -295,11 +316,14 @@ namespace lux2
 
     void FlexImageFilm::Clear()
     {
-        std::fill(m_bX.begin(), m_bX.end(), 0.f);
-        std::fill(m_bY.begin(), m_bY.end(), 0.f);
-        std::fill(m_bZ.begin(), m_bZ.end(), 0.f);
-        std::fill(m_bAlpha.begin(), m_bAlpha.end(), 0.f);
-        std::fill(m_bW.begin(), m_bW.end(), 0.f);
+        for (BufferSet &s : m_groups)
+        {
+            std::fill(s.bX.begin(), s.bX.end(), 0.f);
+            std::fill(s.bY.begin(), s.bY.end(), 0.f);
+            std::fill(s.bZ.begin(), s.bZ.end(), 0.f);
+            std::fill(s.bAlpha.begin(), s.bAlpha.end(), 0.f);
+            std::fill(s.bW.begin(), s.bW.end(), 0.f);
+        }
         m_sampleCount = 0.0;
     }
 
@@ -368,13 +392,14 @@ namespace lux2
         const int maxX = m_xStart + m_xCount - 1;
         const int maxY = m_yStart + m_yCount - 1;
         const Int32P maxXP(maxX), maxYP(maxY);
-        const Int32P nIdxP(int(m_bX.size()) - 1);
+        BufferSet &bs = Active();
+        const Int32P nIdxP(int(bs.bX.size()) - 1);
 
-        float *bufX = m_bX.data();
-        float *bufY = m_bY.data();
-        float *bufZ = m_bZ.data();
-        float *bufA = m_bAlpha.data();
-        float *bufW = m_bW.data();
+        float *bufX = bs.bX.data();
+        float *bufY = bs.bY.data();
+        float *bufZ = bs.bZ.data();
+        float *bufA = bs.bAlpha.data();
+        float *bufW = bs.bW.data();
 
         for (int yr = 0; yr < ny; ++yr)
         {
@@ -422,14 +447,21 @@ namespace lux2
             return;
         }
 
-        const size_t n = m_bX.size();
-        for (size_t i = 0; i < n; ++i)
+        // Pairwise over sets.
+        const size_t nsets = std::min(m_groups.size(), o->m_groups.size());
+        for (size_t g = 0; g < nsets; ++g)
         {
-            m_bX[i] += o->m_bX[i];
-            m_bY[i] += o->m_bY[i];
-            m_bZ[i] += o->m_bZ[i];
-            m_bAlpha[i] += o->m_bAlpha[i];
-            m_bW[i] += o->m_bW[i];
+            BufferSet &d = m_groups[g];
+            const BufferSet &s = o->m_groups[g];
+            const size_t n = d.bX.size();
+            for (size_t i = 0; i < n; ++i)
+            {
+                d.bX[i] += s.bX[i];
+                d.bY[i] += s.bY[i];
+                d.bZ[i] += s.bZ[i];
+                d.bAlpha[i] += s.bAlpha[i];
+                d.bW[i] += s.bW[i];
+            }
         }
         m_sampleCount += o->m_sampleCount;
     }
@@ -447,16 +479,53 @@ namespace lux2
             return;
 
         const size_t idx = size_t(iy) * m_xCount + size_t(ix);
-        const float w = m_bW[idx];
-        if (w == 0.f)
-            return;
 
-        const float inv = 1.f / w;
-        xyz[0] = m_bX[idx] * inv;
-        xyz[1] = m_bY[idx] * inv;
-        xyz[2] = m_bZ[idx] * inv;
-        if (alpha)
-            *alpha = m_bAlpha[idx] * inv;
+        // A single identity group is bX/W.
+        if (m_groups.size() == 1 && GroupConvertIsIdentity(0))
+        {
+            const BufferSet &s = m_groups[0];
+            const float w = s.bW[idx];
+            if (w == 0.f)
+                return;
+            const float inv = 1.f / w;
+            xyz[0] = s.bX[idx] * inv;
+            xyz[1] = s.bY[idx] * inv;
+            xyz[2] = s.bZ[idx] * inv;
+            if (alpha)
+                *alpha = s.bAlpha[idx] * inv;
+            return;
+        }
+
+        // Multi-group: legacy composite for one pixel. Normalize each enabled
+        // set by its own weight, adapt, accumulate; alpha averaged over the
+        // started groups.
+        const ColorSystem cs(m_csRed[0], m_csRed[1], m_csGreen[0], m_csGreen[1],
+                             m_csBlue[0], m_csBlue[1], m_csWhite[0],
+                             m_csWhite[1], 1.f);
+        const XYZColor white = cs.ToXYZ(RGBColor(1.f));
+        float aSum = 0.f;
+        int started = 0;
+        for (size_t g = 0; g < m_groups.size(); ++g)
+        {
+            if (g >= m_gmod.size() || !m_gmod[g].enable)
+                continue;
+            const BufferSet &s = m_groups[g];
+            const float w = s.bW[idx];
+            if (w == 0.f)
+                continue;
+            const float inv = 1.f / w;
+            const ColorAdaptator conv = ComputeConvert(cs, white, m_gmod[g]);
+            const XYZColor p =
+                conv.Adapt(XYZColor(s.bX[idx] * inv, s.bY[idx] * inv,
+                                    s.bZ[idx] * inv));
+            xyz[0] += p[0];
+            xyz[1] += p[1];
+            xyz[2] += p[2];
+            aSum += s.bAlpha[idx] * inv;
+            ++started;
+        }
+        if (alpha && started > 0)
+            *alpha = aSum / float(started);
     }
 
     // -----------------------------------------------------------------------
@@ -527,20 +596,27 @@ namespace lux2
         return MakeToneMap(name, ps);
     }
 
-    void FlexImageFilm::SnapshotAccum(std::vector<float> &bX,
-                                      std::vector<float> &bY,
-                                      std::vector<float> &bZ,
-                                      std::vector<float> &bAlpha,
-                                      std::vector<float> &bW) const
+    ColorAdaptator FlexImageFilm::ComputeConvert(const ColorSystem &cs,
+                                                 const XYZColor &white,
+                                                 const GroupModifier &m) const
     {
-        bX = m_bX;
-        bY = m_bY;
-        bZ = m_bZ;
-        bAlpha = m_bAlpha;
-        bW = m_bW;
+        // ComputeGroupScale.
+        ColorAdaptator conv(white, cs.ToXYZ(m.rgbScale));
+        if (m.temperature > 0.f)
+        {
+            XYZColor c = BlackbodyToXYZ(m.temperature);
+            c /= c[1]; // normalize by Y
+            conv = conv * ColorAdaptator(white, c);
+        }
+        conv *= m.globalScale;
+        return conv;
+    }
 
-        // A plain copy above can hold new W with old XYZ. Copy each tile under
-        // lock so all five buffers are consistent.
+    void FlexImageFilm::SnapshotAccum(std::vector<BufferSet> &out) const
+    {
+        out = m_groups;
+
+        // Copy with a mutex for consistency.
         if (!m_tileMutexes.empty())
         {
             for (size_t t = 0; t < m_tiles.size(); ++t)
@@ -552,13 +628,18 @@ namespace lux2
                     const size_t base = size_t(y - m_yStart) * m_xCount +
                                         size_t(tl.x0 - m_xStart);
                     const size_t len = size_t(tl.x1 - tl.x0);
-                    for (size_t i = 0; i < len; ++i)
+                    for (size_t g = 0; g < out.size(); ++g)
                     {
-                        bX[base + i] = m_bX[base + i];
-                        bY[base + i] = m_bY[base + i];
-                        bZ[base + i] = m_bZ[base + i];
-                        bAlpha[base + i] = m_bAlpha[base + i];
-                        bW[base + i] = m_bW[base + i];
+                        BufferSet &d = out[g];
+                        const BufferSet &s = m_groups[g];
+                        for (size_t i = 0; i < len; ++i)
+                        {
+                            d.bX[base + i] = s.bX[base + i];
+                            d.bY[base + i] = s.bY[base + i];
+                            d.bZ[base + i] = s.bZ[base + i];
+                            d.bAlpha[base + i] = s.bAlpha[base + i];
+                            d.bW[base + i] = s.bW[base + i];
+                        }
                     }
                 }
             }
@@ -568,25 +649,58 @@ namespace lux2
     bool FlexImageFilm::BuildDisplayImage(std::vector<RGBColor> &rgb,
                                           std::vector<float> &alpha,
                                           bool applyTonemap,
-                                          const std::vector<float> &bX,
-                                          const std::vector<float> &bY,
-                                          const std::vector<float> &bZ,
-                                          const std::vector<float> &bAlpha,
-                                          const std::vector<float> &bW) const
+                                          const std::vector<BufferSet> &sets) const
     {
         const size_t nPix = size_t(m_xCount) * size_t(m_yCount);
         rgb.resize(nPix);
         alpha.assign(nPix, 0.f);
 
         std::vector<XYZColor> xyz(nPix, XYZColor(0.f));
-        for (size_t i = 0; i < nPix; ++i)
+
+        // A single enabled group is exactly bX/W..
+        if (sets.size() == 1 && GroupConvertIsIdentity(0))
         {
-            const float w = bW[i];
-            if (w == 0.f)
-                continue;
-            const float inv = 1.f / w;
-            xyz[i] = XYZColor(bX[i] * inv, bY[i] * inv, bZ[i] * inv);
-            alpha[i] = bAlpha[i] * inv;
+            const BufferSet &s = sets[0];
+            for (size_t i = 0; i < nPix; ++i)
+            {
+                const float w = s.bW[i];
+                if (w == 0.f)
+                    continue;
+                const float inv = 1.f / w;
+                xyz[i] = XYZColor(s.bX[i] * inv, s.bY[i] * inv, s.bZ[i] * inv);
+                alpha[i] = s.bAlpha[i] * inv;
+            }
+        }
+        else
+        {
+            // For each enabled group normalize by that set's weight.
+            const ColorSystem cs(m_csRed[0], m_csRed[1], m_csGreen[0],
+                                 m_csGreen[1], m_csBlue[0], m_csBlue[1],
+                                 m_csWhite[0], m_csWhite[1], 1.f);
+            const XYZColor white = cs.ToXYZ(RGBColor(1.f));
+            std::vector<float> aSum(nPix, 0.f);
+            std::vector<int> started(nPix, 0);
+            for (size_t g = 0; g < sets.size(); ++g)
+            {
+                if (g >= m_gmod.size() || !m_gmod[g].enable)
+                    continue;
+                const ColorAdaptator conv = ComputeConvert(cs, white, m_gmod[g]);
+                const BufferSet &s = sets[g];
+                for (size_t i = 0; i < nPix; ++i)
+                {
+                    const float w = s.bW[i];
+                    if (w == 0.f)
+                        continue;
+                    const float inv = 1.f / w;
+                    xyz[i] += conv.Adapt(XYZColor(s.bX[i] * inv, s.bY[i] * inv,
+                                                  s.bZ[i] * inv));
+                    aSum[i] += s.bAlpha[i] * inv;
+                    ++started[i];
+                }
+            }
+            for (size_t i = 0; i < nPix; ++i)
+                if (started[i] > 0)
+                    alpha[i] = aSum[i] / float(started[i]);
         }
 
         // Recover straight color for the tonemapper.
@@ -612,6 +726,102 @@ namespace lux2
         for (size_t i = 0; i < nPix; ++i)
             rgb[i] = cs.ToRGBConstrained(xyz[i]);
         return true;
+    }
+
+    bool FlexImageFilm::WriteGroupEXR(const std::vector<BufferSet> &sets) const
+    {
+        const size_t nPix = size_t(m_xCount) * size_t(m_yCount);
+        const ColorSystem cs(m_csRed[0], m_csRed[1], m_csGreen[0],
+                             m_csGreen[1], m_csBlue[0], m_csBlue[1],
+                             m_csWhite[0], m_csWhite[1], 1.f);
+        const XYZColor white = cs.ToXYZ(RGBColor(1.f));
+
+        // Beauty reflects GUI state (composite with per-group convert).
+        std::vector<RGBColor> beautyRgb;
+        std::vector<float> alpha;
+        BuildDisplayImage(beautyRgb, alpha, false, sets);
+        if (!m_premultiplyAlpha)
+            for (size_t i = 0; i < nPix; ++i)
+                beautyRgb[i] *= alpha[i];
+
+        // A group is exported when enabled and non-empty.
+        std::vector<int> exportGroups;
+        for (size_t g = 0; g < sets.size(); ++g)
+        {
+            if (g < m_gmod.size() && !m_gmod[g].enable)
+                continue;
+            bool any = false;
+            for (size_t i = 0; i < nPix; ++i)
+                if (sets[g].bW[i] != 0.f)
+                {
+                    any = true;
+                    break;
+                }
+            if (any)
+                exportGroups.push_back(int(g));
+        }
+
+        // Reserve each channel in the vector so .data() stays stable as we add.
+        std::vector<std::vector<float>> planes;
+        planes.reserve(3 + 1 + 3 * exportGroups.size());
+        std::vector<EXRChannel> chans;
+        chans.reserve(planes.capacity());
+        auto addPlane = [&](const std::string &nm, std::vector<float> &&p)
+        {
+            planes.push_back(std::move(p));
+            chans.push_back({nm, planes.back().data()});
+        };
+
+        {
+            std::vector<float> r(nPix), g(nPix), b(nPix);
+            for (size_t i = 0; i < nPix; ++i)
+            {
+                r[i] = beautyRgb[i][0];
+                g[i] = beautyRgb[i][1];
+                b[i] = beautyRgb[i][2];
+            }
+            addPlane("beauty.R", std::move(r));
+            addPlane("beauty.G", std::move(g));
+            addPlane("beauty.B", std::move(b));
+        }
+        addPlane("A", std::vector<float>(alpha));
+
+        for (int gi : exportGroups)
+        {
+            const size_t g = size_t(gi);
+            const BufferSet &s = sets[g];
+            // Raw radiance by default.
+            const ColorAdaptator conv =
+                m_bakeGroupState ? ComputeConvert(cs, white, m_gmod[g])
+                                 : ColorAdaptator(white, white);
+            std::vector<float> r(nPix), gg(nPix), bb(nPix);
+            for (size_t i = 0; i < nPix; ++i)
+            {
+                const float w = s.bW[i];
+                if (w == 0.f)
+                    continue;
+                const float inv = 1.f / w;
+                XYZColor xyz(s.bX[i] * inv, s.bY[i] * inv, s.bZ[i] * inv);
+                if (m_bakeGroupState)
+                    xyz = conv.Adapt(xyz);
+                RGBColor rgb = cs.ToRGB(xyz); // raw radiance
+                const float a = m_premultiplyAlpha ? 1.f : s.bAlpha[i] * inv;
+                r[i] = rgb[0] * a;
+                gg[i] = rgb[1] * a;
+                bb[i] = rgb[2] * a;
+            }
+            const std::string base =
+                (gi < int(m_groupNames.size()) && !m_groupNames[gi].empty())
+                    ? m_groupNames[gi]
+                    : ("group" + std::to_string(gi));
+            addPlane(base + ".R", std::move(r));
+            addPlane(base + ".G", std::move(gg));
+            addPlane(base + ".B", std::move(bb));
+        }
+
+        return WriteOpenEXRChannels(m_writeEXRHalf, 1, m_filename + ".exr",
+                                    chans, m_xCount, m_yCount, m_xres, m_yres,
+                                    m_xStart, m_yStart);
     }
 
     void FlexImageFilm::UpdateFrameBuffer()
@@ -642,23 +852,31 @@ namespace lux2
         if (!needLinearEXR && !needTonemapped)
             return true;
 
-        std::vector<float> bX, bY, bZ, bAlpha, bW;
-        SnapshotAccum(bX, bY, bZ, bAlpha, bW);
+        std::vector<BufferSet> sets;
+        SnapshotAccum(sets);
 
-        // Straight linear EXR.
+        // Straight linear EXR. With multiple light groups, emit a
+        // multichannel file.
         if (needLinearEXR)
         {
-            std::vector<RGBColor> rgb;
-            std::vector<float> alpha;
-            BuildDisplayImage(rgb, alpha, false, bX, bY, bZ, bAlpha, bW);
-            if (!m_premultiplyAlpha)
+            if (sets.size() > 1)
             {
-                for (size_t i = 0; i < rgb.size(); ++i)
-                    rgb[i] *= alpha[i];
+                WriteGroupEXR(sets);
             }
-            WriteOpenEXRImage(3, m_writeEXRHalf, 1, m_filename + ".exr", rgb,
-                              alpha, m_xCount, m_yCount, m_xres, m_yres,
-                              m_xStart, m_yStart);
+            else
+            {
+                std::vector<RGBColor> rgb;
+                std::vector<float> alpha;
+                BuildDisplayImage(rgb, alpha, false, sets);
+                if (!m_premultiplyAlpha)
+                {
+                    for (size_t i = 0; i < rgb.size(); ++i)
+                        rgb[i] *= alpha[i];
+                }
+                WriteOpenEXRImage(3, m_writeEXRHalf, 1, m_filename + ".exr",
+                                  rgb, alpha, m_xCount, m_yCount, m_xres,
+                                  m_yres, m_xStart, m_yStart);
+            }
         }
 
         if (!needTonemapped)
@@ -666,7 +884,7 @@ namespace lux2
 
         std::vector<RGBColor> rgb;
         std::vector<float> alpha;
-        BuildDisplayImage(rgb, alpha, true, bX, bY, bZ, bAlpha, bW);
+        BuildDisplayImage(rgb, alpha, true, sets);
 
         if (anyFile && m_writeEXR && m_writeEXRApplyImaging)
         {
@@ -728,10 +946,41 @@ namespace lux2
     }
 
     void FlexImageFilm::SetParameterValue(luxComponentParameters param,
-                                          double value, unsigned int)
+                                          double value, unsigned int index)
     {
+        const int g = int(index);
         switch (param)
         {
+        case LUX_FILM_LG_ENABLE:
+            SetGroupEnable(g, value != 0.f);
+            break;
+        case LUX_FILM_LG_SCALE:
+            SetGroupGlobalScale(g, float(value));
+            break;
+        case LUX_FILM_LG_SCALE_RED:
+        {
+            RGBColor c = GetGroupRGBScale(g);
+            c[0] = float(value);
+            SetGroupRGBScale(g, c);
+            break;
+        }
+        case LUX_FILM_LG_SCALE_GREEN:
+        {
+            RGBColor c = GetGroupRGBScale(g);
+            c[1] = float(value);
+            SetGroupRGBScale(g, c);
+            break;
+        }
+        case LUX_FILM_LG_SCALE_BLUE:
+        {
+            RGBColor c = GetGroupRGBScale(g);
+            c[2] = float(value);
+            SetGroupRGBScale(g, c);
+            break;
+        }
+        case LUX_FILM_LG_TEMPERATURE:
+            SetGroupTemperature(g, float(value));
+            break;
         case LUX_FILM_TM_TONEMAPKERNEL:
             m_tonemapKernel = int(value);
             break;
@@ -784,13 +1033,29 @@ namespace lux2
             // TORGB_GAMMA and unimplemented ids are ignored.
             break;
         }
+        ResetConvTest();
     }
 
     double FlexImageFilm::GetParameterValue(luxComponentParameters param,
-                                            unsigned int) const
+                                            unsigned int index) const
     {
+        const int g = int(index);
         switch (param)
         {
+        case LUX_FILM_LG_COUNT:
+            return double(GroupCount());
+        case LUX_FILM_LG_ENABLE:
+            return GetGroupEnable(g) ? 1.0 : 0.0;
+        case LUX_FILM_LG_SCALE:
+            return GetGroupScale(g);
+        case LUX_FILM_LG_SCALE_RED:
+            return GetGroupRGBScale(g)[0];
+        case LUX_FILM_LG_SCALE_GREEN:
+            return GetGroupRGBScale(g)[1];
+        case LUX_FILM_LG_SCALE_BLUE:
+            return GetGroupRGBScale(g)[2];
+        case LUX_FILM_LG_TEMPERATURE:
+            return GetGroupTemperature(g);
         case LUX_FILM_TM_TONEMAPKERNEL:
             return m_tonemapKernel;
         case LUX_FILM_TM_REINHARD_PRESCALE:
@@ -833,6 +1098,15 @@ namespace lux2
     {
         switch (param)
         {
+        case LUX_FILM_LG_ENABLE:
+            return 1.0;
+        case LUX_FILM_LG_SCALE:
+        case LUX_FILM_LG_SCALE_RED:
+        case LUX_FILM_LG_SCALE_GREEN:
+        case LUX_FILM_LG_SCALE_BLUE:
+            return 1.0;
+        case LUX_FILM_LG_TEMPERATURE:
+            return 0.0;
         case LUX_FILM_TM_TONEMAPKERNEL:
             return m_dTonemapKernel;
         case LUX_FILM_TM_REINHARD_PRESCALE:
@@ -868,6 +1142,40 @@ namespace lux2
         default:
             return 0.0;
         }
+    }
+
+    void FlexImageFilm::SetStringParameterValue(luxComponentParameters param,
+                                                const std::string &value,
+                                                unsigned int index)
+    {
+        switch (param)
+        {
+        case LUX_FILM_LG_NAME:
+            SetGroupName(int(index), value);
+            break;
+        default:
+            break;
+        }
+        ResetConvTest();
+    }
+
+    std::string FlexImageFilm::GetStringParameterValue(
+        luxComponentParameters param, unsigned int index) const
+    {
+        switch (param)
+        {
+        case LUX_FILM_LG_NAME:
+            return GetGroupName(int(index));
+        default:
+            return std::string();
+        }
+    }
+
+    std::string FlexImageFilm::GetDefaultStringParameterValue(
+        luxComponentParameters, unsigned int) const
+    {
+        // Group names default to empty.
+        return std::string();
     }
 
     // -----------------------------------------------------------------------

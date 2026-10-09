@@ -24,7 +24,9 @@
 
 #include "core/film.h"
 #include "core/filter.h"
+#include "core/colorsystem.h"
 
+#include <algorithm>
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -97,6 +99,13 @@ namespace lux2
                                  unsigned int index) const override;
         double GetDefaultParameterValue(luxComponentParameters param,
                                         unsigned int index) const override;
+        void SetStringParameterValue(luxComponentParameters param,
+                                     const std::string &value,
+                                     unsigned int index) override;
+        std::string GetStringParameterValue(
+            luxComponentParameters param, unsigned int index) const override;
+        std::string GetDefaultStringParameterValue(
+            luxComponentParameters param, unsigned int index) const override;
 
         // Normalized pixel access.
         void GetPixelNormalized(int x, int y, float xyz[3],
@@ -108,12 +117,99 @@ namespace lux2
         float *GetFloatFrameBuffer() override;
         float *GetAlphaBuffer() override;
 
-        // Raw accumulation buffers, crop-window indexed.
-        const std::vector<float> &BufX() const { return m_bX; }
-        const std::vector<float> &BufY() const { return m_bY; }
-        const std::vector<float> &BufZ() const { return m_bZ; }
-        const std::vector<float> &BufAlpha() const { return m_bAlpha; }
-        const std::vector<float> &BufWeight() const { return m_bW; }
+        // Accumulation buffers of the active group, crop window indexed.
+        // For single light group this is the whole frame.
+        const std::vector<float> &BufX() const { return Active().bX; }
+        const std::vector<float> &BufY() const { return Active().bY; }
+        const std::vector<float> &BufZ() const { return Active().bZ; }
+        const std::vector<float> &BufAlpha() const { return Active().bAlpha; }
+        const std::vector<float> &BufWeight() const { return Active().bW; }
+
+        // Lightgroup accumulation.
+        void SetLightGroupCount(int n) override;
+        int GroupCount() const { return int(m_groups.size()); }
+
+        // Active lightgroup.
+        void SetActiveGroup(int g) override
+        {
+            m_activeGroup = (g >= 0 && g < int(m_groups.size())) ? g : 0;
+        }
+        int ActiveGroup() const { return m_activeGroup; }
+
+        // Composite modifiers.
+        void SetGroupEnable(int g, bool on)
+        {
+            if (g >= 0 && g < int(m_gmod.size()))
+                m_gmod[g].enable = on;
+        }
+        void SetGroupGlobalScale(int g, float s)
+        {
+            if (g >= 0 && g < int(m_gmod.size()))
+                m_gmod[g].globalScale = s;
+        }
+        void SetGroupTemperature(int g, float t)
+        {
+            if (g >= 0 && g < int(m_gmod.size()))
+                m_gmod[g].temperature = t;
+        }
+        void SetGroupRGBScale(int g, const RGBColor &s)
+        {
+            if (g >= 0 && g < int(m_gmod.size()))
+                m_gmod[g].rgbScale = s;
+        }
+
+        // Group modifiers.
+        bool GetGroupEnable(int g) const
+        {
+            return (g >= 0 && g < int(m_gmod.size())) ? m_gmod[g].enable
+                                                      : true;
+        }
+        float GetGroupScale(int g) const
+        {
+            return (g >= 0 && g < int(m_gmod.size())) ? m_gmod[g].globalScale
+                                                      : 1.f;
+        }
+        RGBColor GetGroupRGBScale(int g) const
+        {
+            return (g >= 0 && g < int(m_gmod.size())) ? m_gmod[g].rgbScale
+                                                      : RGBColor(1.f);
+        }
+        float GetGroupTemperature(int g) const
+        {
+            return (g >= 0 && g < int(m_gmod.size())) ? m_gmod[g].temperature
+                                                      : 0.f;
+        }
+        std::string GetGroupName(int g) const
+        {
+            return (g >= 0 && g < int(m_groupNames.size()))
+                       ? m_groupNames[g]
+                       : std::string();
+        }
+        void SetGroupName(int g, const std::string &name)
+        {
+            if (g >= int(m_groupNames.size()))
+                m_groupNames.resize(size_t(g) + 1);
+            if (g >= 0)
+                m_groupNames[size_t(g)] = name;
+        }
+
+        // True when group g is enabled with unit scale/temperature/rgbScale.
+        bool GroupConvertIsIdentity(int g) const override
+        {
+            if (g < 0 || g >= int(m_gmod.size()))
+                return true;
+            const GroupModifier &m = m_gmod[g];
+            return m.enable && m.globalScale == 1.f && m.temperature == 0.f &&
+                   m.rgbScale[0] == 1.f && m.rgbScale[1] == 1.f &&
+                   m.rgbScale[2] == 1.f;
+        }
+
+        // Group names.
+        void SetLightGroupNames(const std::vector<std::string> &names) override
+        {
+            m_groupNames = names;
+        }
+        void SetBakeGroupState(bool on) override { m_bakeGroupState = on; }
 
         // Output configuration.
         const std::string &FileName() const { return m_filename; }
@@ -169,26 +265,64 @@ namespace lux2
         // Add src into this over [x0,x1)x[y0,y1).
         void AddRegion(const FlexImageFilm &src, int x0, int y0, int x1, int y1);
 
-        // Copy the accumulation buffers.
-        void SnapshotAccum(std::vector<float> &bX, std::vector<float> &bY,
-                           std::vector<float> &bZ, std::vector<float> &bAlpha,
-                           std::vector<float> &bW) const;
+        // One accumulation set per lightgroup.
+        struct BufferSet
+        {
+            std::vector<float> bX, bY, bZ, bAlpha, bW;
+        };
+
+        // Composite modifiers.
+        struct GroupModifier
+        {
+            float globalScale = 1.f;
+            float temperature = 0.f; // 0 disables blackbody adaptation
+            RGBColor rgbScale = RGBColor(1.f);
+            bool enable = true;
+        };
+
+        BufferSet &Active() { return m_groups[m_activeGroup]; }
+        const BufferSet &Active() const { return m_groups[m_activeGroup]; }
+
+        // Size m_groups/m_gmod to groupCount (>=1) and zero every set to the
+        // current crop area.
+        void AllocateSets(int groupCount);
+
+        // Bradford convert for a group:
+        // Adapt(white -> ToXYZ(rgbScale)) * (temp>0 ? Adapt(white -> bb/Y) : I),
+        // then *= globalScale.
+        ColorAdaptator ComputeConvert(const ColorSystem &cs,
+                                      const XYZColor &white,
+                                      const GroupModifier &m) const;
+
+        // Copy the buffers of every set.
+        void SnapshotAccum(std::vector<BufferSet> &out) const;
 
         // Normalize, tonemap, and convert to display RGB.
         bool BuildDisplayImage(std::vector<RGBColor> &rgb,
-                               std::vector<float> &alpha,
-                               bool applyTonemap,
-                               const std::vector<float> &bX,
-                               const std::vector<float> &bY,
-                               const std::vector<float> &bZ,
-                               const std::vector<float> &bAlpha,
-                               const std::vector<float> &bW) const;
+                               std::vector<float> &alpha, bool applyTonemap,
+                               const std::vector<BufferSet> &sets) const;
+
+        // Multichannel linear EXR with beauty.
+        bool WriteGroupEXR(const std::vector<BufferSet> &sets) const;
+
+        // TODO: add convergence test.
+        void ResetConvTest()
+        {
+            // TODO: reset the convergence test once implemented.
+        }
 
         int m_xres, m_yres;
         int m_xStart, m_xCount, m_yStart, m_yCount;
 
-        // Crop window sized accumulation buffers.
-        std::vector<float> m_bX, m_bY, m_bZ, m_bAlpha, m_bW;
+        // Crop window sized accumulation buffer per lightgroup.
+        std::vector<BufferSet> m_groups;
+        std::vector<GroupModifier> m_gmod;
+        // Written by GroupRenderPass between joined passes.
+        int m_activeGroup = 0;
+        // Group names for multichannel EXR AOV prefixes.
+        std::vector<std::string> m_groupNames;
+        // Bake GUI convert into exported AOVs.
+        bool m_bakeGroupState = false;
 
         double m_sampleCount = 0.0;
 

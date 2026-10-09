@@ -55,11 +55,11 @@ namespace lux2
     // A set of wavelengths. Monochromatic SWA w/ one wavelength per lane.
     struct SpectrumWavelengthsP
     {
-        FloatP w;        // nm, one per lane.
+        FloatP w; // nm, one per lane.
 
-        Int32P binRGB;   // Smits basis bin for w.
+        Int32P binRGB; // Smits basis bin for w.
         FloatP offsetRGB;
-        Int32P binXYZ;   // CIE bin for w.
+        Int32P binXYZ; // CIE bin for w.
         FloatP offsetXYZ;
 
         // Stratified wavelength sampling from a uniform [0,1) sample.
@@ -95,6 +95,13 @@ namespace lux2
 
     // CIE XYZ tristimulus of a spectrum at the wavelengths in sw.
     XYZColorP SWCToXYZ(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw);
+
+    // ---------------------------------------------------------------------------
+    // Blackbody
+    // ---------------------------------------------------------------------------
+
+    // CIE XYZ of a blackbody at the given temperature (Kelvin).
+    XYZColor BlackbodyToXYZ(float tempK);
 
 } // namespace lux2
 

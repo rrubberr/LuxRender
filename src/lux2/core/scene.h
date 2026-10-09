@@ -38,6 +38,7 @@
 #include "core/bbox.h"
 #include "core/transform.h"
 
+#include <cstdint>
 #include <vector>
 #include <map>
 #include <string>
@@ -70,7 +71,9 @@ namespace lux2
         bool isAreaLight = false;
         std::string areaLightName; // light plugin name.
         ParamSet areaLightParams;
+        // Lightgroup name and index.
         std::string lightGroup;
+        std::uint32_t lightGroupIndex = 0;
     };
 
     // A non-area light source as recorded at parse time.
@@ -79,7 +82,9 @@ namespace lux2
         std::string name; // light plugin name
         ParamSet params;
         Transform toWorld;
+        // Lightgroup name and index.
         std::string lightGroup;
+        std::uint32_t lightGroupIndex = 0;
     };
 
     // -----------------------------------------------------------------------
@@ -119,6 +124,9 @@ namespace lux2
         // Parse records.
         std::vector<ShapeDesc> shapes;
         std::vector<LightDesc> lights;
+
+        // Ordered lightgroup names.
+        std::vector<std::string> lightGroups;
 
         // Named materials name -> parameters.
         std::map<std::string, ParamSet> namedMaterials;
@@ -170,6 +178,46 @@ namespace lux2
             return static_cast<int>(m_areaLights.size());
         }
 
+        // Lightgroup names in order.
+        int LightGroupCount() const
+        {
+            return static_cast<int>(m_lightGroups.size());
+        }
+        const std::string &LightGroupName(int i) const { return m_lightGroups[i]; }
+
+        // Group index of the area light with the given lightID, or -1 if the
+        // id is out of range.
+        int AreaLightGroup(std::int32_t lightID) const
+        {
+            if (lightID < 0 ||
+                lightID >= static_cast<std::int32_t>(m_lightGroupOfArea.size()))
+                return -1;
+            return m_lightGroupOfArea[lightID];
+        }
+
+        // All lightsbelonging to group g.
+        const std::vector<const Light *> &GroupLights(int g) const
+        {
+            static const std::vector<const Light *> kEmpty;
+            if (g < 0 || g >= static_cast<int>(m_groupLights.size()))
+                return kEmpty;
+            return m_groupLights[g];
+        }
+        const std::vector<float> &GroupLightInf(int g) const
+        {
+            static const std::vector<float> kEmpty;
+            if (g < 0 || g >= static_cast<int>(m_groupInf.size()))
+                return kEmpty;
+            return m_groupInf[g];
+        }
+
+        // True if group g has any light.
+        bool GroupHasLights(int g) const { return !GroupLights(g).empty(); }
+
+        // Active group for sequential rendering.
+        void SetActiveGroup(int g) const { m_activeGroup = g; }
+        int GetActiveGroup() const { return m_activeGroup; }
+
         BBox WorldBound() const { return m_worldBound; }
 
         // The Embree accelerator built at Commit.
@@ -203,6 +251,13 @@ namespace lux2
         std::vector<std::shared_ptr<Light>> m_lights;
         std::vector<std::shared_ptr<Light>> m_areaLights; // indexed by lightID
         std::vector<std::shared_ptr<Material>> m_materials;
+
+        // Lightgroup tables.
+        std::vector<std::string> m_lightGroups;                // use order
+        std::vector<int> m_lightGroupOfArea;                   // parallel to m_areaLights
+        std::vector<std::vector<const Light *>> m_groupLights; // NEE list
+        std::vector<std::vector<float>> m_groupInf;            // infinite flag per entry
+        mutable int m_activeGroup = 0;
         BBox m_worldBound;
         Summary m_summary;
         bool m_committed = false;

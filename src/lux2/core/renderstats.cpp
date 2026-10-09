@@ -201,6 +201,13 @@ namespace lux2
             now += std::chrono::duration<double>(Clock::now() - m_runStart).count();
         // Convert to total samples to match legacy samples/sec.
         const double sampleCount = m_film.SampleCount() * PixelCount();
+        // Rebase the count to prevent negative values.
+        if (sampleCount < m_windowSampleCount)
+        {
+            m_windowSampleCount = sampleCount;
+            m_windowStartTime = now;
+            return;
+        }
         const double dt = now - m_windowStartTime;
         if (dt != 0.0)
         {

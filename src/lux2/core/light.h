@@ -52,6 +52,9 @@ namespace lux2
         // Light group index.
         virtual UInt group() const = 0;
 
+        // Assign light's group index.
+        void SetGroup(UInt g) { m_group = g; }
+
         // Radiance emitted along `ray`.
         virtual SWCSpectrumP Le(const RayP &ray, MaskP active = MaskP(true)) const = 0;
 
@@ -78,6 +81,10 @@ namespace lux2
         virtual FloatP Pdf_L(const Point3fP &p, const Normal3fP &n,
                              const Point3fP &lightP, const Normal3fP &lightN,
                              MaskP active = MaskP(true)) const = 0;
+
+    protected:
+        // Group index backing the default group() override.
+        UInt m_group = 0;
     };
 
 } // namespace lux2

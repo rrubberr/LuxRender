@@ -286,4 +286,70 @@ namespace lux2
 
     const ColorSystem ColorSystem::DefaultColorSystem;
 
+    // ---------------------------------------------------------------------------
+    // Bradford ColorAdaptator
+    // ---------------------------------------------------------------------------
+
+    namespace
+    {
+        constexpr float bradford[3][3] = {
+            {0.8951f, 0.2664f, -0.1614f},
+            {-0.7502f, 1.7135f, 0.0367f},
+            {0.0389f, -0.0685f, 1.0296f}};
+        constexpr float invBradford[3][3] = {
+            {0.9869929f, -0.1470543f, 0.1599627f},
+            {0.4323053f, 0.5183603f, 0.0492912f},
+            {-0.0085287f, 0.0400428f, 0.9684867f}};
+
+        // result = a * b (Multiply3x3).
+        void Multiply3x3(const float a[3][3], const float b[3][3],
+                         float result[3][3])
+        {
+            for (int i = 0; i < 3; ++i)
+                for (int j = 0; j < 3; ++j)
+                    result[i][j] = a[i][0] * b[0][j] + a[i][1] * b[1][j] +
+                                   a[i][2] * b[2][j];
+        }
+
+        // result = m * v (row i dot v) (Transform3x3).
+        void Transform3x3(const float m[3][3], const float v[3], float r[3])
+        {
+            for (int i = 0; i < 3; ++i)
+                r[i] = m[i][0] * v[0] + m[i][1] * v[1] + m[i][2] * v[2];
+        }
+    } // namespace
+
+    ColorAdaptator::ColorAdaptator(const XYZColor &from, const XYZColor &to)
+    {
+        const float mat[3][3] = {
+            {to[0] / from[0], 0.f, 0.f},
+            {0.f, to[1] / from[1], 0.f},
+            {0.f, 0.f, to[2] / from[2]}};
+        float temp[3][3];
+        Multiply3x3(mat, bradford, temp);
+        Multiply3x3(invBradford, temp, conv);
+    }
+
+    XYZColor ColorAdaptator::Adapt(const XYZColor &color) const
+    {
+        float out[3];
+        Transform3x3(conv, color.data(), out);
+        return XYZColor(out[0], out[1], out[2]);
+    }
+
+    ColorAdaptator ColorAdaptator::operator*(const ColorAdaptator &ca) const
+    {
+        ColorAdaptator result(XYZColor(1.f), XYZColor(1.f));
+        Multiply3x3(conv, ca.conv, result.conv);
+        return result;
+    }
+
+    ColorAdaptator &ColorAdaptator::operator*=(float s)
+    {
+        for (int i = 0; i < 3; ++i)
+            for (int j = 0; j < 3; ++j)
+                conv[i][j] *= s;
+        return *this;
+    }
+
 } // namespace lux2

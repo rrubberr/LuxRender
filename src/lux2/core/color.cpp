@@ -25,6 +25,8 @@
 #include "core/data/rgbD65_32.h"
 #include "core/data/xyzbasis.h"
 
+#include <cmath>
+
 namespace lux2
 {
 
@@ -183,6 +185,70 @@ namespace lux2
         return XYZColorP(SampleCIE(CIE_X, sw) * s,
                          SampleCIE(CIE_Y, sw) * s,
                          SampleCIE(CIE_Z, sw) * s);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Blackbody
+    // ---------------------------------------------------------------------------
+
+    namespace
+    {
+        // BlackbodySPD cache grid.
+        constexpr float BB_CACHE_START = 380.f;
+        constexpr float BB_CACHE_END = 720.f;
+        constexpr int BB_CACHE_SAMPLES = 256;
+
+        // Linear interpolation on the sample grid at wavelength lambda (nm).
+        float SampleBB(const float *samples, float lambda)
+        {
+            constexpr float delta =
+                (BB_CACHE_END - BB_CACHE_START) / float(BB_CACHE_SAMPLES - 1);
+            constexpr float invDelta = 1.f / delta;
+            if (lambda < BB_CACHE_START || lambda > BB_CACHE_END)
+                return 0.f;
+            const float x = (lambda - BB_CACHE_START) * invDelta;
+            const int b0 = static_cast<int>(x);
+            const int b1 = b0 + 1 < BB_CACHE_SAMPLES ? b0 + 1 : BB_CACHE_SAMPLES - 1;
+            const float dx = x - static_cast<float>(b0);
+            return samples[b0] + dx * (samples[b1] - samples[b0]);
+        }
+    } // namespace
+
+    XYZColor BlackbodyToXYZ(float tempK)
+    {
+        // Fill the Planck curve, then normalize to peak and clamp.
+        float samples[BB_CACHE_SAMPLES];
+        const float delta =
+            (BB_CACHE_END - BB_CACHE_START) / float(BB_CACHE_SAMPLES - 1);
+        for (int i = 0; i < BB_CACHE_SAMPLES; ++i)
+        {
+            const float w = 1e-9f * (BB_CACHE_START + delta * i);
+            samples[i] = 0.4e-9f * (3.74183e-16f * std::pow(w, -5.f)) /
+                         (std::exp(1.4388e-2f / (w * tempK)) - 1.f);
+        }
+
+        float max = 0.f;
+        for (int i = 0; i < BB_CACHE_SAMPLES; ++i)
+            if (samples[i] > max)
+                max = samples[i];
+        const float scale = 1.f / max;
+        for (int i = 0; i < BB_CACHE_SAMPLES; ++i)
+        {
+            samples[i] *= scale;
+            if (!(samples[i] > 0.f))
+                samples[i] = 0.f;
+        }
+
+        // Integrate against the CIE matching functions over the full table.
+        XYZColor c(0.f);
+        for (unsigned int i = 0; i < nCIE; ++i)
+        {
+            const float s = SampleBB(samples, static_cast<float>(CIEstart + i));
+            c[0] += s * CIE_X[i];
+            c[1] += s * CIE_Y[i];
+            c[2] += s * CIE_Z[i];
+        }
+        return c * 683.f;
     }
 
 } // namespace lux2

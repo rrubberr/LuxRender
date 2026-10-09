@@ -59,6 +59,13 @@ namespace lux2
         static Context2 *GetActive() { return s_active; }
         static void SetActive(Context2 *c) { s_active = c; }
 
+        // The committed scene, or nullptr before WorldEnd / after Cleanup.
+        static Scene *GetCurrentScene()
+        {
+            Context2 *c = s_active;
+            return c ? c->m_scene.get() : nullptr;
+        }
+
         void Init();
         void Cleanup();
 
@@ -161,6 +168,10 @@ namespace lux2
         bool RequireWorld(const char *what);
         bool RequireOptions(const char *what);
         bool RequireInitialized(const char *what);
+
+        // Resolve the active light group to an index into
+        // m_desc.lightGroups.
+        std::uint32_t ResolveLightGroup();
 
         // Spawn the render thread.
         void StartRendering();

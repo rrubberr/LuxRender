@@ -532,27 +532,72 @@ extern "C" void luxGetHistogramImage(unsigned char *, unsigned int, unsigned int
 // ---------------------------------------------------------------------------
 // Parameter access
 // ---------------------------------------------------------------------------
-extern "C" void luxSetParameterValue(luxComponent, luxComponentParameters, double, unsigned int)
+namespace
 {
-    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxSetParameterValue";
+    // The committed scene's film.
+    Film *ActiveFilm()
+    {
+        Scene *s = Context2::GetCurrentScene();
+        return (s && s->IsCommitted()) ? &s->GetFilm() : nullptr;
+    }
+
+    // Copy a film string parameter into the caller's buffer.
+    unsigned int CopyFilmString(Film *film, luxComponentParameters param,
+                                bool def, char *dst, unsigned int dstlen,
+                                unsigned int index)
+    {
+        if (dst && dstlen)
+            dst[0] = '\0';
+        if (!film)
+            return 0;
+        const std::string s =
+            def ? film->GetDefaultStringParameterValue(param, index)
+                : film->GetStringParameterValue(param, index);
+        const unsigned int n =
+            std::min<unsigned int>(unsigned(s.size()), dstlen ? dstlen - 1 : 0);
+        if (dst && n)
+            std::memcpy(dst, s.data(), n);
+        if (dst && dstlen)
+            dst[n] = '\0';
+        return n;
+    }
+} // namespace
+
+extern "C" void luxSetParameterValue(luxComponent comp, luxComponentParameters param, double value, unsigned int index)
+{
+    Film *film = (comp == LUX_FILM) ? ActiveFilm() : nullptr;
+    if (film)
+        film->SetParameterValue(param, value, index);
+    else
+        LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxSetParameterValue";
 }
-extern "C" double luxGetParameterValue(luxComponent, luxComponentParameters, unsigned int) { return 0.0; }
-extern "C" double luxGetDefaultParameterValue(luxComponent, luxComponentParameters, unsigned int) { return 0.0; }
-extern "C" void luxSetStringParameterValue(luxComponent, luxComponentParameters, const char *, unsigned int)
+extern "C" double luxGetParameterValue(luxComponent comp, luxComponentParameters param, unsigned int index)
 {
-    LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxSetStringParameterValue";
+    Film *film = (comp == LUX_FILM) ? ActiveFilm() : nullptr;
+    return film ? film->GetParameterValue(param, index) : 0.0;
 }
-extern "C" unsigned int luxGetStringParameterValue(luxComponent, luxComponentParameters, char *dst, unsigned int dstlen, unsigned int)
+extern "C" double luxGetDefaultParameterValue(luxComponent comp, luxComponentParameters param, unsigned int index)
 {
-    if (dst && dstlen)
-        dst[0] = '\0';
-    return 0;
+    Film *film = (comp == LUX_FILM) ? ActiveFilm() : nullptr;
+    return film ? film->GetDefaultParameterValue(param, index) : 0.0;
 }
-extern "C" unsigned int luxGetDefaultStringParameterValue(luxComponent, luxComponentParameters, char *dst, unsigned int dstlen, unsigned int)
+extern "C" void luxSetStringParameterValue(luxComponent comp, luxComponentParameters param, const char *value, unsigned int index)
 {
-    if (dst && dstlen)
-        dst[0] = '\0';
-    return 0;
+    Film *film = (comp == LUX_FILM) ? ActiveFilm() : nullptr;
+    if (film && value)
+        film->SetStringParameterValue(param, std::string(value), index);
+    else
+        LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " luxSetStringParameterValue";
+}
+extern "C" unsigned int luxGetStringParameterValue(luxComponent comp, luxComponentParameters param, char *dst, unsigned int dstlen, unsigned int index)
+{
+    Film *film = (comp == LUX_FILM) ? ActiveFilm() : nullptr;
+    return CopyFilmString(film, param, false, dst, dstlen, index);
+}
+extern "C" unsigned int luxGetDefaultStringParameterValue(luxComponent comp, luxComponentParameters param, char *dst, unsigned int dstlen, unsigned int index)
+{
+    Film *film = (comp == LUX_FILM) ? ActiveFilm() : nullptr;
+    return CopyFilmString(film, param, true, dst, dstlen, index);
 }
 
 // ---------------------------------------------------------------------------

@@ -96,6 +96,9 @@ namespace lux2
             std::vector<float> lightInf;
             // Area light pointers indexed by light ID.
             std::vector<const Light *> areaPtrs;
+            // Group index of each area light.
+            std::vector<std::int32_t> areaGroup;
+            int activeGroup = -1;
             bool FULL_MIS, NEE, includeEnv, rrEfficiency;
             int maxDepth;
             FloatP rrProb, INF;
@@ -140,7 +143,6 @@ namespace lux2
         {
             const EmbreeScene *embree = ctx.embree;
             const BsdfPtrTable &table = *ctx.table;
-            const std::vector<std::shared_ptr<Light>> &lights = *ctx.lights;
             const int nLights = ctx.nLights;
             const FloatP invNLights = ctx.invNLights;
             const bool FULL_MIS = ctx.FULL_MIS;
@@ -192,9 +194,10 @@ namespace lux2
                     envCount = miss && (MaskP(!NEE) || ((envOn || deepper) && specularBounce));
                 if (nLights > 0 && any(envCount))
                 {
+                    // Iterate the lightgroup filtered light list.
                     for (int k = 0; k < nLights; ++k)
                     {
-                        const Light *light = lights[k].get();
+                        const Light *light = ctx.lightPtrs[k];
                         if (!light->IsInfinite())
                             continue;
                         const MaskP la = envCount;
@@ -253,6 +256,13 @@ namespace lux2
                 MaskP emCount = hitMask && (hit.lightID >= Int32P(0));
                 if (!FULL_MIS && NEE)
                     emCount = emCount && specularBounce;
+                // Only area lights belonging to the active lightgroup emit.
+                if (ctx.activeGroup >= 0 && any(emCount))
+                {
+                    const Int32P g = enoki::gather<Int32P>(
+                        ctx.areaGroup.data(), hit.lightID, emCount);
+                    emCount = emCount && eq(g, Int32P(ctx.activeGroup));
+                }
                 SWCSpectrumP emTerm(0.f); // total emission added this bounce
                 if (any(emCount))
                 {
@@ -608,21 +618,40 @@ namespace lux2
         ctx.scene = &scene;
         ctx.embree = scene.GetEmbree();
         ctx.table = &scene.GetBsdfTable();
-        ctx.lights = &scene.GetLights();
-        ctx.nLights = static_cast<int>(ctx.lights->size());
+
+        // Active lightgroup filtering.
+        const int activeGroup = scene.GetActiveGroup();
+        ctx.activeGroup = activeGroup;
+        if (activeGroup >= 0)
+        {
+            ctx.lightPtrs = scene.GroupLights(activeGroup);
+            ctx.lightInf = scene.GroupLightInf(activeGroup);
+        }
+        else
+        {
+            ctx.lights = &scene.GetLights();
+            ctx.lightPtrs.reserve(ctx.lights->size());
+            ctx.lightInf.reserve(ctx.lights->size());
+            for (const auto &l : *ctx.lights)
+            {
+                ctx.lightPtrs.push_back(l.get());
+                ctx.lightInf.push_back(l->IsInfinite() ? 1.f : 0.f);
+            }
+        }
+        ctx.nLights = static_cast<int>(ctx.lightPtrs.size());
         ctx.invNLights =
             ctx.nLights > 0 ? FloatP(1.f / float(ctx.nLights)) : FloatP(0.f);
-        ctx.lightPtrs.reserve(ctx.nLights);
-        ctx.lightInf.reserve(ctx.nLights);
-        for (const auto &l : *ctx.lights)
-        {
-            ctx.lightPtrs.push_back(l.get());
-            ctx.lightInf.push_back(l->IsInfinite() ? 1.f : 0.f);
-        }
+
         const int nArea = scene.AreaLightCount();
         ctx.areaPtrs.reserve(nArea);
         for (int a = 0; a < nArea; ++a)
             ctx.areaPtrs.push_back(scene.GetAreaLight(a));
+        if (activeGroup >= 0)
+        {
+            ctx.areaGroup.resize(nArea);
+            for (int a = 0; a < nArea; ++a)
+                ctx.areaGroup[a] = scene.AreaLightGroup(a);
+        }
         ctx.FULL_MIS = (m_lightMode == LightMode::MIS);
         ctx.NEE = (m_lightMode != LightMode::BSDF) && m_directLightSampling;
         ctx.includeEnv = m_includeEnvironment;

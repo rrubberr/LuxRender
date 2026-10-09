@@ -22,6 +22,7 @@
 #include "shapes/plymesh.h"
 
 #include "core/dynload.h"
+#include "core/indexmesh.h"
 #include "core/paramset.h"
 #include "core/plymesh.h"
 #include "core/register.h"
@@ -35,43 +36,18 @@ namespace lux2
         : m_toWorld(toWorld), m_P(std::move(P)), m_N(std::move(N)),
           m_uv(std::move(uv)), m_tris(std::move(tris))
     {
-        for (const Point3f &p : m_P)
-            m_objBound = Union(m_objBound, p);
     }
 
     BBox PlyMeshShape::WorldBound() const
     {
-        if (!m_objBound.IsValid())
-            return BBox();
-        BBox wb;
-        for (int i = 0; i < 8; ++i)
-        {
-            const Point3f c((i & 1) ? m_objBound.pMax.x() : m_objBound.pMin.x(),
-                            (i & 2) ? m_objBound.pMax.y() : m_objBound.pMin.y(),
-                            (i & 4) ? m_objBound.pMax.z() : m_objBound.pMin.z());
-            wb = Union(wb, m_toWorld * c);
-        }
-        return wb;
+        return IndexedWorldBound(m_toWorld, m_P);
     }
 
     void PlyMeshShape::Tessellate(const Transform & /*worldToCamera*/,
                                   std::vector<TriangleDesc> &out) const
     {
-        for (const auto &t : m_tris)
-        {
-            const int i0 = t[0], i1 = t[1], i2 = t[2];
-            TriangleDesc td;
-            td.v0 = m_toWorld * m_P[i0];
-            td.v1 = m_toWorld * m_P[i1];
-            td.v2 = m_toWorld * m_P[i2];
-            td.n0 = m_toWorld * m_N[i0];
-            td.n1 = m_toWorld * m_N[i1];
-            td.n2 = m_toWorld * m_N[i2];
-            td.uv0 = m_uv[i0];
-            td.uv1 = m_uv[i1];
-            td.uv2 = m_uv[i2];
-            out.push_back(td);
-        }
+        // ReadPlyGeometry always fills N.
+        TessellateIndexed(m_toWorld, m_P, m_N, m_uv, m_tris, out, false);
     }
 
     std::shared_ptr<Shape> PlyMeshShape::CreateShape(const PluginContext &ctx)

@@ -40,8 +40,31 @@ namespace lux2
                            int totalXRes, int totalYRes,
                            int xOffset, int yOffset);
 
+    // One named float channel for multichannel EXR output.
+    struct EXRChannel
+    {
+        std::string name;    // e.g. "beauty.R", "KeyLight.G"
+        const float *pixels; // xRes*yRes, row-major
+    };
+
+    // Write an EXR from an arbitrary list of named planar channels.
+    bool WriteOpenEXRChannels(bool halftype, int compressiontype,
+                              const std::string &name,
+                              const std::vector<EXRChannel> &channels,
+                              int xRes, int yRes,
+                              int totalXRes, int totalYRes,
+                              int xOffset, int yOffset);
+
     // Read an EXR into a FLOAT ImageData.
     bool ReadOpenEXRImage(const std::string &name, ImageData *out);
+
+    // List every channel name in an EXR.
+    bool ListOpenEXRChannels(const std::string &name,
+                             std::vector<std::string> *out);
+
+    // Read one named channel.
+    bool ReadOpenEXRChannel(const std::string &name, const std::string &channel,
+                            std::vector<float> *out);
 
 } // namespace lux2
 

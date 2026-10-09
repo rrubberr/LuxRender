@@ -208,6 +208,86 @@ namespace lux2
         return result;
     }
 
+    bool WriteOpenEXRChannels(bool halftype, int compressiontype,
+                              const std::string &name,
+                              const std::vector<EXRChannel> &channels,
+                              int xRes, int yRes,
+                              int totalXRes, int totalYRes,
+                              int xOffset, int yOffset)
+    {
+        if (channels.empty())
+            return false;
+
+        Header header(totalXRes, totalYRes);
+        switch (compressiontype)
+        {
+        case 0: header.compression() = RLE_COMPRESSION; break;
+        case 1: header.compression() = PIZ_COMPRESSION; break;
+        case 2: header.compression() = ZIP_COMPRESSION; break;
+        case 3: header.compression() = PXR24_COMPRESSION; break;
+        case 4: header.compression() = NO_COMPRESSION; break;
+        default: header.compression() = RLE_COMPRESSION; break;
+        }
+
+        Box2i dataWindow(V2i(xOffset, yOffset),
+                         V2i(xOffset + xRes - 1, yOffset + yRes - 1));
+        header.dataWindow() = dataWindow;
+
+        const PixelType savetype = halftype ? HALF : FLOAT;
+        const std::size_t bufSize = std::size_t(xRes) * yRes;
+        const std::size_t bufOffset =
+            std::size_t(xOffset) + std::size_t(yOffset) * xRes;
+
+        // Every HALF channel needs its own staging buffer until writePixels().
+        std::vector<std::vector<Imath::half>> halfStaging;
+        if (halftype)
+            halfStaging.resize(channels.size());
+
+        FrameBuffer fb;
+        for (std::size_t c = 0; c < channels.size(); ++c)
+        {
+            const EXRChannel &ch = channels[c];
+            header.channels().insert(ch.name, Channel(savetype));
+            if (halftype)
+            {
+                std::vector<Imath::half> &hb = halfStaging[c];
+                hb.resize(bufSize);
+                for (std::size_t i = 0; i < bufSize; ++i)
+                    hb[i] = ch.pixels[i];
+                fb.insert(ch.name,
+                          Slice(HALF,
+                                (char *)(&hb[0] - bufOffset),
+                                sizeof(Imath::half),
+                                xRes * sizeof(Imath::half)));
+            }
+            else
+            {
+                // Point the slice at the caller's plane.
+                fb.insert(ch.name,
+                          Slice(FLOAT,
+                                (char *)(const_cast<float *>(ch.pixels) -
+                                         bufOffset),
+                                sizeof(float), xRes * sizeof(float)));
+            }
+        }
+
+        bool result = true;
+        try
+        {
+            OutputFile file(name.c_str(), header);
+            file.setFrameBuffer(fb);
+            file.writePixels(yRes);
+        }
+        catch (const std::exception &e)
+        {
+            LOG(LUX_SEVERE, LUX_BUG)
+                << "Unable to write multi-channel image file '" << name
+                << "': " << e.what();
+            result = false;
+        }
+        return result;
+    }
+
     namespace
     {
 
@@ -329,6 +409,85 @@ namespace lux2
 
             *out = ImageData(xRes, yRes, ImageData::FLOAT_TYPE, nch,
                              std::move(buffer));
+            return true;
+        }
+        catch (const std::exception &e)
+        {
+            LOG(LUX_ERROR, LUX_BUG)
+                << "Unable to read image file '" << name << "': " << e.what();
+            return false;
+        }
+    }
+
+    bool ListOpenEXRChannels(const std::string &name,
+                             std::vector<std::string> *out)
+    {
+        try
+        {
+            InputFile file(name.c_str());
+            out->clear();
+            for (ChannelList::ConstIterator it = file.header().channels().begin();
+                 it != file.header().channels().end(); ++it)
+                out->push_back(it.name());
+            return true;
+        }
+        catch (const std::exception &e)
+        {
+            LOG(LUX_ERROR, LUX_BUG)
+                << "Unable to read image file '" << name << "': " << e.what();
+            return false;
+        }
+    }
+
+    bool ReadOpenEXRChannel(const std::string &name,
+                            const std::string &channel,
+                            std::vector<float> *out)
+    {
+        try
+        {
+            InputFile file(name.c_str());
+            const Header &header = file.header();
+            const Box2i &window = header.dataWindow();
+            const int xMin = window.min.x, yMin = window.min.y;
+            const int xRes = window.max.x - xMin + 1;
+            const int yRes = window.max.y - yMin + 1;
+            if (xRes <= 0 || yRes <= 0)
+                return false;
+
+            const ChannelList &channels = header.channels();
+            if (channels.find(channel.c_str()) == channels.end())
+                return false;
+            const Channel &ch = channels[channel.c_str()];
+            if (ch.type != FLOAT && ch.type != HALF)
+                return false;
+
+            const std::size_t count = std::size_t(xRes) * yRes;
+            const std::size_t elemSize =
+                (ch.type == FLOAT) ? sizeof(float) : sizeof(Imath::half);
+            std::vector<char> data(count * elemSize);
+            const std::ptrdiff_t base =
+                std::ptrdiff_t(xMin) * std::ptrdiff_t(elemSize) +
+                std::ptrdiff_t(yMin) * xRes * std::ptrdiff_t(elemSize);
+            FrameBuffer fb;
+            fb.insert(channel, Slice(ch.type, (char *)data.data() - base,
+                                     elemSize, xRes * elemSize));
+            file.setFrameBuffer(fb);
+            file.readPixels(yMin, window.max.y);
+
+            out->resize(count);
+            if (ch.type == FLOAT)
+            {
+                const float *src = reinterpret_cast<const float *>(data.data());
+                for (std::size_t i = 0; i < count; ++i)
+                    (*out)[i] = src[i];
+            }
+            else
+            {
+                const Imath::half *src =
+                    reinterpret_cast<const Imath::half *>(data.data());
+                for (std::size_t i = 0; i < count; ++i)
+                    (*out)[i] = float(src[i]);
+            }
             return true;
         }
         catch (const std::exception &e)

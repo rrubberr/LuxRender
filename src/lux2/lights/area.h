@@ -86,7 +86,6 @@ namespace lux2
     private:
         std::shared_ptr<ColorTexture> m_Le;
         float m_gain;
-        UInt m_group = 0;
 
         // Emitting triangle table for gather sampling.
         std::vector<AreaTriangle<float>> m_tris;

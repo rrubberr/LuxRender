@@ -49,6 +49,9 @@ namespace lux2
         // Renderer configured base seed.
         virtual uint64_t BaseSeed() const { return 0; }
 
+        // Override the base seed for a subsequent render pass.
+        virtual void SetBaseSeed(uint64_t seed) { (void)seed; }
+
         // Seed for a wavefront of `wavefrontSize` lanes.
         virtual void Seed(uint64_t seedOffset, size_t wavefrontSize) = 0;
 

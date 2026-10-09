@@ -144,6 +144,29 @@ namespace lux2
         // Zero the accumulation buffers.
         virtual void Clear() {}
 
+        // Size for lightgroup accumulation.
+        virtual void SetLightGroupCount(int n) { (void)n; }
+
+        // Select the target group for the next pass.
+        virtual void SetActiveGroup(int g) { (void)g; }
+
+        // True when group g's composite convert is the identity (enabled with
+        // unit scale/temperature/rgbScale).
+        virtual bool GroupConvertIsIdentity(int g) const
+        {
+            (void)g;
+            return true;
+        }
+
+        // Ordered group names used as the EXR channel prefix for AOVs
+        virtual void SetLightGroupNames(const std::vector<std::string> &names)
+        {
+            (void)names;
+        }
+
+        // Bake each group's GUI scale/temperature into the AOV. Default off.
+        virtual void SetBakeGroupState(bool on) { (void)on; }
+
         // Accumulated sample count.
         virtual void AddSampleCount(double n) = 0;
         virtual double SampleCount() const = 0;
@@ -195,6 +218,30 @@ namespace lux2
             (void)param;
             (void)index;
             return 0.0;
+        }
+
+        // String parameter access (e.g. LUX_FILM_LG_NAME).
+        virtual void SetStringParameterValue(luxComponentParameters param,
+                                             const std::string &value,
+                                             unsigned int index)
+        {
+            (void)param;
+            (void)value;
+            (void)index;
+        }
+        virtual std::string GetStringParameterValue(
+            luxComponentParameters param, unsigned int index) const
+        {
+            (void)param;
+            (void)index;
+            return std::string();
+        }
+        virtual std::string GetDefaultStringParameterValue(
+            luxComponentParameters param, unsigned int index) const
+        {
+            (void)param;
+            (void)index;
+            return std::string();
         }
     };
 
