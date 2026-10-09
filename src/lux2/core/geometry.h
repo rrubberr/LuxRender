@@ -177,7 +177,7 @@ namespace lux2
                 b = n.x() * n.y() * a;
 
         return {
-            Vector3fP_(enoki::fmadd(enoki::sqr(n.x()) * a, n.z(), FloatP_(1.f)),
+            Vector3fP_(enoki::fmadd(enoki::sqr(n.x()) * a, sign, FloatP_(1.f)),
                        enoki::mulsign(b, n.z()),
                        enoki::mulsign_neg(n.x(), n.z())),
             Vector3fP_(b, enoki::fmadd(enoki::sqr(n.y()), a, sign), -n.y())};
