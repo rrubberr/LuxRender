@@ -29,8 +29,11 @@
 #include "core/light.h"
 #include "core/light_call.h"
 #include "core/math.h"
+#include "core/medium.h"
+#include "core/mediumptr_table.h"
 #include "core/register.h"
 #include "core/scene.h"
+#include "core/rng.h"
 
 #include <enoki/array.h>
 
@@ -58,6 +61,9 @@ namespace lux2
 
     namespace
     {
+        // Cap null crossings.
+        constexpr int MAX_NULL_CROSSINGS = 16;
+
         // Power heuristic for combining two sampling strategies.
         inline FloatP misWeight(const FloatP &aIn, const FloatP &bIn)
         {
@@ -73,6 +79,9 @@ namespace lux2
             const Normal3fP s = select(dot(d, ng) > FloatP(0.f), ng, -ng);
             return p + Vector3fP(s.x(), s.y(), s.z()) * k;
         }
+
+        // Cap on shadow-ray boundary crossings.
+        constexpr int MAX_SHADOW_CROSSINGS = 16;
     } // namespace
 
     void PathIntegrator::Start(const Scene &scene)
@@ -102,7 +111,93 @@ namespace lux2
             bool FULL_MIS, NEE, includeEnv, rrEfficiency;
             int maxDepth;
             FloatP rrProb, INF;
+            // Media.
+            const MediumPtrTable *mediumTable = nullptr;
+            bool hasMedia = false;
         };
+
+        // Closest-hit shadow transmittance from origin along dir toward a
+        // light at distance tMax.
+        SWCSpectrumP ShadowTransmittance(const WalkCtx &ctx,
+                                         const Point3fP &origin,
+                                         const Vector3fP &dir,
+                                         const UInt32P &startMedium,
+                                         const FloatP &tMax,
+                                         const SpectrumWavelengthsP &sw,
+                                         MaskP active)
+        {
+            if (!ctx.hasMedia)
+            {
+                RayP shadow(origin, dir, FloatP(EPS_RAY), tMax, FloatP(0.f));
+                shadow.wavelengths = sw.w;
+                shadow.mask = UInt32P(0xFFFFFFFFu);
+                const MaskP blocked =
+                    ctx.embree->Occluded(shadow, active, Coherent::No);
+                return select(active && !blocked, SWCSpectrumP(1.f),
+                              SWCSpectrumP(0.f));
+            }
+
+            SWCSpectrumP T(1.f);
+            UInt32P curMedium = startMedium;
+            FloatP tCur = FloatP(EPS_RAY);
+            MaskP tracing = active;
+            // Salt decorrelated from the flight stream.
+            RNGP rng(0x2C9277B5D6B0A3E1ULL);
+
+            for (int i = 0; i < MAX_SHADOW_CROSSINGS && any(tracing); ++i)
+            {
+                RayP shadow(origin, dir, tCur, tMax, FloatP(0.f));
+                shadow.wavelengths = sw.w;
+                shadow.mask = UInt32P(0xFFFFFFFFu);
+                HitP hit;
+                ctx.embree->Intersect(shadow, hit, Coherent::No);
+                ctx.embree->ShadeHit(shadow, hit);
+
+                const MaskP didHit = tracing && hit.hit;
+                const MaskP missed = tracing && !hit.hit;
+
+                // Transmittance over the interval just travelled.
+                const MediumPtr med =
+                    ctx.mediumTable->Gather(curMedium, tracing);
+                const FloatP segEnd = select(didHit, hit.t, tMax);
+                T = select(tracing,
+                           T * med->Transmittance(sw, shadow, tCur, segEnd, rng,
+                                                  tracing),
+                           T);
+
+                // Missed everything but reached the light, this lane is done.
+                tracing = tracing && !missed;
+                if (none(tracing))
+                    break;
+
+                // Classify the surface such that null boundaries pass through,
+                // opaque surfaces occlude.
+                const BSDFPtr bsdf = ctx.table->Gather(hit.matID, tracing);
+                const UInt32P bflags = bsdf->flags();
+                const MaskP isNull = has_flag(bflags, BSDFType::Null);
+
+                const MaskP opaque = tracing && !isNull;
+                T = select(opaque, SWCSpectrumP(0.f), T);
+                tracing = tracing && !opaque;
+
+                // Null boundary, swap medium by the outgoing direction
+                // and continue past the surface.
+                if (any(tracing))
+                {
+                    const MaskP leavesFront =
+                        dot(dir, hit.ngeo) > FloatP(0.f);
+                    const UInt32P sideID =
+                        select(leavesFront, hit.mediumInID, hit.mediumOutID);
+                    curMedium = select(eq(sideID, UInt32P(LUX2_MEDIUM_NONE)),
+                                       curMedium, sideID);
+                    tCur = select(tracing, hit.t + FloatP(EPS_RAY), tCur);
+                }
+            }
+            // Lanes still tracing after the crossing cap are treated as
+            // occluded.
+            T = select(tracing, SWCSpectrumP(0.f), T);
+            return T;
+        }
 
         // Persistent path state per SIMD lane.
         struct PathLanes
@@ -113,7 +208,9 @@ namespace lux2
             FloatP alpha, prevPdf;
             Point3fP prevP;
             Normal3fP prevN;
-            Int32P depth;
+            Int32P depth;     // semantic bounce count frozen on Null
+            Int32P bounce;    // RNG stream counter advances every bounce
+            Int32P crossings; // null crossings within the current segment
             MaskP alive, specularBounce;
             FloatP x, y, camWeight;  // film position and weight for retire
             UInt32P seed, sampleIdx; // sampler addressing
@@ -164,24 +261,191 @@ namespace lux2
             Point3fP &prevP = st.prevP;
             Normal3fP &prevN = st.prevN;
             FloatP &prevPdf = st.prevPdf;
+            Int32P &bounce = st.bounce;
+            Int32P &crossings = st.crossings;
             const SpectrumWavelengthsP &sw = st.sw;
 
-            // Lane stream base.
+            // Lane stream base. The block is 6 dims for geometry
+            // and 7 dims for media.
+            const bool hasMedia = ctx.hasMedia;
+            const UInt32P stride = hasMedia ? UInt32P(7u) : UInt32P(6u);
             const UInt32P d0 =
-                UInt32P(2u) + UInt32P(depth) * UInt32P(6u);
+                UInt32P(2u) + UInt32P(bounce) * stride;
             const Point2fP u2bsdf = src.Get2D(d0);
             const FloatP ucomp = src.Get1D(d0 + UInt32P(1u));
             const FloatP urr = src.Get1D(d0 + UInt32P(2u));
             const FloatP ulight = src.Get1D(d0 + UInt32P(3u));
             const Point2fP u2lpos = src.Get2D(d0 + UInt32P(4u));
             const FloatP ulightcomp = src.Get1D(d0 + UInt32P(5u));
+            // Flight distance sample (media only).
+            const FloatP uFlight =
+                hasMedia ? src.Get1D(d0 + UInt32P(6u)) : FloatP(0.f);
 
             ray.alive = alive;
             HitP hit;
             embree->Intersect(ray, hit, Coherent::No);
 
+            // -----------------------------------------------------------------
+            // Medium flight
+            // -----------------------------------------------------------------
+            MaskP mediumEvent(false);
+            if (hasMedia)
+            {
+                const MaskP inMedium = alive && (ray.medium != UInt32P(LUX2_MEDIUM_CLEAR));
+                if (any(inMedium))
+                {
+                    // Segment end is the nearest surface hit, else INF.
+                    const FloatP tEnd =
+                        select(hit.hit, hit.t, INF);
+
+                    MediumSampleP ms;
+                    ClearMediumSample(&ms, tEnd);
+                    const MediumPtr med =
+                        ctx.mediumTable->Gather(ray.medium, inMedium);
+                    RNGP rng(0x9E3779B97F4A7C15ULL);
+                    med->SampleInteraction(sw, ray, ray.mint, tEnd, uFlight,
+                                           rng, &ms, inMedium);
+
+                    // Event point along the ray.
+                    const Point3fP mi = ray(ray.mint + ms.d);
+
+                    // Add gathered emission, then scale throughput by the
+                    // flight weight (L += T*emission; T *= weight).
+                    L = select(inMedium, L + throughput * ms.emission, L);
+                    throughput = select(inMedium, throughput * ms.weight, throughput);
+
+                    mediumEvent = inMedium && ms.scattered;
+                    const MaskP escape = inMedium && !ms.scattered;
+
+                    // Scattered lanes.
+                    if (any(mediumEvent))
+                    {
+                        // Incoming direction, captured before the continuation
+                        // ray overwrites ray.d. Needed to evaluate the phase
+                        // function for NEE toward a sampled light.
+                        const Vector3fP dIn = ray.d;
+                        const Point2fP uPhase = src.Get2D(d0 + UInt32P(1u));
+                        Vector3fP wi(FloatP(0.f));
+                        FloatP phasePdf(FloatP(0.f));
+                        // wo points back toward the previous vertex.
+                        med->PhaseSample(-ray.d, uPhase.x(), uPhase.y(), &wi,
+                                         &phasePdf, mediumEvent);
+
+                        const Point3fP spawn =
+                            mi + wi * FloatP(EPS_RAY);
+                        // Reconstruct the continuation ray masked by
+                        // mediumEvent.
+                        const RayP medRay(spawn, wi, FloatP(EPS_RAY), INF,
+                                          FloatP(0.f));
+                        ray.o = select(mediumEvent, medRay.o, ray.o);
+                        ray.d = select(mediumEvent, medRay.d, ray.d);
+                        ray.d_rcp = select(mediumEvent, medRay.d_rcp, ray.d_rcp);
+                        ray.mint = select(mediumEvent, medRay.mint, ray.mint);
+                        ray.maxt = select(mediumEvent, medRay.maxt, ray.maxt);
+                        ray.time = select(mediumEvent, medRay.time, ray.time);
+                        ray.wavelengths =
+                            select(mediumEvent, sw.w, ray.wavelengths);
+                        ray.mask = select(mediumEvent, UInt32P(0xFFFFFFFFu),
+                                          ray.mask);
+                        // Medium membership is unchanged across a V->V scatter.
+
+                        // MIS vertex bookkeeping; a medium vertex has no
+                        // geometric normal.
+                        prevP = select(mediumEvent, mi, prevP);
+                        prevN = select(mediumEvent, Normal3fP(FloatP(0.f)),
+                                       prevN);
+                        prevPdf = select(mediumEvent, phasePdf, prevPdf);
+                        // A medium scatter is a real vertex so advance both the
+                        // semantic depth and the RNG counter.
+                        depth = select(mediumEvent, depth + Int32P(1), depth);
+                        bounce = select(mediumEvent, bounce + Int32P(1), bounce);
+                        crossings = select(mediumEvent, Int32P(0), crossings);
+
+                        // Medium-vertex NEE.
+                        const MaskP neeActive =
+                            MaskP(NEE) && mediumEvent && alive &&
+                            (depth < Int32P(maxDepth));
+                        if (NEE && nLights > 0 && any(neeActive))
+                        {
+                            const UInt32P lightIdx =
+                                min(UInt32P(uint32_t(nLights - 1)),
+                                    floor2int<UInt32P>(
+                                        ulight * FloatP(float(nLights))));
+                            const LightPtr light = enoki::gather<LightPtr>(
+                                ctx.lightPtrs.data(), lightIdx, neeActive);
+                            const FloatP infF = enoki::gather<FloatP>(
+                                ctx.lightInf.data(), lightIdx, neeActive);
+
+                            Point3fP lightP(0.f, 0.f, 0.f);
+                            Vector3fP wiL(0.f, 0.f, 0.f);
+                            Normal3fP lightN(0.f, 0.f, 0.f);
+                            FloatP pdfPos(0.f);
+                            SWCSpectrumP LeL(0.f);
+                            const MaskP valid = light->Sample_L(
+                                sw, mi, Normal3fP(FloatP(0.f)), u2lpos.x(),
+                                u2lpos.y(), ulightcomp, &lightP, &wiL, &lightN,
+                                &pdfPos, &LeL, neeActive,
+                                /*testReceiverSide=*/false);
+                            const FloatP dist = enoki::norm(lightP - mi);
+                            const FloatP pdfL = pdfPos * invNLights;
+                            const FloatP tmax =
+                                select(infF > FloatP(0.5f), INF,
+                                       dist - enoki::max(FloatP(1e-3f),
+                                                         FloatP(1e-3f) * dist));
+                            // Medium membership is unchanged across the V->V
+                            // scatter, so ray.medium is still the vertex medium.
+                            const SWCSpectrumP Tr = ShadowTransmittance(
+                                ctx, mi, wiL, ray.medium, tmax, sw, neeActive);
+
+                            const FloatP phaseVal =
+                                med->PhasePdf(-dIn, wiL, neeActive);
+                            FloatP neeW(1.f);
+                            if (FULL_MIS)
+                                neeW = misWeight(pdfL, phaseVal);
+                            const MaskP ok =
+                                neeActive && valid && (pdfL > FloatP(0.f)) &&
+                                (phaseVal > FloatP(0.f));
+                            const SWCSpectrumP Lm = select(
+                                ok,
+                                neeW * throughput * Tr * LeL * phaseVal /
+                                    max(pdfL, FloatP(EPS_DENOM)),
+                                SWCSpectrumP(0.f));
+                            L = L + Lm;
+                        }
+
+                        // A medium vertex is not specular when NEE is on.
+                        const MaskP neeOn = MaskP(NEE);
+                        specularBounce =
+                            select(mediumEvent, specularBounce && !neeOn,
+                                   specularBounce);
+
+                        // Efficiency RR on the medium bounce.
+                        const MaskP rrActive =
+                            mediumEvent && (depth > Int32P(4));
+                        if (any(rrActive))
+                        {
+                            FloatP q;
+                            if (rrEfficiency)
+                                q = min(FloatP(1.f),
+                                        max(throughput, FloatP(0.f)));
+                            else
+                                q = rrProb;
+                            const MaskP kill = rrActive && (q < urr);
+                            throughput = select(rrActive && !kill,
+                                                throughput / max(q, FloatP(EPS_DENOM)),
+                                                throughput);
+                            alive &= !kill;
+                        }
+                    }
+
+                    // A medium escape that also missed all geometry retires via
+                    // the miss branch.
+                    (void)escape;
+                }
+            }
+
             // Environment / infinite light.
-            const MaskP miss = alive && !hit.hit;
+            const MaskP miss = alive && !hit.hit && !mediumEvent;
             if (any(miss))
             {
                 // Broadcast the scalar params to lane masks.
@@ -221,8 +485,9 @@ namespace lux2
                 alive &= !miss;
             }
 
-            // Hit!
-            const MaskP hitMask = alive && hit.hit;
+            // Hit! Lanes scattered inside a medium this bounce are not
+            // shaded here.
+            const MaskP hitMask = alive && hit.hit && !mediumEvent;
             if (any(hitMask))
             {
                 // A primary ray that lands on geometry is opaque coverage.
@@ -324,12 +589,12 @@ namespace lux2
                         select(infF > FloatP(0.5f), INF,
                                dist - enoki::max(FloatP(1e-3f),
                                                  FloatP(1e-3f) * dist));
-                    RayP shadow(off, wi, FloatP(EPS_RAY), tmax, FloatP(0.f));
-                    shadow.wavelengths = sw.w;
-                    shadow.mask = UInt32P(0xFFFFFFFFu);
+                    // Shadow transmittance from the surface vertex toward the
+                    // light.
                     const MaskP tryVis = la && valid && (pdfL > FloatP(0.f));
-                    const MaskP vis =
-                        tryVis && !embree->Occluded(shadow, tryVis, Coherent::No);
+                    const SWCSpectrumP Tr = ShadowTransmittance(
+                        ctx, off, wi, ray.medium, tmax, sw, tryVis);
+                    const MaskP vis = tryVis && (Tr > SWCSpectrumP(0.f));
 
                     BSDFEvalP ev;
                     ev.f = SWCSpectrumP(0.f);
@@ -346,8 +611,12 @@ namespace lux2
                     if (FULL_MIS)
                         neeW = misWeight(pdfL, ev.pdf);
                     const MaskP ok = vis && (pdfL > FloatP(0.f)) && (cosL > FloatP(0.f));
+                    // Tr is 1 for unobstructed geometry only paths, so this
+                    // matches the previous estimator exactly.
                     const SWCSpectrumP Ld = select(
-                        ok, neeW * throughput * Le * ev.f / max(pdfL, FloatP(EPS_DENOM)),
+                        ok,
+                        neeW * throughput * Le * ev.f * Tr /
+                            max(pdfL, FloatP(EPS_DENOM)),
                         SWCSpectrumP(0.f));
                     L = L + Ld;
                 }
@@ -390,13 +659,45 @@ namespace lux2
                            specularBounce);
 
                 const Point3fP spawn = OffsetRay(p, ng, sample.wi, FloatP(EPS_RAY));
-                ray = RayP(spawn, sample.wi, FloatP(EPS_RAY), INF, FloatP(0.f));
-                ray.wavelengths = sw.w;
-                ray.mask = UInt32P(0xFFFFFFFFu);
-                depth = depth + Int32P(1);
-                prevP = p;
-                prevN = n;
-                prevPdf = sample.pdf;
+
+                // Mesh bound volume swap.
+                UInt32P newMedium = ray.medium;
+                if (hasMedia)
+                {
+                    const MaskP leavesFront = dot(sample.wi, ng) > FloatP(0.f);
+                    const UInt32P sideID =
+                        select(leavesFront, hit.mediumInID, hit.mediumOutID);
+                    newMedium = select(eq(sideID, UInt32P(LUX2_MEDIUM_NONE)),
+                                       ray.medium, sideID);
+                }
+
+                // All lane writes below are masked by hitMask.
+                const RayP surfRay(spawn, sample.wi, FloatP(EPS_RAY), INF,
+                                   FloatP(0.f));
+                ray.o = select(hitMask, surfRay.o, ray.o);
+                ray.d = select(hitMask, surfRay.d, ray.d);
+                ray.d_rcp = select(hitMask, surfRay.d_rcp, ray.d_rcp);
+                ray.mint = select(hitMask, surfRay.mint, ray.mint);
+                ray.maxt = select(hitMask, surfRay.maxt, ray.maxt);
+                ray.time = select(hitMask, surfRay.time, ray.time);
+                ray.wavelengths = select(hitMask, sw.w, ray.wavelengths);
+                ray.mask = select(hitMask, UInt32P(0xFFFFFFFFu), ray.mask);
+                ray.medium = select(hitMask, newMedium, ray.medium);
+
+                // A Null boundary is a pass-through vertex.
+                const MaskP isNull =
+                    has_flag(sample.sampledType, BSDFType::Null);
+                bounce = select(hitMask, bounce + Int32P(1), bounce);
+                depth = select(hitMask && !isNull, depth + Int32P(1), depth);
+                crossings = select(hitMask,
+                                   select(isNull, crossings + Int32P(1),
+                                          Int32P(0)),
+                                   crossings);
+                alive &= !(hitAlive &&
+                           (crossings > Int32P(MAX_NULL_CROSSINGS)));
+                prevP = select(hitMask, p, prevP);
+                prevN = select(hitMask, n, prevN);
+                prevPdf = select(hitMask, sample.pdf, prevPdf);
             }
         }
 
@@ -513,6 +814,9 @@ namespace lux2
             st.ray.wavelengths =
                 select(fillMask, cam.wavelengths, st.ray.wavelengths);
             st.ray.mask = select(fillMask, cam.mask, st.ray.mask);
+            // Primary rays start in clear space. TODO: camera inside volume.
+            st.ray.medium =
+                select(fillMask, UInt32P(LUX2_MEDIUM_CLEAR), st.ray.medium);
 
             st.sw.w = select(fillMask, newSw.w, st.sw.w);
             st.sw.binRGB = select(fillMask, newSw.binRGB, st.sw.binRGB);
@@ -524,6 +828,8 @@ namespace lux2
             st.throughput = select(fillMask, SWCSpectrumP(1.f), st.throughput);
             st.alpha = select(fillMask, FloatP(0.f), st.alpha);
             st.depth = select(fillMask, Int32P(0), st.depth);
+            st.bounce = select(fillMask, Int32P(0), st.bounce);
+            st.crossings = select(fillMask, Int32P(0), st.crossings);
             // First bounce is treated as specular for MIS weighting.
             st.specularBounce = select(fillMask, MaskP(true), st.specularBounce);
             st.prevP = select(fillMask, cam.o, st.prevP);
@@ -618,6 +924,8 @@ namespace lux2
         ctx.scene = &scene;
         ctx.embree = scene.GetEmbree();
         ctx.table = &scene.GetBsdfTable();
+        ctx.mediumTable = &scene.GetMediumTable();
+        ctx.hasMedia = scene.HasMedia();
 
         // Active lightgroup filtering.
         const int activeGroup = scene.GetActiveGroup();

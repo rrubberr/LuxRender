@@ -50,6 +50,14 @@ add_lux2_check(
 set_tests_properties(lux2foundationcheck PROPERTIES TIMEOUT 120)
 
 add_lux2_check(
+	NAME lux2mediumcheck
+	SOURCES medium_check.cpp
+	LINKS lux2
+)
+
+set_tests_properties(lux2mediumcheck PROPERTIES TIMEOUT 120)
+
+add_lux2_check(
 	NAME lux2qmccheck
 	SOURCES qmc_check.cpp
 	LINKS lux2

@@ -49,6 +49,17 @@ namespace lux2
         bool valid() const { return isNamed || !pluginName.empty(); }
     };
 
+    // A medium binding on a shape's interior or exterior.
+    struct MediumBinding
+    {
+        bool isNamed = false;   // true when namedRef is a namedVolume
+        std::string namedRef;   // when isNamed
+        std::string pluginName; // when inline
+        ParamSet params;        // when inline
+
+        bool valid() const { return isNamed || !pluginName.empty(); }
+    };
+
     // The scoped graphics state.
     struct GraphicsState
     {
@@ -60,8 +71,15 @@ namespace lux2
         // Named materials visible in this scope.
         std::map<std::string, ParamSet> namedMaterials;
 
+        // Named volumes visible in this scope.
+        std::map<std::string, ParamSet> namedVolumes;
+
         // Current material binding applied to subsequently declared shapes.
         MaterialBinding material;
+
+        // Interior/exterior medium bindings applied to subsequent shapes.
+        MediumBinding interior;
+        MediumBinding exterior;
 
         // Pending area light set by AreaLightSource.
         bool areaLightActive = false;

@@ -308,6 +308,9 @@ namespace lux2
         d.toWorld = m_xform.current();
         d.reverseOrientation = gs().reverseOrientation;
         d.material = gs().material;
+        // Mesh bound volume bindings.
+        d.interior = gs().interior;
+        d.exterior = gs().exterior;
 
         if (gs().areaLightActive)
         {
@@ -595,34 +598,69 @@ namespace lux2
     }
 
     // ---------------------------------------------------------------------------
-    // Unsupported
+    // Volumes
     // ---------------------------------------------------------------------------
     void Context2::Volume(const std::string &name, const ParamSet &params)
     {
-        (void)name;
-        (void)params;
-        LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " Volume";
+        if (!RequireWorld("Volume"))
+            return;
+        // Region volume.
+        MediumDesc d;
+        d.name = name;
+        d.params = params;
+        d.toWorld = m_xform.current();
+        m_desc.volumeRegions.push_back(std::move(d));
     }
 
     void Context2::MakeNamedVolume(const std::string &id, const std::string &name,
                                    const ParamSet &params)
     {
-        (void)id;
-        (void)name;
-        (void)params;
-        LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " MakeNamedVolume";
+        if (!RequireWorld("MakeNamedVolume"))
+            return;
+        // The grammar passes the plugin name as a separate argument.
+        if (gs().namedVolumes.find(id) == gs().namedVolumes.end() &&
+            m_desc.namedVolumes.find(id) == m_desc.namedVolumes.end())
+        {
+            ParamSet stored = params;
+            const std::string type = name;
+            stored.AddString("type", &type, 1);
+            m_desc.namedVolumes[id] = std::move(stored);
+        }
+        else
+        {
+            LOG(LUX_WARNING, LUX_NOERROR) << "Named volume '" << id << "' being redefined";
+        }
+        ParamSet gsStored = params;
+        const std::string type = name;
+        gsStored.AddString("type", &type, 1);
+        gs().namedVolumes[id] = std::move(gsStored);
     }
 
     void Context2::Exterior(const std::string &name)
     {
-        (void)name;
-        LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " Exterior";
+        if (!RequireWorld("Exterior"))
+            return;
+        // Reference a named volume for the exterior region.
+        MediumBinding b;
+        if (!name.empty())
+        {
+            b.isNamed = true;
+            b.namedRef = name;
+        }
+        gs().exterior = b;
     }
 
     void Context2::Interior(const std::string &name)
     {
-        (void)name;
-        LOG(LUX_WARNING, LUX_UNIMPLEMENT) << LUX2_UNSUPPORTED_TAG << " Interior";
+        if (!RequireWorld("Interior"))
+            return;
+        MediumBinding b;
+        if (!name.empty())
+        {
+            b.isNamed = true;
+            b.namedRef = name;
+        }
+        gs().interior = b;
     }
 
     void Context2::PortalShape(const std::string &name, const ParamSet &params)

@@ -31,6 +31,8 @@
 #include "core/renderer.h"
 #include "core/sampler.h"
 #include "core/material.h"
+#include "core/medium.h"
+#include "core/mediumptr_table.h"
 #include "core/paramset.h"
 #include "core/graphicsstate.h"
 #include "core/bsdfptr_table.h"
@@ -67,6 +69,10 @@ namespace lux2
         // Material binding.
         MaterialBinding material;
 
+        // Interior/exterior medium bindings.
+        MediumBinding interior;
+        MediumBinding exterior;
+
         // Area light bound to this shape.
         bool isAreaLight = false;
         std::string areaLightName; // light plugin name.
@@ -85,6 +91,14 @@ namespace lux2
         // Lightgroup name and index.
         std::string lightGroup;
         std::uint32_t lightGroupIndex = 0;
+    };
+
+    // A region volume.
+    struct MediumDesc
+    {
+        std::string name; // medium plugin name
+        ParamSet params;
+        Transform toWorld; // region-to-world at declaration time
     };
 
     // -----------------------------------------------------------------------
@@ -124,6 +138,7 @@ namespace lux2
         // Parse records.
         std::vector<ShapeDesc> shapes;
         std::vector<LightDesc> lights;
+        std::vector<MediumDesc> volumeRegions;
 
         // Ordered lightgroup names.
         std::vector<std::string> lightGroups;
@@ -131,12 +146,18 @@ namespace lux2
         // Named materials name -> parameters.
         std::map<std::string, ParamSet> namedMaterials;
 
-        // Textures declared in the world block: name -> descriptor.
+        // Named volumes id -> parameters.
+        std::map<std::string, ParamSet> namedVolumes;
+
+        // Textures declared in the world block name -> descriptor.
         std::map<std::string, TextureDesc> textures;
 
         // Tessellated meshes and resolved materials.
         std::vector<MeshDesc> meshes;
         std::vector<std::shared_ptr<Material>> materials;
+
+        // Resolved media.
+        std::vector<std::shared_ptr<Medium>> media;
 
         // Camera world transform.
         Transform cameraTransform;
@@ -226,6 +247,13 @@ namespace lux2
         // BSDF pointer table.
         const BsdfPtrTable &GetBsdfTable() const { return m_bsdfTable; }
 
+        // Medium pointer table (id 0 = clear).
+        const MediumPtrTable &GetMediumTable() const { return m_mediumTable; }
+
+        // True if any non-clear medium is registered. Gates the integrator
+        // sample stride and media branches so geometry-only scenes stay exact.
+        bool HasMedia() const { return m_mediumTable.HasMedia(); }
+
         // True after a successful Commit.
         bool IsCommitted() const { return m_committed; }
 
@@ -237,6 +265,8 @@ namespace lux2
             int lightCount = 0;
             int namedMaterialCount = 0;
             int triangleCount = 0; // total tessellated triangles
+            int mediaCount = 0;    // registered media (incl. clear at id 0)
+            int regionCount = 0;   // region volumes recorded
         };
         const Summary &GetSummary() const { return m_summary; }
 
@@ -251,6 +281,12 @@ namespace lux2
         std::vector<std::shared_ptr<Light>> m_lights;
         std::vector<std::shared_ptr<Light>> m_areaLights; // indexed by lightID
         std::vector<std::shared_ptr<Material>> m_materials;
+        std::vector<std::shared_ptr<Medium>> m_media;
+        MediumPtrTable m_mediumTable;
+
+        // Region-volume medium ids (parallel to desc.volumeRegions). Recorded
+        // at Commit; the region slab overlay is consumed in Stage 3.
+        std::vector<std::uint32_t> m_regionMediumIDs;
 
         // Lightgroup tables.
         std::vector<std::string> m_lightGroups;                // use order

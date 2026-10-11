@@ -191,6 +191,113 @@ namespace lux2
             return id;
         };
 
+        // -------------------------------------------------------------------
+        // Medium Registry
+        // -------------------------------------------------------------------
+        m_media.clear();
+        m_mediumTable.ptrs.clear();
+        auto &medReg = DynamicLoader::registeredMediums();
+
+        // Instantiate a medium from its ParamSet.
+        auto instantiateMedium = [&](const ParamSet &params,
+                                     const std::string &fallbackType)
+            -> std::shared_ptr<Medium>
+        {
+            std::string type = params.FindOneString("type", "");
+            if (type.empty())
+                type = fallbackType;
+            auto it = medReg.find(type);
+            if (it == medReg.end())
+            {
+                LOG(LUX_ERROR, LUX_BADHANDLE)
+                    << "No medium plugin registered as '" << type << "'";
+                // Fall back to clear so the id stays valid.
+                it = medReg.find("clear");
+                if (it == medReg.end())
+                    return nullptr;
+            }
+            PluginContext pctx;
+            pctx.params = const_cast<ParamSet *>(&params);
+            auto med = it->second(pctx);
+            if (!med)
+            {
+                LOG(LUX_ERROR, LUX_SYNTAX)
+                    << "Medium plugin '" << type << "' returned null";
+                return nullptr;
+            }
+            return med;
+        };
+
+        // Clear medium at id 0.
+        {
+            auto it = medReg.find("clear");
+            if (it == medReg.end())
+            {
+                LOG(LUX_SEVERE, LUX_BUG)
+                    << "Clear medium is not registered; volumes will misbehave";
+            }
+            else
+            {
+                ParamSet empty;
+                PluginContext pctx;
+                pctx.params = &empty;
+                auto clearMed = it->second(pctx);
+                m_media.push_back(clearMed);
+                m_mediumTable.ptrs.push_back(clearMed.get());
+            }
+        }
+
+        // Named volumes -> ids.
+        std::map<std::string, std::uint32_t> medIds;
+        for (const auto &kv : desc.namedVolumes)
+        {
+            auto med = instantiateMedium(kv.second, "");
+            const std::uint32_t id = static_cast<std::uint32_t>(m_media.size());
+            m_media.push_back(med);
+            m_mediumTable.ptrs.push_back(med ? med.get() : nullptr);
+            medIds["#" + kv.first] = id;
+        }
+
+        // Deduplicate inline media.
+        auto resolveMediumID = [&](const MediumBinding &b) -> std::uint32_t
+        {
+            if (!b.valid())
+                return LUX2_MEDIUM_NONE; // unbound side
+            if (b.isNamed)
+            {
+                auto it = medIds.find("#" + b.namedRef);
+                if (it != medIds.end())
+                    return it->second;
+                LOG(LUX_ERROR, LUX_BADHANDLE)
+                    << "Shape references unknown named volume '"
+                    << b.namedRef << "'";
+                return LUX2_MEDIUM_NONE;
+            }
+            const std::string key = "!" + b.pluginName + "|" + b.params.DedupKey();
+            auto it = medIds.find(key);
+            if (it != medIds.end())
+                return it->second;
+            auto med = instantiateMedium(b.params, b.pluginName);
+            const std::uint32_t id = static_cast<std::uint32_t>(m_media.size());
+            m_media.push_back(med);
+            m_mediumTable.ptrs.push_back(med ? med.get() : nullptr);
+            medIds[key] = id;
+            return id;
+        };
+
+        // Region volumes.
+        m_regionMediumIDs.clear();
+        for (const auto &rd : desc.volumeRegions)
+        {
+            auto med = instantiateMedium(rd.params, rd.name);
+            const std::uint32_t id = static_cast<std::uint32_t>(m_media.size());
+            m_media.push_back(med);
+            m_mediumTable.ptrs.push_back(med ? med.get() : nullptr);
+            m_regionMediumIDs.push_back(id);
+        }
+        m_summary.regionCount = static_cast<int>(desc.volumeRegions.size());
+        m_summary.mediaCount = static_cast<int>(m_media.size());
+
         auto &shapeRegistry = DynamicLoader::registeredShapes();
         std::int32_t nextAreaLightID = 0;
 
@@ -242,6 +349,9 @@ namespace lux2
             }
 
             const std::uint32_t matID = resolveMatID(shape.material);
+            // Resolve mesh bound volumes.
+            const std::uint32_t medIn = resolveMediumID(shape.interior);
+            const std::uint32_t medOut = resolveMediumID(shape.exterior);
             MeshDesc md;
             s->Tessellate(Transform(), md.tris);
 
@@ -263,13 +373,15 @@ namespace lux2
             {
                 td.matID = matID;
                 td.lightID = lightID;
+                td.mediumInID = medIn;
+                td.mediumOutID = medOut;
             }
             md.bound = s->WorldBound();
             m_summary.triangleCount += static_cast<int>(md.tris.size());
             desc.meshes.push_back(std::move(md));
         }
 
-        // Build the Embree accelerator from the tessellated meshes.
+        // Build Embree accelerator from tessellated meshes.
         m_embree = std::make_unique<EmbreeScene>();
         m_embree->BuildFromMeshes(desc.meshes);
         m_worldBound = m_embree->WorldBound();
@@ -465,6 +577,15 @@ namespace lux2
             {
                 LOG(LUX_ERROR, LUX_BADHANDLE)
                     << "No surface integrator plugin registered as '" << iname << "'";
+            }
+            // Warn if the scene has media but integrator does not support.
+            if (m_mediumTable.HasMedia() && m_surfaceIntegrator &&
+                !m_surfaceIntegrator->SupportsMedia())
+            {
+                LOG(LUX_WARNING, LUX_SYNTAX)
+                    << "Scene contains volumes but surface integrator '"
+                    << iname
+                    << "' does not support media; volumes will be ignored.";
             }
         }
 

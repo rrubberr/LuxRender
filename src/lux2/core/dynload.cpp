@@ -41,6 +41,13 @@ namespace lux2
         return *m;
     }
 
+    std::map<std::string, DynamicLoader::CreateMedium> &DynamicLoader::registeredMediums()
+    {
+        static std::map<std::string, DynamicLoader::CreateMedium> *m =
+            new std::map<std::string, DynamicLoader::CreateMedium>;
+        return *m;
+    }
+
     std::map<std::string, DynamicLoader::CreateLight> &DynamicLoader::registeredLights()
     {
         static std::map<std::string, DynamicLoader::CreateLight> *m =
@@ -136,6 +143,7 @@ namespace lux2
         };
         add("Shape", keys(registeredShapes()));
         add("Material", keys(registeredMaterials()));
+        add("Medium", keys(registeredMediums()));
         add("Light", keys(registeredLights()));
         add("FloatTexture", keys(registeredFloatTextures()));
         add("ColorTexture", keys(registeredColorTextures()));

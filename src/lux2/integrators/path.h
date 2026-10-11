@@ -59,6 +59,8 @@ namespace lux2
 
         int PassCount() const override { return 1; }
 
+        bool SupportsMedia() const override { return true; }
+
         void Start(const Scene &scene) override;
 
         void RenderTile(const Scene &scene, const Tile &tile,

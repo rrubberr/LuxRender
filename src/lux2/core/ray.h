@@ -31,6 +31,10 @@
 namespace lux2
 {
 
+    // Medium registry ids.
+    constexpr std::uint32_t LUX2_MEDIUM_CLEAR = 0u;
+    constexpr std::uint32_t LUX2_MEDIUM_NONE = 0xFFFFFFFFu;
+
     // ---------------------------------------------------------------------------
     // RayP
     // ---------------------------------------------------------------------------
@@ -44,6 +48,9 @@ namespace lux2
         FloatP maxt;        // maximum distance on the ray segment
         FloatP time;        // motion blur time
         FloatP wavelengths; // SWA wavelengths
+
+        // Index into the Scene medium registry.
+        UInt32P medium = UInt32P(LUX2_MEDIUM_CLEAR);
 
         // Visibility-group bitmask. Default to all.
         UInt32P mask = UInt32P(0xFFFFFFFFu);
@@ -77,6 +84,7 @@ namespace lux2
             specularBounce = MaskP(false);
             alive = MaskP(true);
             mask = UInt32P(0xFFFFFFFFu);
+            medium = UInt32P(LUX2_MEDIUM_CLEAR);
         }
     };
 
@@ -100,6 +108,10 @@ namespace lux2
         Point2fP uv;    // interpolated texture coords
         UInt32P matID;  // per-triangle material index
         Int32P lightID; // per-triangle area-light index, or -1
+
+        // Triangle medium binding.
+        UInt32P mediumInID = UInt32P(LUX2_MEDIUM_NONE);
+        UInt32P mediumOutID = UInt32P(LUX2_MEDIUM_NONE);
 
         // Shading frame from the UV gradient (Lux dpdu/dpdv and sn/tn).
         Vector3fP dp_du;

@@ -35,6 +35,7 @@
 
 #define LUX2_REGISTER_SHAPE(T, name) LUX2_REGISTER_PLUGIN(RegisterShape, T, name)
 #define LUX2_REGISTER_MATERIAL(T, name) LUX2_REGISTER_PLUGIN(RegisterMaterial, T, name)
+#define LUX2_REGISTER_MEDIUM(T, name) LUX2_REGISTER_PLUGIN(RegisterMedium, T, name)
 #define LUX2_REGISTER_LIGHT(T, name) LUX2_REGISTER_PLUGIN(RegisterLight, T, name)
 #define LUX2_REGISTER_FLOAT_TEXTURE(T, name) LUX2_REGISTER_PLUGIN(RegisterFloatTexture, T, name)
 #define LUX2_REGISTER_COLOR_TEXTURE(T, name) LUX2_REGISTER_PLUGIN(RegisterColorTexture, T, name)

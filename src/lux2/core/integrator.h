@@ -50,6 +50,9 @@ namespace lux2
         // Called once before the first pass.
         virtual void Start(const Scene &scene) { (void)scene; }
 
+        // True if this integrator advances rays through media.
+        virtual bool SupportsMedia() const { return false; }
+
         // Render spp samples per pixel of tile into dest. sampleBasis
         // is a cursor used to decorrelate repeat visits to the pixel.
         virtual void RenderTile(const Scene &scene, const Tile &tile,

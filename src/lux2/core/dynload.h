@@ -24,6 +24,7 @@
 
 #include "core/texture.h"
 #include "core/material.h"
+#include "core/medium.h"
 #include "core/light.h"
 #include "core/shape.h"
 #include "core/camera.h"
@@ -102,6 +103,7 @@ namespace lux2
 
         LUX2_REGISTER_PLUGIN(Shape)
         LUX2_REGISTER_PLUGIN(Material)
+        LUX2_REGISTER_PLUGIN(Medium)
         LUX2_REGISTER_PLUGIN(Light)
         LUX2_REGISTER_PLUGIN(FloatTexture)
         LUX2_REGISTER_PLUGIN(ColorTexture)
