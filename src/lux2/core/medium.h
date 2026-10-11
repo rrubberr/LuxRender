@@ -60,6 +60,7 @@ namespace lux2
         SWCSpectrumP emission; // Radiance gathered over the flight
         SWCSpectrumP sigma_s;  // Scattering coefficient at the event
         SWCSpectrumP sigma_t;  // Total coefficient at the event
+        FloatP k;              // Schlick k at the event
     };
 
     // Reset a MediumSampleP to the "escape, no event" state.
@@ -71,6 +72,7 @@ namespace lux2
         s->emission = SWCSpectrumP(0.f);
         s->sigma_s = SWCSpectrumP(0.f);
         s->sigma_t = SWCSpectrumP(0.f);
+        s->k = FloatP(0.f);
     }
 
     // ---------------------------------------------------------------------------
@@ -151,16 +153,10 @@ namespace lux2
         // Phase function (Schlick)
         // -----------------------------------------------------------------
 
-        // Sample the phase function.
-        virtual void PhaseSample(const Vector3fP &wo,
-                                 const FloatP &u1,
-                                 const FloatP &u2,
-                                 Vector3fP *wi,
-                                 FloatP *pdf,
-                                 MaskP active) const = 0;
-
-        // Evaluate the phase pdf for a (wo, wi) pair.
-        virtual FloatP PhasePdf(const Vector3fP &wo,
+        // Evaluate the phase pdf at a point for a (wo, wi) pair.
+        virtual FloatP PhasePdf(const SpectrumWavelengthsP &sw,
+                                const Point3fP &p,
+                                const Vector3fP &wo,
                                 const Vector3fP &wi,
                                 MaskP active) const = 0;
 

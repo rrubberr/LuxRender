@@ -27,8 +27,10 @@
 #include "core/medium.h"
 #include "core/volumefield.h"
 #include "core/medium_call.h"
+#include "core/phase.h"
 #include "core/lux2.h"
 #include "core/math.h"
+#include "core/rng.h"
 
 #include <cmath>
 #include <cstdint>
@@ -208,30 +210,147 @@ void CheckTrackedFlightAndEmission()
 }
 
 // ---------------------------------------------------------------------------
-// Scalar reference: Schlick phase normalization (D1)
+// Schlick phase: rational lobe (R1). The pre-V3 code implemented the linear
+// lobe (1 + k*mu)/(4*pi) with mu = dot(wo, wi), which integrates to 1 for any
+// k (so the old normalization test could not fail) but peaks at BACKSCATTER
+// for k > 0. The true Schlick lobe is
+//     pdf(c) = (1 - k^2) / (4*pi*(1 - k*c)^2),  c = -dot(wo, wi),
+// measured from the propagation direction; legacy SchlickScatter writes
+// (1 + k*Dot(wo,wi)) because its wo is reversed (schlickscatter.cpp).
 // ---------------------------------------------------------------------------
+
+// Legacy scalar reference: SchlickScatter::Pdf with reversed wo.
+// cost = Dot(wo, wi); pdf = (1-k^2) / ((1+k*cost)^2 * 4pi).
+static float LegacySchlickPdf(float k, float costReversedWo)
+{
+    const float compcost = 1.f + k * costReversedWo;
+    return (1.f - k * k) / (compcost * compcost * 4.f * float(PI));
+}
+
 void CheckPhaseNormalization()
 {
-    std::cout << "[scalar] Schlick phase normalization" << std::endl;
+    std::cout << "[scalar] Schlick phase: normalization, sign, legacy match"
+              << std::endl;
     for (float g : {-0.9f, -0.5f, 0.f, 0.5f, 0.9f})
     {
-        const float k = g * (1.55f - 0.55f * g * g);
-        // pdf(mu) = (1 + k mu) / 2 over mu in [-1,1] (solid-angle marginal).
-        // Integrate numerically; must be ~1. E[mu] must be ~k/3.
+        const float k = SchlickK(g);
+        char msg[96];
+
+        // 1. Solid-angle marginal integrates to 1:
+        //    int pdf domega = int_{-1}^{1} (1-k^2) / (2*(1-k c)^2) dc
+        //    (the 2pi azimuth cancels the 4pi to leave a factor 1/2).
         const int M = 200000;
-        double integral = 0., meanMu = 0.;
+        double integral = 0.;
         for (int i = 0; i < M; ++i)
         {
-            const float mu = -1.f + 2.f * (float(i) + 0.5f) / float(M);
-            const float pdf = (1.f + k * mu) * 0.5f;
-            integral += pdf * (2.0 / M);
-            meanMu += mu * pdf * (2.0 / M);
+            const float c = -1.f + 2.f * (float(i) + 0.5f) / float(M);
+            const float den = 1.f - k * c;
+            integral += 0.5f * (1.f - k * k) / (den * den) * (2.0 / M);
         }
-        char msg[96];
-        snprintf(msg, sizeof(msg), "phase integrates to 1 (g=%.1f)", g);
+        snprintf(msg, sizeof(msg), "rational lobe integrates to 1 (g=%.1f)", g);
         Check(std::fabs(float(integral) - 1.f) < 1e-3f, msg);
-        snprintf(msg, sizeof(msg), "E[cos] ~ k/3 (g=%.1f)", g);
-        Check(std::fabs(float(meanMu) - k / 3.f) < 5e-3f, msg);
+
+        // 2. Forward-scatter sign: E[c] must share the sign of k.
+        //    (The old linear lobe with mu = dot(wo,wi) had the opposite
+        //    convention and peaked at backscatter for g > 0.)
+        double meanC = 0.;
+        for (int i = 0; i < M; ++i)
+        {
+            const float c = -1.f + 2.f * (float(i) + 0.5f) / float(M);
+            const float den = 1.f - k * c;
+            meanC += c * 0.5f * (1.f - k * k) / (den * den) * (2.0 / M);
+        }
+        snprintf(msg, sizeof(msg), "E[cos] sign matches g (g=%.1f)", g);
+        Check((k == 0.f) ? std::fabs(float(meanC)) < 5e-3f
+                         : (float(meanC) * k > 0.f),
+              msg);
+    }
+
+    // 3. Pointwise match against legacy SchlickScatter::Pdf. Broadcast a
+    //    fixed (wo, wi) pair to all lanes; hsum/N is the per-lane value.
+    {
+        const float k = SchlickK(0.7f);
+        const Vector3fP wo(0.f, 0.f, 1.f);
+        // A non-axis wi so the dot product is exercised.
+        const float s = 0.6f, z = std::sqrt(1.f - s * s);
+        const Vector3fP wi(s, 0.f, z);
+        const FloatP p = SchlickPdf(FloatP(k), wo, wi);
+        const float got = enoki::hsum(p) / float(PACKET_WIDTH);
+        // Legacy wo is the reversed direction (toward the previous vertex),
+        // same convention as ours, and it uses Dot(wo, wi) directly.
+        const float costLegacy = 0.f * s + 0.f * 0.f + 1.f * z; // dot(wo, wi)
+        const float want = LegacySchlickPdf(k, costLegacy);
+        Check(Close(got, want, 1e-5f), "SchlickPdf matches legacy pointwise");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// SoA: SchlickSample pdf equals SchlickPdf at the sampled direction; mean
+// forward cosine positive for g > 0. Uses RNGP, the real draw path.
+// ---------------------------------------------------------------------------
+void CheckPhaseSoASample()
+{
+    std::cout << "[enoki] Schlick sample/pdf agreement" << std::endl;
+
+    struct BatchStat
+    {
+        double sumFwd = 0.;
+        long n = 0;
+    };
+
+    for (float g : {-0.5f, 0.5f, 0.9f})
+    {
+        const FloatP k(SchlickK(g));
+        RNGP rng(0x5EED1234ULL);
+        BatchStat st;
+        double maxPdfDiff = 0.;
+
+        const Vector3fP wo(0.f, 0.f, 1.f); // toward previous vertex
+        const int batches = 2000;
+        for (int b = 0; b < batches; ++b)
+        {
+            const FloatP u1 = rng.NextFloat();
+            const FloatP u2 = rng.NextFloat();
+            Vector3fP wi(FloatP(0.f));
+            FloatP pdf(FloatP(0.f));
+            SchlickSample(k, wo, u1, u2, &wi, &pdf);
+
+            // pdf from the sampler must equal the evaluator at wi.
+            const FloatP pdfEval = SchlickPdf(k, wo, wi);
+            maxPdfDiff = std::max(
+                maxPdfDiff,
+                double(enoki::hsum(enoki::abs(pdf - pdfEval)) /
+                       float(PACKET_WIDTH)));
+
+            // Forward cosine: dot(propagation, wi) with propagation = -wo.
+            const FloatP fwd = -dot(wo, wi);
+            st.sumFwd += double(enoki::hsum(fwd)) / float(PACKET_WIDTH);
+            st.n += PACKET_WIDTH;
+        }
+
+        char msg[96];
+        snprintf(msg, sizeof(msg),
+                 "sample pdf == eval pdf (g=%.1f)", g);
+        Check(maxPdfDiff < 1e-5, msg);
+
+        const double meanFwd = st.sumFwd / double(st.n);
+        snprintf(msg, sizeof(msg),
+                 "mean forward cosine sign matches g (g=%.1f)", g);
+        Check(meanFwd * SchlickK(g) > 0.02, msg);
+    }
+
+    // Unit-length check on sampled directions.
+    {
+        RNGP rng(0xABCD0123ULL);
+        const Vector3fP wo(FloatP(0.3f), FloatP(-0.5f), FloatP(0.81f));
+        const FloatP k(SchlickK(0.4f));
+        Vector3fP wi(FloatP(0.f));
+        FloatP pdf(FloatP(0.f));
+        SchlickSample(k, wo / enoki::norm(wo), rng.NextFloat(),
+                      rng.NextFloat(), &wi, &pdf);
+        const FloatP len = enoki::norm(wi);
+        Check(all(enoki::abs(len - FloatP(1.f)) < FloatP(1e-5f)),
+              "sampled directions are unit length");
     }
 }
 
@@ -405,6 +524,7 @@ int main()
 
     CheckInterfaceSmoke();
     CheckPhaseNormalization();
+    CheckPhaseSoASample();
     CheckHomogeneousFlight();
     CheckRatioTracking();
     CheckTrackedFlightAndEmission();

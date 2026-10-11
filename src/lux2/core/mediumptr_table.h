@@ -38,13 +38,12 @@ namespace lux2
     {
         std::vector<const Medium *> ptrs;
 
-        // Gather a MediumPtr for the given medium ids.
+        // Gather a MediumPtr for the given medium ids. Out of range ids
+        // clamp to clear.
         MediumPtr Gather(const UInt32P &mediumID, MaskP active) const
         {
-            // Clamp NONE and out of range.
             const UInt32P clamped = select(
-                (mediumID >= UInt32P(uint32_t(ptrs.size()))) ||
-                    (mediumID == UInt32P(LUX2_MEDIUM_NONE)),
+                mediumID >= UInt32P(uint32_t(ptrs.size())),
                 UInt32P(LUX2_MEDIUM_CLEAR),
                 mediumID);
             return enoki::gather<MediumPtr>(ptrs.data(), clamped, active);

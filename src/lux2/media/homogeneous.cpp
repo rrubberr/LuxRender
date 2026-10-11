@@ -24,6 +24,7 @@
 #include "core/dynload.h"
 #include "core/math.h"
 #include "core/paramset.h"
+#include "core/phase.h"
 #include "core/register.h"
 
 #include <enoki/array.h>
@@ -34,12 +35,6 @@ namespace lux2
 {
     namespace
     {
-        // Schlick k from anisotropy g.
-        inline FloatP SchlickK(float g)
-        {
-            return FloatP(g * (1.55f - 0.55f * g * g));
-        }
-
         // Broadcast a RGB color to all lanes.
         inline RGBColorP Broadcast(const RGBColor &c)
         {
@@ -52,7 +47,8 @@ namespace lux2
     public:
         HomogeneousMedium(const RGBColor &sigmaA, const RGBColor &sigmaS,
                           float g, const RGBColor &Le)
-            : m_sigmaA(sigmaA), m_sigmaS(sigmaS), m_g(g), m_Le(Le)
+            : m_sigmaA(sigmaA), m_sigmaS(sigmaS), m_Le(Le),
+              m_k(SchlickK(g))
         {
             m_emissive = !(Le.r() == 0.f && Le.g() == 0.f && Le.b() == 0.f);
         }
@@ -139,6 +135,7 @@ namespace lux2
             enoki::masked(out->weight, active) = weight;
             enoki::masked(out->sigma_s, active) = ss;
             enoki::masked(out->sigma_t, active) = sa + ss;
+            enoki::masked(out->k, active) = FloatP(m_k);
         }
 
         SWCSpectrumP Transmittance(const SpectrumWavelengthsP &sw,
@@ -171,60 +168,17 @@ namespace lux2
             return select(active, st * len, SWCSpectrumP(0.f));
         }
 
-        void PhaseSample(const Vector3fP &wo, const FloatP &u1,
-                         const FloatP &u2, Vector3fP *wi, FloatP *pdf,
-                         MaskP active) const override
-        {
-            if (none(active))
-                return;
-            const FloatP k = SchlickK(m_g);
-
-            // Invert CDF of p(mu) = (1 + k*mu)/2 over mu in [-1,1]:
-            //   mu = (-1 + sqrt((1-k)^2 + 4*k*u)) / k, limit 2u-1 as k->0.
-            const FloatP disc = enoki::max(
-                (FloatP(1.f) - k) * (FloatP(1.f) - k) + FloatP(4.f) * k * u1,
-                FloatP(0.f));
-            const FloatP muK =
-                (FloatP(-1.f) + enoki::sqrt(disc)) /
-                select(enoki::abs(k) > FloatP(EPS_DENOM), k, FloatP(1.f));
-            const FloatP mu =
-                select(enoki::abs(k) > FloatP(EPS_DENOM), muK,
-                       FloatP(2.f) * u1 - FloatP(1.f));
-
-            // Build a direction at polar angle acos(mu) about wo.
-            const FloatP phi = FloatP(2.f * PI) * u2;
-            const FloatP sinT = enoki::sqrt(enoki::max(FloatP(1.f) - mu * mu,
-                                                       FloatP(0.f)));
-            Vector3fP dir = frameDirection(wo, mu, sinT * enoki::cos(phi),
-                                           sinT * enoki::sin(phi));
-
-            const FloatP p = (FloatP(1.f) + k * mu) * FloatP(INV_FOURPI);
-            enoki::masked(*wi, active) = dir;
-            enoki::masked(*pdf, active) = p;
-        }
-
-        FloatP PhasePdf(const Vector3fP &wo, const Vector3fP &wi,
+        FloatP PhasePdf(const SpectrumWavelengthsP &, const Point3fP &,
+                        const Vector3fP &wo, const Vector3fP &wi,
                         MaskP active) const override
         {
-            const FloatP k = SchlickK(m_g);
-            const FloatP cosT = dot(wo, wi);
-            const FloatP p = (FloatP(1.f) + k * cosT) * FloatP(INV_FOURPI);
-            return select(active, enoki::max(p, FloatP(0.f)), FloatP(0.f));
+            const FloatP p = SchlickPdf(FloatP(m_k), wo, wi);
+            return select(active, p, FloatP(0.f));
         }
 
     private:
-        // Build a unit direction from (mu, sx, sy) in an orthonormal frame
-        // whose +z axis is wo. (sx, sy) are the tangential components with
-        // mu^2 + sx^2 + sy^2 == 1.
-        static Vector3fP frameDirection(const Vector3fP &wo, const FloatP &mu,
-                                        const FloatP &sx, const FloatP &sy)
-        {
-            auto [b, c] = coordinate_system(wo);
-            return mu * wo + sx * b + sy * c;
-        }
-
         RGBColor m_sigmaA, m_sigmaS, m_Le;
-        float m_g = 0.f;
+        float m_k = 0.f; // Schlick k from g
         bool m_emissive = false;
 
         // Upper bound on a segment length used in exponents.

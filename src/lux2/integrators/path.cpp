@@ -31,6 +31,7 @@
 #include "core/math.h"
 #include "core/medium.h"
 #include "core/mediumptr_table.h"
+#include "core/phase.h"
 #include "core/register.h"
 #include "core/scene.h"
 #include "core/rng.h"
@@ -184,12 +185,12 @@ namespace lux2
                 // and continue past the surface.
                 if (any(tracing))
                 {
+                    // Unbound sides are ambient, the swap is
+                    // unconditional.
                     const MaskP leavesFront =
                         dot(dir, hit.ngeo) > FloatP(0.f);
-                    const UInt32P sideID =
+                    curMedium =
                         select(leavesFront, hit.mediumInID, hit.mediumOutID);
-                    curMedium = select(eq(sideID, UInt32P(LUX2_MEDIUM_NONE)),
-                                       curMedium, sideID);
                     tCur = select(tracing, hit.t + FloatP(EPS_RAY), tCur);
                 }
             }
@@ -327,9 +328,11 @@ namespace lux2
                         const Point2fP uPhase = src.Get2D(d0 + UInt32P(1u));
                         Vector3fP wi(FloatP(0.f));
                         FloatP phasePdf(FloatP(0.f));
-                        // wo points back toward the previous vertex.
-                        med->PhaseSample(-ray.d, uPhase.x(), uPhase.y(), &wi,
-                                         &phasePdf, mediumEvent);
+                        // wo points back toward the previous vertex; the lobe
+                        // is the one resolved at the event (ms.k).
+                        SchlickSample(ms.k, -dIn, uPhase.x(), uPhase.y(),
+                                      &wi, &phasePdf);
+                        phasePdf = med->PhasePdf(sw, mi, -dIn, wi, mediumEvent);
 
                         const Point3fP spawn =
                             mi + wi * FloatP(EPS_RAY);
@@ -397,8 +400,9 @@ namespace lux2
                             const SWCSpectrumP Tr = ShadowTransmittance(
                                 ctx, mi, wiL, ray.medium, tmax, sw, neeActive);
 
+                            // Marginal mixture density at the vertex.
                             const FloatP phaseVal =
-                                med->PhasePdf(-dIn, wiL, neeActive);
+                                med->PhasePdf(sw, mi, -dIn, wiL, neeActive);
                             FloatP neeW(1.f);
                             if (FULL_MIS)
                                 neeW = misWeight(pdfL, phaseVal);
@@ -660,15 +664,13 @@ namespace lux2
 
                 const Point3fP spawn = OffsetRay(p, ng, sample.wi, FloatP(EPS_RAY));
 
-                // Mesh bound volume swap.
+                // Mesh bound volume swap. Unbound sides are ambient.
                 UInt32P newMedium = ray.medium;
                 if (hasMedia)
                 {
                     const MaskP leavesFront = dot(sample.wi, ng) > FloatP(0.f);
-                    const UInt32P sideID =
+                    newMedium =
                         select(leavesFront, hit.mediumInID, hit.mediumOutID);
-                    newMedium = select(eq(sideID, UInt32P(LUX2_MEDIUM_NONE)),
-                                       ray.medium, sideID);
                 }
 
                 // All lane writes below are masked by hitMask.

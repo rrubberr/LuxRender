@@ -65,6 +65,7 @@ namespace lux2
             enoki::masked(out->emission, active) = SWCSpectrumP(0.f);
             enoki::masked(out->sigma_s, active) = SWCSpectrumP(0.f);
             enoki::masked(out->sigma_t, active) = SWCSpectrumP(0.f);
+            enoki::masked(out->k, active) = FloatP(0.f);
         }
 
         SWCSpectrumP Transmittance(const SpectrumWavelengthsP &, const RayP &,
@@ -74,15 +75,9 @@ namespace lux2
             return SWCSpectrumP(1.f);
         }
 
-        void PhaseSample(const Vector3fP &, const FloatP &, const FloatP &,
-                         Vector3fP *wi, FloatP *pdf,
-                         MaskP active) const override
-        {
-            enoki::masked(*wi, active) = Vector3fP(0.f);
-            enoki::masked(*pdf, active) = FloatP(0.f);
-        }
-
-        FloatP PhasePdf(const Vector3fP &, const Vector3fP &,
+        // Zero keeps dead lanes out of NEE.
+        FloatP PhasePdf(const SpectrumWavelengthsP &, const Point3fP &,
+                        const Vector3fP &, const Vector3fP &,
                         MaskP) const override
         {
             return FloatP(0.f);

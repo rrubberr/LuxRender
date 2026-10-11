@@ -31,9 +31,8 @@
 namespace lux2
 {
 
-    // Medium registry ids.
+    // Medium registry ids. 0 is the ambient medium.
     constexpr std::uint32_t LUX2_MEDIUM_CLEAR = 0u;
-    constexpr std::uint32_t LUX2_MEDIUM_NONE = 0xFFFFFFFFu;
 
     // ---------------------------------------------------------------------------
     // RayP
@@ -109,9 +108,9 @@ namespace lux2
         UInt32P matID;  // per-triangle material index
         Int32P lightID; // per-triangle area-light index, or -1
 
-        // Triangle medium binding.
-        UInt32P mediumInID = UInt32P(LUX2_MEDIUM_NONE);
-        UInt32P mediumOutID = UInt32P(LUX2_MEDIUM_NONE);
+        // Triangle medium binding. Unbound sides are ambient.
+        UInt32P mediumInID = UInt32P(LUX2_MEDIUM_CLEAR);
+        UInt32P mediumOutID = UInt32P(LUX2_MEDIUM_CLEAR);
 
         // Shading frame from the UV gradient (Lux dpdu/dpdv and sn/tn).
         Vector3fP dp_du;

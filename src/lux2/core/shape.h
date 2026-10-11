@@ -41,8 +41,8 @@ namespace lux2
         std::uint32_t matID;                     // resolved material index
         std::int32_t lightID;                    // area light index, or -1
         std::uint32_t groupMask = 0xFFFFFFFFu;   // visibility group mask
-        std::uint32_t mediumInID = 0xFFFFFFFFu;  // front side medium id
-        std::uint32_t mediumOutID = 0xFFFFFFFFu; // back side medium id
+        std::uint32_t mediumInID = 0u;  // front side medium id (0 = ambient)
+        std::uint32_t mediumOutID = 0u; // back side medium id (0 = ambient)
     };
 
     // Abstract shape.

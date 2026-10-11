@@ -262,7 +262,7 @@ namespace lux2
         auto resolveMediumID = [&](const MediumBinding &b) -> std::uint32_t
         {
             if (!b.valid())
-                return LUX2_MEDIUM_NONE; // unbound side
+                return LUX2_MEDIUM_CLEAR; // unbound side, ambient 
             if (b.isNamed)
             {
                 auto it = medIds.find("#" + b.namedRef);
@@ -271,7 +271,7 @@ namespace lux2
                 LOG(LUX_ERROR, LUX_BADHANDLE)
                     << "Shape references unknown named volume '"
                     << b.namedRef << "'";
-                return LUX2_MEDIUM_NONE;
+                return LUX2_MEDIUM_CLEAR;
             }
             const std::string key = "!" + b.pluginName + "|" + b.params.DedupKey();
             auto it = medIds.find(key);
