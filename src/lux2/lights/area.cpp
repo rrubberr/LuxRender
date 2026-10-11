@@ -106,7 +106,7 @@ namespace lux2
                               const FloatP &u0, const FloatP &u1, const FloatP &u2,
                               Point3fP *lightP, Vector3fP *wi, Normal3fP *lightN,
                               FloatP *pdf, SWCSpectrumP *LeOut,
-                              MaskP active, bool testReceiverSide) const
+                              MaskP active, MaskP receiverHasNormal) const
     {
         if (m_triCount == 0)
         {
@@ -181,9 +181,10 @@ namespace lux2
         const FloatP cosLight = enoki::dot(nl, -w);
         const FloatP cosShading = enoki::dot(n, w);
 
-        // The receiver-side cosine is a surface-hemisphere test.
+        // The receiver-side cosine is a surface-hemisphere test; medium
+        // verticies skip.
         const MaskP sideOk =
-            testReceiverSide ? (cosShading > FloatP(0.f)) : MaskP(true);
+            !receiverHasNormal || (cosShading > FloatP(0.f));
         const MaskP valid = active && (cosLight > FloatP(0.f)) && sideOk &&
                             (dist > FloatP(EPS_DENOM));
 
@@ -213,7 +214,7 @@ namespace lux2
 
     FloatP AreaLight::Pdf_L(const Point3fP &p, const Normal3fP &n,
                             const Point3fP &lightP, const Normal3fP &lightN,
-                            MaskP active, bool testReceiverSide) const
+                            MaskP active, MaskP receiverHasNormal) const
     {
         if (m_triCount == 0)
             return FloatP(0.f);
@@ -227,7 +228,7 @@ namespace lux2
         const FloatP cosLight = enoki::dot(lightN, -w);
         const FloatP cosShading = enoki::dot(n, w);
         const MaskP sideOk =
-            testReceiverSide ? (cosShading > FloatP(0.f)) : MaskP(true);
+            !receiverHasNormal || (cosShading > FloatP(0.f));
         const MaskP valid = active && (cosLight > FloatP(0.f)) && sideOk &&
                             (dist > FloatP(EPS_DENOM));
 

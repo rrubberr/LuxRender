@@ -66,6 +66,8 @@ namespace lux2
                                 const Vector3fP &wo,
                                 MaskP active = MaskP(true)) const = 0;
 
+        // receiverHasNormal is per lane.
+
         // NEE / photon-emission position sampler.
         virtual MaskP Sample_L(const SpectrumWavelengthsP &sw,
                                const Point3fP &p, const Normal3fP &n,
@@ -75,14 +77,14 @@ namespace lux2
                                Normal3fP *lightN,
                                FloatP *pdf, SWCSpectrumP *Le,
                                MaskP active = MaskP(true),
-                               bool testReceiverSide = true) const = 0;
+                               MaskP receiverHasNormal = MaskP(true)) const = 0;
 
         // PDF of sampling the point lightP on this light, seen
         // from p with shading normal n. Used for MIS.
         virtual FloatP Pdf_L(const Point3fP &p, const Normal3fP &n,
                              const Point3fP &lightP, const Normal3fP &lightN,
                              MaskP active = MaskP(true),
-                             bool testReceiverSide = true) const = 0;
+                             MaskP receiverHasNormal = MaskP(true)) const = 0;
 
     protected:
         // Group index backing the default group() override.

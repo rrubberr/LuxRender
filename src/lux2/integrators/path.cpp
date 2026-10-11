@@ -83,6 +83,13 @@ namespace lux2
 
         // Cap on shadow-ray boundary crossings.
         constexpr int MAX_SHADOW_CROSSINGS = 16;
+
+        // Medium swap at a boundary.
+        inline UInt32P SwapMedium(const HitP &hit, const Vector3fP &dir)
+        {
+            const MaskP leavesFront = dot(dir, hit.ngeo) > FloatP(0.f);
+            return select(leavesFront, hit.mediumInID, hit.mediumOutID);
+        }
     } // namespace
 
     void PathIntegrator::Start(const Scene &scene)
@@ -185,12 +192,7 @@ namespace lux2
                 // and continue past the surface.
                 if (any(tracing))
                 {
-                    // Unbound sides are ambient, the swap is
-                    // unconditional.
-                    const MaskP leavesFront =
-                        dot(dir, hit.ngeo) > FloatP(0.f);
-                    curMedium =
-                        select(leavesFront, hit.mediumInID, hit.mediumOutID);
+                    curMedium = SwapMedium(hit, dir);
                     tCur = select(tracing, hit.t + FloatP(EPS_RAY), tCur);
                 }
             }
@@ -213,6 +215,8 @@ namespace lux2
             Int32P bounce;    // RNG stream counter advances every bounce
             Int32P crossings; // null crossings within the current segment
             MaskP alive, specularBounce;
+            // The previous vertex was a medium scatter.
+            MaskP prevIsMedium;
             FloatP x, y, camWeight;  // film position and weight for retire
             UInt32P seed, sampleIdx; // sampler addressing
             SWCSpectrumP lem;        // emission on hit AOV accumulator
@@ -262,6 +266,7 @@ namespace lux2
             Point3fP &prevP = st.prevP;
             Normal3fP &prevN = st.prevN;
             FloatP &prevPdf = st.prevPdf;
+            MaskP &prevIsMedium = st.prevIsMedium;
             Int32P &bounce = st.bounce;
             Int32P &crossings = st.crossings;
             const SpectrumWavelengthsP &sw = st.sw;
@@ -321,7 +326,7 @@ namespace lux2
                     // Scattered lanes.
                     if (any(mediumEvent))
                     {
-                        // Incoming direction, captured before the continuation
+                        // Incoming direction captured before the continuation
                         // ray overwrites ray.d. Needed to evaluate the phase
                         // function for NEE toward a sampled light.
                         const Vector3fP dIn = ray.d;
@@ -358,6 +363,8 @@ namespace lux2
                         prevN = select(mediumEvent, Normal3fP(FloatP(0.f)),
                                        prevN);
                         prevPdf = select(mediumEvent, phasePdf, prevPdf);
+                        prevIsMedium =
+                            select(mediumEvent, MaskP(true), prevIsMedium);
                         // A medium scatter is a real vertex so advance both the
                         // semantic depth and the RNG counter.
                         depth = select(mediumEvent, depth + Int32P(1), depth);
@@ -388,7 +395,7 @@ namespace lux2
                                 sw, mi, Normal3fP(FloatP(0.f)), u2lpos.x(),
                                 u2lpos.y(), ulightcomp, &lightP, &wiL, &lightN,
                                 &pdfPos, &LeL, neeActive,
-                                /*testReceiverSide=*/false);
+                                /*receiverHasNormal=*/MaskP(false));
                             const FloatP dist = enoki::norm(lightP - mi);
                             const FloatP pdfL = pdfPos * invNLights;
                             const FloatP tmax =
@@ -665,13 +672,7 @@ namespace lux2
                 const Point3fP spawn = OffsetRay(p, ng, sample.wi, FloatP(EPS_RAY));
 
                 // Mesh bound volume swap. Unbound sides are ambient.
-                UInt32P newMedium = ray.medium;
-                if (hasMedia)
-                {
-                    const MaskP leavesFront = dot(sample.wi, ng) > FloatP(0.f);
-                    newMedium =
-                        select(leavesFront, hit.mediumInID, hit.mediumOutID);
-                }
+                const UInt32P newMedium = SwapMedium(hit, sample.wi);
 
                 // All lane writes below are masked by hitMask.
                 const RayP surfRay(spawn, sample.wi, FloatP(EPS_RAY), INF,
@@ -700,6 +701,7 @@ namespace lux2
                 prevP = select(hitMask, p, prevP);
                 prevN = select(hitMask, n, prevN);
                 prevPdf = select(hitMask, sample.pdf, prevPdf);
+                prevIsMedium = select(hitMask, MaskP(false), prevIsMedium);
             }
         }
 
@@ -837,6 +839,8 @@ namespace lux2
             st.prevP = select(fillMask, cam.o, st.prevP);
             st.prevN = select(fillMask, Normal3fP(0.f, 0.f, 0.f), st.prevN);
             st.prevPdf = select(fillMask, FloatP(0.f), st.prevPdf);
+            // A primary ray has the camera as its previous vertex.
+            st.prevIsMedium = select(fillMask, MaskP(false), st.prevIsMedium);
             st.lem = select(fillMask, SWCSpectrumP(0.f), st.lem);
 
             st.x = select(fillMask, x, st.x);
@@ -960,6 +964,7 @@ namespace lux2
         // All lanes start dead.
         PathLanes st;
         st.alive = MaskP(false);
+        st.prevIsMedium = MaskP(false);
         JobCursor jobs(tile, spp);
         RetireBuffer retire;
 

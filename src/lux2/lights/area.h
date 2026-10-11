@@ -70,12 +70,12 @@ namespace lux2
                        Point3fP *lightP, Vector3fP *wi, Normal3fP *lightN,
                        FloatP *pdf, SWCSpectrumP *LeOut,
                        MaskP active = MaskP(true),
-                       bool testReceiverSide = true) const override;
+                       MaskP receiverHasNormal = MaskP(true)) const override;
 
         FloatP Pdf_L(const Point3fP &p, const Normal3fP &n,
                      const Point3fP &lightP, const Normal3fP &lightN,
                      MaskP active = MaskP(true),
-                     bool testReceiverSide = true) const override;
+                     MaskP receiverHasNormal = MaskP(true)) const override;
 
         // Bind the emitting triangles and build the area CDF.
         void BindGeometry(const std::vector<TriangleDesc> &tris);
