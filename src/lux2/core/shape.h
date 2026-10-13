@@ -41,8 +41,13 @@ namespace lux2
         std::uint32_t matID;                     // resolved material index
         std::int32_t lightID;                    // area light index, or -1
         std::uint32_t groupMask = 0xFFFFFFFFu;   // visibility group mask
-        std::uint32_t mediumInID = 0u;  // front side medium id (0 = ambient)
-        std::uint32_t mediumOutID = 0u; // back side medium id (0 = ambient)
+        // Medium on each side of the surface, named for the geometric
+        // half-space they occupy: front is the +n side, back is -n. Scene
+        // binding follows legacy BxDF::GetVolume (dot(w, ng) > 0 ? exterior
+        // : interior), so Exterior fills mediumFrontID and Interior fills
+        // mediumBackID. 0 is ambient.
+        std::uint32_t mediumFrontID = 0u;
+        std::uint32_t mediumBackID = 0u;
     };
 
     // Abstract shape.

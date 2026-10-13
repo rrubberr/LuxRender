@@ -373,8 +373,11 @@ namespace lux2
             {
                 td.matID = matID;
                 td.lightID = lightID;
-                td.mediumInID = medIn;
-                td.mediumOutID = medOut;
+                // Legacy half-space convention (BxDF::GetVolume):
+                //   dot(w, ng) > 0 ? exterior : interior
+                // so Exterior is the +n side and Interior the -n side.
+                td.mediumFrontID = medOut;
+                td.mediumBackID = medIn;
             }
             md.bound = s->WorldBound();
             m_summary.triangleCount += static_cast<int>(md.tris.size());

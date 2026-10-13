@@ -114,8 +114,8 @@ namespace lux2
         uv2v.resize(m_triCount);
         matID.resize(m_triCount);
         lightID.resize(m_triCount);
-        mediumInID.resize(m_triCount);
-        mediumOutID.resize(m_triCount);
+        mediumFrontID.resize(m_triCount);
+        mediumBackID.resize(m_triCount);
 
         geomToBase.assign(meshes.size(), 0u);
         std::uint32_t base = 0;
@@ -159,8 +159,8 @@ namespace lux2
                 uv2v[g] = td.uv2.v;
                 matID[g] = td.matID;
                 lightID[g] = td.lightID;
-                mediumInID[g] = td.mediumInID;
-                mediumOutID[g] = td.mediumOutID;
+                mediumFrontID[g] = td.mediumFrontID;
+                mediumBackID[g] = td.mediumBackID;
             }
             m_bound = Union(m_bound, m.bound);
 
@@ -506,8 +506,10 @@ namespace lux2
 
         hit.matID = enoki::gather<UInt32P>(matID.data(), gidx, active);
         hit.lightID = enoki::gather<Int32P>(lightID.data(), gidx, active);
-        hit.mediumInID = enoki::gather<UInt32P>(mediumInID.data(), gidx, active);
-        hit.mediumOutID = enoki::gather<UInt32P>(mediumOutID.data(), gidx, active);
+        hit.mediumFrontID =
+            enoki::gather<UInt32P>(mediumFrontID.data(), gidx, active);
+        hit.mediumBackID =
+            enoki::gather<UInt32P>(mediumBackID.data(), gidx, active);
     }
 
 } // namespace lux2

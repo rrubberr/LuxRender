@@ -94,9 +94,9 @@ namespace lux2
         std::vector<float> uv0u, uv0v, uv1u, uv1v, uv2u, uv2v;
         std::vector<std::uint32_t> matID;
         std::vector<std::int32_t> lightID;
-        // Per triangle volume binding.
-        std::vector<std::uint32_t> mediumInID;
-        std::vector<std::uint32_t> mediumOutID;
+        // Per triangle volume binding (front = +n, back = -n).
+        std::vector<std::uint32_t> mediumFrontID;
+        std::vector<std::uint32_t> mediumBackID;
         std::vector<std::uint32_t> geomToBase; // geomID -> base index
     };
 

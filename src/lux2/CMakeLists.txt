@@ -67,7 +67,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 ######################
 
 # GCC miscompiles Enoki's raw_coeff_ without -fno-strict-aliasing.
-ADD_DEFINITIONS(-march=native -g -ftree-vectorize -funroll-loops -fno-strict-aliasing -DHAVE_PTHREAD_H)
+ADD_DEFINITIONS(-march=native -g -ftree-vectorize -funroll-loops -DLUX2_MEDIUM_CAP_COUNTERS -fno-strict-aliasing -DHAVE_PTHREAD_H)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O2")
 
 # Where the finished binaries are collected.

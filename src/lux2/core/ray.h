@@ -108,9 +108,10 @@ namespace lux2
         UInt32P matID;  // per-triangle material index
         Int32P lightID; // per-triangle area-light index, or -1
 
-        // Triangle medium binding. Unbound sides are ambient.
-        UInt32P mediumInID = UInt32P(LUX2_MEDIUM_CLEAR);
-        UInt32P mediumOutID = UInt32P(LUX2_MEDIUM_CLEAR);
+        // Triangle medium binding, keyed to the geometric half-space:
+        // front is +ngeo, back is -ngeo. Unbound sides are ambient.
+        UInt32P mediumFrontID = UInt32P(LUX2_MEDIUM_CLEAR);
+        UInt32P mediumBackID = UInt32P(LUX2_MEDIUM_CLEAR);
 
         // Shading frame from the UV gradient (Lux dpdu/dpdv and sn/tn).
         Vector3fP dp_du;

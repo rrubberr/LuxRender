@@ -3,7 +3,7 @@
 Renderer "sampler"
 
 Sampler "lowdiscrepancy"
-	"integer pixelsamples" [16]
+	"integer spp" [16]
 	"string pixelsampler" ["lowdiscrepancy"]
 	"bool noiseaware" ["false"]
 
@@ -64,7 +64,7 @@ Film "fleximage"
 	"integer displayinterval" [10]
 	"integer writeinterval" [180]
 	"integer flmwriteinterval" [900]
-	"integer haltspp" [1024]
+	"integer halttime" [30]
 	"integer variancerejection_k" [10]
 	"integer variancerejectionwarmup" [0]
 	"integer tilecount" [0]
