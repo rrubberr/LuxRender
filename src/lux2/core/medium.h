@@ -29,6 +29,7 @@
 #include "core/bbox.h"
 #include "core/ray.h"
 #include "core/rng.h"
+#include "core/volumefield.h"
 
 #include <cstdint>
 #include <limits>
@@ -74,6 +75,22 @@ namespace lux2
         s->sigma_t = SWCSpectrumP(0.f);
         s->k = FloatP(0.f);
     }
+
+    // ---------------------------------------------------------------------------
+    // Coefficient bundle and walk state
+    // ---------------------------------------------------------------------------
+
+    struct MediumCoeffs
+    {
+        SWCSpectrumP sa, ss, Le;
+    };
+
+    struct MajorantState
+    {
+        MajorantDDA dda;
+        FloatP tEnd;   // end of the current segment
+        FloatP sigBar; // sigmacbar for the current cell (0 => no segments)
+    };
 
     // ---------------------------------------------------------------------------
     // Medium abstract interface
@@ -159,6 +176,43 @@ namespace lux2
                                 const Vector3fP &wo,
                                 const Vector3fP &wi,
                                 MaskP active) const = 0;
+
+        // -----------------------------------------------------------------
+        // Tracked loop interface
+        // -----------------------------------------------------------------
+
+        // Wrap the three coefficient queries.
+        virtual void Coeffs(const SpectrumWavelengthsP &sw,
+                            const Point3fP &p,
+                            MaskP active,
+                            MediumCoeffs *out) const
+        {
+            out->sa = SigmaA(sw, p, active);
+            out->ss = SigmaS(sw, p, active);
+            out->Le = Lve(sw, p, active);
+        }
+
+        // Begin a majorant walk over [t0, t1].
+        virtual void MajorantBegin(const RayP &ray,
+                                   const FloatP &t0,
+                                   const FloatP &t1,
+                                   MajorantState &ms,
+                                   MaskP active) const
+        {
+            static_cast<void>(ray);
+            static_cast<void>(t0);
+            static_cast<void>(t1);
+            ms.tEnd = t0;
+            ms.sigBar = FloatP(0.f);
+        }
+
+        // Advance to the next segment.
+        virtual MaskP MajorantNext(MajorantState &ms, MaskP active) const
+        {
+            static_cast<void>(ms);
+            static_cast<void>(active);
+            return MaskP(false);
+        }
 
         // -----------------------------------------------------------------
         // Bounding volume intersection

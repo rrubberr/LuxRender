@@ -125,6 +125,13 @@ namespace lux2
             bool hasMedia = false;
         };
 
+        // Addressing for stream keying.
+        struct StreamAddr
+        {
+            UInt32P seed, sampleIdx;
+            Int32P bounce, depth;
+        };
+
         // Closest-hit shadow transmittance from origin along dir toward a
         // light at distance tMax.
         SWCSpectrumP ShadowTransmittance(const WalkCtx &ctx,
@@ -133,6 +140,8 @@ namespace lux2
                                          const UInt32P &startMedium,
                                          const FloatP &tMax,
                                          const SpectrumWavelengthsP &sw,
+                                         const StreamAddr &addr,
+                                         const UInt32P &lightIdx,
                                          MaskP active)
         {
             if (!ctx.hasMedia)
@@ -150,8 +159,14 @@ namespace lux2
             UInt32P curMedium = startMedium;
             FloatP tCur = FloatP(EPS_RAY);
             MaskP tracing = active;
-            // Salt decorrelated from the flight stream.
-            RNGP rng(0x2C9277B5D6B0A3E1ULL);
+            // Shadow stream.
+            RNGP rng;
+            {
+                UInt64P st, sq;
+                StreamKey(addr.seed, addr.sampleIdx, addr.bounce, addr.depth,
+                          lightIdx, SHADOW_SALT, &st, &sq);
+                rng.Seed(st, sq);
+            }
 
             for (int i = 0; i < MAX_SHADOW_CROSSINGS && any(tracing); ++i)
             {
@@ -295,7 +310,7 @@ namespace lux2
             // -----------------------------------------------------------------
             // Medium flight
             // -----------------------------------------------------------------
-            
+
             MaskP mediumEvent(false);
             MediumPtr medVert(nullptr);
             Point3fP medP(0.f);
@@ -313,7 +328,14 @@ namespace lux2
                     ClearMediumSample(&ms, tEnd);
                     const MediumPtr med =
                         ctx.mediumTable->Gather(ray.medium, inMedium);
-                    RNGP rng(0x9E3779B97F4A7C15ULL);
+                    // Flight stream.
+                    RNGP rng;
+                    {
+                        UInt64P stKey, sqKey;
+                        StreamKey(st.seed, st.sampleIdx, bounce, depth,
+                                  UInt32P(0u), FLIGHT_SALT, &stKey, &sqKey);
+                        rng.Seed(stKey, sqKey);
+                    }
                     med->SampleInteraction(sw, ray, ray.mint, tEnd, uFlight,
                                            rng, &ms, inMedium);
 
@@ -531,8 +553,10 @@ namespace lux2
                                dist - enoki::max(FloatP(1e-3f),
                                                  FloatP(1e-3f) * dist));
                     const MaskP tryVis = la && sampleOk && (pdfL > FloatP(0.f));
+                    const StreamAddr addr{st.seed, st.sampleIdx, bounce, depth};
                     const SWCSpectrumP Tr = ShadowTransmittance(
-                        ctx, shadowO, wiL, shadowMedium, tmax, sw, tryVis);
+                        ctx, shadowO, wiL, shadowMedium, tmax, sw, addr,
+                        lightIdx, tryVis);
 
                     // SDF Eval on surface lanes, phase
                     // pdf on medium lanes.

@@ -27,6 +27,7 @@
 #include "core/medium.h"
 #include "core/volumefield.h"
 #include "core/medium_call.h"
+#include "core/tracked.h"
 #include "core/bsdf.h"
 #include "core/bsdf_call.h"
 #include "core/phase.h"
@@ -673,6 +674,245 @@ void CheckVertexConsistency()
 }
 
 // ---------------------------------------------------------------------------
+// TrackedLoop (Step 3): drive the real masked loop through a constant-
+// coefficient TrackedMedium whose MajorantBegin yields ONE segment with
+// sigma_bar = mult * sigma_t. Expectations come from the closed forms the
+// scalar references above already use; the point is that the SoA loop, the
+// partitioned collision split and the emission accumulation reproduce them.
+// ---------------------------------------------------------------------------
+struct ForcedTrackedMedium : public TrackedMedium
+{
+    float sa, ss, Le, mult, k;
+    ForcedTrackedMedium(float sa_, float ss_, float Le_, float mult_,
+                        float k_ = 0.f)
+        : sa(sa_), ss(ss_), Le(Le_), mult(mult_), k(k_) {}
+
+    uint32_t Flags() const override { return MF_Tracked; }
+    SWCSpectrumP SigmaA(const SpectrumWavelengthsP &, const Point3fP &,
+                        MaskP) const override { return SWCSpectrumP(sa); }
+    SWCSpectrumP SigmaS(const SpectrumWavelengthsP &, const Point3fP &,
+                        MaskP) const override { return SWCSpectrumP(ss); }
+    SWCSpectrumP Lve(const SpectrumWavelengthsP &, const Point3fP &,
+                     MaskP) const override { return SWCSpectrumP(Le); }
+    FloatP PhasePdf(const SpectrumWavelengthsP &, const Point3fP &,
+                    const Vector3fP &wo, const Vector3fP &wi,
+                    MaskP active) const override
+    {
+        return select(active, SchlickPdf(FloatP(k), wo, wi), FloatP(0.f));
+    }
+    FloatP PhaseK(const SpectrumWavelengthsP &, const Point3fP &, const FloatP &,
+                  MaskP active) const override
+    {
+        return select(active, FloatP(k), FloatP(0.f));
+    }
+
+    // One segment spanning [t0, t1]; lanes with an empty interval get
+    // sigBar == 0 and escape immediately.
+    void MajorantBegin(const RayP &, const FloatP &t0, const FloatP &t1,
+                       MajorantState &ms, MaskP active) const override
+    {
+        const MaskP has = active && (t1 > t0);
+        ms.tEnd = select(has, t1, t0);
+        ms.sigBar = select(has, FloatP(mult * (sa + ss)), FloatP(0.f));
+    }
+    MaskP MajorantNext(MajorantState &, MaskP) const override
+    {
+        return MaskP(false);
+    }
+};
+
+RayP MakeRay()
+{
+    return RayP(Point3fP(FloatP(0.f), FloatP(0.f), FloatP(0.f)),
+                Vector3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f)),
+                FloatP(0.f), FloatP(std::numeric_limits<float>::infinity()),
+                FloatP(0.f));
+}
+
+void CheckTrackedLoopSoA()
+{
+    std::cout << "[tracked] TrackedLoop vs closed form (SoA)" << std::endl;
+
+    SpectrumWavelengthsP sw;
+    sw.FromWavelength(FloatP(550.f));
+    const RayP ray = MakeRay();
+    const float L = 3.5f;
+
+    // ---- Flight: terminate-on-absorb, loose majorant -------------------
+    const float sa = 0.3f, ss = 0.5f, Le = 1.3f;
+    const float sigT = sa + ss;
+    for (float mult : {1.0f, 2.5f})
+    {
+        ForcedTrackedMedium med(sa, ss, Le, mult);
+        RNGP rng;
+        rng.Seed(0xC0FFEEULL + uint64_t(mult * 1000.f));
+
+        const int kTrials = 60000; // x PACKET_WIDTH lane samples
+        double sumW = 0., sumW2 = 0., sumPos = 0., sumEmit = 0.;
+        long scattered = 0;
+        for (int i = 0; i < kTrials; ++i)
+        {
+            MediumSampleP ms;
+            ClearMediumSample(&ms, FloatP(L));
+            med.SampleInteraction(sw, ray, FloatP(0.f), FloatP(L),
+                                  rng.NextFloat(), rng, &ms, MaskP(true));
+            // Contribution carried to the next vertex: weight when scattered.
+            for (size_t l = 0; l < PACKET_WIDTH; ++l)
+            {
+                const float w = bool(ms.scattered[l]) ? float(ms.weight[l]) : 0.f;
+                sumW += w;
+                sumW2 += double(w) * w;
+                if (bool(ms.scattered[l]))
+                {
+                    ++scattered;
+                    sumPos += float(ms.d[l]);
+                }
+                sumEmit += float(ms.emission[l]);
+            }
+        }
+        const double N = double(kTrials) * PACKET_WIDTH;
+
+        char msg[160];
+        // P(scatter) = (sigma_s/sigma_t)(1 - e^{-sigma_t L}) — the terminate-
+        // on-absorb signature (a weighted variant would report 1 - e^{-st L}).
+        const float pScat = (ss / sigT) * (1.f - std::exp(-sigT * L));
+        const float empScat = float(scattered) / float(N);
+        snprintf(msg, sizeof(msg),
+                 "flight scatter freq ~ (ss/st)(1-e^-stL) (majorant x%.1f)", mult);
+        Check(std::fabs(empScat - pScat) < 4e-3f, msg);
+
+        // E[emission] = int_0^L e^{-st x} Le dx.
+        const float exactEmit = Le * (1.f - std::exp(-sigT * L)) / sigT;
+        snprintf(msg, sizeof(msg),
+                 "flight emission ~ integral (majorant x%.1f)", mult);
+        Check(std::fabs(float(sumEmit / N) - exactEmit) < 8e-3f, msg);
+
+        // Position | scatter. For CONSTANT coefficients the scatter/absorb
+        // decision is position-independent, so conditioning on scatter rather
+        // than on "first real collision" leaves the Exp(sigma_t)-truncated
+        // distribution unchanged (scaled by a constant). This does NOT hold
+        // for heterogeneous media.
+        const float meanPos =
+            1.f / sigT - L * std::exp(-sigT * L) / (1.f - std::exp(-sigT * L));
+        snprintf(msg, sizeof(msg),
+                 "scatter position|scatter ~ Exp(st) truncated (x%.1f)", mult);
+        Check(std::fabs(float(sumPos / scattered) - meanPos) < 5e-3f, msg);
+
+        // Loose and tight majorants agree in expectation.
+        snprintf(msg, sizeof(msg),
+                 "mean weight matches analytic across majorants (x%.1f)", mult);
+        const float exactW = pScat; // E[W] with W = weight*1[scattered]
+        Check(std::fabs(float(sumW / N) - exactW) < 4e-3f, msg);
+
+        // Variance cost of terminate-on-absorb, measured against the closed
+        // form (sample d ~ Exp(ss), weight e^{-sa d}). Same mean, so the
+        // variances are directly comparable. Tracked is expected to be a few
+        // times higher for this albedo; the band catches gross errors without
+        // being flaky.
+        const double varTr = sumW2 / N - (sumW / N) * (sumW / N);
+        const double eW2 =
+            double(ss) * (1.0 - std::exp(-(double(ss) + 2.0 * sa) * L)) /
+            (double(ss) + 2.0 * sa);
+        const double varCf = eW2 - double(pScat) * double(pScat);
+        snprintf(msg, sizeof(msg),
+                 "terminate-on-absorb variance finite and within 4x closed form "
+                 "(x%.1f: %.3f vs %.3f)",
+                 mult, float(varTr), float(varCf));
+        Check(varTr > 0.01 && varTr < 4.0 * varCf, msg);
+    }
+
+    // ---- Transmittance: ratio tracking + RR ----------------------------
+    // sigma_t * L = 3.6 so beta crosses the 0.1 RR threshold: with mult=2.5
+    // the per-collision factor is 0.6 and beta < 0.1 after 5 collisions,
+    // while the expected collision count over the segment is sigma_bar*L = 9.
+    {
+        const float stOnly = 1.2f;
+        for (float mult : {1.0f, 2.5f})
+        {
+            ForcedTrackedMedium med(0.f, stOnly, 0.f, mult);
+            RNGP rng;
+            rng.Seed(0xBEEFULL + uint64_t(mult * 1000.f));
+
+            const int kTrials = 60000;
+            double sumT = 0.;
+            for (int i = 0; i < kTrials; ++i)
+            {
+                const SWCSpectrumP T = med.Transmittance(
+                    sw, ray, FloatP(0.f), FloatP(L), rng, MaskP(true));
+                for (size_t l = 0; l < PACKET_WIDTH; ++l)
+                    sumT += float(T[l]);
+            }
+            const double N = double(kTrials) * PACKET_WIDTH;
+            const float exact = std::exp(-stOnly * L);
+            char msg[160];
+            snprintf(msg, sizeof(msg),
+                     "ratio-tracking T ~ e^{-st L} with RR (x%.1f: got %.5f, "
+                     "want %.5f)",
+                     mult, float(sumT / N), exact);
+            Check(std::fabs(float(sumT / N) - exact) < 5e-3f, msg);
+        }
+        // The RR branch is only meaningful if beta actually reaches the
+        // threshold: ln(0.1)/ln(1 - st/sigma_bar) < sigma_bar * L.
+        const float sb = 2.5f * stOnly;
+        const float kToRR = std::log(0.1f) / std::log(1.f - stOnly / sb);
+        Check(kToRR < sb * L,
+              "transmittance parameters exercise the RR branch");
+#ifdef LUX2_MEDIUM_CAP_COUNTERS
+        // Hard proof, when built with counters: the RR kill path ran.
+        Check(TrackedMedium::g_trackRRKills > 0,
+              "transmittance RR branch actually fired");
+#endif
+    }
+
+    // ---- Partially active packet with garbage on dead lanes ------------
+    // The first real masked loop: dead lanes must not be mutated and their
+    // garbage inputs must not leak NaN into live lanes.
+    {
+        ForcedTrackedMedium med(sa, ss, Le, 2.5f);
+        RNGP rng;
+        rng.Seed(0x5EEDULL);
+
+        MaskP active;
+        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+            active[i] = (i % 3 != 0); // one third dead
+
+        // Garbage segment bounds on the dead lanes.
+        FloatP t1L;
+        const float nan = std::numeric_limits<float>::quiet_NaN();
+        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+            t1L[i] = active[i] ? L : nan;
+
+        bool finiteOk = true, deadOk = true, liveOk = true;
+        for (int i = 0; i < 20000; ++i)
+        {
+            MediumSampleP ms;
+            ClearMediumSample(&ms, FloatP(-7.f));
+            med.SampleInteraction(sw, ray, FloatP(0.f), t1L, rng.NextFloat(),
+                                  rng, &ms, active);
+            for (size_t l = 0; l < PACKET_WIDTH; ++l)
+            {
+                if (active[l])
+                {
+                    finiteOk = finiteOk && std::isfinite(float(ms.d[l])) &&
+                               std::isfinite(float(ms.weight[l])) &&
+                               std::isfinite(float(ms.emission[l]));
+                    liveOk = liveOk && (float(ms.d[l]) <= L + 1e-4f);
+                }
+                else
+                {
+                    // Untouched: the ClearMediumSample sentinel survives.
+                    deadOk = deadOk && (float(ms.d[l]) == -7.f) &&
+                             (float(ms.weight[l]) == 1.f);
+                }
+            }
+        }
+        Check(finiteOk, "partial-active: live lanes stay finite (garbage dead)");
+        Check(deadOk, "partial-active: dead lanes not mutated");
+        Check(liveOk, "partial-active: scatter distance within segment");
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Interface smoke test: MediumSampleP clear helper + ConstantField.
 // ---------------------------------------------------------------------------
 void CheckInterfaceSmoke()
@@ -712,6 +952,7 @@ int main()
     CheckHomogeneousFlight();
     CheckRatioTracking();
     CheckTrackedFlightAndEmission();
+    CheckTrackedLoopSoA();
     CheckMajorantBoundScalar();
     CheckEnokiMaskedLoop();
 

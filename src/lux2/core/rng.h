@@ -56,9 +56,57 @@ namespace lux2
                      enoki::arange<UInt64P>() + 0xda3e39cb94b95bdbULL);
         }
 
+        // Lane seed.
+        void Seed(const UInt64P &initstate, const UInt64P &initseq)
+        {
+            gen.seed(initstate, initseq);
+        }
+
     private:
         FloatDist gen;
     };
+
+    // ---------------------------------------------------------------------------
+    // Stream keying
+    // ---------------------------------------------------------------------------
+
+    constexpr UInt64 FLIGHT_SALT = 0x9E3779B97F4A7C15ULL;
+    constexpr UInt64 SHADOW_SALT = 0x2C9277B5D6B0A3E1ULL;
+
+    // Combine the addressing tuple into a (state, seq) pair.
+    inline void StreamKey(const UInt32P &seed, const UInt32P &sampleIdx,
+                          const Int32P &bounce, const Int32P &depth,
+                          const UInt32P &lightIdx, UInt64 salt,
+                          UInt64P *state, UInt64P *seq)
+    {
+        // Fold the tuple into one 64-bit word per lane.
+        const UInt64P M1(0x9E3779B97F4A7C15ULL);
+        const UInt64P M2(0xBF58476D1CE4E5B9ULL);
+        const UInt64P M3(0x94D049BB133111EBULL);
+        const UInt64P M4(0xD6E8FEB86659FD93ULL);
+        const UInt64P M5(0xDA3E39CB94B95BDBULL);
+        const UInt64P M6(0x2545F4914F6CDD1DULL);
+
+        UInt64P h = UInt64P(seed);
+        h = h * M1 + UInt64P(sampleIdx);
+        h = h * M2 + UInt64P(bounce);
+        h = h * M3 + UInt64P(depth);
+        h = h * M4 + UInt64P(lightIdx);
+        h = h ^ UInt64P(salt);
+        h ^= h >> 30;
+        h *= M2;
+        h ^= h >> 27;
+        h *= M3;
+        h ^= h >> 31;
+        *state = h;
+        // A second independent mix for the sequence so state and seq are not
+        // related.
+        UInt64P s2 = h ^ M5;
+        s2 ^= s2 >> 32;
+        s2 *= M6;
+        s2 ^= s2 >> 28;
+        *seq = s2;
+    }
 
 } // namespace lux2
 
