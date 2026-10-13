@@ -2,7 +2,7 @@
  *   This file is part of LuxRender.                                       *
  *                                                                         *
  *   To the extent possible under law, the author(s) have dedicated all    *
- *   copyright and related neighboring rights to the belowe code to the    *
+ *   copyright and related neighboring rights to the below code to the     *
  *   public domain worldwide. The below code is distributed without any    *
  *   warranty.                                                             *
  *                                                                         *
@@ -135,6 +135,35 @@ int main() {
         Check(&scene.GetSampler() != nullptr, "explicit sampler wired");
         Check(&scene.GetFilter() != nullptr, "explicit filter wired");
         Check(&scene.GetCamera() != nullptr, "explicit camera wired");
+    }
+
+    // ---- 6. a region volume alone makes the scene have media ------------
+    // The ambient composite at id 0 is non-vacuum when it has children, so
+    // HasMedia() must be true even with no shape-bound media.
+    {
+        SceneDescription desc;
+        MediumDesc md;
+        md.name = "homogeneous";
+        const RGBColor sa(0.1f), ss(0.4f);
+        md.params.AddRGBColor("sigma_a", &sa, 1);
+        md.params.AddRGBColor("sigma_s", &ss, 1);
+        md.toWorld = Transform();
+        desc.volumeRegions.push_back(md);
+
+        Scene scene;
+        scene.Commit(desc);
+        Check(scene.HasMedia(), "region volume alone => HasMedia() true");
+    }
+
+    // ---- 7. no media at all => HasMedia() false -------------------------
+    {
+        SceneDescription desc;
+        ShapeDesc sd; sd.name = "sphere"; sd.toWorld = Transform();
+        desc.shapes.push_back(sd);
+
+        Scene scene;
+        scene.Commit(desc);
+        Check(!scene.HasMedia(), "vacuum scene => HasMedia() false");
     }
 
     std::cout << (g_failures == 0 ? "ALL PASS" : "FAILURES")

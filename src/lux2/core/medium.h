@@ -104,6 +104,9 @@ namespace lux2
         // Bitwise OR of MediumFlags.
         virtual uint32_t Flags() const = 0;
 
+        // True if the medium contributes nothing anywhere.
+        virtual bool IsVacuum() const { return false; }
+
         // Bounding box in world space.
         virtual BBox Bounds() const { return BBox(); }
 

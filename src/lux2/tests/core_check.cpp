@@ -2,7 +2,7 @@
  *   This file is part of LuxRender.                                       *
  *                                                                         *
  *   To the extent possible under law, the author(s) have dedicated all    *
- *   copyright and related neighboring rights to the belowe code to the    *
+ *   copyright and related neighboring rights to the below code to the     *
  *   public domain worldwide. The below code is distributed without any    *
  *   warranty.                                                             *
  *                                                                         *

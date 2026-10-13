@@ -38,6 +38,18 @@ namespace lux2
     {
         std::vector<const Medium *> ptrs;
 
+        // 1 where the medium can scatter/absorb/emit.
+        std::vector<std::uint32_t> nonVacuum;
+
+        // Recompute nonVacuum from the registered pointers.
+        void RebuildNonVacuum()
+        {
+            nonVacuum.assign(ptrs.size(), 0u);
+            for (size_t i = 0; i < ptrs.size(); ++i)
+                if (ptrs[i] && !ptrs[i]->IsVacuum())
+                    nonVacuum[i] = 1u;
+        }
+
         // Gather a MediumPtr for the given medium ids. Out of range ids
         // clamp to clear.
         MediumPtr Gather(const UInt32P &mediumID, MaskP active) const
@@ -49,11 +61,25 @@ namespace lux2
             return enoki::gather<MediumPtr>(ptrs.data(), clamped, active);
         }
 
-        // True if any registered medium is not clear.
+        // True where the lane's medium is non-vacuum.
+        MaskP GatherNonVacuum(const UInt32P &mediumID, MaskP active) const
+        {
+            if (nonVacuum.empty())
+                return MaskP(false);
+            const UInt32P clamped = select(
+                mediumID >= UInt32P(uint32_t(nonVacuum.size())),
+                UInt32P(LUX2_MEDIUM_CLEAR),
+                mediumID);
+            const UInt32P v =
+                enoki::gather<UInt32P>(nonVacuum.data(), clamped, active);
+            return v != UInt32P(0u);
+        }
+
+        // True if any registered medium is non-vacuum.
         bool HasMedia() const
         {
-            for (size_t i = 1; i < ptrs.size(); ++i)
-                if (ptrs[i] != nullptr)
+            for (std::uint32_t v : nonVacuum)
+                if (v != 0u)
                     return true;
             return false;
         }

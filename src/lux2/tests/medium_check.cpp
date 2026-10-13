@@ -2,7 +2,7 @@
  *   This file is part of LuxRender.                                       *
  *                                                                         *
  *   To the extent possible under law, the author(s) have dedicated all    *
- *   copyright and related neighboring rights to the belowe code to the    *
+ *   copyright and related neighboring rights to the below code to the     *
  *   public domain worldwide. The below code is distributed without any    *
  *   warranty.                                                             *
  *                                                                         *
@@ -34,6 +34,8 @@
 #include "core/lux2.h"
 #include "core/math.h"
 #include "core/rng.h"
+#include "media/homogeneous.h"
+#include "media/regionset.h"
 
 // VertexP / EvalVertex / SampleVertex under test. Pulls in the dispatch
 // headers itself; included here so the operator-> specializations are visible.
@@ -912,6 +914,311 @@ void CheckTrackedLoopSoA()
     }
 }
 
+// MediumSampleP::d is the distance from t0, not an absolute ray parameter
+// (path.cpp evaluates ray(mint + d)). With a nonzero t0 the walk must return
+// d in [0, t1-t0] and E[d | scatter] equal to the truncated-exponential mean
+// measured from t0.
+void CheckTrackedDistanceRelativeToT0()
+{
+    std::cout << "[tracked] MediumSampleP::d is relative to t0" << std::endl;
+
+    SpectrumWavelengthsP sw;
+    sw.FromWavelength(FloatP(550.f));
+    const RayP ray = MakeRay();
+    const float t0 = 2.0f, L = 3.5f; // segment length measured from t0
+    const float sa = 0.3f, ss = 0.5f, Le = 0.f;
+    ForcedTrackedMedium med(sa, ss, Le, 1.7f);
+    RNGP rng;
+    rng.Seed(0xDEAD00ULL);
+
+    const int kTrials = 60000;
+    long scattered = 0;
+    double sumD = 0.;
+    bool inRange = true;
+    for (int i = 0; i < kTrials; ++i)
+    {
+        MediumSampleP ms;
+        ClearMediumSample(&ms, FloatP(L));
+        med.SampleInteraction(sw, ray, FloatP(t0), FloatP(t0 + L),
+                              rng.NextFloat(), rng, &ms, MaskP(true));
+        for (size_t l = 0; l < PACKET_WIDTH; ++l)
+        {
+            const float d = float(ms.d[l]);
+            inRange = inRange && (d >= -1e-4f) && (d <= L + 1e-4f);
+            if (bool(ms.scattered[l]))
+            {
+                ++scattered;
+                sumD += d;
+            }
+        }
+    }
+    Check(inRange, "d stays within [0, t1-t0] for a nonzero t0");
+    const float meanPos =
+        1.f / (sa + ss) -
+        L * std::exp(-(sa + ss) * L) / (1.f - std::exp(-(sa + ss) * L));
+    Check(std::fabs(float(sumD / scattered) - meanPos) < 5e-3f,
+          "E[d | scatter] measured from t0 matches truncated exponential");
+}
+
+// ---------------------------------------------------------------------------
+// RegionSetMedium (Step 4). Children are bounded HomogeneousMedium; the
+// composite sums coefficients over containing children and draws phase from
+// the sigma_s-weighted mixture.
+// ---------------------------------------------------------------------------
+
+// A child with a local box under toWorld.
+static std::shared_ptr<HomogeneousMedium>
+MakeChild(const RGBColor &sa, const RGBColor &ss, float g, const RGBColor &Le,
+          const BBox &localBox, const Transform &toWorld)
+{
+    auto m = std::make_shared<HomogeneousMedium>(sa, ss, g, Le);
+    m->SetBound(localBox, toWorld);
+    return m;
+}
+
+// Q1 bound gate: the sw-independent scalar sigma_t bound
+//   sigma_bar = maxChannel(sigma_a) + maxChannel(sigma_s)
+// must dominate the projected sigma_t(sw) at every wavelength, for disjoint
+// channel triples where the buggy maxChannel(sigma_a+sigma_s) would fail.
+void CheckRegionMajorantBound()
+{
+    std::cout << "[region] sw-independent majorant bound (Q1)" << std::endl;
+
+    struct Triple
+    {
+        RGBColor sa, ss;
+    };
+    const Triple cases[] = {
+        {RGBColor(1.f, 0.f, 0.f), RGBColor(0.f, 1.f, 0.f)}, // disjoint R/G
+        {RGBColor(0.f, 1.f, 0.f), RGBColor(0.f, 0.f, 1.f)}, // disjoint G/B
+        {RGBColor(1.f, 0.f, 0.f), RGBColor(0.f, 0.f, 1.f)}, // disjoint R/B
+        {RGBColor(2.f, 0.1f, 0.f), RGBColor(0.f, 0.f, 3.f)},
+        {RGBColor(0.5f, 0.5f, 0.5f), RGBColor(0.2f, 0.9f, 0.1f)},
+    };
+
+    bool ok = true;
+    // Sweep wavelengths across the sampled range, lanes spread over [start,end).
+    for (const auto &t : cases)
+    {
+        HomogeneousMedium m(t.sa, t.ss, 0.f, RGBColor(0.f));
+        const float bound = m.SigmaTMaxRGB();
+        // Buggy bound for comparison: maxChannel(sa+ss).
+        auto maxCh = [](const RGBColor &c) {
+            return std::max(c.r(), std::max(c.g(), c.b()));
+        };
+        const float buggy = maxCh(RGBColor(t.sa.r() + t.ss.r(),
+                                           t.sa.g() + t.ss.g(),
+                                           t.sa.b() + t.ss.b()));
+        bool violatedBuggy = false;
+        for (float wl = WAVELENGTH_START; wl < WAVELENGTH_END; wl += 1.f)
+        {
+            SpectrumWavelengthsP sw;
+            sw.FromWavelength(FloatP(wl));
+            const SWCSpectrumP st =
+                m.SigmaA(sw, Point3fP(0.f), MaskP(true)) +
+                m.SigmaS(sw, Point3fP(0.f), MaskP(true));
+            for (size_t l = 0; l < PACKET_WIDTH; ++l)
+                if (float(st[l]) > bound + 1e-4f)
+                    ok = false;
+            for (size_t l = 0; l < PACKET_WIDTH; ++l)
+                if (float(st[l]) > buggy + 1e-4f)
+                    violatedBuggy = true;
+        }
+        // The disjoint-channel cases must actually exceed the buggy bound,
+        // otherwise the test would pass the buggy version.
+        const bool disjoint =
+            (t.sa.r() > 0.f && t.ss.g() > 0.f && t.sa.g() == 0.f) ||
+            (t.sa.g() > 0.f && t.ss.b() > 0.f && t.sa.b() == 0.f) ||
+            (t.sa.r() > 0.f && t.ss.b() > 0.f && t.sa.b() == 0.f);
+        if (disjoint && !violatedBuggy)
+            ok = false;
+    }
+    Check(ok, "maxChannel(sa)+maxChannel(ss) bounds sigma_t(sw) everywhere");
+}
+
+// Containment runs in LOCAL space: a rotated box must reject points that lie
+// inside its world AABB but outside the oriented box (the Q2 bug).
+void CheckRegionLocalContainment()
+{
+    std::cout << "[region] local-space containment under rotation (Q2)"
+              << std::endl;
+
+    const BBox local(Point3f(-1.f, -1.f, -1.f), Point3f(1.f, 1.f, 1.f));
+    // Rotate 45 degrees about Z.
+    const Transform rot = Transform::rotate(Vector3f(0.f, 0.f, 1.f), 45.f);
+    auto child = MakeChild(RGBColor(0.f), RGBColor(1.f), 0.f, RGBColor(0.f),
+                           local, rot);
+
+    // Point at world (1.4, 0, 0): inside the world AABB (half-extent sqrt2)
+    // but OUTSIDE the rotated box (its local x = 1.4*cos45 ~ 0.99 < 1 is
+    // inside; use a point clearly outside the oriented box).
+    // Local coords of world p under inverse rotation:
+    const Transform inv = rot.inverse();
+    // A corner of the world AABB that falls outside the oriented box.
+    const Point3f worldCorner(1.4f, 1.4f, 0.f);
+    const Point3f localOfCorner = inv * worldCorner;
+    const bool insideWorldAABB = true; // by construction near the diagonal
+    (void)insideWorldAABB;
+
+    Point3fP p(FloatP(worldCorner.x()), FloatP(worldCorner.y()),
+               FloatP(worldCorner.z()));
+    const MaskP contained = child->Contains(p);
+    // localOfCorner.x ~ (1.4+1.4)/sqrt2 ~ 1.98 > 1 => outside the box.
+    const bool expectOutside =
+        !(localOfCorner.x() >= -1.f && localOfCorner.x() <= 1.f &&
+          localOfCorner.y() >= -1.f && localOfCorner.y() <= 1.f);
+    Check(expectOutside && none(contained),
+          "rotated box rejects point inside world AABB but outside box");
+
+    // A point at the box center is contained.
+    Point3fP c(FloatP(0.f), FloatP(0.f), FloatP(0.f));
+    Check(all(child->Contains(c)), "box center is contained");
+}
+
+// Axis-parallel ray inside a box must report a hit (fix #3: the buggy slab
+// test forced tf=0 on parallel axes and reported a miss).
+void CheckRegionAxisParallel()
+{
+    std::cout << "[region] axis-parallel ray inside box (fix #3)" << std::endl;
+
+    const BBox local(Point3f(-1.f, -1.f, -1.f), Point3f(1.f, 1.f, 1.f));
+    auto child = MakeChild(RGBColor(0.2f), RGBColor(0.8f), 0.f, RGBColor(0.f),
+                           local, Transform());
+    RegionSetMedium set;
+    set.AddChild(child);
+
+    // Ray from the center along +X: parallel to the Y and Z slabs, inside
+    // both. Must produce a non-empty interval with sigBar > 0.
+    RayP ray(Point3fP(FloatP(0.f), FloatP(0.f), FloatP(0.f)),
+             Vector3fP(FloatP(1.f), FloatP(0.f), FloatP(0.f)), FloatP(0.f),
+             FloatP(std::numeric_limits<float>::infinity()), FloatP(0.f));
+    MajorantState ms;
+    set.MajorantBegin(ray, FloatP(0.f),
+                      FloatP(std::numeric_limits<float>::infinity()), ms,
+                      MaskP(true));
+    // Exit at local x=+1 => tEnd ~ 1.
+    bool ok = true;
+    for (size_t l = 0; l < PACKET_WIDTH; ++l)
+        ok = ok && (float(ms.sigBar[l]) > 0.f) &&
+             Close(float(ms.tEnd[l]), 1.f, 1e-3f);
+    Check(ok, "axis-parallel ray inside box yields a non-empty interval");
+}
+
+// A lane missing every box gets zero segments and escapes (anti-hang).
+void CheckRegionTermination()
+{
+    std::cout << "[region] lanes outside every box escape" << std::endl;
+
+    const BBox local(Point3f(-1.f, -1.f, -1.f), Point3f(1.f, 1.f, 1.f));
+    auto child = MakeChild(RGBColor(0.2f), RGBColor(0.8f), 0.f, RGBColor(0.f),
+                           local, Transform());
+    RegionSetMedium set;
+    set.AddChild(child);
+
+    // Ray far above the box pointing up: never intersects.
+    RayP ray(Point3fP(FloatP(0.f), FloatP(10.f), FloatP(0.f)),
+             Vector3fP(FloatP(0.f), FloatP(1.f), FloatP(0.f)), FloatP(0.f),
+             FloatP(std::numeric_limits<float>::infinity()), FloatP(0.f));
+    MajorantState ms;
+    set.MajorantBegin(ray, FloatP(0.f),
+                      FloatP(std::numeric_limits<float>::infinity()), ms,
+                      MaskP(true));
+    bool ok = true;
+    for (size_t l = 0; l < PACKET_WIDTH; ++l)
+        ok = ok && (float(ms.sigBar[l]) == 0.f);
+    Check(ok, "outside ray gets zero segments (sigBar == 0)");
+}
+
+// Q3: PhaseK's empirical child-selection frequency must match the sigma_s
+// weights used inside PhasePdf. Two overlapping children with different g.
+void CheckRegionMixtureConsistency()
+{
+    std::cout << "[region] PhaseK frequencies match PhasePdf weights (Q3)"
+              << std::endl;
+
+    const BBox local(Point3f(-2.f, -2.f, -2.f), Point3f(2.f, 2.f, 2.f));
+    // Child A: sigma_s = 0.25, child B: sigma_s = 0.75 -> weights 1:3.
+    auto a = MakeChild(RGBColor(0.f), RGBColor(0.25f), -0.9f, RGBColor(0.f),
+                       local, Transform());
+    auto b = MakeChild(RGBColor(0.f), RGBColor(0.75f), 0.9f, RGBColor(0.f),
+                       local, Transform());
+    RegionSetMedium set;
+    set.AddChild(a);
+    set.AddChild(b);
+
+    SpectrumWavelengthsP sw;
+    sw.FromWavelength(FloatP(550.f));
+    const Point3fP p(FloatP(0.f), FloatP(0.f), FloatP(0.f));
+    const float kA = a->K(), kB = b->K();
+
+    RNGP rng;
+    rng.Seed(0x1234ABCDULL);
+    long pickA = 0, pickB = 0, total = 0;
+    const int kTrials = 40000;
+    for (int i = 0; i < kTrials; ++i)
+    {
+        const FloatP u = rng.NextFloat();
+        const FloatP k = set.PhaseK(sw, p, u, MaskP(true));
+        for (size_t l = 0; l < PACKET_WIDTH; ++l)
+        {
+            const float kv = float(k[l]);
+            if (std::fabs(kv - kA) < 1e-5f)
+                ++pickA;
+            else if (std::fabs(kv - kB) < 1e-5f)
+                ++pickB;
+            ++total;
+        }
+    }
+    const float empA = float(pickA) / float(total);
+    // Expected weight: 0.25 / (0.25+0.75) = 0.25.
+    Check(std::fabs(empA - 0.25f) < 4e-3f,
+          "PhaseK child-A frequency ~ sigma_s ratio");
+
+    // PhasePdf marginal at a fixed direction equals the weighted mixture of
+    // the two child lobes (same weights).
+    const Vector3fP wo(0.f, 0.f, 1.f);
+    const Vector3fP wi(0.6f, 0.f, 0.8f);
+    const FloatP q = set.PhasePdf(sw, p, wo, wi, MaskP(true));
+    const float wA = 0.25f / (0.25f + 0.75f), wB = 1.f - wA;
+    const float want =
+        wA * float(SchlickPdf(FloatP(kA), wo, wi)[0]) +
+        wB * float(SchlickPdf(FloatP(kB), wo, wi)[0]);
+    Check(Close(float(q[0]), want, 1e-4f),
+          "PhasePdf marginal == sigma_s-weighted mixture of child lobes");
+}
+
+// Two coincident regions equal one region with summed coefficients.
+void CheckRegionCoincidentSum()
+{
+    std::cout << "[region] coincident regions sum coefficients" << std::endl;
+
+    const BBox local(Point3f(-2.f, -2.f, -2.f), Point3f(2.f, 2.f, 2.f));
+    auto a = MakeChild(RGBColor(0.1f), RGBColor(0.3f), 0.f, RGBColor(0.f),
+                       local, Transform());
+    auto b = MakeChild(RGBColor(0.2f), RGBColor(0.4f), 0.f, RGBColor(0.f),
+                       local, Transform());
+    RegionSetMedium set;
+    set.AddChild(a);
+    set.AddChild(b);
+
+    SpectrumWavelengthsP sw;
+    sw.FromWavelength(FloatP(550.f));
+    const Point3fP p(FloatP(0.f), FloatP(0.f), FloatP(0.f));
+    MediumCoeffs c;
+    set.Coeffs(sw, p, MaskP(true), &c);
+
+    // Reference: a single homogeneous with summed RGB.
+    HomogeneousMedium sum(RGBColor(0.3f), RGBColor(0.7f), 0.f, RGBColor(0.f));
+    const SWCSpectrumP saRef = sum.SigmaA(sw, p, MaskP(true));
+    const SWCSpectrumP ssRef = sum.SigmaS(sw, p, MaskP(true));
+
+    bool ok = true;
+    for (size_t l = 0; l < PACKET_WIDTH; ++l)
+        ok = ok && Close(float(c.sa[l]), float(saRef[l]), 1e-4f) &&
+             Close(float(c.ss[l]), float(ssRef[l]), 1e-4f);
+    Check(ok, "coincident regions == summed single region");
+}
+
 // ---------------------------------------------------------------------------
 // Interface smoke test: MediumSampleP clear helper + ConstantField.
 // ---------------------------------------------------------------------------
@@ -953,8 +1260,15 @@ int main()
     CheckRatioTracking();
     CheckTrackedFlightAndEmission();
     CheckTrackedLoopSoA();
+    CheckTrackedDistanceRelativeToT0();
     CheckMajorantBoundScalar();
     CheckEnokiMaskedLoop();
+    CheckRegionMajorantBound();
+    CheckRegionLocalContainment();
+    CheckRegionAxisParallel();
+    CheckRegionTermination();
+    CheckRegionMixtureConsistency();
+    CheckRegionCoincidentSum();
 
     if (g_failures == 0)
     {

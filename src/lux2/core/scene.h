@@ -284,10 +284,6 @@ namespace lux2
         std::vector<std::shared_ptr<Medium>> m_media;
         MediumPtrTable m_mediumTable;
 
-        // Region-volume medium ids (parallel to desc.volumeRegions). Recorded
-        // at Commit; the region slab overlay is consumed in Stage 3.
-        std::vector<std::uint32_t> m_regionMediumIDs;
-
         // Lightgroup tables.
         std::vector<std::string> m_lightGroups;                // use order
         std::vector<int> m_lightGroupOfArea;                   // parallel to m_areaLights

@@ -39,6 +39,9 @@ namespace lux2
 
         uint32_t Flags() const override { return MF_Analytic; }
 
+        // Contributes nothing.
+        bool IsVacuum() const override { return true; }
+
         SWCSpectrumP SigmaA(const SpectrumWavelengthsP &, const Point3fP &,
                             MaskP) const override
         {

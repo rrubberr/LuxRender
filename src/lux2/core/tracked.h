@@ -134,6 +134,16 @@ namespace lux2
                 m.Coeffs(sw, ray(t), coll, &c);
                 const SWCSpectrumP sigT = c.sa + c.ss;
 
+#ifdef LUX2_MEDIUM_CAP_COUNTERS
+                // A conservative majorant requires sigma_t(sw) <= sigma_bar at
+                // every collision.
+                {
+                    const MaskP viol =
+                        coll && any(sigT > ms.sigBar);
+                    g_trackMajorantViolations += enoki::count(viol);
+                }
+#endif
+
                 // Emission at each collision.
                 emit = select(coll, emit + beta * (c.Le / ms.sigBar), emit);
 
@@ -193,8 +203,8 @@ namespace lux2
                 g_trackCapTransmit += enoki::count(live);
 #endif
 
-            // Escape lanes at t1.
-            const FloatP dEnd = select(scat, tScat, t);
+            // MediumSampleP::d is the distance from t0.
+            const FloatP dEnd = select(scat, tScat, t) - t0;
             enoki::masked(out->d, active) = dEnd;
             enoki::masked(out->scattered, active) = scat && active;
             enoki::masked(out->weight, active) = beta;
@@ -210,6 +220,9 @@ namespace lux2
         static thread_local long g_trackCapFlight;
         static thread_local long g_trackCapTransmit;
         static thread_local long g_trackRRKills;
+        // sigma_t(sw) exceeded the per-segment majorant sigma_bar at a
+        // collision: the bound is not conservative.
+        static thread_local long g_trackMajorantViolations;
 #endif
     };
 
@@ -217,6 +230,7 @@ namespace lux2
     inline thread_local long TrackedMedium::g_trackCapFlight = 0;
     inline thread_local long TrackedMedium::g_trackCapTransmit = 0;
     inline thread_local long TrackedMedium::g_trackRRKills = 0;
+    inline thread_local long TrackedMedium::g_trackMajorantViolations = 0;
 #endif
 
 } // namespace lux2

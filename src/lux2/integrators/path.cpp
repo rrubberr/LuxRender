@@ -43,7 +43,7 @@
 #include <cstring>
 #include <limits>
 
-#if defined(PACKET_OCCUPANCY) || defined(LUX2_MEDIUM_CAP_COUNTERS)
+#ifdef PACKET_OCCUPANCY
 #include <atomic>
 #endif
 
@@ -85,10 +85,7 @@ namespace lux2
         // Cap on shadow-ray boundary crossings.
         constexpr int MAX_SHADOW_CROSSINGS = 16;
 
-        // Medium swap at a boundary: the ray continues in whichever medium
-        // occupies the half-space it leaves through. Matches legacy
-        // BxDF::GetVolume (dot(w, ng) > 0 ? exterior : interior), with
-        // Exterior bound to the front (+ngeo) side at commit.
+        // Medium swap at a boundary.
         inline UInt32P SwapMedium(const HitP &hit, const Vector3fP &dir)
         {
             const MaskP leavesFront = dot(dir, hit.ngeo) > FloatP(0.f);
@@ -239,10 +236,6 @@ namespace lux2
             FloatP x, y, camWeight;  // film position and weight for retire
             UInt32P seed, sampleIdx; // sampler addressing
             SWCSpectrumP lem;        // emission on hit AOV accumulator
-#ifdef LUX2_MEDIUM_CAP_COUNTERS
-            Point3fP o0;    // path origin, for displacement diagnostics
-            FloatP walkLen; // accumulated geometric path length
-#endif
         };
 
         // Sample source adapter so MLT can reuse.
@@ -324,7 +317,9 @@ namespace lux2
             FloatP medK(0.f);
             if (hasMedia)
             {
-                const MaskP inMedium = alive && (ray.medium != UInt32P(LUX2_MEDIUM_CLEAR));
+                // Gathered non-vacuum.
+                const MaskP inMedium =
+                    alive && ctx.mediumTable->GatherNonVacuum(ray.medium, alive);
                 if (any(inMedium))
                 {
                     // Segment end is the nearest surface hit, else INF.
@@ -507,16 +502,11 @@ namespace lux2
                 // medVert is non-null for any lane that was inside a medium.
                 vtx.med = medVert;
 
-                // Depth limit. Uniform across vertex types: a surface or
-                // medium vertex at depth >= maxDepth is retired here, after
-                // its flight/emission contribution and before NEE or a new
-                // sample. Geometry lanes are unchanged (valid == hitMask when
-                // there is no medium event).
+                // Depth limit.
                 alive &= !(valid && depth >= Int32P(maxDepth));
                 const MaskP vtxAlive = valid && alive;
 
-                // NEE. Depth is uniform, so a vertex contributes NEE exactly
-                // while it is alive (depth < maxDepth).
+                // NEE.
                 const MaskP neeGate = vtxAlive;
                 if (NEE && nLights > 0 && any(neeGate))
                 {
@@ -648,17 +638,6 @@ namespace lux2
 
                 const RayP contRay(spawn, sample.wi, FloatP(EPS_RAY), INF,
                                    FloatP(0.f));
-#ifdef LUX2_MEDIUM_CAP_COUNTERS
-                // Segment length advanced this bounce (ray.o is still the
-                // segment start). Summed per lane this is the geometric walk
-                // length, used to test the flight for super-diffusion.
-                {
-                    const Point3fP step = spawn - ray.o;
-                    st.walkLen = select(valid,
-                                        st.walkLen + enoki::norm(step),
-                                        st.walkLen);
-                }
-#endif
                 ray.o = select(valid, contRay.o, ray.o);
                 ray.d = select(valid, contRay.d, ray.d);
                 ray.d_rcp = select(valid, contRay.d_rcp, ray.d_rcp);
@@ -834,10 +813,6 @@ namespace lux2
             st.camWeight = select(fillMask, w, st.camWeight);
             st.seed = select(fillMask, vseed, st.seed);
             st.sampleIdx = select(fillMask, vidx, st.sampleIdx);
-#ifdef LUX2_MEDIUM_CAP_COUNTERS
-            st.o0 = select(fillMask, st.ray.o, st.o0);
-            st.walkLen = select(fillMask, FloatP(0.f), st.walkLen);
-#endif
 
             // Recompute the reciprocal direction for filled lanes.
             const Vector3fP newRcp = enoki::rcp(st.ray.d);
@@ -845,67 +820,6 @@ namespace lux2
 
             st.alive = st.alive || fillMask;
         }
-
-#ifdef LUX2_MEDIUM_CAP_COUNTERS
-        // -----------------------------------------------------------------
-        // Stall diagnostics
-        //
-        // A lane that never retires keeps the tile's walk loop spinning, so a
-        // hang shows up as a film that only receives retired lanes. The
-        // censuses below answer the questions that separate the candidate
-        // causes:
-        //   med=  which medium id the stuck lanes hold. A swap-polarity bug
-        //         shows fog ids on lanes wandering outside the volume.
-        //   depth vs bounce: depth still climbing means medium scatters with
-        //         no depth kill; depth frozen while bounce climbs means
-        //         null-boundary cycling.
-        //   o=    where the lane is wandering, relative to the volume.
-        // The hard limit retires stalled lanes through the normal path, so a
-        // bad scene yields a dark image plus a report instead of a hang.
-        // -----------------------------------------------------------------
-        constexpr int kStallWarn = 64;   // first census
-        constexpr int kStallProbe = 256; // second census: growth rate
-        constexpr int kStallLimit = 4096;
-        std::atomic<long> g_stallDumps{0};
-        constexpr long STALL_MAX_DUMPS = 8;
-
-        void DumpLanes(const char *tag, const PathLanes &st, int iter,
-                       const MaskP &which)
-        {
-            fprintf(stderr, "[stall %s] iter=%d shown=%u alive=%u\n", tag, iter,
-                    enoki::count(which), enoki::count(st.alive));
-            // Point3/Vector3 components are accessors, not fields.
-            const FloatP ox = st.ray.o.x(), oy = st.ray.o.y(), oz = st.ray.o.z();
-            const FloatP dx = st.ray.d.x(), dy = st.ray.d.y(), dz = st.ray.d.z();
-            // Squared displacement from the path origin. For an isotropic
-            // walk E[disp^2] = N * E[s^2], so disp^2/bounce ~ E[s^2] and
-            // disp^2/walkLen ~ E[s^2]/E[s]; both far above the per-step mean
-            // square indicate super-diffusion, not a heavy tail.
-            const FloatP ddx = ox - st.o0.x(), ddy = oy - st.o0.y(),
-                         ddz = oz - st.o0.z();
-            const FloatP disp2 = ddx * ddx + ddy * ddy + ddz * ddz;
-            for (size_t i = 0; i < PACKET_WIDTH; ++i)
-            {
-                if (!which[i])
-                    continue;
-                const double b = double(int(st.bounce[i]));
-                fprintf(stderr,
-                        "  lane %2zu px=%.0f,%.0f s=%u depth=%d bounce=%d"
-                        " cross=%d med=%u T=%.6g o=(%.4f %.4f %.4f)"
-                        " d=(%.4f %.4f %.4f)\n",
-                        i, double(st.x[i]), double(st.y[i]),
-                        uint32_t(st.sampleIdx[i]), int(st.depth[i]),
-                        int(st.bounce[i]), int(st.crossings[i]),
-                        uint32_t(st.ray.medium[i]), double(st.throughput[i]),
-                        double(ox[i]), double(oy[i]), double(oz[i]),
-                        double(dx[i]), double(dy[i]), double(dz[i]));
-                fprintf(stderr,
-                        "        walkLen=%.1f disp2=%.1f disp2/bounce=%.3f\n",
-                        double(st.walkLen[i]), double(disp2[i]),
-                        b > 0. ? double(disp2[i]) / b : 0.);
-            }
-        }
-#endif
 
         // Batch retired paths so Push can compact finished lanes with
         // enoki::compress and Flush can load whole packets.
@@ -932,7 +846,7 @@ namespace lux2
 
             // Emit whole packets while they accumulate.
             void Flush(Film &dest, bool all)
-        {
+            {
                 while (n >= PACKET_WIDTH || (all && n > 0))
                 {
                     const size_t take =
@@ -1020,9 +934,6 @@ namespace lux2
         RetireBuffer retire;
 
         Refill(camera, sampler, jobs, sampleBasis, st, 1);
-#ifdef LUX2_MEDIUM_CAP_COUNTERS
-        int iter = 0;
-#endif
         while (any(st.alive))
         {
 #ifdef PACKET_OCCUPANCY
@@ -1032,32 +943,6 @@ namespace lux2
 #endif
             const MaskP before = st.alive;
             StepBounce(ctx, SamplerSource{sampler, st.seed, st.sampleIdx}, st);
-
-#ifdef LUX2_MEDIUM_CAP_COUNTERS
-            ++iter;
-            // Lanes that have outlived any plausible light path. Nothing in
-            // the integrator bounds medium vertices, so census them at two
-            // points (the growth rate between the two says whether depth is
-            // climbing or frozen) and retire them at the hard limit.
-            const MaskP stalled = st.alive && (st.bounce > Int32P(kStallWarn));
-            const bool probe =
-                iter == kStallWarn ||
-                (iter > kStallWarn && (iter % kStallProbe) == 0);
-            if (any(stalled))
-            {
-                if (probe && g_stallDumps.fetch_add(1) < STALL_MAX_DUMPS)
-                    DumpLanes(iter == kStallWarn ? "warn" : "probe", st, iter,
-                              stalled);
-                if (iter >= kStallLimit)
-                {
-                    static std::atomic<long> g_limitReports{0};
-                    if (g_limitReports.fetch_add(1) < STALL_MAX_DUMPS)
-                        DumpLanes("limit", st, iter, stalled);
-                    // Retire through the normal path so the film closes.
-                    st.alive = st.alive && !stalled;
-                }
-            }
-#endif
 
             // Paths that retired this bounce.
             const MaskP finished = before && !st.alive;

@@ -27,6 +27,8 @@
 #include "core/texture.h"
 #include "lights/area.h"
 #include "materials/null.h"
+#include "media/homogeneous.h"
+#include "media/regionset.h"
 
 #include <map>
 #include <string>
@@ -199,8 +201,9 @@ namespace lux2
         auto &medReg = DynamicLoader::registeredMediums();
 
         // Instantiate a medium from its ParamSet.
-        auto instantiateMedium = [&](const ParamSet &params,
-                                     const std::string &fallbackType)
+        auto instantiateMedium =
+            [&](const ParamSet &params, const std::string &fallbackType,
+                const Transform &toWorld = Transform())
             -> std::shared_ptr<Medium>
         {
             std::string type = params.FindOneString("type", "");
@@ -218,6 +221,7 @@ namespace lux2
             }
             PluginContext pctx;
             pctx.params = const_cast<ParamSet *>(&params);
+            pctx.transform = toWorld;
             auto med = it->second(pctx);
             if (!med)
             {
@@ -262,7 +266,7 @@ namespace lux2
         auto resolveMediumID = [&](const MediumBinding &b) -> std::uint32_t
         {
             if (!b.valid())
-                return LUX2_MEDIUM_CLEAR; // unbound side, ambient 
+                return LUX2_MEDIUM_CLEAR; // unbound side, ambient
             if (b.isNamed)
             {
                 auto it = medIds.find("#" + b.namedRef);
@@ -285,17 +289,41 @@ namespace lux2
             return id;
         };
 
-        // Region volumes.
-        m_regionMediumIDs.clear();
-        for (const auto &rd : desc.volumeRegions)
-        {
-            auto med = instantiateMedium(rd.params, rd.name);
-            const std::uint32_t id = static_cast<std::uint32_t>(m_media.size());
-            m_media.push_back(med);
-            m_mediumTable.ptrs.push_back(med ? med.get() : nullptr);
-            m_regionMediumIDs.push_back(id);
-        }
+        // Region volumes become children of the ambient composite at id 0.
         m_summary.regionCount = static_cast<int>(desc.volumeRegions.size());
+        if (!desc.volumeRegions.empty())
+        {
+            auto composite = std::make_shared<RegionSetMedium>();
+            for (const auto &rd : desc.volumeRegions)
+            {
+                auto med = instantiateMedium(rd.params, rd.name, rd.toWorld);
+                auto hom = std::dynamic_pointer_cast<HomogeneousMedium>(med);
+                if (!hom)
+                {
+                    LOG(LUX_ERROR, LUX_SYNTAX)
+                        << "Region volume '" << rd.name
+                        << "' must be homogeneous; skipped";
+                    continue;
+                }
+                // Region box.
+                std::uint32_t n0 = 0, n1 = 0;
+                const Point3f *pp0 = rd.params.FindPoint("p0", &n0);
+                const Point3f *pp1 = rd.params.FindPoint("p1", &n1);
+                const Point3f p0 = (pp0 && n0 >= 1) ? *pp0 : Point3f(0.f, 0.f, 0.f);
+                const Point3f p1 = (pp1 && n1 >= 1) ? *pp1 : Point3f(1.f, 1.f, 1.f);
+                hom->SetBound(BBox(p0, p1), rd.toWorld);
+                composite->AddChild(hom);
+            }
+            // Replace the clear medium at id 0 with the composite.
+            if (!m_media.empty())
+                m_media[0] = composite;
+            else
+                m_media.push_back(composite);
+            if (!m_mediumTable.ptrs.empty())
+                m_mediumTable.ptrs[0] = composite.get();
+            else
+                m_mediumTable.ptrs.push_back(composite.get());
+        }
         m_summary.mediaCount = static_cast<int>(m_media.size());
 
         auto &shapeRegistry = DynamicLoader::registeredShapes();
@@ -373,9 +401,7 @@ namespace lux2
             {
                 td.matID = matID;
                 td.lightID = lightID;
-                // Legacy half-space convention (BxDF::GetVolume):
-                //   dot(w, ng) > 0 ? exterior : interior
-                // so Exterior is the +n side and Interior the -n side.
+                // Lux half space convention.
                 td.mediumFrontID = medOut;
                 td.mediumBackID = medIn;
             }
@@ -388,6 +414,9 @@ namespace lux2
         m_embree = std::make_unique<EmbreeScene>();
         m_embree->BuildFromMeshes(desc.meshes);
         m_worldBound = m_embree->WorldBound();
+
+        // All media are registered.
+        m_mediumTable.RebuildNonVacuum();
 
         // Light instantiation.
         auto &lightReg = DynamicLoader::registeredLights();
