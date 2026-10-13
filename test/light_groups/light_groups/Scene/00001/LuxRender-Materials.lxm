@@ -1,5 +1,18 @@
 # Materials File
 
+MakeNamedVolume "Fog" "homogeneous"
+	"float fresnel" [1.000450015068054]
+	"color g" [0.00000000 0.00000000 0.00000000]
+	"color sigma_a" [0.00000000 0.00000000 0.00000000]
+	"color sigma_s" [0.39370611 0.39370611 0.39370611]
+
+MakeNamedVolume "Air" "clear"
+	"float fresnel" [1.000292658805847]
+	"color absorption" [0.00000000 0.00000000 0.00000000]
+
+MakeNamedMaterial "Null"
+	"string type" ["null"]
+
 MakeNamedMaterial "Glass"
 	"bool architectural" ["false"]
 	"float cauchyb" [0.000000000000000]

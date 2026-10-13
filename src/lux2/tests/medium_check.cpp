@@ -27,10 +27,16 @@
 #include "core/medium.h"
 #include "core/volumefield.h"
 #include "core/medium_call.h"
+#include "core/bsdf.h"
+#include "core/bsdf_call.h"
 #include "core/phase.h"
 #include "core/lux2.h"
 #include "core/math.h"
 #include "core/rng.h"
+
+// VertexP / EvalVertex / SampleVertex under test. Pulls in the dispatch
+// headers itself; included here so the operator-> specializations are visible.
+#include "integrators/vertex.h"
 
 #include <cmath>
 #include <cstdint>
@@ -64,6 +70,10 @@ bool Close(float a, float b, float eps = 1e-4f)
     const float m = std::max(1.f, std::max(std::fabs(a), std::fabs(b)));
     return d <= eps * m;
 }
+
+// Scalar lane access for a packet component.
+template <typename P>
+auto lane(const P &v, size_t i) { return v[i]; }
 
 // ---------------------------------------------------------------------------
 // Scalar reference: homogeneous flight (D2)
@@ -490,6 +500,179 @@ void CheckEnokiMaskedLoop()
 }
 
 // ---------------------------------------------------------------------------
+// VertexP consistency (Step 2bc). A minimal Medium double and BSDF double let
+// us drive EvalVertex/SampleVertex directly on a MIXED packet — some lanes
+// medium (null bsdf), some surface (null med) — to check:
+//   1. R6 invariant: on medium lanes SampleVertex's pdf equals EvalVertex's
+//      pdf at the sampled direction, and f == 1.
+//   2. Pointer-skip: enoki::call never dereferences the null pointer on the
+//      opposite class (a crash or garbage here is the failure), and neither
+//      class clobbers the other's lanes.
+// ---------------------------------------------------------------------------
+
+// Constant-k Schlick medium; PhasePdf is the single-child marginal q.
+struct VertexTestMedium : public Medium
+{
+    float k;
+    mutable int phaseCalls = 0;
+    explicit VertexTestMedium(float kk) : k(kk) {}
+
+    uint32_t Flags() const override { return MF_Analytic; }
+    SWCSpectrumP SigmaA(const SpectrumWavelengthsP &, const Point3fP &,
+                        MaskP) const override { return SWCSpectrumP(0.1f); }
+    SWCSpectrumP SigmaS(const SpectrumWavelengthsP &, const Point3fP &,
+                        MaskP) const override { return SWCSpectrumP(0.9f); }
+    void SampleInteraction(const SpectrumWavelengthsP &, const RayP &,
+                           const FloatP &, const FloatP &, const FloatP &, RNGP &,
+                           MediumSampleP *, MaskP) const override {}
+    SWCSpectrumP Transmittance(const SpectrumWavelengthsP &, const RayP &,
+                               const FloatP &, const FloatP &, RNGP &,
+                               MaskP) const override { return SWCSpectrumP(1.f); }
+    FloatP PhasePdf(const SpectrumWavelengthsP &, const Point3fP &,
+                    const Vector3fP &wo, const Vector3fP &wi,
+                    MaskP active) const override
+    {
+        ++phaseCalls;
+        return select(active, SchlickPdf(FloatP(k), wo, wi), FloatP(0.f));
+    }
+};
+
+// Diffuse BSDF double: SampleF -> +Z, pdf 0.5, f 0.5; Eval pdf 0.25.
+struct VertexTestBSDF : public BSDF
+{
+    uint32_t flags() const override
+    {
+        return uint32_t(BSDFType::DiffuseReflection) |
+               uint32_t(BSDFType::FrontSide);
+    }
+    void SampleF(const SpectrumWavelengthsP &, const Vector3fP &,
+                 const DifferentialGeometryP &, const FloatP &, const FloatP &,
+                 const FloatP &, BSDFSampleP *s, TransportMode,
+                 MaskP active) const override
+    {
+        enoki::masked(s->wi, active) = Vector3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));
+        enoki::masked(s->pdf, active) = FloatP(0.5f);
+        enoki::masked(s->f, active) = SWCSpectrumP(FloatP(0.5f));
+        enoki::masked(s->sampledType, active) =
+            UInt32P(uint32_t(BSDFType::DiffuseReflection));
+        enoki::masked(s->specular, active) = MaskP(false);
+    }
+    FloatP Pdf(const SpectrumWavelengthsP &, const Vector3fP &, const Vector3fP &,
+               const DifferentialGeometryP &, uint32_t, TransportMode,
+               MaskP active) const override
+    {
+        return select(active, FloatP(0.25f), FloatP(0.f));
+    }
+    void Eval(const SpectrumWavelengthsP &, const Vector3fP &, const Vector3fP &,
+              const DifferentialGeometryP &, TransportMode, BSDFEvalP *out,
+              MaskP active) const override
+    {
+        enoki::masked(out->f, active) = SWCSpectrumP(FloatP(0.5f));
+        enoki::masked(out->pdf, active) = FloatP(0.25f);
+        enoki::masked(out->pdfRev, active) = FloatP(0.25f);
+    }
+};
+
+void CheckVertexConsistency()
+{
+    std::cout << "[vertex] VertexP sample/eval consistency (mixed packet)"
+              << std::endl;
+
+    VertexTestMedium medium(SchlickK(0.5f));
+    VertexTestBSDF bsdf;
+
+    // Even lanes: medium vertex (null bsdf). Odd lanes: surface vertex
+    // (null med). This is the exact shape path.cpp builds every bounce.
+    MaskP isMedium, valid;
+    BSDFPtr bsdfPtr(nullptr);
+    MediumPtr medPtr(nullptr);
+    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+    {
+        const bool med = (i % 2 == 0);
+        isMedium[i] = med;
+        valid[i] = true;
+        bsdfPtr[i] = med ? nullptr : &bsdf;
+        medPtr[i] = med ? &medium : nullptr;
+    }
+
+    VertexP vtx;
+    vtx.valid = valid;
+    vtx.isMedium = isMedium;
+    vtx.p = Point3fP(FloatP(0.f), FloatP(0.f), FloatP(0.f));
+    DifferentialGeometryP dg;
+    dg.p = Point3fP(FloatP(0.f), FloatP(0.f), FloatP(0.f));
+    dg.n = Normal3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));
+    dg.ng = Normal3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));
+    dg.entering = MaskP(true);
+    dg.uv_u = FloatP(0.f);
+    dg.uv_v = FloatP(0.f);
+    dg.dp_du = Vector3fP(FloatP(1.f), FloatP(0.f), FloatP(0.f));
+    dg.dp_dv = Vector3fP(FloatP(0.f), FloatP(1.f), FloatP(0.f));
+    dg.dp_ds = Vector3fP(FloatP(1.f), FloatP(0.f), FloatP(0.f));
+    dg.dp_dt = Vector3fP(FloatP(0.f), FloatP(1.f), FloatP(0.f));
+    vtx.dg = dg;
+    vtx.wo = Vector3fP(FloatP(0.f), FloatP(0.f), FloatP(-1.f));
+    vtx.k = FloatP(SchlickK(0.5f));
+    vtx.bsdf = bsdfPtr;
+    vtx.med = medPtr;
+
+    SpectrumWavelengthsP sw;
+    sw.FromWavelength(FloatP(550.f));
+
+    // Sample the continuation direction on the whole mixed packet.
+    BSDFSampleP s;
+    s.wi = Vector3fP(FloatP(-999.f), FloatP(-999.f), FloatP(-999.f));
+    s.pdf = FloatP(-999.f);
+    s.f = SWCSpectrumP(FloatP(-999.f));
+    SampleVertex(vtx, sw, FloatP(0.37f), FloatP(0.61f), FloatP(0.5f), &s,
+                 MaskP(true));
+
+    // Medium lanes: f == 1 and pdf > 0 (the folded q/q). Surface lanes: the
+    // stub's SampleF values, proving no cross-class clobber.
+    bool medFOk = true, medPdfOk = true, surfOk = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+    {
+        if (bool(isMedium[i]))
+        {
+            medFOk = medFOk && Close(lane(s.f, i), 1.f, 1e-6f);
+            medPdfOk = medPdfOk && (lane(s.pdf, i) > 0.f);
+        }
+        else
+        {
+            surfOk = surfOk && Close(lane(s.pdf, i), 0.5f, 1e-6f) &&
+                     Close(lane(s.f, i), 0.5f, 1e-6f) &&
+                     Close(lane(s.wi.z(), i), 1.f, 1e-6f);
+        }
+    }
+    Check(medFOk, "medium lanes: SampleVertex f == 1");
+    Check(medPdfOk, "medium lanes: SampleVertex pdf > 0");
+    Check(surfOk, "surface lanes: SampleVertex stub values (no clobber)");
+
+    // R6 invariant: EvalVertex at the sampled direction reproduces the
+    // medium lane's pdf exactly (same PhasePdf, same args).
+    BSDFEvalP ev;
+    FloatP cosTerm(FloatP(0.f));
+    EvalVertex(vtx, sw, s.wi, &ev, &cosTerm, MaskP(true));
+
+    bool r6Ok = true, medCosOk = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        if (bool(isMedium[i]))
+        {
+            r6Ok = r6Ok && Close(lane(ev.pdf, i), lane(s.pdf, i), 1e-5f);
+            medCosOk = medCosOk && Close(lane(cosTerm, i), lane(s.pdf, i), 1e-5f);
+        }
+    Check(r6Ok, "medium lanes: EvalVertex pdf == SampleVertex pdf (R6)");
+    Check(medCosOk, "medium lanes: cosTerm == phase q");
+
+    // Surface lanes: EvalVertex ran the BSDF (pdf 0.25), not the phase path.
+    bool surfEvalOk = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        if (!bool(isMedium[i]))
+            surfEvalOk = surfEvalOk && Close(lane(ev.pdf, i), 0.25f, 1e-6f);
+    Check(surfEvalOk, "surface lanes: EvalVertex BSDF pdf (no phase leak)");
+}
+
+// ---------------------------------------------------------------------------
 // Interface smoke test: MediumSampleP clear helper + ConstantField.
 // ---------------------------------------------------------------------------
 void CheckInterfaceSmoke()
@@ -523,6 +706,7 @@ int main()
               << std::endl;
 
     CheckInterfaceSmoke();
+    CheckVertexConsistency();
     CheckPhaseNormalization();
     CheckPhaseSoASample();
     CheckHomogeneousFlight();
