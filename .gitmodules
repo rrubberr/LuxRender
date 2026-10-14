@@ -85,3 +85,9 @@
 [submodule "ext/enoki"]
 	path = ext/enoki
 	url = https://github.com/mitsuba-renderer/enoki.git
+[submodule "ext/pbrt-v3"]
+	path = ext/pbrt-v3
+	url = https://github.com/mmp/pbrt-v3
+[submodule "ext/mitsuba-2"]
+	path = ext/mitsuba-2
+	url = https://github.com/mitsuba-renderer/mitsuba2
