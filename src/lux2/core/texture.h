@@ -27,6 +27,8 @@
 #include "core/color.h"
 #include "core/bsdf.h"
 
+#include <optional>
+
 namespace lux2
 {
 
@@ -69,6 +71,12 @@ namespace lux2
 
         // Constant textures let the integrator skip eval.
         virtual bool IsConstant() const { return false; }
+
+        // Representative CIE luminance Y in illuminant basis.
+        virtual std::optional<float> IntegratedLuminance() const
+        {
+            return std::nullopt;
+        }
     };
 
     // ---------------------------------------------------------------------------
@@ -131,6 +139,15 @@ namespace lux2
         void SetIlluminant() { m_illuminant = true; }
 
         bool IsConstant() const override { return true; }
+
+        // Exact only in illuminant basis.
+        std::optional<float> IntegratedLuminance() const override
+        {
+            if (!m_illuminant)
+                return std::nullopt;
+            return RGBIlluminanceY(RGBColor(m_color.r()[0], m_color.g()[0],
+                                           m_color.b()[0]));
+        }
 
     private:
         RGBColorP m_color;

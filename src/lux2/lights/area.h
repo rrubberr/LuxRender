@@ -48,7 +48,9 @@ namespace lux2
     class AreaLight : public Light
     {
     public:
-        AreaLight(std::shared_ptr<ColorTexture> Le, float gain);
+        // power/efficacy normalize the emission to a luminous flux.
+        AreaLight(std::shared_ptr<ColorTexture> Le, float baseGain,
+                  float power, float efficacy);
 
         uint32_t flags() const override;
         bool IsInfinite() const override { return false; }
@@ -86,8 +88,15 @@ namespace lux2
         static std::shared_ptr<Light> CreateLight(const PluginContext &ctx);
 
     private:
+        // Derive the effective gain from baseGain and the power/efficacy
+        // normalization.
+        void RecomputeNormalization();
+
         std::shared_ptr<ColorTexture> m_Le;
-        float m_gain;
+        float m_baseGain;   // authored `gain`
+        float m_power;      // luminous power (W), 0 disables normalization
+        float m_efficacy;   // luminous efficacy (lm/W)
+        float m_gain = 1.f; // effective: m_baseGain * normalization
 
         // Emitting triangle table for gather sampling.
         std::vector<AreaTriangle<float>> m_tris;

@@ -96,6 +96,9 @@ namespace lux2
     // CIE XYZ tristimulus of a spectrum at the wavelengths in sw.
     XYZColorP SWCToXYZ(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw);
 
+    // CIE luminance Y of an illuminant basis Smits RGB color.
+    float RGBIlluminanceY(const RGBColor &rgb);
+
     // ---------------------------------------------------------------------------
     // Blackbody
     // ---------------------------------------------------------------------------

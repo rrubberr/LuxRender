@@ -52,8 +52,11 @@ TriangleDesc QuadTri(const Point3f &a, const Point3f &b, const Point3f &c) {
 
 std::shared_ptr<AreaLight> MakeLight(float gain = 1.f) {
     const RGBColorP white(FloatP(1.f), FloatP(1.f), FloatP(1.f));
+    // Non-illuminant constant -> IntegratedLuminance() is nullopt, so
+    // power/efficacy normalization is skipped and gain stays as authored.
     auto le = std::make_shared<ConstantColorTexture>(white);
-    return std::make_shared<AreaLight>(le, gain);
+    return std::make_shared<AreaLight>(le, gain, /*power=*/0.f,
+                                       /*efficacy=*/0.f);
 }
 
 } // namespace

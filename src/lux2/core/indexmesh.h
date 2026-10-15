@@ -28,6 +28,7 @@
 #include "core/transform.h"
 
 #include <array>
+#include <cmath>
 #include <vector>
 
 namespace lux2
@@ -59,9 +60,12 @@ namespace lux2
             }
             else if (flatIfNoN)
             {
-                // Matches Embree's geometric normal Ng = cross(v1-v0, v2-v0).
-                const Normal3f fn =
-                    enoki::cross(td.v1 - td.v0, td.v2 - td.v0);
+                // Flat shading normal from winding. Stored normalized so any
+                // reader that uses td.n0 directly gets a unit vector.
+                Normal3f fn = enoki::cross(td.v1 - td.v0, td.v2 - td.v0);
+                const float len2 = enoki::dot(fn, fn);
+                if (len2 > 0.f)
+                    fn *= 1.f / std::sqrt(len2);
                 td.n0 = td.n1 = td.n2 = fn;
             }
             if (!uv.empty())

@@ -176,3 +176,10 @@ add_executable(lux2colorcheck color_check.cpp color_ref/color_ref.cpp)
 target_include_directories(lux2colorcheck PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(lux2colorcheck PRIVATE lux2)
 add_test(NAME lux2colorcheck COMMAND lux2colorcheck)
+
+# --- Special: photometriccheck uses the colorref illuminant SPD as golden ---
+add_executable(lux2photometriccheck photometric_check.cpp color_ref/color_ref.cpp)
+target_include_directories(lux2photometriccheck PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(lux2photometriccheck PRIVATE lux2)
+add_test(NAME lux2photometriccheck COMMAND lux2photometriccheck)
+set_tests_properties(lux2photometriccheck PROPERTIES TIMEOUT 180)

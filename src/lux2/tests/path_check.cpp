@@ -189,6 +189,11 @@ std::unique_ptr<Scene> MakeScene(const Point3f &camPos, const Point3f &target,
         // The area-light plugin reads the radiance parameter as "L"; a
         // misspelled key falls back silently to RGBColor(1.f).
         sd.areaLightParams.AddRGBColor("L", &leRGB, 1);
+        // Opt out of power/efficacy normalization: these tests assert the
+        // authored radiance directly (mean == Le), so gain must stay 1.
+        const float zero = 0.f;
+        sd.areaLightParams.AddFloat("power", &zero, 1);
+        sd.areaLightParams.AddFloat("efficacy", &zero, 1);
     }
     d.shapes.push_back(sd);
 
@@ -241,6 +246,10 @@ std::unique_ptr<Scene> MakeTwoGroupScene(double leA, double leB, int spp,
             RGBColor(Float(radiance), Float(radiance), Float(radiance));
         // Radiance parameter key is "L" (see MakeScene); "Le" is ignored.
         sd.areaLightParams.AddRGBColor("L", &leRGB, 1);
+        // Opt out of normalization: group-filtering asserts authored Le.
+        const float zero = 0.f;
+        sd.areaLightParams.AddFloat("power", &zero, 1);
+        sd.areaLightParams.AddFloat("efficacy", &zero, 1);
         sd.lightGroupIndex = groupIndex;
         d.shapes.push_back(sd);
     };

@@ -26,6 +26,7 @@
 #include "core/data/xyzbasis.h"
 
 #include <cmath>
+#include <vector>
 
 namespace lux2
 {
@@ -185,6 +186,65 @@ namespace lux2
         return XYZColorP(SampleCIE(CIE_X, sw) * s,
                          SampleCIE(CIE_Y, sw) * s,
                          SampleCIE(CIE_Z, sw) * s);
+    }
+
+    float RGBIlluminanceY(const RGBColor &s)
+    {
+        // Reconstruct the illuminant Smits SPD samples,
+        // then integrate against CIE_Y.
+        const float r = s.r(), g = s.g(), b = s.b();
+        const unsigned n = illumrgb2spect_bins;
+        const float lmin = illumrgb2spect_start;
+        const float lmax = illumrgb2spect_end;
+        const float delta = (lmax - lmin) / float(n - 1);
+        const float invDelta = 1.f / delta;
+
+        std::vector<float> spd(n, 0.f);
+        auto addW = [&](float w, const float *c) {
+            for (unsigned i = 0; i < n; ++i)
+                spd[i] += c[i] * w;
+        };
+        if (r <= g && r <= b)
+        {
+            addW(r, illumrgb2spect_white);
+            if (g <= b) { addW(g - r, illumrgb2spect_cyan);   addW(b - g, illumrgb2spect_blue); }
+            else        { addW(b - r, illumrgb2spect_cyan);   addW(g - b, illumrgb2spect_green); }
+        }
+        else if (g <= r && g <= b)
+        {
+            addW(g, illumrgb2spect_white);
+            if (r <= b) { addW(r - g, illumrgb2spect_magenta); addW(b - r, illumrgb2spect_blue); }
+            else        { addW(b - g, illumrgb2spect_magenta); addW(r - b, illumrgb2spect_red); }
+        }
+        else
+        {
+            addW(b, illumrgb2spect_white);
+            if (r <= g) { addW(r - b, illumrgb2spect_yellow); addW(g - r, illumrgb2spect_green); }
+            else        { addW(g - b, illumrgb2spect_yellow); addW(r - g, illumrgb2spect_red); }
+        }
+
+        // SPD::Scale(illumrgb2spect_scale) then Clamp().
+        for (unsigned i = 0; i < n; ++i)
+        {
+            float v = spd[i] * illumrgb2spect_scale;
+            spd[i] = (v > 0.f) ? v : 0.f;
+        }
+
+        // SPD::Sample(lambda): 0 outside [lmin, lmax], else linear interp.
+        // Y() sums over the CIE grid and scales by 683. Accumulate in double.
+        double y = 0.0;
+        for (unsigned i = 0; i < nCIE; ++i)
+        {
+            const float lambda = float(CIEstart + i);
+            if (lambda < lmin || lambda > lmax)
+                continue;
+            const float x = (lambda - lmin) * invDelta;
+            const unsigned b0 = static_cast<unsigned>(x);
+            const unsigned b1 = (b0 + 1 < n) ? b0 + 1 : n - 1;
+            const float dx = x - float(b0);
+            y += double(spd[b0] + dx * (spd[b1] - spd[b0])) * CIE_Y[i];
+        }
+        return float(y * 683.0);
     }
 
     // ---------------------------------------------------------------------------

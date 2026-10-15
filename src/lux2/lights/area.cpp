@@ -23,10 +23,12 @@
 
 #include "core/bsdf_type.h"
 #include "core/dynload.h"
+#include "core/error.h"
 #include "core/math.h"
 #include "core/paramset.h"
 #include "core/register.h"
 #include "core/texture.h"
+#include "lights/light_photometric.h"
 #include "textures/constant.h"
 
 #include <cmath>
@@ -35,8 +37,26 @@
 namespace lux2
 {
 
-    AreaLight::AreaLight(std::shared_ptr<ColorTexture> Le, float gain)
-        : m_Le(std::move(Le)), m_gain(gain) {}
+    AreaLight::AreaLight(std::shared_ptr<ColorTexture> Le, float baseGain,
+                         float power, float efficacy)
+        : m_Le(std::move(Le)), m_baseGain(baseGain), m_power(power),
+          m_efficacy(efficacy), m_gain(baseGain)
+    {
+    }
+
+    void AreaLight::RecomputeNormalization()
+    {
+        // geometryTerm = PI * area for a one sided Lambertian emitter.
+        bool applied = false;
+        const float gf = PhotometricGainFactor(
+            m_power, m_efficacy, PI * m_totalArea,
+            m_Le->IntegratedLuminance(), applied);
+        if (!applied && (m_power != 0.f || m_efficacy != 0.f))
+            LOG(LUX_WARNING, LUX_SYSTEM)
+                << "AreaLight: power/efficacy requested but emission "
+                   "luminance is unknown; normalization skipped.";
+        m_gain = m_baseGain * gf;
+    }
 
     uint32_t AreaLight::flags() const
     {
@@ -69,6 +89,9 @@ namespace lux2
             m_totalArea += area;
             m_cdf[i] = m_totalArea;
         }
+
+        // Area is only known now; derive the effective gain.
+        RecomputeNormalization();
     }
 
     SWCSpectrumP AreaLight::Le(const RayP &ray, MaskP active) const
@@ -94,9 +117,8 @@ namespace lux2
                                const Vector3fP &wo,
                                MaskP active) const
     {
-        // One sided emission is a geometric property, so test the face
-        // normal.
-        const MaskP front = active && (dot(dg.ng, wo) > FloatP(0.f));
+        // One sided emission is tested against the shading normal.
+        const MaskP front = active && (dot(dg.n, wo) > FloatP(0.f));
         return select(front, m_Le->Evaluate(dg, sw, front) * FloatP(m_gain),
                       SWCSpectrumP(0.f));
     }
@@ -259,7 +281,12 @@ namespace lux2
         }
 
         const float gain = ctx.params ? ctx.params->FindOneFloat("gain", 1.f) : 1.f;
-        return std::make_shared<AreaLight>(std::move(le), gain);
+        // Lux AreaLight defaults: power=100 W, efficacy=17 lm/W.
+        const float power =
+            ctx.params ? ctx.params->FindOneFloat("power", 100.f) : 100.f;
+        const float efficacy =
+            ctx.params ? ctx.params->FindOneFloat("efficacy", 17.f) : 17.f;
+        return std::make_shared<AreaLight>(std::move(le), gain, power, efficacy);
     }
 
     LUX2_REGISTER_LIGHT(AreaLight, "area");

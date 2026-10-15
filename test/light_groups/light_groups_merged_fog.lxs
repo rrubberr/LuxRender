@@ -12,7 +12,13 @@ Accelerator "embree"
 	"bool robust" ["false"]
 
 SurfaceIntegrator "path"
-	"integer eyedepth" [16]
+	"integer maxdepth" [8]
+	"float rrcontinueprob" [0.649999976158142]
+	"string rrstrategy" ["efficiency"]
+	"bool includeenvironment" ["false"]
+	"bool directlightsampling" ["true"]
+	"integer shadowraycount" [1]
+	"string lightstrategy" ["auto"]
 
 VolumeIntegrator "multi"
 
@@ -47,10 +53,11 @@ Film "fleximage"
 	"bool write_exr_ZBuf" ["false"]
 	"string write_exr_compressiontype" ["ZIP (lossless)"]
 	"string write_exr_zbuf_normalizationtype" ["None"]
-	"bool write_exr" ["true"]
+	"bool write_exr" ["false"]
 	"string write_exr_channels" ["RGB"]
-	"bool write_png" ["false"]
+	"bool write_png" ["true"]
 	"string write_png_channels" ["RGB"]
+	"bool write_png_16bit" ["false"]
 	"bool write_tga" ["false"]
 	"string write_tga_channels" ["RGB"]
 	"string ldr_clamp_method" ["hue"]

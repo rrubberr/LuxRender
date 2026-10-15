@@ -119,6 +119,10 @@ std::unique_ptr<Scene> MakeEmitterScene(int spp, int haltspp, int halttime) {
     const double le = 1.0;
     const RGBColor leRGB = RGBColor(Float(le), Float(le), Float(le));
     sd.areaLightParams.AddRGBColor("Le", &leRGB, 1);
+    // Opt out of normalization: this test asserts the authored radiance.
+    const float zero = 0.f;
+    sd.areaLightParams.AddFloat("power", &zero, 1);
+    sd.areaLightParams.AddFloat("efficacy", &zero, 1);
     d.shapes.push_back(sd);
 
     auto scene = std::make_unique<Scene>();
@@ -157,6 +161,10 @@ std::unique_ptr<Scene> MakeTwoGroupScene(int spp) {
         const double le = 1.0;
         const RGBColor leRGB = RGBColor(Float(le), Float(le), Float(le));
         sd.areaLightParams.AddRGBColor("L", &leRGB, 1);
+        // Opt out of normalization: group routing asserts authored Le.
+        const float zero = 0.f;
+        sd.areaLightParams.AddFloat("power", &zero, 1);
+        sd.areaLightParams.AddFloat("efficacy", &zero, 1);
         sd.lightGroupIndex = groupIndex;
         d.shapes.push_back(sd);
     };
@@ -312,6 +320,10 @@ int main() {
         const double le = 1.0;
         const RGBColor leRGB{Float(le), Float(le), Float(le)};
         sd.areaLightParams.AddRGBColor("Le", &leRGB, 1);
+        // Opt out of normalization: this test asserts the authored radiance.
+        const float zero = 0.f;
+        sd.areaLightParams.AddFloat("power", &zero, 1);
+        sd.areaLightParams.AddFloat("efficacy", &zero, 1);
         d.shapes.push_back(sd);
 
         auto scene = std::make_unique<Scene>();
