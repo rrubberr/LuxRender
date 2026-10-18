@@ -33,12 +33,13 @@ namespace lux2
     using LightPtr = enoki::replace_scalar_t<FloatP, const Light *>;
 } // namespace lux2
 
-// IsInfinite() returns a scalar bool and is not dispatched.y.
+// IsInfinite() returns a scalar bool and is not dispatched.
 ENOKI_CALL_SUPPORT_BEGIN(lux2::Light)
 ENOKI_CALL_SUPPORT_METHOD(flags)
 ENOKI_CALL_SUPPORT_METHOD(Le)
-ENOKI_CALL_SUPPORT_METHOD(Sample_L)
+ENOKI_CALL_SUPPORT_METHOD(Sample_Li)
 ENOKI_CALL_SUPPORT_METHOD(Pdf_L)
+ENOKI_CALL_SUPPORT_METHOD(Sample_Le)
 ENOKI_CALL_SUPPORT_END(lux2::Light)
 
 #endif // LUX2_LIGHT_CALL_H

@@ -95,6 +95,14 @@ namespace lux2
                            const FloatP &alpha, const FloatP &weight,
                            int bufferId) = 0;
 
+        // Light tracing splats into a separate buffer without weighted mean normalization.
+        virtual void SplatLight(const FloatP & /*x*/, const FloatP & /*y*/,
+                                const SWCSpectrumP & /*L*/,
+                                const SpectrumWavelengthsP & /*sw*/,
+                                MaskP /*active*/)
+        {
+        }
+
         // Merge another film's buffer into this one.
         virtual void Merge(Film *other) = 0;
 

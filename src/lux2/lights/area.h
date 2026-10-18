@@ -66,24 +66,31 @@ namespace lux2
                         const Vector3fP &wo,
                         MaskP active = MaskP(true)) const override;
 
-        MaskP Sample_L(const SpectrumWavelengthsP &sw,
-                       const Point3fP &p, const Normal3fP &n,
-                       const FloatP &u0, const FloatP &u1, const FloatP &u2,
-                       Point3fP *lightP, Vector3fP *wi, Normal3fP *lightN,
-                       FloatP *pdf, SWCSpectrumP *LeOut,
-                       MaskP active = MaskP(true),
-                       MaskP receiverHasNormal = MaskP(true)) const override;
+        MaskP Sample_Li(const SpectrumWavelengthsP &sw,
+                        const Point3fP &p, const Normal3fP &n,
+                        const FloatP &u0, const FloatP &u1, const FloatP &u2,
+                        Point3fP *lightP, Vector3fP *wi, Normal3fP *lightN,
+                        FloatP *pdf, SWCSpectrumP *LeOut,
+                        MaskP active = MaskP(true),
+                        MaskP receiverHasNormal = MaskP(true)) const override;
 
         FloatP Pdf_L(const Point3fP &p, const Normal3fP &n,
                      const Point3fP &lightP, const Normal3fP &lightN,
                      MaskP active = MaskP(true),
                      MaskP receiverHasNormal = MaskP(true)) const override;
 
+        // Light path origin sampling.
+        MaskP Sample_Le(const SpectrumWavelengthsP &sw,
+                        const FloatP &u0, const FloatP &u1, const FloatP &u2,
+                        BSDFPtr *bsdf, DifferentialGeometryP *dg,
+                        FloatP *pdfArea, SWCSpectrumP *Le,
+                        MaskP active = MaskP(true)) const override;
+
         // Bind the emitting triangles and build the area CDF.
         void BindGeometry(const std::vector<TriangleDesc> &tris);
 
         // Total emitting area.
-        float TotalArea() const { return m_totalArea; }
+        float TotalArea() const override { return m_totalArea; }
 
         static std::shared_ptr<Light> CreateLight(const PluginContext &ctx);
 

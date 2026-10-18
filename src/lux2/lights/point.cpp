@@ -50,7 +50,7 @@ namespace lux2
         m_gain = baseGain * gf;
     }
 
-    MaskP PointLight::Sample_L(const SpectrumWavelengthsP &sw,
+    MaskP PointLight::Sample_Li(const SpectrumWavelengthsP &sw,
                                const Point3fP &p, const Normal3fP &,
                                const FloatP &, const FloatP &, const FloatP &,
                                Point3fP *lightP, Vector3fP *wi,

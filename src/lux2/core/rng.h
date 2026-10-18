@@ -72,6 +72,10 @@ namespace lux2
 
     constexpr UInt64 FLIGHT_SALT = 0x9E3779B97F4A7C15ULL;
     constexpr UInt64 SHADOW_SALT = 0x2C9277B5D6B0A3E1ULL;
+    // BDPT stream salts.
+    constexpr UInt64 BDPT_EYE_SALT = 0x5A82799949075BULL;
+    constexpr UInt64 BDPT_LIGHT_SALT = 0x3C374B077C86EA69ULL;
+    constexpr UInt64 BDPT_CONN_SALT = 0x7F4A7C159E3779B9ULL;
 
     // Combine the addressing tuple into a (state, seq) pair.
     inline void StreamKey(const UInt32P &seed, const UInt32P &sampleIdx,

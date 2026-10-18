@@ -49,6 +49,9 @@ namespace lux2
         // Infinite lights have no finite sample position.
         virtual bool IsInfinite() const = 0;
 
+        // Total emitting surface area (m^2).
+        virtual float TotalArea() const { return 0.f; }
+
         // Light group index.
         virtual UInt group() const = 0;
 
@@ -69,15 +72,15 @@ namespace lux2
         // receiverHasNormal is per lane.
 
         // NEE / photon-emission position sampler.
-        virtual MaskP Sample_L(const SpectrumWavelengthsP &sw,
-                               const Point3fP &p, const Normal3fP &n,
-                               const FloatP &u0, const FloatP &u1,
-                               const FloatP &u2,
-                               Point3fP *lightP, Vector3fP *wi,
-                               Normal3fP *lightN,
-                               FloatP *pdf, SWCSpectrumP *Le,
-                               MaskP active = MaskP(true),
-                               MaskP receiverHasNormal = MaskP(true)) const = 0;
+        virtual MaskP Sample_Li(const SpectrumWavelengthsP &sw,
+                                const Point3fP &p, const Normal3fP &n,
+                                const FloatP &u0, const FloatP &u1,
+                                const FloatP &u2,
+                                Point3fP *lightP, Vector3fP *wi,
+                                Normal3fP *lightN,
+                                FloatP *pdf, SWCSpectrumP *Le,
+                                MaskP active = MaskP(true),
+                                MaskP receiverHasNormal = MaskP(true)) const = 0;
 
         // PDF of sampling the point lightP on this light, seen
         // from p with shading normal n. Used for MIS.
@@ -85,6 +88,24 @@ namespace lux2
                              const Point3fP &lightP, const Normal3fP &lightN,
                              MaskP active = MaskP(true),
                              MaskP receiverHasNormal = MaskP(true)) const = 0;
+
+        // Sample an emission origin for light path construction.
+        virtual MaskP Sample_Le(const SpectrumWavelengthsP &sw,
+                                const FloatP &u0, const FloatP &u1,
+                                const FloatP &u2,
+                                BSDFPtr *bsdf, DifferentialGeometryP *dg,
+                                FloatP *pdfArea, SWCSpectrumP *Le,
+                                MaskP active = MaskP(true)) const
+        {
+            (void)sw;
+            (void)u0;
+            (void)u1;
+            (void)u2;
+            (void)bsdf;
+            (void)dg;
+            enoki::masked(*pdfArea, active) = FloatP(0.f);
+            return MaskP(false);
+        }
 
     protected:
         // Group index backing the default group() override.

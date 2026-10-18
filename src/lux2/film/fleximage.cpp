@@ -95,6 +95,15 @@ namespace lux2
             s.bZ.assign(n, 0.f);
             s.bAlpha.assign(n, 0.f);
             s.bW.assign(n, 0.f);
+            s.lX = std::make_unique<std::atomic<float>[]>(n);
+            s.lY = std::make_unique<std::atomic<float>[]>(n);
+            s.lZ = std::make_unique<std::atomic<float>[]>(n);
+            for (size_t i = 0; i < n; ++i)
+            {
+                s.lX[i].store(0.f, std::memory_order_relaxed);
+                s.lY[i].store(0.f, std::memory_order_relaxed);
+                s.lZ[i].store(0.f, std::memory_order_relaxed);
+            }
         }
         m_gmod.assign(m_groups.size(), GroupModifier{});
         m_activeGroup = 0;
@@ -324,6 +333,16 @@ namespace lux2
             std::fill(s.bZ.begin(), s.bZ.end(), 0.f);
             std::fill(s.bAlpha.begin(), s.bAlpha.end(), 0.f);
             std::fill(s.bW.begin(), s.bW.end(), 0.f);
+            const size_t n = s.bX.size();
+            for (size_t i = 0; i < n; ++i)
+            {
+                if (s.lX)
+                    s.lX[i].store(0.f, std::memory_order_relaxed);
+                if (s.lY)
+                    s.lY[i].store(0.f, std::memory_order_relaxed);
+                if (s.lZ)
+                    s.lZ[i].store(0.f, std::memory_order_relaxed);
+            }
         }
         m_sampleCount = 0.0;
     }
@@ -429,6 +448,114 @@ namespace lux2
                 enoki::scatter_add(bufW, w, idx, enabled);
             }
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // SplatFootprint.
+    // -----------------------------------------------------------------------
+    template <class Sink>
+    void FlexImageFilm::SplatFootprint(const FloatP &x, const FloatP &y,
+                                       const XYZColorP &xyz, MaskP active,
+                                       const FloatP &weight, Sink &&sink) const
+    {
+        const float xWidth = m_filter->GetXWidth();
+        const float yWidth = m_filter->GetYWidth();
+        const FloatP dx = x - FloatP(0.5f);
+        const FloatP dy = y - FloatP(0.5f);
+        Int32P loX, loY, hiX, hiY;
+        loX = enoki::ceil2int<Int32P>(dx - FloatP(xWidth));
+        hiX = enoki::floor2int<Int32P>(dx + FloatP(xWidth));
+        loY = enoki::ceil2int<Int32P>(dy - FloatP(yWidth));
+        hiY = enoki::floor2int<Int32P>(dy + FloatP(yWidth));
+        const int nx = enoki::floor2int<int>(2.f * xWidth + 1e-4f) + 1;
+        const int ny = enoki::floor2int<int>(2.f * yWidth + 1e-4f) + 1;
+
+        FloatP wx[64], wy[64];
+        FloatP totalX(0.f), totalY(0.f);
+        for (int xr = 0; xr < nx; ++xr)
+        {
+            const Int32P xPix = loX + Int32P(xr);
+            wx[xr] = m_filter->EvaluateXP(enoki::abs(FloatP(xPix) - dx));
+            totalX = enoki::select(xPix <= hiX, totalX + wx[xr], totalX);
+        }
+        for (int yr = 0; yr < ny; ++yr)
+        {
+            const Int32P yPix = loY + Int32P(yr);
+            wy[yr] = m_filter->EvaluateYP(enoki::abs(FloatP(yPix) - dy));
+            totalY = enoki::select(yPix <= hiY, totalY + wy[yr], totalY);
+        }
+        const FloatP invTotal =
+            enoki::rcp(enoki::max(totalX * totalY, FloatP(1e-20f)));
+
+        const Int32P xStartP(m_xStart), yStartP(m_yStart), xCountP(m_xCount);
+        const int maxX = m_xStart + m_xCount - 1;
+        const int maxY = m_yStart + m_yCount - 1;
+        const Int32P maxXP(maxX), maxYP(maxY);
+
+        for (int yr = 0; yr < ny; ++yr)
+        {
+            const Int32P yPix = loY + Int32P(yr);
+            const MaskP rowOk = active && (yPix <= hiY) && (yPix >= yStartP) &&
+                                (yPix <= maxYP);
+            if (!enoki::any(rowOk))
+                continue;
+            for (int xr = 0; xr < nx; ++xr)
+            {
+                const Int32P xPix = loX + Int32P(xr);
+                MaskP enabled = rowOk && (xPix <= hiX) && (xPix >= xStartP) &&
+                                (xPix <= maxXP);
+                if (!enoki::any(enabled))
+                    continue;
+                const FloatP w = weight * wx[xr] * wy[yr] * invTotal;
+                Int32P idx = (yPix - yStartP) * xCountP + (xPix - xStartP);
+                idx = enoki::clamp(idx, Int32P(0),
+                                   Int32P(int(m_xCount) * int(m_yCount) - 1));
+                sink(idx, w, xyz, enabled);
+            }
+        }
+    }
+
+    void FlexImageFilm::SplatLight(const FloatP &x, const FloatP &y,
+                                   const SWCSpectrumP &L,
+                                   const SpectrumWavelengthsP &sw,
+                                   MaskP active)
+    {
+        XYZColorP xyzP = SWCToXYZ(L, sw);
+        const FloatP Y = xyzP[1];
+        MaskP ok = active && (Y >= FloatP(0.f)) && enoki::isfinite(Y);
+        if (!enoki::any(ok))
+            return;
+
+        BufferSet &bs = Active();
+        std::atomic<float> *pLX = bs.lX.get();
+        std::atomic<float> *pLY = bs.lY.get();
+        std::atomic<float> *pLZ = bs.lZ.get();
+        if (!pLX)
+            return;
+
+        SplatFootprint(x, y, xyzP, ok, FloatP(1.f),
+                       [&](const Int32P &idx, const FloatP &w,
+                           const XYZColorP &xyz, const MaskP &enabled)
+                       {
+                           alignas(64) float fx[PACKET_WIDTH], fy[PACKET_WIDTH],
+                               fz[PACKET_WIDTH];
+                           alignas(64) int fi[PACKET_WIDTH];
+                           alignas(64) float fm[PACKET_WIDTH];
+                           enoki::store_unaligned(fx, w * xyz[0]);
+                           enoki::store_unaligned(fy, w * xyz[1]);
+                           enoki::store_unaligned(fz, w * xyz[2]);
+                           enoki::store_unaligned(fi, idx);
+                           enoki::store_unaligned(fm,
+                                                  select(enabled, FloatP(1.f), FloatP(0.f)));
+                           for (int i = 0; i < PACKET_WIDTH; ++i)
+                           {
+                               if (fm[i] <= 0.f)
+                                   continue;
+                               pLX[fi[i]].fetch_add(fx[i], std::memory_order_relaxed);
+                               pLY[fi[i]].fetch_add(fy[i], std::memory_order_relaxed);
+                               pLZ[fi[i]].fetch_add(fz[i], std::memory_order_relaxed);
+                           }
+                       });
     }
 
     void FlexImageFilm::Merge(Film *other)
@@ -594,7 +721,7 @@ namespace lux2
 
     XYZColor FlexImageFilm::CompositePixel(
         const std::vector<BufferSet> &sets, const SnapshotColor &sc,
-        size_t idx, float &alpha) const
+        size_t idx, float &alpha, float invP) const
     {
         // For G==1 with an identity convert this reduces to bX/W.
         XYZColor acc(0.f);
@@ -607,7 +734,7 @@ namespace lux2
             if (w == 0.f)
                 continue;
             const float inv = 1.f / w;
-            // Alpha is gthe verage over every started set.
+            // Alpha is the average over every started set.
             aSum += s.bAlpha[idx] * inv;
             ++started;
             // Color contributes only from enabled groups.
@@ -616,6 +743,23 @@ namespace lux2
             const XYZColor c(s.bX[idx] * inv, s.bY[idx] * inv,
                              s.bZ[idx] * inv);
             acc += GroupConvertIsIdentity(g) ? c : sc.converts[g].Adapt(c);
+        }
+        // Light tracing contribution.
+        if (invP > 0.f && !sets.empty() && sets[0].lX)
+        {
+            for (size_t g = 0; g < sets.size(); ++g)
+            {
+                if (g >= m_gmod.size() || !m_gmod[g].enable)
+                    continue;
+                const BufferSet &s = sets[g];
+                if (!s.lX)
+                    continue;
+                const float lx = s.lX[idx].load(std::memory_order_relaxed);
+                const float ly = s.lY[idx].load(std::memory_order_relaxed);
+                const float lz = s.lZ[idx].load(std::memory_order_relaxed);
+                XYZColor lc(lx * invP, ly * invP, lz * invP);
+                acc += GroupConvertIsIdentity(g) ? lc : sc.converts[g].Adapt(lc);
+            }
         }
         alpha = started > 0 ? aSum / float(started) : 0.f;
         return acc;
@@ -666,9 +810,14 @@ namespace lux2
         // One color setup for the whole snapshot.
         const SnapshotColor sc = MakeSnapshotColor();
 
+        // Scale light-tracing splats by 1/(total eye samples).
+        const float invP = (m_sampleCount > 0.0 && nPix > 0)
+                               ? float(1.0 / (m_sampleCount * double(nPix)))
+                               : 0.f;
+
         std::vector<XYZColor> xyz(nPix, XYZColor(0.f));
         for (size_t i = 0; i < nPix; ++i)
-            xyz[i] = CompositePixel(sets, sc, i, alpha[i]);
+            xyz[i] = CompositePixel(sets, sc, i, alpha[i], invP);
 
         // Recover straight color for the tonemapper.
         if (m_premultiplyAlpha)

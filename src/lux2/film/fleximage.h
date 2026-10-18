@@ -74,6 +74,11 @@ namespace lux2
                    const SpectrumWavelengthsP &sw, const FloatP &alpha,
                    const FloatP &weight, int bufferId) override;
 
+        void SplatLight(const FloatP &x, const FloatP &y,
+                        const SWCSpectrumP &L,
+                        const SpectrumWavelengthsP &sw,
+                        MaskP active) override;
+
         void Merge(Film *other) override;
 
         // Scheduler interface
@@ -262,6 +267,12 @@ namespace lux2
         // ToneMap built from current parameters.
         std::unique_ptr<ToneMap> BuildToneMap() const;
 
+        // Filter footprint loop.
+        template <class Sink>
+        void SplatFootprint(const FloatP &x, const FloatP &y,
+                            const XYZColorP &xyz, MaskP active,
+                            const FloatP &weight, Sink &&sink) const;
+
         // Add src into this over [x0,x1)x[y0,y1).
         void AddRegion(const FlexImageFilm &src, int x0, int y0, int x1, int y1);
 
@@ -269,6 +280,54 @@ namespace lux2
         struct BufferSet
         {
             std::vector<float> bX, bY, bZ, bAlpha, bW;
+            // Light tracing accumulators.
+            std::unique_ptr<std::atomic<float>[]> lX, lY, lZ;
+
+            BufferSet() = default;
+            BufferSet(BufferSet &&) = default;
+            BufferSet &operator=(BufferSet &&) = default;
+
+            BufferSet(const BufferSet &o)
+                : bX(o.bX), bY(o.bY), bZ(o.bZ),
+                  bAlpha(o.bAlpha), bW(o.bW)
+            {
+                CopyAtomicsFrom(o);
+            }
+            BufferSet &operator=(const BufferSet &o)
+            {
+                if (this == &o)
+                    return *this;
+                bX = o.bX;
+                bY = o.bY;
+                bZ = o.bZ;
+                bAlpha = o.bAlpha;
+                bW = o.bW;
+                CopyAtomicsFrom(o);
+                return *this;
+            }
+
+        private:
+            void CopyAtomicsFrom(const BufferSet &o)
+            {
+                const size_t n = o.bX.size();
+                auto copyOne = [&](
+                                   const std::unique_ptr<std::atomic<float>[]> &src,
+                                   std::unique_ptr<std::atomic<float>[]> &dst)
+                {
+                    if (!src)
+                    {
+                        dst.reset();
+                        return;
+                    }
+                    dst = std::make_unique<std::atomic<float>[]>(n);
+                    for (size_t i = 0; i < n; ++i)
+                        dst[i].store(src[i].load(std::memory_order_relaxed),
+                                     std::memory_order_relaxed);
+                };
+                copyOne(o.lX, lX);
+                copyOne(o.lY, lY);
+                copyOne(o.lZ, lZ);
+            }
         };
 
         // Composite modifiers.
@@ -304,10 +363,10 @@ namespace lux2
         };
         SnapshotColor MakeSnapshotColor() const;
 
-        // Composite one pixel.
+        // Composite one pixel. totalEyeSamples scales the light buffer (1/P).
         XYZColor CompositePixel(const std::vector<BufferSet> &sets,
                                 const SnapshotColor &sc, size_t idx,
-                                float &alpha) const;
+                                float &alpha, float invP = 0.f) const;
 
         // Copy the buffers of every set.
         void SnapshotAccum(std::vector<BufferSet> &out) const;

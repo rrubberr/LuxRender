@@ -21,12 +21,14 @@
 
 #include "lights/area.h"
 
+#include "core/bsdf.h"
 #include "core/bsdf_type.h"
 #include "core/dynload.h"
 #include "core/error.h"
 #include "core/math.h"
 #include "core/paramset.h"
 #include "core/register.h"
+#include "core/sampling.h"
 #include "core/texture.h"
 #include "lights/light_photometric.h"
 #include "textures/constant.h"
@@ -36,6 +38,75 @@
 
 namespace lux2
 {
+    namespace
+    {
+        // Emission continuation BSDF for a light subpath origin vertex.
+        class AreaEmissionBSDF final : public BSDF
+        {
+        public:
+            uint32_t flags() const override
+            {
+                return uint32_t(BSDFType::DiffuseReflection);
+            }
+
+            // Importance only.
+            void SampleF(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
+                         const DifferentialGeometryP &dg, const FloatP &u0,
+                         const FloatP &u1, const FloatP &, BSDFSampleP *s,
+                         TransportMode mode, MaskP active) const override
+            {
+                (void)sw;
+                const MaskP ok =
+                    active && (mode == TransportMode::Importance);
+                const Vector3fP wi = cosineSampleHemisphere(dg.n, wo, u0, u1);
+                const FloatP cosi = dot(wi, dg.n);   // local cosine
+                const FloatP cosig = dot(wi, dg.ng); // geometric cosine
+                const FloatP pdf = max(cosi, FloatP(0.f)) * INVPI;
+                // Lux folded  where |cosig * Dot(wo, nn) / cosi|.
+                const FloatP f =
+                    abs(cosig * dot(wo, dg.n) / max(cosi, EPS_DENOM));
+                const MaskP good = ok && (cosig > FloatP(0.f));
+                enoki::masked(s->wi, ok) = wi;
+                enoki::masked(s->f, ok) =
+                    SWCSpectrumP(select(good, f, FloatP(0.f)));
+                enoki::masked(s->pdf, ok) =
+                    select(good, pdf, FloatP(0.f));
+                enoki::masked(s->sampledType, ok) =
+                    UInt32P(uint32_t(BSDFType::DiffuseReflection));
+                enoki::masked(s->specular, ok) = MaskP(false);
+            }
+
+            // Solid angle cosine pdf where Dot(wi, nn)*INV_PI when Dot(wi, ng)>0.
+            FloatP Pdf(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
+                       const Vector3fP &, const DifferentialGeometryP &dg,
+                       uint32_t, TransportMode, MaskP active) const override
+            {
+                (void)sw;
+                const FloatP c = dot(wi, dg.n);
+                return select(active && (dot(wi, dg.ng) > FloatP(0.f)) &&
+                                  (c > FloatP(0.f)),
+                              c * INVPI, FloatP(0.f));
+            }
+
+            // Connection Eval.
+            void Eval(const SpectrumWavelengthsP &sw, const Vector3fP &wi,
+                      const Vector3fP &wo, const DifferentialGeometryP &dg,
+                      TransportMode mode, BSDFEvalP *out,
+                      MaskP active) const override
+            {
+                (void)mode;
+                const FloatP cosig = dot(wo, dg.ng);
+                const FloatP f = INVPI * abs(cosig * dot(wi, dg.n));
+                enoki::masked(out->f, active) =
+                    SWCSpectrumP(select(cosig > FloatP(0.f), f, FloatP(0.f)));
+                const FloatP p = Pdf(sw, wi, wo, dg, 0u, mode, active);
+                enoki::masked(out->pdf, active) = p;
+                enoki::masked(out->pdfRev, active) = p; // symmetric cosine
+            }
+            ENOKI_CALL_SUPPORT_FRIEND()
+        };
+        const AreaEmissionBSDF g_areaEmissionBSDF;
+    } // namespace
 
     AreaLight::AreaLight(std::shared_ptr<ColorTexture> Le, float baseGain,
                          float power, float efficacy)
@@ -123,12 +194,12 @@ namespace lux2
                       SWCSpectrumP(0.f));
     }
 
-    MaskP AreaLight::Sample_L(const SpectrumWavelengthsP &sw,
-                              const Point3fP &p, const Normal3fP &n,
-                              const FloatP &u0, const FloatP &u1, const FloatP &u2,
-                              Point3fP *lightP, Vector3fP *wi, Normal3fP *lightN,
-                              FloatP *pdf, SWCSpectrumP *LeOut,
-                              MaskP active, MaskP receiverHasNormal) const
+    MaskP AreaLight::Sample_Li(const SpectrumWavelengthsP &sw,
+                               const Point3fP &p, const Normal3fP &n,
+                               const FloatP &u0, const FloatP &u1, const FloatP &u2,
+                               Point3fP *lightP, Vector3fP *wi, Normal3fP *lightN,
+                               FloatP *pdf, SWCSpectrumP *LeOut,
+                               MaskP active, MaskP receiverHasNormal) const
     {
         if (m_triCount == 0)
         {
@@ -258,6 +329,93 @@ namespace lux2
                                            FloatP(EPS_DENOM));
         const FloatP pdfVal = distSq / (FloatP(m_totalArea) * denom);
         return enoki::select(valid, pdfVal, FloatP(0.f));
+    }
+
+    MaskP AreaLight::Sample_Le(const SpectrumWavelengthsP &sw,
+                               const FloatP &u0, const FloatP &u1,
+                               const FloatP &u2, BSDFPtr *bsdf,
+                               DifferentialGeometryP *dg, FloatP *pdfArea,
+                               SWCSpectrumP *LeOut, MaskP active) const
+    {
+        if (m_triCount == 0)
+        {
+            enoki::masked(*pdfArea, active) = FloatP(0.f);
+            return MaskP(false);
+        }
+
+        // Pick a triangle by area via the CDF.
+        const FloatP target = u0 * FloatP(m_totalArea);
+        UInt32P triIdx(0u);
+        {
+            UInt32P lo(0u), hi(UInt32P(m_triCount - 1u));
+            while (enoki::any(lo < hi))
+            {
+                const UInt32P mid = (lo + hi) >> 1;
+                const FloatP cdfMid =
+                    enoki::gather<FloatP>(m_cdf.data(), mid, active);
+                const MaskP goRight = cdfMid < target;
+                lo = enoki::select(goRight, mid + UInt32P(1u), lo);
+                hi = enoki::select(goRight, hi, mid);
+            }
+            triIdx = lo;
+        }
+
+        // Gather the selected triangle's vertices and normals.
+        constexpr size_t kStride = sizeof(AreaTriangle<float>);
+        const float *base = reinterpret_cast<const float *>(m_tris.data());
+        const float *memberBase[6] = {
+            base + offsetof(AreaTriangle<float>, v0) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, v1) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, v2) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, n0) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, n1) / sizeof(float),
+            base + offsetof(AreaTriangle<float>, n2) / sizeof(float)};
+        auto gatherV = [memberBase](int member, UInt32P idx, MaskP m)
+        {
+            const float *p = memberBase[member];
+            return enoki::Array<FloatP, 3>(
+                enoki::gather<FloatP, kStride>(p + 0, idx, m),
+                enoki::gather<FloatP, kStride>(p + 1, idx, m),
+                enoki::gather<FloatP, kStride>(p + 2, idx, m));
+        };
+        const enoki::Array<FloatP, 3> v0 = gatherV(0, triIdx, active);
+        const enoki::Array<FloatP, 3> v1 = gatherV(1, triIdx, active);
+        const enoki::Array<FloatP, 3> v2 = gatherV(2, triIdx, active);
+        const enoki::Array<FloatP, 3> n0 = gatherV(3, triIdx, active);
+        const enoki::Array<FloatP, 3> n1 = gatherV(4, triIdx, active);
+        const enoki::Array<FloatP, 3> n2 = gatherV(5, triIdx, active);
+
+        // Uniform barycentrics.
+        const FloatP su = enoki::sqrt(u1);
+        const FloatP b0 = FloatP(1.f) - su;
+        const FloatP b1 = su * (FloatP(1.f) - u2);
+        const FloatP b2 = su * u2;
+
+        const Point3fP lp(fmadd(b0, v0.x(), fmadd(b1, v1.x(), b2 * v2.x())),
+                          fmadd(b0, v0.y(), fmadd(b1, v1.y(), b2 * v2.y())),
+                          fmadd(b0, v0.z(), fmadd(b1, v1.z(), b2 * v2.z())));
+
+        Normal3fP nl(fmadd(b0, n0.x(), fmadd(b1, n1.x(), b2 * n2.x())),
+                     fmadd(b0, n0.y(), fmadd(b1, n1.y(), b2 * n2.y())),
+                     fmadd(b0, n0.z(), fmadd(b1, n1.z(), b2 * n2.z())));
+        nl = enoki::normalize(nl);
+
+        // Shading dg at the emitter point.
+        DifferentialGeometryP d;
+        d.p = lp;
+        d.n = nl;
+        d.ng = nl;
+        d.entering = MaskP(false);
+        d.uv_u = FloatP(0.f);
+        d.uv_v = FloatP(0.f);
+
+        enoki::masked(*bsdf, active) = BSDFPtr(&g_areaEmissionBSDF);
+        *dg = d;
+        // Area density of choosing this point is uniform over the emitter.
+        enoki::masked(*pdfArea, active) = FloatP(1.f / m_totalArea);
+        enoki::masked(*LeOut, active) =
+            m_Le->Evaluate(d, sw, active) * FloatP(m_gain);
+        return active;
     }
 
     std::shared_ptr<Light> AreaLight::CreateLight(const PluginContext &ctx)

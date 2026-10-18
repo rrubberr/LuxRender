@@ -527,7 +527,7 @@ namespace lux2
                     // Medium receivers have no shading normal, skip the
                     // hemisphere test so Pdf_L stays valid.
                     const MaskP recvHasN = !mediumEvent;
-                    const MaskP sampleOk = light->Sample_L(
+                    const MaskP sampleOk = light->Sample_Li(
                         sw, vtx.p, vtx.dg.n, u2lpos.x(), u2lpos.y(), ulightcomp,
                         &lightP, &wiL, &lightN, &pdfPos, &Le, la, recvHasN);
                     const FloatP dist = enoki::norm(lightP - vtx.p);
