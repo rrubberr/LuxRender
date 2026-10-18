@@ -91,3 +91,6 @@
 [submodule "ext/mitsuba-2"]
 	path = ext/mitsuba-2
 	url = https://github.com/mitsuba-renderer/mitsuba2
+[submodule "ext/mitsuba-1"]
+	path = ext/mitsuba-1
+	url = https://github.com/mitsuba-renderer/mitsuba
