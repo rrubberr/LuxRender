@@ -50,6 +50,11 @@ namespace lux2
 
         FloatP Pdf(const RayP &ray, MaskP active = MaskP(true)) const override;
 
+        bool SupportsProject() const override { return true; }
+        MaskP Project(const Vector3fP &dirWorld, FloatP *x, FloatP *y,
+                      FloatP *We, FloatP *cosCam,
+                      MaskP active) const override;
+
         int PixelWidth() const override { return m_xRes; }
         int PixelHeight() const override { return m_yRes; }
 
@@ -57,6 +62,7 @@ namespace lux2
 
     private:
         Transform m_cameraToWorld;
+        Transform m_worldToCamera; // inverse
         Point3fP m_pos;     // camera origin
         Vector3fP m_normal; // forward view direction
         // Film-plane extent at z == 1, from screen window * scale.

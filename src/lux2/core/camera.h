@@ -59,6 +59,17 @@ namespace lux2
             return FloatP(0.f);
         }
 
+        // True when this camera implements Project.
+        virtual bool SupportsProject() const { return false; }
+
+        // Inverse of GenerateRay.
+        virtual MaskP Project(const Vector3fP & /*dirWorld*/, FloatP * /*x*/,
+                              FloatP * /*y*/, FloatP * /*We*/,
+                              FloatP * /*cosCam*/, MaskP /*active*/) const
+        {
+            return MaskP(false);
+        }
+
         // Film resolution.
         virtual int PixelWidth() const = 0;
         virtual int PixelHeight() const = 0;

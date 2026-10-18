@@ -37,6 +37,7 @@ namespace lux2
                                          float yon, float shutterOpen,
                                          int xRes, int yRes, float fovDeg)
         : m_cameraToWorld(cameraToWorld),
+          m_worldToCamera(cameraToWorld.inverse()),
           m_hither(hither), m_yon(yon), m_shutterOpen(shutterOpen),
           m_xRes(xRes), m_yRes(yRes)
     {
@@ -112,6 +113,31 @@ namespace lux2
         const FloatP cos2 = cosT * cosT;
         const FloatP pdf = FloatP(1.f) / (FloatP(m_apixel) * cos2 * cosT);
         return select(valid, pdf, FloatP(0.f));
+    }
+
+    MaskP PerspectiveCamera::Project(const Vector3fP &dirWorld, FloatP *x,
+                                     FloatP *y, FloatP *We, FloatP *cosCam,
+                                     MaskP active) const
+    {
+        const Vector3fP d = normalize(m_worldToCamera * dirWorld);
+        const FloatP cosT = d.z();
+        const FloatP tanHalf(m_tanHalf);
+        const FloatP sx = d.x() / (cosT * tanHalf);
+        const FloatP sy = d.y() / (cosT * tanHalf);
+        const FloatP fx = (sx - FloatP(m_screenX0)) /
+                          FloatP(m_screenX1 - m_screenX0);
+        const FloatP fy = (sy - FloatP(m_screenY1)) /
+                          FloatP(m_screenY0 - m_screenY1);
+        enoki::masked(*x, active) = fx * FloatP(float(m_xRes));
+        enoki::masked(*y, active) = fy * FloatP(float(m_yRes));
+        enoki::masked(*cosCam, active) = cosT;
+        const FloatP cos2 = cosT * cosT;
+        enoki::masked(*We, active) =
+            FloatP(1.f) / (FloatP(m_apixel) * cos2 * cosT);
+
+        return active && (cosT > FloatP(EPS_DENOM)) &&
+               (*x >= FloatP(0.f)) && (*x < FloatP(float(m_xRes))) &&
+               (*y >= FloatP(0.f)) && (*y < FloatP(float(m_yRes)));
     }
 
     std::shared_ptr<Camera> PerspectiveCamera::CreateCamera(const PluginContext &ctx)
