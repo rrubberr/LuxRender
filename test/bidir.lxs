@@ -2,27 +2,26 @@
 
 Renderer "sampler"
 
-Sampler "metropolis"
-	"float largemutationprob" [0.400000005960464]
-	"bool noiseaware" ["false"]
-	"integer maxconsecrejects" [512]
-	"bool usecooldown" ["true"]
+Sampler "lowdiscrepancy"
 
 Accelerator "embree"
 
 SurfaceIntegrator "bidirectional"
-	"integer eyedepth" [8]
-	"integer lightdepth" [8]
+	"integer eyedepth" [6]
+	"integer lightdepth" [1]
 	"integer lightraycount" [1]
 	"float eyerrthreshold" [0.000000000000000]
 	"float lightrrthreshold" [0.000000000000000]
 	"string lightpathstrategy" ["auto"]
 	"integer shadowraycount" [1]
 	"string lightstrategy" ["auto"]
+	"bool uset1" ["false"]
+    	"bool diag" ["true"]
+    	"float diagthreshold" [0.00001]
 
 VolumeIntegrator "none"
 
-PixelFilter "blackmanharris"
+PixelFilter "gaussian"
 	"float xwidth" [3.299999952316284]
 	"float ywidth" [3.299999952316284]
 
@@ -63,7 +62,7 @@ Film "fleximage"
 	"integer displayinterval" [10]
 	"integer writeinterval" [180]
 	"integer flmwriteinterval" [900]
-	"integer halttime" [60]
+	"integer haltspp" [1024]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]
 

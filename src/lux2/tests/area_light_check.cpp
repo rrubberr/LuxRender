@@ -87,7 +87,7 @@ int main() {
               "TotalArea() == 1 for unit quad");
     }
 
-    // ---- 3/4. Sample_L lands on plane, pdf>0, Pdf_L consistency ---------
+    // ---- 3/4. Sample_Li lands on plane, pdf>0, Pdf_L consistency ---------
     {
         auto light = MakeLight();
         std::vector<TriangleDesc> tris = { QuadTri(p00, p10, p11),
@@ -104,24 +104,24 @@ int main() {
         FloatP u0(FloatP(0.25f)), u1(FloatP(0.5f)), u2(FloatP(0.5f));
 
         Point3fP lightP; Vector3fP wi; Normal3fP lightN; FloatP pdf; SWCSpectrumP Le;
-        MaskP valid = light->Sample_L(sw, p, n, u0, u1, u2,
+        MaskP valid = light->Sample_Li(sw, p, n, u0, u1, u2,
                                       &lightP, &wi, &lightN, &pdf, &Le);
 
-        Check(bool(enoki::all(valid)), "Sample_L valid for facing point");
+        Check(bool(enoki::all(valid)), "Sample_Li valid for facing point");
         // lightP.z should be ~0 (on the emitter plane).
         Check(std::abs(float(lightP.z()[0])) < 1e-4f,
-              "Sample_L lands on z==0 plane");
+              "Sample_Li lands on z==0 plane");
         // lightP within the unit square.
         Check(lightP.x()[0] >= -1e-4f && lightP.x()[0] <= 1.f + 1e-4f &&
               lightP.y()[0] >= -1e-4f && lightP.y()[0] <= 1.f + 1e-4f,
-              "Sample_L lands inside the quad");
-        Check(pdf[0] > 0.f, "Sample_L pdf > 0");
+              "Sample_Li lands inside the quad");
+        Check(pdf[0] > 0.f, "Sample_Li pdf > 0");
 
-        // Pdf_L at the same lightP must match Sample_L's pdf. Reuse the
-        // lightN that Sample_L wrote (the interpolated quad normal, ~+Z).
+        // Pdf_L at the same lightP must match Sample_Li's pdf. Reuse the
+        // lightN that Sample_Li wrote (the interpolated quad normal, ~+Z).
         FloatP pdfL = light->Pdf_L(p, n, lightP, lightN);
         Check(std::abs(pdfL[0] - pdf[0]) < 1e-3f * (pdf[0] + 1e-6f),
-              "Pdf_L matches Sample_L pdf");
+              "Pdf_L matches Sample_Li pdf");
     }
 
     // ---- 5. backfacing shading point -> pdf 0 ---------------------------
@@ -139,9 +139,9 @@ int main() {
         SpectrumWavelengthsP sw;
         sw.Sample(FloatP(0.5f));
         Point3fP lightP; Vector3fP wi; Normal3fP lightN; FloatP pdf; SWCSpectrumP Le;
-        light->Sample_L(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
+        light->Sample_Li(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
                         &lightP, &wi, &lightN, &pdf, &Le);
-        Check(pdf[0] == 0.f, "Sample_L pdf == 0 for backfacing point");
+        Check(pdf[0] == 0.f, "Sample_Li pdf == 0 for backfacing point");
     }
 
     // ---- 6. every triangle reachable ------------------------------------
@@ -164,7 +164,7 @@ int main() {
         for (int i = 0; i < 64; ++i) {
             FloatP u0(FloatP((i + 0.5f) / 64.f));
             Point3fP lightP; Vector3fP wi; Normal3fP lightN; FloatP pdf; SWCSpectrumP Le;
-            light->Sample_L(sw, p, n, u0, FloatP(0.5f), FloatP(0.5f),
+            light->Sample_Li(sw, p, n, u0, FloatP(0.5f), FloatP(0.5f),
                             &lightP, &wi, &lightN, &pdf, &Le);
             // Triangle 0 (a,b,c) has centroid (2/3,1/3); triangle 1 (a,c,d)
             // has centroid (1/3,2/3). Distinguish by x vs y.

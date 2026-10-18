@@ -2,18 +2,14 @@
 
 Renderer "sampler"
 
-Sampler "metropolis"
-	"float largemutationprob" [0.400000005960464]
-	"bool noiseaware" ["false"]
-	"integer maxconsecrejects" [512]
-	"bool usecooldown" ["true"]
+Sampler "lowdiscrepancy"
 
 Accelerator "embree"
 
 SurfaceIntegrator "bdpt"
 	"integer eyedepth" [8]
 	"integer lightdepth" [8]
-	"integer lightraycount" [4]
+	"integer lightraycount" [1]
 	"float eyerrthreshold" [0.050000000000000]
 	"float lightrrthreshold" [0.050000000000000]
 	"string lightpathstrategy" ["one"]

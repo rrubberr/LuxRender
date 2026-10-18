@@ -18,7 +18,7 @@
 //   2. Flux closure (legacy-independent): the effective emitted luminance
 //      times the geometry term equals power*efficacy, measured by Monte
 //      Carlo over wavelength of SWCY(LeOut). This exercises the whole chain
-//      (IntegratedLuminance -> PhotometricGainFactor -> Sample_L gain) without
+//      (IntegratedLuminance -> PhotometricGainFactor -> Sample_Li gain) without
 //      referencing legacy numbers.
 
 #include "core/color.h"
@@ -101,7 +101,7 @@ float MCLuminance(const std::shared_ptr<Light> &light,
         SpectrumWavelengthsP sw;
         sw.Sample(FloatP(RandUnit()));
         Point3fP lightP; Vector3fP wi; Normal3fP lightN; FloatP pdf; SWCSpectrumP Le;
-        light->Sample_L(sw, p, n, FloatP(RandUnit()), FloatP(RandUnit()),
+        light->Sample_Li(sw, p, n, FloatP(RandUnit()), FloatP(RandUnit()),
                         FloatP(RandUnit()), &lightP, &wi, &lightN, &pdf, &Le);
         acc += double(SWCY(Le, sw)[0]);
     }
@@ -211,7 +211,7 @@ int main() {
         auto LeAt = [&](float z) {
             Point3fP p(FloatP(0.f), FloatP(0.f), FloatP(z));
             Point3fP lp; Vector3fP wi; Normal3fP ln; FloatP pdf; SWCSpectrumP Le;
-            light->Sample_L(sw, p, n, FloatP(0.5f), FloatP(0.5f), FloatP(0.5f),
+            light->Sample_Li(sw, p, n, FloatP(0.5f), FloatP(0.5f), FloatP(0.5f),
                             &lp, &wi, &ln, &pdf, &Le);
             return First(Le);
         };
@@ -231,7 +231,7 @@ int main() {
         Point3fP p(FloatP(0.5f), FloatP(0.5f), FloatP(1.f));
         Normal3fP n(FloatP(0.f), FloatP(0.f), FloatP(-1.f));
         Point3fP lp; Vector3fP wi; Normal3fP ln; FloatP pdf; SWCSpectrumP Le;
-        light->Sample_L(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
+        light->Sample_Li(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
                         &lp, &wi, &ln, &pdf, &Le);
         // base=RGBToSmitsSPD(white) at 550nm; gain must be exactly 3 (no
         // normalization). Compare against an unnormalized reference light.
@@ -240,7 +240,7 @@ int main() {
             /*baseGain=*/3.f, 0.f, 0.f);
         ref->BindGeometry({QuadTri(a, b, c), QuadTri(a, c, d)});
         Point3fP lp2; Vector3fP wi2; Normal3fP ln2; FloatP pdf2; SWCSpectrumP Le2;
-        ref->Sample_L(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
+        ref->Sample_Li(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
                       &lp2, &wi2, &ln2, &pdf2, &Le2);
         Check(First(Le) == First(Le2), "power=0 gain is bit-identical");
     }
@@ -257,7 +257,7 @@ int main() {
         Point3fP p(FloatP(0.5f), FloatP(0.5f), FloatP(1.f));
         Normal3fP n(FloatP(0.f), FloatP(0.f), FloatP(-1.f));
         Point3fP lp; Vector3fP wi; Normal3fP ln; FloatP pdf; SWCSpectrumP Le;
-        light->Sample_L(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
+        light->Sample_Li(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
                         &lp, &wi, &ln, &pdf, &Le);
         Check(!std::isnan(First(Le)), "Black L: LeOut not NaN (skip + warn)");
     }
@@ -273,14 +273,14 @@ int main() {
         Point3fP p(FloatP(0.f), FloatP(0.f), FloatP(1.f));
         Normal3fP n(FloatP(0.f), FloatP(0.f), FloatP(-1.f));
         Point3fP lp; Vector3fP wi; Normal3fP ln; FloatP pdf; SWCSpectrumP Le;
-        light->Sample_L(sw, p, n, FloatP(0.5f), FloatP(0.5f), FloatP(0.5f),
+        light->Sample_Li(sw, p, n, FloatP(0.5f), FloatP(0.5f), FloatP(0.5f),
                         &lp, &wi, &ln, &pdf, &Le);
         // gain must remain baseGain=2 (negative factor rejected).
         auto ref = std::make_shared<PointLight>(
             IllumTex(RGBColorP(FloatP(1.f), FloatP(1.f), FloatP(1.f))),
             /*baseGain=*/2.f, 0.f, 0.f, Point3f(0.f, 0.f, 0.f));
         Point3fP lp2; Vector3fP wi2; Normal3fP ln2; FloatP pdf2; SWCSpectrumP Le2;
-        ref->Sample_L(sw, p, n, FloatP(0.5f), FloatP(0.5f), FloatP(0.5f),
+        ref->Sample_Li(sw, p, n, FloatP(0.5f), FloatP(0.5f), FloatP(0.5f),
                       &lp2, &wi2, &ln2, &pdf2, &Le2);
         Check(First(Le) == First(Le2), "Negative power skipped (gain unchanged)");
     }
@@ -296,7 +296,7 @@ int main() {
         Point3fP p(FloatP(0.5f), FloatP(0.5f), FloatP(1.f));
         Normal3fP n(FloatP(0.f), FloatP(0.f), FloatP(-1.f));
         Point3fP lp; Vector3fP wi; Normal3fP ln; FloatP pdf; SWCSpectrumP Le;
-        MaskP valid = light->Sample_L(sw, p, n, FloatP(0.25f), FloatP(0.5f),
+        MaskP valid = light->Sample_Li(sw, p, n, FloatP(0.25f), FloatP(0.5f),
                                       FloatP(0.5f), &lp, &wi, &ln, &pdf, &Le);
         Check(!bool(enoki::any(valid)), "Zero-area bind: no valid samples");
     }
@@ -315,12 +315,12 @@ int main() {
         Point3fP p(FloatP(0.5f), FloatP(0.5f), FloatP(1.f));
         Normal3fP n(FloatP(0.f), FloatP(0.f), FloatP(-1.f));
         Point3fP lp; Vector3fP wi; Normal3fP ln; FloatP pdf; SWCSpectrumP Le1;
-        light->Sample_L(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
+        light->Sample_Li(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
                         &lp, &wi, &ln, &pdf, &Le1);
         // Re-bind the same geometry: gain must not accumulate.
         light->BindGeometry(tris);
         Point3fP lp2; Vector3fP wi2; Normal3fP ln2; FloatP pdf2; SWCSpectrumP Le2;
-        light->Sample_L(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
+        light->Sample_Li(sw, p, n, FloatP(0.25f), FloatP(0.5f), FloatP(0.5f),
                         &lp2, &wi2, &ln2, &pdf2, &Le2);
         Check(First(Le1) == First(Le2), "BindGeometry is idempotent");
     }
