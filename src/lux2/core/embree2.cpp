@@ -196,7 +196,8 @@ namespace lux2
                 tris[3 * i + 2] = static_cast<unsigned>(3 * i + 2);
             }
             rtcSetGeometryMask(geom, m.tris[0].groupMask);
-            rtcSetGeometryBuildQuality(geom, RTC_BUILD_QUALITY_MEDIUM);
+            rtcSetGeometryBuildQuality(geom, RTC_BUILD_QUALITY_HIGH);
+            rtcSetSceneFlags(m_scene, RTC_SCENE_FLAG_ROBUST);
             rtcCommitGeometry(geom);
             // geomID == mesh index.
             rtcAttachGeometryByID(m_scene, geom, static_cast<unsigned>(mi));
