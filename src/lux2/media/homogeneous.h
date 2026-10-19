@@ -96,6 +96,10 @@ namespace lux2
         // Accessors for RegionSetMedium.
         float K() const { return m_k; }
         float SigmaTMaxRGB() const { return m_sigmaTMaxRGB; }
+        float LeMaxRGB() const
+        {
+            return std::max({m_Le.r(), m_Le.g(), m_Le.b()});
+        }
         bool IsBounded() const { return m_bounded; }
         const BBox &LocalBox() const { return m_localBox; }
         const Transform &WorldToLocal() const { return m_worldToLocal; }
@@ -171,6 +175,9 @@ namespace lux2
             }
 
             enoki::masked(out->d, active) = dEff;
+            // p is only read when scattered; the escape case (dEff == len)
+            // is harmless.
+            enoki::masked(out->p, active) = ray(t0 + dEff);
             enoki::masked(out->scattered, active) = didScatter;
             enoki::masked(out->weight, active) = weight;
             enoki::masked(out->sigma_s, active) = ss;

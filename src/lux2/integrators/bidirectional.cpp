@@ -50,6 +50,7 @@
 //        bug; this port uses tPdf = 1. Verify against a trusted legacy build.
 
 #include "integrators/bidirectional.h"
+#include "integrators/integrator_debug.h"
 
 #include "core/bsdf_call.h"
 #include "core/bsdfptr_table.h"
@@ -71,73 +72,10 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
-#include <mutex>
 #include <vector>
 
 namespace lux2
 {
-    // TODO: Stub so unique_ptr<DebugStore> links.
-    struct DebugStore
-    {
-    };
-
-    // One (nE,nL) ghost connection cell.
-    struct GhostCell
-    {
-        uint64_t delta = 0;
-        uint64_t mixed = 0;
-        double energy = 0.0;
-    };
-
-    // Diagnostic store.
-    struct DiagStore
-    {
-        std::vector<std::vector<GhostCell>> ghost; // [nE][nL]
-        // Total RecordFirefly calls and the global max |Lc*w|.
-        uint64_t recordCalls = 0;
-        float maxLcw = 0.f;
-        struct Firefly
-        {
-            float lcw = 0.f, lc = 0.f, w = 0.f, d2 = 0.f;
-            int s = 0, t = 0, px = 0, py = 0;
-            // WeightPath denominator split.
-            float base = 0.f, directOrigin = 0.f, hitLightAlt = 0.f;
-            float lightExt = 0.f, eyeExt = 0.f, directPath = 0.f;
-            bool okLight = false, okEye = false;
-        };
-        // Min-heap on lcw (std::greater comparator).
-        std::vector<Firefly> top;
-        static constexpr size_t kTopN = 64;
-        std::mutex mtx;
-
-        void Init(int eyeDepth, int lightDepth)
-        {
-            ghost.assign(eyeDepth + 2,
-                         std::vector<GhostCell>(lightDepth + 2));
-        }
-        // Caller holds mutex.
-        void InsertFirefly(const Firefly &f)
-        {
-            if (top.size() < kTopN)
-            {
-                top.push_back(f);
-                std::push_heap(top.begin(), top.end(),
-                               [](const Firefly &a, const Firefly &b)
-                               { return a.lcw > b.lcw; });
-            }
-            else if (f.lcw > top.front().lcw)
-            {
-                std::pop_heap(top.begin(), top.end(),
-                              [](const Firefly &a, const Firefly &b)
-                              { return a.lcw > b.lcw; });
-                top.back() = f;
-                std::push_heap(top.begin(), top.end(),
-                               [](const Firefly &a, const Firefly &b)
-                               { return a.lcw > b.lcw; });
-            }
-        }
-    };
-
     namespace
     {
         constexpr float INF_F = std::numeric_limits<float>::infinity();
@@ -170,28 +108,6 @@ namespace lux2
             return pdf * abs(dot(ngNext, w)) * invD2;
         }
 
-        // For a uniformly sampled area light, converting the solid angle Pdf_L
-        // at the receiver to the emitter's area measure mustvrecover the selection pdf.
-        inline void CheckAreaDensity(const char *what, const FloatP &areaPdf,
-                                     const FloatP &area, const FloatP &selPdf)
-        {
-            const MaskP chk = (area > FloatP(0.f)) && (areaPdf > FloatP(0.f));
-            if (!any(chk))
-                return;
-            const FloatP got = areaPdf * area;
-            const FloatP tol =
-                FloatP(1e-3f) * enoki::max(selPdf, FloatP(1e-6f));
-            const MaskP bad = chk && (enoki::abs(got - selPdf) > tol);
-            if (!any(bad))
-                return;
-            // Report the offending range only.
-            LOG(LUX_WARNING, LUX_SYSTEM)
-                << "BDPT(legacy): " << what << " area-density != selPdf ("
-                << hmin(select(bad, got, INF_F)) << ".."
-                << hmax(select(bad, got, FloatP(0.f)))
-                << ", want " << selPdf << ")";
-        }
-
         inline BSDFEvalP ZeroEval()
         {
             BSDFEvalP e;
@@ -212,44 +128,6 @@ namespace lux2
                 return FloatP(1.f);
             return enoki::pow(p, FloatP(k));
         }
-
-        // Optional WeightPath out-parameter.
-        struct Breakdown
-        {
-            FloatP base, directOrigin, hitLightAlt, lightExt, eyeExt, directPath;
-            MaskP okLight, okEye;
-            Breakdown()
-                : base(0.f), directOrigin(0.f), hitLightAlt(0.f),
-                  lightExt(0.f), eyeExt(0.f), directPath(0.f) {}
-        };
-
-        // Diagnostic accumulator.
-        struct DiagLocal
-        {
-            std::vector<std::vector<GhostCell>> ghost; // [nE][nL]
-            std::vector<DiagStore::Firefly> fireflies; // unsorted; heapified on merge
-            // Counts RecordFirefly invocations and the largest |Lc*w| seen.
-            uint64_t recordCalls = 0;
-            float maxLcw = 0.f;
-            void Init(int eyeDepth, int lightDepth)
-            {
-                ghost.assign(eyeDepth + 2,
-                             std::vector<GhostCell>(lightDepth + 2));
-            }
-            // Keep only the kTopN largest by lcw.
-            void TrimFireflies()
-            {
-                const size_t n = DiagStore::kTopN;
-                if (fireflies.size() <= n)
-                    return;
-                std::nth_element(fireflies.begin(), fireflies.begin() + n,
-                                 fireflies.end(),
-                                 [](const DiagStore::Firefly &a,
-                                    const DiagStore::Firefly &b)
-                                 { return a.lcw > b.lcw; });
-                fireflies.resize(n);
-            }
-        };
 
         // ------------------------------------------------------------------
         // Pixel jobs
@@ -353,7 +231,7 @@ namespace lux2
             // pdf recover the selection pdf.
             bool checkDensity = false;
             // Diagnostic accumulator.
-            DiagLocal *diag = nullptr;
+            BidirDiagLocal *diag = nullptr;
             DiagConfig cfg;
         };
 
@@ -380,6 +258,7 @@ namespace lux2
         };
 
         // Strategy filter.
+#ifdef LUX2_INTEGRATOR_DEBUG
         inline bool want(const DiagConfig &c, Strat kind, int nE, int nL)
         {
             if (c.onlyT >= 0 && nE != c.onlyT)
@@ -395,103 +274,12 @@ namespace lux2
             }
             return true;
         }
-
-        // A lobe reports reflectance (f > 0) but has no finite solid angle pdf.
-        inline void TallyGhost(DiagLocal *d, const BSDFEvalP &ef, MaskP evaluated,
-                               MaskP cont, const SWCSpectrumP &Lc,
-                               const FloatP &w, const UInt32P &flags, int nE,
-                               int nL)
+#else
+        inline bool want(const DiagConfig &, Strat, int, int)
         {
-            if (!d)
-                return;
-            const MaskP hasF = ef.f > SWCSpectrumP(0.f);
-            const MaskP hasPdf = ef.pdf > FloatP(0.f);
-            const MaskP ghost = evaluated && hasF && !hasPdf;
-            if (!any(ghost))
-                return;
-            const MaskP deltaOnly = has_flag(flags, BSDFType::Specular) &&
-                                    !has_flag(flags, BSDFType::Smooth);
-            GhostCell &c = d->ghost[nE][nL];
-            c.delta += uint64_t(count(ghost && deltaOnly));
-            c.mixed += uint64_t(count(ghost && !deltaOnly));
-            c.energy += double(enoki::hsum(select(cont && ghost, Lc * w,
-                                                  SWCSpectrumP(0.f))));
+            return true;
         }
-
-        // Record contributions above the firefly threshold into the list.
-        inline void RecordFirefly(DiagLocal *dl, const WalkCtx &ctx,
-                                  const FloatP &x, const FloatP &y, MaskP cont,
-                                  const SWCSpectrumP &Lc, const FloatP &w,
-                                  const FloatP &d2, int s, int t,
-                                  const Breakdown *bd)
-        {
-            if (!dl)
-                return;
-            // Run before the threshold test.
-            dl->recordCalls += 1;
-            const float tileMax = enoki::hmax(select(cont, Lc * w, SWCSpectrumP(0.f)));
-            if (tileMax > dl->maxLcw)
-                dl->maxLcw = tileMax;
-            if (ctx.cfg.threshold <= 0.f)
-                return;
-            const SWCSpectrumP lcw = Lc * w;
-            const MaskP hit = cont && (lcw > FloatP(ctx.cfg.threshold));
-            if (!any(hit))
-                return;
-            alignas(64) float mags[PACKET_WIDTH], lcs[PACKET_WIDTH];
-            alignas(64) float ws[PACKET_WIDTH], d2s[PACKET_WIDTH];
-            alignas(64) float xs[PACKET_WIDTH], ys[PACKET_WIDTH];
-            // compress() binds its destination as Mem&.
-            auto cmp = [&](float *dst, const FloatP &v)
-            { enoki::compress(dst, v, hit); };
-            float *pm = mags;
-            const size_t c = enoki::compress(pm, lcw, hit);
-            cmp(lcs, Lc);
-            cmp(ws, w);
-            cmp(d2s, d2);
-            cmp(xs, x);
-            cmp(ys, y);
-            // Breakdown fields are packets too.
-            alignas(64) float bBase[PACKET_WIDTH], bDOrg[PACKET_WIDTH];
-            alignas(64) float bHLit[PACKET_WIDTH], bLExt[PACKET_WIDTH];
-            alignas(64) float bEExt[PACKET_WIDTH], bDPath[PACKET_WIDTH];
-            alignas(64) float bOkL[PACKET_WIDTH], bOkE[PACKET_WIDTH];
-            if (bd)
-            {
-                cmp(bBase, bd->base);
-                cmp(bDOrg, bd->directOrigin);
-                cmp(bHLit, bd->hitLightAlt);
-                cmp(bLExt, bd->lightExt);
-                cmp(bEExt, bd->eyeExt);
-                cmp(bDPath, bd->directPath);
-                cmp(bOkL, select(bd->okLight, FloatP(1.f), FloatP(0.f)));
-                cmp(bOkE, select(bd->okEye, FloatP(1.f), FloatP(0.f)));
-            }
-            for (size_t i = 0; i < c; ++i)
-            {
-                DiagStore::Firefly f;
-                f.lcw = mags[i];
-                f.lc = lcs[i];
-                f.w = ws[i];
-                f.d2 = d2s[i];
-                f.s = s;
-                f.t = t;
-                f.px = int(xs[i]);
-                f.py = int(ys[i]);
-                if (bd)
-                {
-                    f.base = bBase[i];
-                    f.directOrigin = bDOrg[i];
-                    f.hitLightAlt = bHLit[i];
-                    f.lightExt = bLExt[i];
-                    f.eyeExt = bEExt[i];
-                    f.directPath = bDPath[i];
-                    f.okLight = bOkL[i] > 0.5f;
-                    f.okEye = bOkE[i] > 0.5f;
-                }
-                dl->fireflies.push_back(f);
-            }
-        }
+#endif
 
         void Refill(const Sampler &sampler, JobCursor &jobs,
                     uint64_t sampleBasis, LaneState &st, int k = 2)
@@ -918,8 +706,8 @@ namespace lux2
                                   WeightPath(ctx, eye, nE, eye, 0, tr,
                                              ctx.diag ? &bd : nullptr));
             st.L = select(cont, st.L + Lc * w, st.L);
-            RecordFirefly(ctx.diag, ctx, st.x, st.y, cont, Lc, w, d2, /*s*/ 0,
-                          nE, &bd);
+            BidirRecordFirefly(ctx.diag, ctx.cfg.threshold, st.x, st.y, cont,
+                               Lc, w, d2, /*s*/ 0, nE, &bd);
         }
 
         // ------------------------------------------------------------------
@@ -1200,8 +988,8 @@ namespace lux2
                     {
                         const FloatP area = enoki::gather<FloatP>(
                             ctx.areaByIdx.data(), lightIdx, didHit);
-                        CheckAreaDensity("directPdf1", light.directPdf1, area,
-                                         ctx.invNLights);
+                        BidirCheckAreaDensity("directPdf1", light.directPdf1,
+                                              area, ctx.invNLights);
                     }
                 }
 
@@ -1372,10 +1160,10 @@ namespace lux2
                                   WeightPath(ctx, eye, nE, nee, 1, tr,
                                              ctx.diag ? &bd : nullptr));
             st.L = select(cont, st.L + Lc * w, st.L);
-            TallyGhost(ctx.diag, ef, sampleOk, cont, Lc, w,
-                       eye.bsdf[ei]->flags(), nE, /*nL*/ 1);
-            RecordFirefly(ctx.diag, ctx, st.x, st.y, cont, Lc, w, d2, /*s*/ 1,
-                          nE, &bd);
+            BidirTallyGhost(ctx.diag, ef, sampleOk, cont, Lc, w,
+                            eye.bsdf[ei]->flags(), nE, /*nL*/ 1);
+            BidirRecordFirefly(ctx.diag, ctx.cfg.threshold, st.x, st.y, cont,
+                               Lc, w, d2, /*s*/ 1, nE, &bd);
         }
 
         // ------------------------------------------------------------------
@@ -1492,8 +1280,8 @@ namespace lux2
                 {
                     const FloatP area = enoki::gather<FloatP>(
                         ctx.areaByIdx.data(), light.selIdx, cont);
-                    CheckAreaDensity("pdfLightDirect", tr.pdfLightDirect, area,
-                                     ctx.invNLights);
+                    BidirCheckAreaDensity("pdfLightDirect", tr.pdfLightDirect,
+                                          area, ctx.invNLights);
                 }
             }
             else
@@ -1504,13 +1292,13 @@ namespace lux2
                                   WeightPath(ctx, eye, nE, light, nL, tr,
                                              ctx.diag ? &bd : nullptr));
             st.L = select(cont, st.L + Lc * w, st.L);
-            TallyGhost(ctx.diag, ef, base, cont, Lc, w,
-                       eye.bsdf[ei]->flags(), nE, nL);
+            BidirTallyGhost(ctx.diag, ef, base, cont, Lc, w,
+                            eye.bsdf[ei]->flags(), nE, nL);
             if (nL >= 2) // origin has no BSDF Eval, only deeper light vertices do
-                TallyGhost(ctx.diag, lf, base, cont, Lc, w,
-                           light.bsdf[li]->flags(), nE, nL);
-            RecordFirefly(ctx.diag, ctx, st.x, st.y, cont, Lc, w, d2, nL, nE,
-                          &bd);
+                BidirTallyGhost(ctx.diag, lf, base, cont, Lc, w,
+                                light.bsdf[li]->flags(), nE, nL);
+            BidirRecordFirefly(ctx.diag, ctx.cfg.threshold, st.x, st.y, cont,
+                               Lc, w, d2, nL, nE, &bd);
         }
 
         // ------------------------------------------------------------------
@@ -1629,10 +1417,10 @@ namespace lux2
                                              ctx.diag ? &bd : nullptr));
             film.SplatLight(px, py, Lc * w, st.sw, cont);
             if (nL >= 2)
-                TallyGhost(ctx.diag, lf, inView, cont, Lc, w,
-                           light.bsdf[li]->flags(), /*nE*/ 1, nL);
-            RecordFirefly(ctx.diag, ctx, px, py, cont, Lc, w, d2, nL, /*t*/ 1,
-                          &bd);
+                BidirTallyGhost(ctx.diag, lf, inView, cont, Lc, w,
+                                light.bsdf[li]->flags(), /*nE*/ 1, nL);
+            BidirRecordFirefly(ctx.diag, ctx.cfg.threshold, px, py, cont, Lc,
+                               w, d2, nL, /*t*/ 1, &bd);
         }
 
         // ------------------------------------------------------------------
@@ -1725,8 +1513,8 @@ namespace lux2
                                   WeightPath(ctx, eye, 1, nee, 1, tr,
                                              ctx.diag ? &bd : nullptr));
             film.SplatLight(px, py, Lc * w, st.sw, cont);
-            RecordFirefly(ctx.diag, ctx, px, py, cont, Lc, w, d2, /*s*/ 1,
-                          /*t*/ 1, &bd);
+            BidirRecordFirefly(ctx.diag, ctx.cfg.threshold, px, py, cont, Lc,
+                               w, d2, /*s*/ 1, /*t*/ 1, &bd);
         }
     } // namespace
 
@@ -1735,11 +1523,13 @@ namespace lux2
     void BidirIntegrator::Start(const Scene &scene)
     {
         m_scene = &scene;
+#ifdef LUX2_INTEGRATOR_DEBUG
         if (m_diagCfg.diag && !m_diagStore)
         {
-            m_diagStore = std::make_unique<DiagStore>();
+            m_diagStore = std::make_unique<BidirDiagStore>();
             m_diagStore->Init(m_eyeDepth, m_lightDepth);
         }
+#endif
 
         // TODO: handles finite area lights only.
         if (!m_warnedLights.exchange(true))
@@ -1768,56 +1558,10 @@ namespace lux2
 
     void BidirIntegrator::End(const Scene &)
     {
-        if (!m_diagStore)
-            return;
-        std::lock_guard<std::mutex> lk(m_diagStore->mtx);
-
-        // Firefly probe.
-        LOG(LUX_WARNING, LUX_SYSTEM)
-            << "BDPT firefly probe: calls=" << m_diagStore->recordCalls
-            << " maxLcw=" << m_diagStore->maxLcw
-            << " threshold=" << m_diagCfg.threshold
-            << " recorded=" << m_diagStore->top.size();
-
-        uint64_t totDelta = 0, totMixed = 0;
-        for (size_t t = 0; t < m_diagStore->ghost.size(); ++t)
-            for (size_t s = 0; s < m_diagStore->ghost[t].size(); ++s)
-            {
-                const GhostCell &c = m_diagStore->ghost[t][s];
-                if (c.delta == 0 && c.mixed == 0)
-                    continue;
-                totDelta += c.delta;
-                totMixed += c.mixed;
-                LOG(LUX_WARNING, LUX_SYSTEM)
-                    << "BDPT diag: ghost (t=" << t << ",s=" << s
-                    << ") delta=" << c.delta << " mixed=" << c.mixed
-                    << " energy=" << c.energy;
-            }
-        LOG(LUX_WARNING, LUX_SYSTEM)
-            << "BDPT diag: TOTAL ghost delta=" << totDelta
-            << " mixed=" << totMixed
-            << (totDelta > 0
-                    ? " -- DELTA-ONLY ghosts present: connectibility bug"
-                    : "");
-
-        // Firefly top-N descending by |Lc*w|.
-        std::vector<DiagStore::Firefly> sorted = m_diagStore->top;
-        std::sort(sorted.begin(), sorted.end(),
-                  [](const DiagStore::Firefly &a, const DiagStore::Firefly &b)
-                  { return a.lcw > b.lcw; });
-        for (size_t i = 0; i < sorted.size(); ++i)
-        {
-            const auto &f = sorted[i];
-            LOG(LUX_WARNING, LUX_SYSTEM)
-                << "BDPT firefly #" << i << " (t=" << f.t << ",s=" << f.s
-                << ") px=(" << f.px << "," << f.py << ") lcw=" << f.lcw
-                << " lc=" << f.lc << " w=" << f.w << " d2=" << f.d2
-                << " | base=" << f.base << " dirOrigin=" << f.directOrigin
-                << " hitLightAlt=" << f.hitLightAlt
-                << " lightExt=" << f.lightExt << " eyeExt=" << f.eyeExt
-                << " directPath=" << f.directPath
-                << " okL=" << int(f.okLight) << " okE=" << int(f.okEye);
-        }
+#ifdef LUX2_INTEGRATOR_DEBUG
+        if (m_diagStore)
+            BidirEndDump(*m_diagStore, m_diagCfg.threshold);
+#endif
     }
 
     void BidirIntegrator::RenderTile(const Scene &scene, const Tile &tile,
@@ -1863,16 +1607,18 @@ namespace lux2
         ctx.eyeRR = FloatP(m_eyeRRThreshold);
         ctx.lightRR = FloatP(m_lightRRThreshold);
         ctx.useT1 = m_useT1 && camera.SupportsProject();
-        // Only the first tile of a debug render runs the density check.
-        ctx.checkDensity = m_debug && !m_densityChecked.exchange(true);
         // Accumulators merged into the store at tile end.
         ctx.cfg = m_diagCfg;
-        DiagLocal dl;
+#ifdef LUX2_INTEGRATOR_DEBUG
+        // Only the first tile of a debug render runs the density check.
+        ctx.checkDensity = m_debug && !m_densityChecked.exchange(true);
+        BidirDiagLocal dl;
         if (m_diagStore)
         {
             dl.Init(m_eyeDepth, m_lightDepth);
             ctx.diag = &dl;
         }
+#endif
 
         LaneState st;
         st.active = MaskP(false);
@@ -1916,24 +1662,11 @@ namespace lux2
         }
         retire.Flush(dest, true);
 
-        // Merge this tile's diagnostics into the shared store under its mutex.
+#ifdef LUX2_INTEGRATOR_DEBUG
+        // Merge this tile's diagnostics into the shared store.
         if (m_diagStore)
-        {
-            dl.TrimFireflies();
-            std::lock_guard<std::mutex> lk(m_diagStore->mtx);
-            for (size_t t = 0; t < dl.ghost.size(); ++t)
-                for (size_t s = 0; s < dl.ghost[t].size(); ++s)
-                {
-                    GhostCell &g = m_diagStore->ghost[t][s];
-                    g.delta += dl.ghost[t][s].delta;
-                    g.mixed += dl.ghost[t][s].mixed;
-                    g.energy += dl.ghost[t][s].energy;
-                }
-            m_diagStore->recordCalls += dl.recordCalls;
-            m_diagStore->maxLcw = std::max(m_diagStore->maxLcw, dl.maxLcw);
-            for (const auto &f : dl.fireflies)
-                m_diagStore->InsertFirefly(f);
-        }
+            BidirMergeTile(*m_diagStore, dl);
+#endif
     }
 
     std::shared_ptr<SurfaceIntegrator> BidirIntegrator::CreateSurfaceIntegrator(
@@ -1961,8 +1694,7 @@ namespace lux2
             p->EraseString("mismode");
         }
         return std::make_shared<BidirIntegrator>(
-            eyeDepth, lightDepth, maxDepth, eyeRR, lightRR, useT1, debug,
-            MisMode::PBRT, -1, -1, cfg);
+            eyeDepth, lightDepth, maxDepth, eyeRR, lightRR, useT1, debug, cfg);
     }
 
     LUX2_REGISTER_SURFACE_INTEGRATOR(BidirIntegrator, "bidirectional");

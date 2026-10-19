@@ -79,6 +79,8 @@ namespace lux2
         {
             std::shared_ptr<HomogeneousMedium> med;
             float sigmaTMaxRGB; // sw independent sigma_t upper bound
+            float slabEps;      // local-space slack so the slab test never
+                                // rejects a point Contains() accepts
             float k;            // constant Schlick k
         };
 

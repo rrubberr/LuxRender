@@ -23,6 +23,7 @@
 #define LUX2_INTEGRATORS_BIDIRECTIONAL_H
 
 #include "core/integrator.h"
+#include "integrators/integrator_debug.h"
 
 #include <atomic>
 #include <memory>
@@ -33,8 +34,6 @@ namespace lux2
 
     struct PluginContext;
     class Scene;
-    struct DebugStore; // debug buffers
-    struct DiagStore;  // diagnostic tallies and firefly heap
 
     // Connection strategy identifiers.
     enum class Strat : int
@@ -56,22 +55,13 @@ namespace lux2
         float threshold = 0.f; // firefly record threshold (0 = off)
     };
 
-    // MIS weight mode for debug.
-    enum class MisMode
-    {
-        PBRT,    // standard power heuristic MISWeight (default)
-        UNIFORM, // w = 1/(number of enabled strategies for this path length)
-        NONE     // w = 1 (no weighting)
-    };
-
     // TODO: SupportsMedia() == false.
     class BidirIntegrator : public SurfaceIntegrator
     {
     public:
         BidirIntegrator(int eyeDepth, int lightDepth, int maxDepth,
                         float eyeRRThreshold, float lightRRThreshold,
-                        bool useT1, bool debug, MisMode misMode,
-                        int debugPx, int debugPy, const DiagConfig &diagCfg)
+                        bool useT1, bool debug, const DiagConfig &diagCfg)
             : m_eyeDepth(eyeDepth),
               m_lightDepth(lightDepth),
               m_maxDepth(maxDepth),
@@ -79,9 +69,6 @@ namespace lux2
               m_lightRRThreshold(lightRRThreshold),
               m_useT1(useT1),
               m_debug(debug),
-              m_misMode(misMode),
-              m_debugPx(debugPx),
-              m_debugPy(debugPy),
               m_diagCfg(diagCfg)
         {
             // Total depth clamp.
@@ -111,9 +98,6 @@ namespace lux2
         int MaxDepth() const { return m_maxDepth; }
         bool UseT1() const { return m_useT1; }
         bool Debug() const { return m_debug; }
-        MisMode MisModeValue() const { return m_misMode; }
-        int DebugPx() const { return m_debugPx; }
-        int DebugPy() const { return m_debugPy; }
 
         static std::shared_ptr<SurfaceIntegrator> CreateSurfaceIntegrator(
             const PluginContext &ctx);
@@ -126,20 +110,19 @@ namespace lux2
         float m_lightRRThreshold;
         bool m_useT1;
         bool m_debug;
-        MisMode m_misMode;
-        int m_debugPx; // single lane trace dump target (-1 = off)
-        int m_debugPy;
 
         const Scene *m_scene = nullptr;
         // So diagnostics cannot flood the log.
         std::atomic<bool> m_warnedLights{false};
+#ifdef LUX2_INTEGRATOR_DEBUG
         std::atomic<bool> m_densityChecked{false};
-        // Debug accumulation buffers.
-        std::unique_ptr<DebugStore> m_dbg;
+#endif
 
         DiagConfig m_diagCfg;
+#ifdef LUX2_INTEGRATOR_DEBUG
         // Diagnostic tallies and firefly heap.
-        std::unique_ptr<DiagStore> m_diagStore;
+        std::unique_ptr<BidirDiagStore> m_diagStore;
+#endif
     };
 
 } // namespace lux2

@@ -19,6 +19,7 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
+#include "integrators/integrator_debug.h"
 #include "integrators/path.h"
 #include "integrators/vertex.h"
 
@@ -39,28 +40,11 @@
 
 #include <enoki/array.h>
 
-#include <cstdio>
 #include <cstring>
 #include <limits>
 
-#ifdef PACKET_OCCUPANCY
-#include <atomic>
-#endif
-
 namespace lux2
 {
-#ifdef PACKET_OCCUPANCY
-    namespace
-    {
-        // Per worker occupancy accumulators.
-        thread_local double g_occ_laneSum = 0.;
-        thread_local double g_occ_iters = 0.;
-        // Global cap on printed tile summaries to prevent log spam.
-        std::atomic<long> g_occ_tileDumps{0};
-        constexpr long OCC_MAX_DUMPS = 64;
-    } // namespace
-#endif
-
     namespace
     {
         // Cap null crossings.
@@ -346,8 +330,13 @@ namespace lux2
                     L = select(inMedium, L + throughput * ms.emission, L);
                     throughput = select(inMedium, throughput * ms.weight, throughput);
 
+                    // Absorbed or exhausted lanes retire before the
+                    // surface branch.
+                    alive &= !(inMedium && ms.absorbed);
+
                     mediumEvent = inMedium && ms.scattered;
-                    medP = ray(ray.mint + ms.d);
+                    // Position evaluated inside the walk.
+                    medP = ms.p;
                     medK = ms.k;
                     // wo for a medium vertex is -ray.d.
                     medVert = med;
@@ -589,11 +578,13 @@ namespace lux2
                 BSDFSampleP sample;
                 SampleVertex(vtx, sw, su1, su2, ucomp, &sample, vtxAlive);
 
-                // Zero pdf continuation kills the path.
-                alive &= !(vtxAlive && !mediumEvent &&
-                           (sample.pdf <= FloatP(0.f)));
+                // Zero pdf continuation kills the path. Medium lanes are
+                // covered too.
+                alive &= !(vtxAlive && (sample.pdf <= FloatP(0.f)));
 
-                // Russian roulette, once per vertex.
+                // Russian roulette, once per vertex. Surface lanes use the
+                // lobe value sample.f; medium lanes use cumulative throughput
+                // because sample.f is 1 by construction.
                 const MaskP rrActive = alive && (depth > Int32P(3));
                 if (any(rrActive))
                 {
@@ -883,12 +874,7 @@ namespace lux2
                                     uint64_t sampleBasis, uint32_t spp)
     {
         const Camera &camera = scene.GetCamera();
-
-#ifdef PACKET_OCCUPANCY
-        // The summary reflects this tile's paths only.
-        g_occ_laneSum = 0.;
-        g_occ_iters = 0.;
-#endif
+        PathOccupancyBegin();
 
         // Tile constant config.
         WalkCtx ctx;
@@ -936,11 +922,8 @@ namespace lux2
         Refill(camera, sampler, jobs, sampleBasis, st, 1);
         while (any(st.alive))
         {
-#ifdef PACKET_OCCUPANCY
             // Active lanes this bounce.
-            g_occ_laneSum += double(enoki::count(st.alive));
-            g_occ_iters += 1.;
-#endif
+            PathOccupancyStep(enoki::count(st.alive));
             const MaskP before = st.alive;
             StepBounce(ctx, SamplerSource{sampler, st.seed, st.sampleIdx}, st);
 
@@ -955,30 +938,7 @@ namespace lux2
             Refill(camera, sampler, jobs, sampleBasis, st);
         }
         retire.Flush(dest, true);
-
-#ifdef PACKET_OCCUPANCY
-        // Mean live lanes per bounce for this tile.
-        if (g_occ_iters > 0.)
-        {
-            const long dumpIdx =
-                g_occ_tileDumps.fetch_add(1, std::memory_order_relaxed);
-            if (dumpIdx < OCC_MAX_DUMPS)
-            {
-                fprintf(stderr,
-                        "[OCCUPANCY tile(%d,%d)] meanLanes=%.2f/%u "
-                        "occupancy=%.1f%% iters=%.0f\n",
-                        tile.x0, tile.y0, g_occ_laneSum / g_occ_iters,
-                        unsigned(PACKET_WIDTH),
-                        100. * (g_occ_laneSum / g_occ_iters) / double(PACKET_WIDTH),
-                        g_occ_iters);
-                if (dumpIdx == OCC_MAX_DUMPS - 1)
-                    fprintf(stderr,
-                            "[OCCUPANCY] summary cap (%ld) reached; "
-                            "suppressing further tile summaries\n",
-                            OCC_MAX_DUMPS);
-            }
-        }
-#endif
+        PathOccupancyTileEnd(tile.x0, tile.y0, unsigned(PACKET_WIDTH));
     }
 
     std::shared_ptr<SurfaceIntegrator> PathIntegrator::CreateSurfaceIntegrator(

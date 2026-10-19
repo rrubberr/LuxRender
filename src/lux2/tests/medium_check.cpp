@@ -714,6 +714,7 @@ struct ForcedTrackedMedium : public TrackedMedium
                        MajorantState &ms, MaskP active) const override
     {
         const MaskP has = active && (t1 > t0);
+        ms.tStart = t0;
         ms.tEnd = select(has, t1, t0);
         ms.sigBar = select(has, FloatP(mult * (sa + ss)), FloatP(0.f));
     }

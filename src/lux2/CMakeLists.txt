@@ -70,6 +70,12 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 ADD_DEFINITIONS(-march=native -g -ftree-vectorize -funroll-loops -fno-strict-aliasing -DHAVE_PTHREAD_H)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O2")
 
+# Integrator debug instrumentation.
+option(LUX2_INTEGRATOR_DEBUG "Compile integrator debug instrumentation" OFF)
+if(LUX2_INTEGRATOR_DEBUG)
+	ADD_DEFINITIONS(-DLUX2_INTEGRATOR_DEBUG)
+endif()
+
 # Where the finished binaries are collected.
 if(NOT DEFINED LUX2_RELEASE_DIR)
 	set(LUX2_RELEASE_DIR ${CMAKE_BINARY_DIR})

@@ -26,6 +26,7 @@
 
 #include <enoki/array.h>
 
+#include <algorithm>
 #include <cassert>
 
 namespace lux2
@@ -33,15 +34,19 @@ namespace lux2
     namespace
     {
         // Local space slab test of ray (o,d) against box b, clipped to [t0,t1].
+        // eps widens the box faces in local space. Over-widening only
+        // inflates the majorant (extra null collisions), never bias; it
+        // keeps the slab test from rejecting a point Contains() accepts.
         inline void SlabInterval(const Point3fP &o, const Vector3fP &d,
                                  const BBox &b, const FloatP &t0,
                                  const FloatP &t1, FloatP *tNear, FloatP *tFar,
-                                 MaskP *hit, MaskP active)
+                                 MaskP *hit, MaskP active, Float eps = 0.f)
         {
             FloatP tn = t0, tf = t1;
             MaskP ok = active;
-            const Point3fP omin = b.pMin;
-            const Point3fP omax = b.pMax;
+            const Vector3fP e(eps, eps, eps);
+            const Point3fP omin = b.pMin - e;
+            const Point3fP omax = b.pMax + e;
 
             for (int a = 0; a < 3; ++a)
             {
@@ -83,6 +88,17 @@ namespace lux2
         Child ch;
         ch.med = c;
         ch.sigmaTMaxRGB = c->SigmaTMaxRGB();
+        {
+            // Local-space slack covering the ulp gap between the slab test
+            // (W2L*o + t*(W2L*d)) and Contains (W2L*(o + t*d)).
+            const BBox lb = c->LocalBox();
+            const Vector3f d = lb.Diagonal();
+            const Float m = std::max({std::abs(lb.pMin.x()), std::abs(lb.pMax.x()),
+                                      std::abs(lb.pMin.y()), std::abs(lb.pMax.y()),
+                                      std::abs(lb.pMin.z()), std::abs(lb.pMax.z()),
+                                      Float(1.f)});
+            ch.slabEps = 1e-5f * m + 1e-7f * std::max({d.x(), d.y(), d.z()});
+        }
         ch.k = c->K();
         m_children.push_back(std::move(ch));
 
@@ -245,7 +261,7 @@ namespace lux2
             FloatP tn, tf;
             MaskP hit(false);
             SlabInterval(oL, dL, ch.med->LocalBox(), t0, t1, &tn, &tf, &hit,
-                         active);
+                         active, ch.slabEps);
 
             unionT0 = select(hit, enoki::min(unionT0, tn), unionT0);
             unionT1 = select(hit, enoki::max(unionT1, tf), unionT1);
@@ -255,6 +271,7 @@ namespace lux2
 
         // Lanes missing every box.
         const MaskP have = anyHit && (unionT0 < unionT1);
+        ms.tStart = select(have, unionT0, t0);
         ms.tEnd = select(have, unionT1, t0);
         ms.sigBar = select(have, sigBar, FloatP(0.f));
     }

@@ -56,7 +56,9 @@ namespace lux2
     struct MediumSampleP
     {
         FloatP d;              // Event distance from t0
+        Point3fP p;            // World-space scatter position (valid iff scattered)
         MaskP scattered;       // True where a scattering event occurred
+        MaskP absorbed;        // Flight: absorbed, or budget exhausted (biased low)
         SWCSpectrumP weight;   // Throughput factor after the event
         SWCSpectrumP emission; // Radiance gathered over the flight
         SWCSpectrumP sigma_s;  // Scattering coefficient at the event
@@ -68,7 +70,9 @@ namespace lux2
     inline void ClearMediumSample(MediumSampleP *s, const FloatP &t1)
     {
         s->d = t1;
+        s->p = Point3fP(0.f);
         s->scattered = MaskP(false);
+        s->absorbed = MaskP(false);
         s->weight = SWCSpectrumP(1.f);
         s->emission = SWCSpectrumP(0.f);
         s->sigma_s = SWCSpectrumP(0.f);
@@ -88,6 +92,7 @@ namespace lux2
     struct MajorantState
     {
         MajorantDDA dda;
+        FloatP tStart; // first param inside the majorant support
         FloatP tEnd;   // end of the current segment
         FloatP sigBar; // sigmacbar for the current cell (0 => no segments)
     };
@@ -205,6 +210,7 @@ namespace lux2
             static_cast<void>(ray);
             static_cast<void>(t0);
             static_cast<void>(t1);
+            ms.tStart = t0;
             ms.tEnd = t0;
             ms.sigBar = FloatP(0.f);
         }

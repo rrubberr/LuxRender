@@ -89,14 +89,16 @@ namespace lux2
             MajorantState ms;
             m.MajorantBegin(ray, t0, t1, ms, active);
 
-            FloatP t = t0;
+            FloatP t = ms.tStart;
             SWCSpectrumP beta(1.f);
             SWCSpectrumP emit(0.f);
             // Flight uses the sampler's u_flight for its first step.
             FloatP u = Flight ? u0 : rng.NextFloat(active);
             MaskP live = active;
             MaskP scat(false);
+            MaskP absorbed(false);
             FloatP tScat(t0), kScat(0.f);
+            Point3fP pScat(0.f);
             SWCSpectrumP ssAt(0.f), stAt(0.f);
 
             for (int it = 0; it < kMaxTrackIters && any(live); ++it)
@@ -138,8 +140,7 @@ namespace lux2
                 // A conservative majorant requires sigma_t(sw) <= sigma_bar at
                 // every collision.
                 {
-                    const MaskP viol =
-                        coll && any(sigT > ms.sigBar);
+                    const MaskP viol = coll && (sigT > ms.sigBar);
                     g_trackMajorantViolations += enoki::count(viol);
                 }
 #endif
@@ -152,11 +153,16 @@ namespace lux2
                     const FloatP uc = rng.NextFloat(coll);
                     const MaskP real = coll && (uc < sigT / ms.sigBar);
                     const MaskP isScat = real && (uc < c.ss / ms.sigBar);
+                    const MaskP isAbs = real && !isScat;
 
                     // Absorbed weight 0, path ends. Scatter weight 1.
-                    beta = select(real && !isScat, SWCSpectrumP(0.f), beta);
+                    beta = select(isAbs, SWCSpectrumP(0.f), beta);
+                    absorbed = absorbed | isAbs;
                     scat = scat | isScat;
                     tScat = select(isScat, t, tScat);
+                    // Same point handed to Coeffs above, so Contains() at the
+                    // event agrees with the coefficients by construction.
+                    pScat = select(isScat, ray(t), pScat);
                     ssAt = select(isScat, c.ss, ssAt);
                     stAt = select(isScat, sigT, stAt);
                     if (any(isScat))
@@ -203,10 +209,23 @@ namespace lux2
                 g_trackCapTransmit += enoki::count(live);
 #endif
 
+            // A flight lane that exhausted the budget saw no event and cannot
+            // continue. Zeroing its weight is biased low; letting it escape at
+            // weight 1 treats the medium as transparent. The cap counters must
+            // stay ~0 in CI; if they do not, the majorant is too loose.
+            // Transmittance keeps its partial beta, which is biased high.
+            if constexpr (Flight)
+            {
+                beta = select(live, SWCSpectrumP(0.f), beta);
+                absorbed = absorbed || live;
+            }
+
             // MediumSampleP::d is the distance from t0.
             const FloatP dEnd = select(scat, tScat, t) - t0;
             enoki::masked(out->d, active) = dEnd;
+            enoki::masked(out->p, active) = pScat;
             enoki::masked(out->scattered, active) = scat && active;
+            enoki::masked(out->absorbed, active) = absorbed && active;
             enoki::masked(out->weight, active) = beta;
             enoki::masked(out->emission, active) = emit;
             enoki::masked(out->sigma_s, active) = ssAt;
