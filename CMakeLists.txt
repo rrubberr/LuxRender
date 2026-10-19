@@ -79,8 +79,11 @@ if(NOT UPPER_BUILD_TYPE STREQUAL "RELEASE" AND NOT UPPER_BUILD_TYPE STREQUAL "DE
 		"Only 'Release' and 'Debug' are allowed.")
 endif()
 
-# Forwarded to the inner LuxRender build to enable/disable the TBB render backends.
+# Forwarded to LuxRender's build to enable/disable the TBB backends.
 option(LUX_USE_TBB "Use Intel TBB instead of Boost.Thread for the render path" ON)
+
+# Forwarded to the LuxRender2's build to enable/disable integrator debug.
+option(LUX2_INTEGRATOR_DEBUG "Compile lux2 integrator debug instrumentation" OFF)
 
 ##############################
 # Set the default build args #
@@ -160,6 +163,7 @@ ExternalProject_Add(
     CMAKE_ARGS
         ${COMMON_LUX_PROJECT_ARGS}
         -DLUX2_RELEASE_DIR=${RELEASE_DIR}
+        -DLUX2_INTEGRATOR_DEBUG=${LUX2_INTEGRATOR_DEBUG}
         -DCMAKE_FIND_ROOT_PATH=${BUILD_DIR}
         -DCMAKE_PREFIX_PATH=${BUILD_DIR}
         -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER

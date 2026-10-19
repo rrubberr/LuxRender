@@ -310,8 +310,13 @@ namespace lux2
 
     void FlexImageFilm::AddTileSampleCount(uint32_t tile, double n)
     {
-        if (tile < m_tileSampleCount.size())
-            m_tileSampleCount[tile].fetch_add(n, std::memory_order_relaxed);
+        if (tile >= m_tileSampleCount.size())
+            return;
+        m_tileSampleCount[tile].fetch_add(n, std::memory_order_relaxed);
+        const FilmTile &t = m_tiles[tile];
+        m_totalEyeSamples.fetch_add(
+            n * double(t.x1 - t.x0) * double(t.y1 - t.y0),
+            std::memory_order_relaxed);
     }
 
     double FlexImageFilm::SampleCount() const
@@ -345,6 +350,9 @@ namespace lux2
             }
         }
         m_sampleCount = 0.0;
+        m_totalEyeSamples.store(0.0, std::memory_order_relaxed);
+        for (std::atomic<double> &v : m_tileSampleCount)
+            v.store(0.0, std::memory_order_relaxed);
     }
 
     void FlexImageFilm::Splat(const FloatP &x, const FloatP &y,
@@ -810,10 +818,14 @@ namespace lux2
         // One color setup for the whole snapshot.
         const SnapshotColor sc = MakeSnapshotColor();
 
-        // Scale light-tracing splats by 1/(total eye samples).
-        const float invP = (m_sampleCount > 0.0 && nPix > 0)
-                               ? float(1.0 / (m_sampleCount * double(nPix)))
-                               : 0.f;
+        // Scale light-tracing splats by 1/(total eye samples). The tiled
+        // path tracks this in m_totalEyeSamples; the flat path uses
+        // m_sampleCount (spp) times the pixel count.
+        const double eyeSamples =
+            m_tileSampleCount.empty()
+                ? m_sampleCount * double(nPix)
+                : m_totalEyeSamples.load(std::memory_order_relaxed);
+        const float invP = (eyeSamples > 0.0) ? float(1.0 / eyeSamples) : 0.f;
 
         std::vector<XYZColor> xyz(nPix, XYZColor(0.f));
         for (size_t i = 0; i < nPix; ++i)

@@ -124,8 +124,8 @@ namespace lux2
 
     std::shared_ptr<Sampler> LDSampler::CreateSampler(const PluginContext &ctx)
     {
-        // Accept either "count" (lux .lxs) or "spp".
-        int count = ctx.params ? ctx.params->FindOneInt("count", 0) : 0;
+        // Accept either "pixelsamples" (lux .lxs) or "spp".
+        int count = ctx.params ? ctx.params->FindOneInt("pixelsamples", 0) : 0;
         if (count <= 0 && ctx.params)
             count = ctx.params->FindOneInt("spp", 16);
         const int seed = ctx.params ? ctx.params->FindOneInt("seed", 0) : 0;

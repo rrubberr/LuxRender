@@ -175,8 +175,7 @@ namespace lux2
             }
 
             enoki::masked(out->d, active) = dEff;
-            // p is only read when scattered; the escape case (dEff == len)
-            // is harmless.
+            // p is only read when scattered.
             enoki::masked(out->p, active) = ray(t0 + dEff);
             enoki::masked(out->scattered, active) = didScatter;
             enoki::masked(out->weight, active) = weight;

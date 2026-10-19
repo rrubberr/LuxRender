@@ -874,7 +874,7 @@ namespace lux2
                                     uint64_t sampleBasis, uint32_t spp)
     {
         const Camera &camera = scene.GetCamera();
-        PathOccupancyBegin();
+        OccupancyBegin();
 
         // Tile constant config.
         WalkCtx ctx;
@@ -923,7 +923,7 @@ namespace lux2
         while (any(st.alive))
         {
             // Active lanes this bounce.
-            PathOccupancyStep(enoki::count(st.alive));
+            OccupancyStep(enoki::count(st.alive));
             const MaskP before = st.alive;
             StepBounce(ctx, SamplerSource{sampler, st.seed, st.sampleIdx}, st);
 
@@ -938,7 +938,7 @@ namespace lux2
             Refill(camera, sampler, jobs, sampleBasis, st);
         }
         retire.Flush(dest, true);
-        PathOccupancyTileEnd(tile.x0, tile.y0, unsigned(PACKET_WIDTH));
+        OccupancyTileEnd("path", tile.x0, tile.y0, unsigned(PACKET_WIDTH));
     }
 
     std::shared_ptr<SurfaceIntegrator> PathIntegrator::CreateSurfaceIntegrator(

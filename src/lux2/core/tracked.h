@@ -161,7 +161,7 @@ namespace lux2
                     scat = scat | isScat;
                     tScat = select(isScat, t, tScat);
                     // Same point handed to Coeffs above, so Contains() at the
-                    // event agrees with the coefficients by construction.
+                    // event agrees with the coefficients.
                     pScat = select(isScat, ray(t), pScat);
                     ssAt = select(isScat, c.ss, ssAt);
                     stAt = select(isScat, sigT, stAt);
@@ -209,11 +209,7 @@ namespace lux2
                 g_trackCapTransmit += enoki::count(live);
 #endif
 
-            // A flight lane that exhausted the budget saw no event and cannot
-            // continue. Zeroing its weight is biased low; letting it escape at
-            // weight 1 treats the medium as transparent. The cap counters must
-            // stay ~0 in CI; if they do not, the majorant is too loose.
-            // Transmittance keeps its partial beta, which is biased high.
+            // A flight lane that exhausted the budget saw no event.
             if constexpr (Flight)
             {
                 beta = select(live, SWCSpectrumP(0.f), beta);
@@ -240,7 +236,7 @@ namespace lux2
         static thread_local long g_trackCapTransmit;
         static thread_local long g_trackRRKills;
         // sigma_t(sw) exceeded the per-segment majorant sigma_bar at a
-        // collision: the bound is not conservative.
+        // collision, the bound is not conservative.
         static thread_local long g_trackMajorantViolations;
 #endif
     };

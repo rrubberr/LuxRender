@@ -312,8 +312,7 @@ namespace lux2
                 const Point3f p0 = (pp0 && n0 >= 1) ? *pp0 : Point3f(0.f, 0.f, 0.f);
                 const Point3f p1 = (pp1 && n1 >= 1) ? *pp1 : Point3f(1.f, 1.f, 1.f);
                 // sigma_t == 0 with Le > 0 gives sigBar == 0, so the tracked
-                // flight gathers no emission. Exact per-segment integration
-                // lands with the multi-segment majorant.
+                // flight gathers no emission.
                 if (hom->SigmaTMaxRGB() == 0.f && hom->LeMaxRGB() > 0.f)
                     LOG(LUX_WARNING, LUX_SYNTAX)
                         << "Region volume '" << rd.name

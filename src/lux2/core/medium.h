@@ -56,9 +56,9 @@ namespace lux2
     struct MediumSampleP
     {
         FloatP d;              // Event distance from t0
-        Point3fP p;            // World-space scatter position (valid iff scattered)
+        Point3fP p;            // World space scatter position
         MaskP scattered;       // True where a scattering event occurred
-        MaskP absorbed;        // Flight: absorbed, or budget exhausted (biased low)
+        MaskP absorbed;        // Absorbed, or budget exhausted
         SWCSpectrumP weight;   // Throughput factor after the event
         SWCSpectrumP emission; // Radiance gathered over the flight
         SWCSpectrumP sigma_s;  // Scattering coefficient at the event

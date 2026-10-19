@@ -399,6 +399,8 @@ namespace lux2
         bool m_bakeGroupState = false;
 
         double m_sampleCount = 0.0;
+        // Total eye splats across the frame.
+        std::atomic<double> m_totalEyeSamples{0.0};
 
         // Mutex Merge() into a shared master film.
         mutable std::mutex m_mergeMutex;

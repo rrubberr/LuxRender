@@ -34,9 +34,7 @@ namespace lux2
     namespace
     {
         // Local space slab test of ray (o,d) against box b, clipped to [t0,t1].
-        // eps widens the box faces in local space. Over-widening only
-        // inflates the majorant (extra null collisions), never bias; it
-        // keeps the slab test from rejecting a point Contains() accepts.
+        // eps widens the box faces in local space.
         inline void SlabInterval(const Point3fP &o, const Vector3fP &d,
                                  const BBox &b, const FloatP &t0,
                                  const FloatP &t1, FloatP *tNear, FloatP *tFar,
@@ -89,7 +87,7 @@ namespace lux2
         ch.med = c;
         ch.sigmaTMaxRGB = c->SigmaTMaxRGB();
         {
-            // Local-space slack covering the ulp gap between the slab test
+            // Local space slack covering the ulp gap between the slab test
             // (W2L*o + t*(W2L*d)) and Contains (W2L*(o + t*d)).
             const BBox lb = c->LocalBox();
             const Vector3f d = lb.Diagonal();

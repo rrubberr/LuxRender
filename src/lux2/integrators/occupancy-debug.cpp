@@ -19,7 +19,13 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-// Packet occupancy counters for the path integrator.
+// Shared packet occupancy counters for the wavefront integrators (path,
+// bidirectional). Compiled only when LUX2_INTEGRATOR_DEBUG is defined
+// (CMake option LUX2_INTEGRATOR_DEBUG); see integrator_debug.h.
+//
+// Accumulators are per-worker and reset at each tile begin, so a worker
+// alternating integrators across tiles never mixes their tallies; the
+// caller-supplied tag only selects the printed label.
 
 #ifdef LUX2_INTEGRATOR_DEBUG
 
@@ -35,26 +41,27 @@ namespace lux2
         // Per worker occupancy accumulators.
         thread_local double g_occ_laneSum = 0.;
         thread_local double g_occ_iters = 0.;
-        // Global cap on printed tile summaries to prevent log spam.
+        // Global cap on tile summaries to prevent log spam.
         std::atomic<long> g_occ_tileDumps{0};
         constexpr long OCC_MAX_DUMPS = 64;
     } // namespace
 
-    void PathOccupancyBegin()
+    void OccupancyBegin()
     {
         // The summary reflects this tile's paths only.
         g_occ_laneSum = 0.;
         g_occ_iters = 0.;
     }
 
-    void PathOccupancyStep(int liveLanes)
+    void OccupancyStep(int liveLanes)
     {
         g_occ_laneSum += double(liveLanes);
         g_occ_iters += 1.;
     }
 
-    // Mean live lanes per bounce for this tile.
-    void PathOccupancyTileEnd(int tileX0, int tileY0, unsigned packetWidth)
+    // Mean live lanes per iteration for this tile.
+    void OccupancyTileEnd(const char *tag, int tileX0, int tileY0,
+                          unsigned packetWidth)
     {
         if (g_occ_iters <= 0.)
             return;
@@ -63,9 +70,9 @@ namespace lux2
         if (dumpIdx >= OCC_MAX_DUMPS)
             return;
         fprintf(stderr,
-                "[OCCUPANCY tile(%d,%d)] meanLanes=%.2f/%u "
+                "[OCCUPANCY %s tile(%d,%d)] meanLanes=%.2f/%u "
                 "occupancy=%.1f%% iters=%.0f\n",
-                tileX0, tileY0, g_occ_laneSum / g_occ_iters, packetWidth,
+                tag, tileX0, tileY0, g_occ_laneSum / g_occ_iters, packetWidth,
                 100. * (g_occ_laneSum / g_occ_iters) / double(packetWidth),
                 g_occ_iters);
         if (dumpIdx == OCC_MAX_DUMPS - 1)

@@ -758,6 +758,8 @@ namespace lux2
             {
                 if (!any(alive))
                     break;
+                // Active lanes this eye path bounce.
+                OccupancyStep(enoki::count(alive));
                 const UInt32P d0 = EyeDim(t);
                 const Point2fP u2bsdf = sampler.Get2D(st.seed, st.sampleIdx, d0);
                 const FloatP ucomp =
@@ -939,6 +941,8 @@ namespace lux2
             {
                 if (!any(alive))
                     break;
+                // Active lanes this light path bounce.
+                OccupancyStep(enoki::count(alive));
                 const UInt32P d0 = LightBounce(loBase, s);
                 const Point2fP u2bsdf = sampler.Get2D(st.seed, st.sampleIdx, d0);
                 const FloatP ucomp =
@@ -1569,6 +1573,7 @@ namespace lux2
                                      uint64_t sampleBasis, uint32_t spp)
     {
         const Camera &camera = scene.GetCamera();
+        OccupancyBegin();
 
         WalkCtx ctx;
         ctx.scene = &scene;
@@ -1661,6 +1666,7 @@ namespace lux2
             Refill(sampler, jobs, sampleBasis, st);
         }
         retire.Flush(dest, true);
+        OccupancyTileEnd("bidir", tile.x0, tile.y0, unsigned(PACKET_WIDTH));
 
 #ifdef LUX2_INTEGRATOR_DEBUG
         // Merge this tile's diagnostics into the shared store.

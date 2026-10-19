@@ -125,15 +125,17 @@ namespace lux2
     void BidirMergeTile(BidirDiagStore &store, BidirDiagLocal &dl);
 
     // ==================================================================
-    // Path occupancy counters
+    // Packet occupancy counters
     // ==================================================================
 
     // Reset this tile's accumulators.
-    void PathOccupancyBegin();
-    // Active lanes this bounce.
-    void PathOccupancyStep(int liveLanes);
-    // Print the tile summary (mean live lanes / occupancy), rate-limited.
-    void PathOccupancyTileEnd(int tileX0, int tileY0, unsigned packetWidth);
+    void OccupancyBegin();
+    // Active lanes this iteration.
+    void OccupancyStep(int liveLanes);
+    // Print the tile summary.
+    // tag distinguishes the integrator in the log line.
+    void OccupancyTileEnd(const char *tag, int tileX0, int tileY0,
+                          unsigned packetWidth);
 
 #else // !LUX2_INTEGRATOR_DEBUG ------------------------------------------
 
@@ -162,9 +164,9 @@ namespace lux2
     inline void BidirEndDump(const BidirDiagStore &, float) {}
     inline void BidirMergeTile(BidirDiagStore &, BidirDiagLocal &) {}
 
-    inline void PathOccupancyBegin() {}
-    inline void PathOccupancyStep(int) {}
-    inline void PathOccupancyTileEnd(int, int, unsigned) {}
+    inline void OccupancyBegin() {}
+    inline void OccupancyStep(int) {}
+    inline void OccupancyTileEnd(const char *, int, int, unsigned) {}
 
 #endif
 
