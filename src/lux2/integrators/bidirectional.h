@@ -47,15 +47,14 @@ namespace lux2
     // Diagnostic configuration bundle.
     struct DiagConfig
     {
-        int onlyS = -1;        // -1 = all; else keep only this light-vertex count
-        int onlyT = -1;        // -1 = all; else keep only this eye-vertex count (nE)
+        int onlyS = -1;        // -1 = all; else keep only this light vertex count
+        int onlyT = -1;        // -1 = all; else keep only this eye vertex count (nE)
         bool noMis = false;    // w = 1 (isolates each strategy's Lc)
         float misPower = 2.f;  // exponent p in the power heuristic (0,1,2)
         bool diag = false;     // enable DiagStore tallies and firefly recorder
         float threshold = 0.f; // firefly record threshold (0 = off)
     };
 
-    // TODO: SupportsMedia() == false.
     class BidirIntegrator : public SurfaceIntegrator
     {
     public:
@@ -80,8 +79,7 @@ namespace lux2
 
         int PassCount() const override { return 1; }
 
-        // TODO: SupportsMedia() == false.
-        bool SupportsMedia() const override { return false; }
+        bool SupportsMedia() const override { return true; }
 
         void Start(const Scene &scene) override;
 

@@ -52,7 +52,8 @@ namespace lux2
     // Evaluate the vertex transport term toward wi.
     inline void EvalVertex(const VertexP &v, const SpectrumWavelengthsP &sw,
                            const Vector3fP &wi, BSDFEvalP *ev,
-                           FloatP *cosTerm, MaskP active)
+                           FloatP *cosTerm, MaskP active,
+                           TransportMode mode = TransportMode::Radiance)
     {
         const MaskP surf = active && !v.isMedium;
         const MaskP med = active && v.isMedium;
@@ -66,7 +67,7 @@ namespace lux2
         {
             // Radiance == reverse (wo toward the eye), no ng Jacobian in
             // Eval.f. ev.f carries |cos(theta_i)|.
-            v.bsdf->Eval(sw, wi, v.wo, v.dg, TransportMode::Radiance, ev, surf);
+            v.bsdf->Eval(sw, wi, v.wo, v.dg, mode, ev, surf);
             enoki::masked(*cosTerm, surf) = abs(dot(wi, v.dg.n));
         }
         if (any(med))
@@ -74,6 +75,8 @@ namespace lux2
             const FloatP ph = v.med->PhasePdf(sw, v.p, v.wo, wi, med);
             ev->f = select(med, SWCSpectrumP(ph), ev->f);
             ev->pdf = select(med, ph, ev->pdf);
+            // Schlick phase is symmetric so the reverse density equals ph.
+            ev->pdfRev = select(med, ph, ev->pdfRev);
             enoki::masked(*cosTerm, med) = ph;
         }
     }
@@ -81,7 +84,8 @@ namespace lux2
     // Sample the continuation direction.
     inline void SampleVertex(const VertexP &v, const SpectrumWavelengthsP &sw,
                              const FloatP &u1, const FloatP &u2,
-                             const FloatP &ucomp, BSDFSampleP *s, MaskP active)
+                             const FloatP &ucomp, BSDFSampleP *s, MaskP active,
+                             TransportMode mode = TransportMode::Radiance)
     {
         const MaskP surf = active && !v.isMedium;
         const MaskP med = active && v.isMedium;
@@ -94,8 +98,7 @@ namespace lux2
         s->specular = MaskP(false);
 
         if (any(surf))
-            v.bsdf->SampleF(sw, v.wo, v.dg, u1, u2, ucomp, s,
-                            TransportMode::Radiance, surf);
+            v.bsdf->SampleF(sw, v.wo, v.dg, u1, u2, ucomp, s, mode, surf);
         if (any(med))
         {
             Vector3fP wiM(FloatP(0.f));

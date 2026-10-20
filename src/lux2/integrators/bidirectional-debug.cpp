@@ -38,11 +38,6 @@
 
 namespace lux2
 {
-    namespace
-    {
-        constexpr float INF_F = std::numeric_limits<float>::infinity();
-    } // namespace
-
     void BidirDiagStore::Init(int eyeDepth, int lightDepth)
     {
         ghost.assign(eyeDepth + 2,

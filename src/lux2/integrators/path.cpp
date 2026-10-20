@@ -47,9 +47,6 @@ namespace lux2
 {
     namespace
     {
-        // Cap null crossings.
-        constexpr int MAX_NULL_CROSSINGS = 16;
-
         // Power heuristic for combining two sampling strategies.
         inline FloatP misWeight(const FloatP &aIn, const FloatP &bIn)
         {
@@ -65,9 +62,6 @@ namespace lux2
             const Normal3fP s = select(dot(d, ng) > FloatP(0.f), ng, -ng);
             return p + Vector3fP(s.x(), s.y(), s.z()) * k;
         }
-
-        // Cap on shadow-ray boundary crossings.
-        constexpr int MAX_SHADOW_CROSSINGS = 16;
 
         // Medium swap at a boundary.
         inline UInt32P SwapMedium(const HitP &hit, const Vector3fP &dir)
@@ -585,7 +579,7 @@ namespace lux2
                 // Russian roulette, once per vertex. Surface lanes use the
                 // lobe value sample.f; medium lanes use cumulative throughput
                 // because sample.f is 1 by construction.
-                const MaskP rrActive = alive && (depth > Int32P(3));
+                const MaskP rrActive = alive && (depth > Int32P(RR_START));
                 if (any(rrActive))
                 {
                     const SWCSpectrumP tputF =
@@ -910,7 +904,7 @@ namespace lux2
         ctx.maxDepth = m_maxDepth;
         ctx.rrEfficiency = (m_rrStrategy == "efficiency");
         ctx.rrProb = FloatP(m_rrContinueProb);
-        ctx.INF = std::numeric_limits<float>::infinity();
+        ctx.INF = FloatP(INF_F);
 
         // All lanes start dead.
         PathLanes st;

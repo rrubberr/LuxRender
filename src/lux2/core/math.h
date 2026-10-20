@@ -22,6 +22,8 @@
 #ifndef LUX2_MATH_H
 #define LUX2_MATH_H
 
+#include <limits>
+
 // Shared numeric constants.
 
 namespace lux2
@@ -35,10 +37,17 @@ namespace lux2
     inline constexpr float Radians(float deg) { return PI * (1.f / 180.f) * deg; }
     inline constexpr float Degrees(float rad) { return rad * (180.f / PI); }
 
-    // Guard against division by near-zero.
+    // Guard against division by near zero.
     constexpr float EPS_DENOM = 1e-8f;
-    // Ray offsetting / geometric degeneracy thresholds.
+    // Ray offset / geometric degeneracy thresholds.
     constexpr float EPS_RAY = 1e-4f;
+
+    // Positive infinity.
+    constexpr float INF_F = std::numeric_limits<float>::infinity();
+    // Ray traversal / integrator constants.
+    constexpr int MAX_NULL_CROSSINGS = 16;   // passthrough boundary cap
+    constexpr int MAX_SHADOW_CROSSINGS = 16; // shadow ray boundary crossings
+    constexpr int RR_START = 3;              // Russian roulette begins after this depth
 
     // Scalar clamp to [low, high].
     inline constexpr float ClampF(float v, float low, float high)

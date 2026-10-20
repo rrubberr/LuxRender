@@ -1,56 +1,27 @@
 /***************************************************************************
  *   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  *
- *   This file is part of LuxRender (GPLv3+, see LICENSE).                 *
+ *                                                                         *
+ *   This file is part of LuxRender.                                       *
+ *                                                                         *
+ *   LuxRender is free software; you can redistribute it and/or modify     *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 3 of the License, or     *
+ *   any later version.                                                    *
+ *                                                                         *
+ *   LuxRender is distributed in the hope that it will be useful,          *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program. If not, see <http://www.gnu.org/licenses/>   *
+ *                                                                         *
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-// Bidirectional path tracer: wavefront SoA port of LEGACY src/lux/integrators/
-// bidirectional.cpp (NOT PBRT). SCAFFOLD: uncompiled, see "API ASSUMPTIONS".
-//
-// Legacy -> SoA mapping
-//   Li() eye loop           -> TraceEye   (s==0 emission is evaluated IN the walk,
-//                                          exactly where legacy calls WeightPath
-//                                          with nLight==0)
-//   Li() light loop         -> TraceLight (connections deferred until the walk ends)
-//   GetDirectLight          -> ConnectDirect   (isLightDirect = true,  nLight = 1)
-//   EvalPath, light0 / j>0  -> ConnectGeneral  (isLightDirect = false, nLight = s)
-//   WeightPath              -> WeightPath (literal transcription, lane masks for
-//                                          legacy `break`s)
-//
-// Legacy conventions kept verbatim (this is the point of the port):
-//   * Specular vertices keep a real pdf/pdfR (lobe probability). They are excluded
-//     from MIS only through the `spec` flags, never by zeroing pdfs.
-//   * Field names and meanings are legacy's. Eye subpath: pdfR = forward pdf,
-//     pdf = reverse pdf, dARWeight = forward area density (aF), dAWeight = reverse
-//     area density (aR). Light subpath: pdf = forward, pdfR = reverse,
-//     dAWeight = aF, dARWeight = aR. wb = direction back along the incoming
-//     segment (legacy eye.wo / light.wi).
-//   * MIS is the legacy power-2 sum with Russian-roulette ratios. EvalPath's
-//     "modify then restore" of the last two vertices of each subpath is a
-//     Transient (stored arrays are never mutated by a connection).
-//   * Only eyedepth/lightdepth bound path length (no combined maxdepth).
-//   * Connection vertices are connectible if the BSDF has a non-delta lobe
-//     (f > 0), regardless of which lobe the walk sampled.
-//
-// Deliberate divergences (SoA / phase 1)
-//   [D1] Connections run after both walks finish; legacy interleaves. Equivalent,
-//        because every state a connection reads is final or is in Transient.
-//   [D2] Null surfaces collapse inside the intersect loop (no vertex, no depth
-//        cost, tPdf == tPdfR == 1). An emitter that is also Null still gets its
-//        s==0 evaluation (hook inside IntersectCollapsed).
-//   [D3] Geometry only: tPdf/tPdfR/scattered dropped. Uniform light selection,
-//        shadowRayCount == lightRayCount == 1. Env lights: TODO.
-//   [D4] t==1 (light tracing to camera) is OFF (needs camera inverse mapping and
-//        camera pdf). Legacy weights assume it exists, so with it off the two
-//        spots marked [T1-OFF] in WeightPath drop exactly the t'==1 terms.
-//   [D5] Emitters are diffuse area lights: emitter F = |cos|, pdf = |cos|/pi,
-//        emission area pdf = 1/TotalArea.
-//   [D6] Legacy GetDirectLight sets vE.tPdf = ePdfDirect, which then leaks into
-//        EvalPath's eye[nEye-2].dAWeight. That looks like a legacy state-corruption
-//        bug; this port uses tPdf = 1. Verify against a trusted legacy build.
-
 #include "integrators/bidirectional.h"
 #include "integrators/integrator_debug.h"
+#include "integrators/vertex.h"
 
 #include "core/bsdf_call.h"
 #include "core/bsdfptr_table.h"
@@ -61,6 +32,8 @@
 #include "core/light.h"
 #include "core/light_call.h"
 #include "core/math.h"
+#include "core/medium.h"
+#include "core/mediumptr_table.h"
 #include "core/register.h"
 #include "core/rng.h"
 #include "core/sampling.h"
@@ -78,11 +51,6 @@ namespace lux2
 {
     namespace
     {
-        constexpr float INF_F = std::numeric_limits<float>::infinity();
-        constexpr int MAX_NULL_CROSSINGS = 16;
-        constexpr int RR_START = 3;              // legacy rrStart
-        constexpr float PDF_EPS = 1.1920929e-7f; // MachineEpsilon::E(1.f)
-
         // a/b, 0 where b <= 0.
         inline FloatP divp(const FloatP &a, const FloatP &b)
         {
@@ -176,16 +144,24 @@ namespace lux2
             std::vector<DifferentialGeometryP> dg;
             std::vector<BSDFPtr> bsdf;
             std::vector<Vector3fP> wb;      // back along incoming segment
-            std::vector<SWCSpectrumP> flux; // RR-adjusted flux
+            std::vector<SWCSpectrumP> flux; // RR adjusted flux
             std::vector<FloatP> pdf, pdfR;
             std::vector<FloatP> cosi, coso; // |dot(., ng)|
             std::vector<FloatP> d2;         // squared distance to next vertex
             std::vector<FloatP> dAWeight, dARWeight;
             std::vector<FloatP> rr, rrR;
-            std::vector<MaskP> spec; // sampled lobe was specular
-            UInt32P selIdx;          // light chosen for the origin
-            FloatP directPdf1;       // light->Pdf(light[1].p, light[0]) * sel,
-                                     // area measure at light[0] (legacy lightDirectPdf)
+            std::vector<MaskP> spec;    // sampled lobe was specular
+            UInt32P selIdx;             // light chosen for the origin
+            FloatP directPdf1;          // light->Pdf(light[1].p, light[0]) * sel,
+                                        // area measure at light[0]
+            std::vector<MaskP> isMed;   // marks a volume scatter vertex
+            std::vector<MediumPtr> med; // medium the vertex sits in
+            std::vector<FloatP> k;      // Schlick k resolved at the scatter
+            // Interface vertices store both sides.
+            std::vector<UInt32P> medFrontID; // side ng points to
+            std::vector<UInt32P> medBackID;
+            // The medium containing the vertex.
+            std::vector<UInt32P> medID;
 
             void Init(int n)
             {
@@ -204,10 +180,26 @@ namespace lux2
                 rr.assign(n, FloatP(1.f)); // legacy constructor default
                 rrR.assign(n, FloatP(1.f));
                 spec.assign(n, MaskP(false));
+                isMed.assign(n, MaskP(false));
+                med.assign(n, MediumPtr(nullptr));
+                k.assign(n, FloatP(0.f));
+                medFrontID.assign(n, UInt32P(LUX2_MEDIUM_CLEAR));
+                medBackID.assign(n, UInt32P(LUX2_MEDIUM_CLEAR));
+                medID.assign(n, UInt32P(LUX2_MEDIUM_CLEAR));
                 selIdx = UInt32P(0u);
                 directPdf1 = FloatP(0.f);
             }
         };
+
+        // Medium a ray leaves vertex idx into, given the leaving direction.
+        inline UInt32P StartMedium(const Subpath &sp, int idx,
+                                   const Vector3fP &dir)
+        {
+            const MaskP front = dot(dir, sp.dg[idx].ng) > FloatP(0.f);
+            const UInt32P surfMed =
+                select(front, sp.medFrontID[idx], sp.medBackID[idx]);
+            return select(sp.isMed[idx], sp.medID[idx], surfMed);
+        }
 
         struct WalkCtx
         {
@@ -230,23 +222,14 @@ namespace lux2
             // Verify that uniform area conversions of a solid angle
             // pdf recover the selection pdf.
             bool checkDensity = false;
+            // Id 0 is the ambient composite.
+            const MediumPtrTable *mediumTable = nullptr;
+            bool hasMedia = false;
+            UInt32P cameraMediumID = UInt32P(LUX2_MEDIUM_CLEAR);
             // Diagnostic accumulator.
             BidirDiagLocal *diag = nullptr;
             DiagConfig cfg;
         };
-
-        inline MaskP ShadowTr(const WalkCtx &ctx, const Point3fP &origin,
-                              const Vector3fP &dir, const FloatP &tMax,
-                              const SpectrumWavelengthsP &sw, MaskP active)
-        {
-            // TODO: Occluded treats Null surfaces as transparent?
-            RayP shadow(origin, dir, FloatP(EPS_RAY), tMax, FloatP(0.f));
-            shadow.wavelengths = sw.w;
-            shadow.mask = UInt32P(0xFFFFFFFFu);
-            const MaskP blocked =
-                ctx.embree->Occluded(shadow, active, Coherent::No);
-            return active && !blocked;
-        }
 
         struct LaneState
         {
@@ -281,8 +264,11 @@ namespace lux2
         }
 #endif
 
+        // BISECT(step2): 'rot' rotates the dead-slot scan order, decoupling
+        // lane index from column (lane i no longer always gets x mod 8).
         void Refill(const Sampler &sampler, JobCursor &jobs,
-                    uint64_t sampleBasis, LaneState &st, int k = 2)
+                    uint64_t sampleBasis, LaneState &st, int k = 2,
+                    unsigned rot = 0)
         {
             const int nDead = enoki::count(!st.active);
             if (nDead < k)
@@ -298,8 +284,9 @@ namespace lux2
 
             const uint64_t baseSeed = sampler.BaseSeed();
             bool anyFill = false;
-            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+            for (size_t r = 0; r < PACKET_WIDTH; ++r)
             {
+                const size_t i = (r + rot) % PACKET_WIDTH;
                 if (aliveF[i] > 0.f)
                     continue;
                 Job j;
@@ -433,12 +420,46 @@ namespace lux2
             return dg;
         }
 
-        // This is where the eye evaluates s==0 so an emissive Null surface is not lost.
+        // Medium on the side dir leaves through, given a boundary hit.
+        inline UInt32P SwapMedium(const HitP &hit, const Vector3fP &dir)
+        {
+            const MaskP leavesFront = dot(dir, hit.ngeo) > FloatP(0.f);
+            return select(leavesFront, hit.mediumFrontID, hit.mediumBackID);
+        }
+
+        // Medium flight outcome of IntersectCollapsed.
+        struct FlightResult
+        {
+            MaskP mediumEvent;     // scattered before the segment's surface
+            MaskP absorbed;        // lane retires
+            MediumPtr med;         // medium of the scatter
+            Point3fP p;            // scatter position
+            FloatP k;              // Schlick k at the scatter
+            SWCSpectrumP weight;   // multiply into beta
+            SWCSpectrumP emission; // add to L at the preflight beta
+        };
+
+        inline void ResetFlight(FlightResult *fr)
+        {
+            fr->mediumEvent = MaskP(false);
+            fr->absorbed = MaskP(false);
+            fr->med = MediumPtr(nullptr);
+            fr->p = Point3fP(0.f);
+            fr->k = FloatP(0.f);
+            fr->weight = SWCSpectrumP(1.f);
+            fr->emission = SWCSpectrumP(0.f);
+        }
+
+        // Evaluate s==0 so an emissive Null surface is not lost.
         template <class OnHit>
         void IntersectCollapsed(const WalkCtx &ctx, RayP &ray, const MaskP &alive,
-                                HitP &hit, OnHit &&onHit)
+                                const LaneState &st, const Int32P &bounce,
+                                const Int32P &depthBase, SWCSpectrumP *beta,
+                                SWCSpectrumP *Lout, HitP &hit,
+                                FlightResult &fr, OnHit &&onHit)
         {
             MaskP tracing = alive;
+            ResetFlight(&fr);
             for (int c = 0; c <= MAX_NULL_CROSSINGS && any(tracing); ++c)
             {
                 ray.alive = tracing;
@@ -446,13 +467,60 @@ namespace lux2
                 ctx.embree->Intersect(ray, h, Coherent::No);
                 ctx.embree->ShadeHit(ray, h);
                 const MaskP didHit = tracing && h.hit;
-                onHit(h, ray.d, didHit);
+
+                // Flight over [ray.mint, nearest surface] in ray.medium.
+                MaskP stop(false);
+                if (ctx.hasMedia)
+                {
+                    const MaskP inMed = tracing && ctx.mediumTable->GatherNonVacuum(
+                                                       ray.medium, tracing);
+                    if (any(inMed))
+                    {
+                        const FloatP tEnd =
+                            select(didHit, h.t, FloatP(INF_F));
+                        MediumSampleP ms;
+                        ClearMediumSample(&ms, tEnd);
+                        const MediumPtr med =
+                            ctx.mediumTable->Gather(ray.medium, inMed);
+                        RNGP rng;
+                        {
+                            UInt64P sk, sq;
+                            StreamKey(st.seed, st.sampleIdx, bounce,
+                                      Int32P(c) + depthBase, UInt32P(0u),
+                                      FLIGHT_SALT, &sk, &sq);
+                            rng.Seed(sk, sq);
+                        }
+                        const FloatP uFlight = rng.NextFloat(inMed);
+                        med->SampleInteraction(st.sw, ray, ray.mint, tEnd,
+                                               uFlight, rng, &ms, inMed);
+                        if (Lout)
+                            *Lout = *Lout +
+                                    select(inMed, (*beta) * ms.emission,
+                                           SWCSpectrumP(0.f));
+                        *beta = select(inMed, (*beta) * ms.weight, *beta);
+                        fr.absorbed = fr.absorbed || (inMed && ms.absorbed);
+                        const MaskP scat = inMed && ms.scattered;
+                        if (any(scat))
+                        {
+                            fr.mediumEvent = fr.mediumEvent || scat;
+                            // Keep medium pointer a lane already carried.
+                            fr.med = select(scat, med, fr.med);
+                            fr.p = select(scat, ms.p, fr.p);
+                            fr.k = select(scat, ms.k, fr.k);
+                        }
+                        stop = inMed && (ms.scattered || ms.absorbed);
+                    }
+                }
+                // A lane stopped inside the medium.
+                tracing = tracing && !stop;
+                const MaskP seen = didHit && !stop;
+                onHit(h, ray.d, seen);
 
                 MaskP isNull(false);
-                if (c < MAX_NULL_CROSSINGS && any(didHit))
+                if (c < MAX_NULL_CROSSINGS && any(seen))
                 {
-                    const BSDFPtr b = ctx.table->Gather(h.matID, didHit);
-                    isNull = didHit && has_flag(b->flags(), BSDFType::Null);
+                    const BSDFPtr b = ctx.table->Gather(h.matID, seen);
+                    isNull = seen && has_flag(b->flags(), BSDFType::Null);
                 }
                 if (c == 0)
                     hit = h; // initialize every field/lane
@@ -468,11 +536,90 @@ namespace lux2
                 hit.dp_dv = select(done, h.dp_dv, hit.dp_dv);
                 hit.dp_ds = select(done, h.dp_ds, hit.dp_ds);
                 hit.dp_dt = select(done, h.dp_dt, hit.dp_dt);
+                hit.mediumFrontID =
+                    select(done, h.mediumFrontID, hit.mediumFrontID);
+                hit.mediumBackID =
+                    select(done, h.mediumBackID, hit.mediumBackID);
                 ray.o = select(isNull,
                                OffsetRay(h.p, h.ngeo, ray.d, FloatP(EPS_RAY)),
                                ray.o);
+                if (ctx.hasMedia && any(isNull))
+                    ray.medium =
+                        select(isNull, SwapMedium(h, ray.d), ray.medium);
                 tracing = isNull;
             }
+            // Stopped lanes report no surface hit.
+            hit.hit = hit.hit && !(fr.mediumEvent || fr.absorbed);
+        }
+
+        // Medium aware transmittance origin->dir over [EPS, tMax].
+        SWCSpectrumP
+        ConnectTr(const WalkCtx &ctx, const Point3fP &origin,
+                  const Vector3fP &dir, const UInt32P &startMedID,
+                  const FloatP &tMax, const SpectrumWavelengthsP &sw,
+                  const LaneState &st, const Int32P &bounce,
+                  const UInt32P &connKey, UInt64 salt, MaskP active)
+        {
+            if (!ctx.hasMedia)
+            {
+                RayP shadow(origin, dir, FloatP(EPS_RAY), tMax, FloatP(0.f));
+                shadow.wavelengths = sw.w;
+                shadow.mask = UInt32P(0xFFFFFFFFu);
+                const MaskP blocked =
+                    ctx.embree->Occluded(shadow, active, Coherent::No);
+                return select(active && !blocked, SWCSpectrumP(1.f),
+                              SWCSpectrumP(0.f));
+            }
+            SWCSpectrumP T(1.f);
+            UInt32P curMedium = startMedID;
+            FloatP tCur = FloatP(EPS_RAY);
+            MaskP tracing = active;
+            RNGP rng;
+            {
+                UInt64P sk, sq;
+                StreamKey(st.seed, st.sampleIdx, bounce, Int32P(0),
+                          connKey, salt, &sk, &sq);
+                rng.Seed(sk, sq);
+            }
+            for (int i = 0; i < MAX_SHADOW_CROSSINGS && any(tracing); ++i)
+            {
+                RayP shadow(origin, dir, tCur, tMax, FloatP(0.f));
+                shadow.wavelengths = sw.w;
+                shadow.mask = UInt32P(0xFFFFFFFFu);
+                HitP hit;
+                ctx.embree->Intersect(shadow, hit, Coherent::No);
+                ctx.embree->ShadeHit(shadow, hit);
+                const MaskP didHit = tracing && hit.hit;
+                const MaskP missed = tracing && !hit.hit;
+
+                // Transmittance over the interval.
+                const MediumPtr med =
+                    ctx.mediumTable->Gather(curMedium, tracing);
+                const FloatP segEnd = select(didHit, hit.t, tMax);
+                T = select(tracing,
+                           T * med->Transmittance(sw, shadow, tCur, segEnd,
+                                                  rng, tracing),
+                           T);
+
+                // Missed everything, reached the light, lane is done.
+                tracing = tracing && !missed;
+                if (none(tracing))
+                    break;
+
+                const BSDFPtr bsdf = ctx.table->Gather(hit.matID, tracing);
+                const MaskP opaque =
+                    tracing && !has_flag(bsdf->flags(), BSDFType::Null);
+                T = select(opaque, SWCSpectrumP(0.f), T);
+                tracing = tracing && !opaque;
+                if (any(tracing))
+                {
+                    curMedium = SwapMedium(hit, dir);
+                    tCur = select(tracing, hit.t + FloatP(EPS_RAY), tCur);
+                }
+            }
+            // Lanes still tracing after the crossing cap is occluded.
+            T = select(tracing, SWCSpectrumP(0.f), T);
+            return T;
         }
 
         // ------------------------------------------------------------------
@@ -480,14 +627,14 @@ namespace lux2
         // ------------------------------------------------------------------
         struct Transient
         {
-            FloatP eAF_last;            // eye.dARWeight[nE-1] (not stored yet for s==0 in-walk)
+            FloatP eAF_last;            // eye.dARWeight[nE-1]
             FloatP eAR_last, eAR_prev;  // eye.dAWeight[nE-1], [nE-2]
             FloatP eRR_last, eRRR_last; // eye.rr/rrR[nE-1]
             FloatP lAR_last, lAR_prev;  // light.dARWeight[nL-1], [nL-2]
             FloatP lRR_last, lRRR_last; // light.rr/rrR[nL-1]
-            FloatP pdfLightDirect;      // legacy pdfLightDirect (area measure, incl. selection)
+            FloatP pdfLightDirect;      // area measure including selection
             bool isLightDirect = false;
-            // Connection vertices (eye[nE-1], light[nL-1]) are non-specular.
+            // Connection vertices are non-specular.
 
             Transient()
                 : eAF_last(0.f), eAR_last(0.f), eAR_prev(0.f), eRR_last(1.f),
@@ -578,7 +725,6 @@ namespace lux2
             }
 
             // Extend the light path toward the eye path.
-            // TODO: T1-OFF stops before the strategy whose eye path is only the camera.
             const int minEye = ctx.useT1 ? 1 : 2;
             const int nLightExt =
                 std::min(nE - minEye,
@@ -623,7 +769,7 @@ namespace lux2
                 weight = select(m, weight + add, weight);
                 if (bd)
                     bd->eyeExt += select(m, add, FloatP(0.f));
-                // Direct path: the second vertex must be non-specular.
+                // Direct path's second vertex must be non-specular.
                 if (i == nL - 1)
                 {
                     const MaskP dm = ok && !lSpec(1) && (aF0 > FloatP(0.f));
@@ -679,24 +825,24 @@ namespace lux2
 
             const FloatP area =
                 enoki::gather<FloatP>(ctx.areaById.data(), h.lightID, cont);
-            const FloatP emitPdf = abs(dot(wo, dg.n)) * INVPI; // v.pdf [D5]
+            const FloatP emitPdf = abs(dot(wo, dg.n)) * INVPI; // v.pdf
 
             Transient tr;
             // v.dARWeight = vp.pdfR * vp.tPdfR / vp.d2 * v.coso
             tr.eAF_last = (t >= 2 || ctx.useT1)
                               ? eye.pdfR[t - 1] * cB * invD2
                               : FloatP(0.f);
-            // v.dAWeight = pdfArea * lightPathStrategy->Pdf   [D5]
+            // v.dAWeight = pdfArea * lightPathStrategy->Pdf
             tr.eAR_last = ctx.invNLights * divp(FloatP(1.f), area);
             // vp.dAWeight = v.pdf * v.tPdf / vp.d2 * vp.cosi
             tr.eAR_prev = emitPdf * eye.cosi[t - 1] * invD2;
             tr.eRR_last = FloatP(1.f);
             tr.eRRR_last = FloatP(1.f);
-            // ePdfDirect = direct-sampling area density of THIS point from vp,
+            // ePdfDirect = direct sampling area density of point from vp,
             // times light-selection pdf.
             const FloatP pdfSolid =
                 al->Pdf_L(eye.p[t - 1], eye.dg[t - 1].n, h.p, dg.n, cont,
-                          MaskP(t > 1)) *
+                          MaskP(t > 1) && !eye.isMed[t - 1]) *
                 ctx.invNLights;
             tr.pdfLightDirect = ConvertDensity(eye.p[t - 1], pdfSolid, h.p, h.ngeo);
             tr.isLightDirect = false;
@@ -752,6 +898,11 @@ namespace lux2
             Int32P nEye = Int32P(1);
             MaskP alive = active;
             RayP ray = primary;
+            // Camera vertex start medium.
+            ray.medium = ctx.cameraMediumID;
+            eye.medID[0] = ctx.cameraMediumID;
+            eye.medFrontID[0] = ctx.cameraMediumID;
+            eye.medBackID[0] = ctx.cameraMediumID;
             SWCSpectrumP beta = eye.flux[0];
 
             for (int t = 1; t < maxV; ++t)
@@ -768,38 +919,57 @@ namespace lux2
                     sampler.Get1D(st.seed, st.sampleIdx, d0 + UInt32P(3u));
 
                 HitP hit;
+                FlightResult fr;
+                // Emission at preflight beta into st.L, beta attenuated per segment.
                 IntersectCollapsed(
-                    ctx, ray, alive, hit,
+                    ctx, ray, alive, st, Int32P(t), Int32P(0), &beta, &st.L,
+                    hit, fr,
                     [&](const HitP &h, const Vector3fP &rd, const MaskP &didHitC)
                     {
                         const MaskP emitHere = didHitC && (h.lightID >= Int32P(0));
                         AccumulateS0(ctx, st, eye, t, beta, h, rd, emitHere);
                     });
+                alive &= !fr.absorbed;
 
+                // A scatter is a vertex too!
+                const MaskP mediumEvent = fr.mediumEvent && alive;
                 const MaskP didHit = alive && hit.hit;
                 st.alpha = select(didHit && (t == 1), FloatP(1.f), st.alpha);
-                alive &= hit.hit; // miss ends the subpath (env lights: TODO)
+                alive &= (hit.hit || mediumEvent);
                 if (!any(alive))
                     break;
 
-                const DifferentialGeometryP dg = MakeDG(hit, ray.d, didHit);
-                const BSDFPtr bsdf = ctx.table->Gather(hit.matID, didHit);
+                const MaskP hitMask = didHit && !mediumEvent;
+                const DifferentialGeometryP dg = MakeDG(hit, ray.d, hitMask);
+                const BSDFPtr bsdf = ctx.table->Gather(hit.matID, hitMask);
                 const Vector3fP wo = -ray.d;
-                nEye = select(didHit, nEye + Int32P(1), nEye);
+                const MaskP validVtx = alive; // hit or scatter
+                nEye = select(validVtx, nEye + Int32P(1), nEye);
 
-                // legacy: vp.d2, v.coso, v.dARWeight
-                const Vector3fP dv = hit.p - eye.p[t - 1];
+                // vp.d2, v.coso, v.dARWeight.
+                const Point3fP pNew = select(mediumEvent, fr.p, hit.p);
+                const Vector3fP dv = pNew - eye.p[t - 1];
                 const FloatP d2 = dot(dv, dv);
-                const FloatP cB = abs(dot(wo, dg.ng));
-                eye.d2[t - 1] = select(didHit, d2, eye.d2[t - 1]);
-                eye.p[t] = hit.p;
+                const FloatP cB = select(mediumEvent, FloatP(1.f),
+                                         abs(dot(wo, dg.ng)));
+                eye.d2[t - 1] = select(validVtx, d2, eye.d2[t - 1]);
+                eye.p[t] = pNew;
                 eye.dg[t] = dg;
-                eye.bsdf[t] = bsdf;
+                eye.bsdf[t] = bsdf; // null on scatter lanes
                 eye.wb[t] = wo;
                 eye.flux[t] = beta;
                 eye.coso[t] = cB;
+                eye.isMed[t] = mediumEvent;
+                eye.med[t] = fr.med;
+                eye.k[t] = fr.k;
+                eye.medID[t] = select(mediumEvent, ray.medium,
+                                      UInt32P(LUX2_MEDIUM_CLEAR));
+                eye.medFrontID[t] =
+                    select(mediumEvent, ray.medium, hit.mediumFrontID);
+                eye.medBackID[t] =
+                    select(mediumEvent, ray.medium, hit.mediumBackID);
                 eye.dARWeight[t] =
-                    select(didHit && (t >= 2 || ctx.useT1),
+                    select(validVtx && (t >= 2 || ctx.useT1),
                            eye.pdfR[t - 1] * cB * divp(FloatP(1.f), d2),
                            FloatP(0.f));
 
@@ -807,23 +977,37 @@ namespace lux2
                 if (t + 1 == maxV)
                     break;
 
+                VertexP vtx;
+                vtx.valid = validVtx;
+                vtx.isMedium = mediumEvent;
+                vtx.p = pNew;
+                vtx.dg = dg; // zero normals on scatter lanes
+                vtx.wo = wo;
+                vtx.k = fr.k;
+                vtx.bsdf = bsdf;
+                vtx.med = fr.med;
+
                 BSDFSampleP sample;
-                bsdf->SampleF(st.sw, wo, dg, u2bsdf.x(), u2bsdf.y(), ucomp,
-                              &sample, TransportMode::Radiance, didHit);
+                // Scatter lanes reuse the u2bsdf dims.
+                SampleVertex(vtx, st.sw, u2bsdf.x(), u2bsdf.y(), ucomp,
+                             &sample, validVtx);
                 const MaskP specular =
-                    didHit && has_flag(sample.sampledType, BSDFType::Specular);
-                const MaskP sampOk = didHit && (sample.pdf > FloatP(0.f));
+                    hitMask && has_flag(sample.sampledType, BSDFType::Specular);
+                const MaskP sampOk = validVtx && (sample.pdf > FloatP(0.f));
 
                 BSDFEvalP ev = ZeroEval();
-                bsdf->Eval(st.sw, sample.wi, wo, dg, TransportMode::Radiance, &ev,
-                           didHit && !specular);
+                FloatP vtxCos(0.f); // cN carries the cos=1 override
+                EvalVertex(vtx, st.sw, sample.wi, &ev, &vtxCos,
+                           validVtx && !specular);
 
                 // Lux SampleF outputs pdfR = p(wi|wo) (forward),
                 // pdf = p(wo|wi) (reverse). Specular keeps lobe probability.
+                // Scatter lanes: f = 1, pdf = pdfRev = phase.
                 eye.pdfR[t] = sample.pdf;
                 eye.pdf[t] = select(specular, sample.pdf, ev.pdfRev);
                 eye.spec[t] = specular;
-                const FloatP cN = abs(dot(sample.wi, dg.ng));
+                const FloatP cN = select(mediumEvent, FloatP(1.f),
+                                         abs(dot(sample.wi, dg.ng)));
                 eye.cosi[t] = cN;
                 // Lux vp.dAWeight = v.pdf * tPdf / vp.d2 * vp.cosi
                 if (t >= 2)
@@ -843,19 +1027,27 @@ namespace lux2
                 const MaskP kill = rrActive && (eye.rrR[t] < urr);
                 beta = select(rrActive && !kill,
                               newBeta * divp(FloatP(1.f), eye.rrR[t]), newBeta);
-                alive &= !(didHit && !(sample.pdf > FloatP(0.f)));
+                alive &= !(validVtx && !(sample.pdf > FloatP(0.f)));
                 alive &= !kill;
 
-                const Point3fP spawn =
+                // Surface vertices offset along ng, scatter vertices step a
+                // fixed epsilon along the sampled direction.
+                const Point3fP surfSpawn =
                     OffsetRay(hit.p, hit.ngeo, sample.wi, FloatP(EPS_RAY));
-                ray.o = select(alive, spawn, ray.o);
+                const Point3fP medSpawn = fr.p + sample.wi * FloatP(EPS_RAY);
+                ray.o = select(alive,
+                               select(mediumEvent, medSpawn, surfSpawn), ray.o);
                 ray.d = select(alive, sample.wi, ray.d);
                 ray.mint = FloatP(EPS_RAY);
                 ray.maxt = FloatP(INF_F);
                 ray.time = FloatP(0.f);
                 ray.wavelengths = st.sw.w;
                 ray.mask = UInt32P(0xFFFFFFFFu);
-                ray.medium = UInt32P(LUX2_MEDIUM_CLEAR);
+                if (ctx.hasMedia)
+                    ray.medium = select(mediumEvent, ray.medium,
+                                        select(hitMask,
+                                               SwapMedium(hit, sample.wi),
+                                               ray.medium));
                 ray.UpdateReciprocalDirection();
             }
             *nEyeOut = nEye;
@@ -904,9 +1096,7 @@ namespace lux2
             const MaskP ok = okOrigin && (pdfDir > FloatP(0.f)) &&
                              (pdfArea > FloatP(0.f));
 
-            // Lux light0.dAWeight = pdfArea * lPdf; Le /= lPdf (Le already
-            // /pdfArea). flux[0] folds Le/(selPdf*pdfArea); f0 = cos/pdf
-            // is the origin's scattering factor applied to flux[1].
+            // Lux light0.dAWeight = pdfArea * lPdf; Le /= lPdf.
             const FloatP selPdf = ctx.invNLights;
             const FloatP aF0 = selPdf * pdfArea;
             const FloatP cos0 = abs(dot(wi0, edg.n));
@@ -934,7 +1124,11 @@ namespace lux2
             RayP ray(edg.p, wi0, FloatP(EPS_RAY), FloatP(INF_F), FloatP(0.f));
             ray.wavelengths = st.sw.w;
             ray.mask = UInt32P(0xFFFFFFFFu);
+            // Light origin medium.
             ray.medium = UInt32P(LUX2_MEDIUM_CLEAR);
+            light.medID[0] = UInt32P(LUX2_MEDIUM_CLEAR);
+            light.medFrontID[0] = UInt32P(LUX2_MEDIUM_CLEAR);
+            light.medBackID[0] = UInt32P(LUX2_MEDIUM_CLEAR);
             SWCSpectrumP beta = light.flux[0] * f0;
 
             for (int s = 1; s < maxV; ++s)
@@ -951,40 +1145,62 @@ namespace lux2
                     sampler.Get1D(st.seed, st.sampleIdx, d0 + UInt32P(3u));
 
                 HitP hit;
-                IntersectCollapsed(ctx, ray, alive, hit,
-                                   [](const HitP &, const Vector3fP &, const MaskP &) {});
+                FlightResult fr;
+                IntersectCollapsed(
+                    ctx, ray, alive, st, Int32P(s),
+                    Int32P(64 * (ctx.eyeDepth + 1)), &beta, nullptr, hit, fr,
+                    [](const HitP &, const Vector3fP &, const MaskP &) {});
+                alive &= !fr.absorbed;
+                // Scatter vertices survive the miss check.
+                const MaskP mediumEvent = fr.mediumEvent && alive;
                 const MaskP didHit = alive && hit.hit;
-                alive &= hit.hit;
+                alive &= (hit.hit || mediumEvent);
                 if (!any(alive))
                     break;
 
-                const DifferentialGeometryP dg = MakeDG(hit, ray.d, didHit);
-                const BSDFPtr bsdf = ctx.table->Gather(hit.matID, didHit);
-                const Vector3fP wi = -ray.d; // Lux v.wi (back toward light)
-                nLight = select(didHit, nLight + Int32P(1), nLight);
+                const MaskP hitMask = didHit && !mediumEvent;
+                const DifferentialGeometryP dg = MakeDG(hit, ray.d, hitMask);
+                const BSDFPtr bsdf = ctx.table->Gather(hit.matID, hitMask);
+                const Vector3fP wi = -ray.d;  // Lux v.wi back toward light
+                const MaskP validVtx = alive; // hit or scatter
+                nLight = select(validVtx, nLight + Int32P(1), nLight);
 
-                const Vector3fP dv = hit.p - light.p[s - 1];
+                // cos = 1 at scatter vertices.
+                const Point3fP pNew = select(mediumEvent, fr.p, hit.p);
+                const Vector3fP dv = pNew - light.p[s - 1];
                 const FloatP d2 = dot(dv, dv);
-                const FloatP cB = abs(dot(wi, dg.ng)); // v.cosi
-                light.d2[s - 1] = select(didHit, d2, light.d2[s - 1]);
-                light.p[s] = hit.p;
+                const FloatP cB = select(mediumEvent, FloatP(1.f),
+                                         abs(dot(wi, dg.ng))); // v.cosi
+                light.d2[s - 1] = select(validVtx, d2, light.d2[s - 1]);
+                light.p[s] = pNew;
                 light.dg[s] = dg;
-                light.bsdf[s] = bsdf;
+                light.bsdf[s] = bsdf; // null on scatter lanes
                 light.wb[s] = wi;
                 light.flux[s] = beta;
                 light.cosi[s] = cB;
+                light.isMed[s] = mediumEvent;
+                light.med[s] = fr.med;
+                light.k[s] = fr.k;
+                light.medID[s] = select(mediumEvent, ray.medium,
+                                        UInt32P(LUX2_MEDIUM_CLEAR));
+                light.medFrontID[s] =
+                    select(mediumEvent, ray.medium, hit.mediumFrontID);
+                light.medBackID[s] =
+                    select(mediumEvent, ray.medium, hit.mediumBackID);
                 // Lux v.dAWeight = vp.pdf * vp.tPdf / vp.d2 * v.cosi
                 light.dAWeight[s] =
-                    select(didHit, light.pdf[s - 1] * cB * divp(FloatP(1.f), d2),
+                    select(validVtx,
+                           light.pdf[s - 1] * cB * divp(FloatP(1.f), d2),
                            FloatP(0.f));
 
                 if (s == 1)
                 {
-                    // legacy lightDirectPdf (nLight == 2): direct sampling of
-                    // light[0] from vertex 1, area measure at light[0].
+                    // Direct sampling of light[0] from vertex 1,
+                    // area measure at light[0]. Vertex 1 may be a scatter.
                     const FloatP pdfSolid =
                         selLight->Pdf_L(light.p[1], light.dg[1].n, light.p[0],
-                                        light.dg[0].n, didHit, MaskP(true)) *
+                                        light.dg[0].n, didHit,
+                                        !light.isMed[1]) *
                         ctx.invNLights;
                     light.directPdf1 =
                         ConvertDensity(light.p[1], pdfSolid, light.p[0], light.dg[0].ng);
@@ -998,24 +1214,37 @@ namespace lux2
                 }
 
                 if (s + 1 == maxV)
-                    break; // legacy: no sample at the last allowed vertex
+                    break; // no sample at the last allowed vertex
+
+                VertexP vtx;
+                vtx.valid = validVtx;
+                vtx.isMedium = mediumEvent;
+                vtx.p = pNew;
+                vtx.dg = dg; // zero normals on scatter lanes
+                vtx.wo = wi;
+                vtx.k = fr.k;
+                vtx.bsdf = bsdf;
+                vtx.med = fr.med;
 
                 BSDFSampleP sample;
-                bsdf->SampleF(st.sw, wi, dg, u2bsdf.x(), u2bsdf.y(), ucomp, &sample,
-                              TransportMode::Importance, didHit);
+                SampleVertex(vtx, st.sw, u2bsdf.x(), u2bsdf.y(), ucomp, &sample,
+                             validVtx, TransportMode::Importance);
                 const MaskP specular =
-                    didHit && has_flag(sample.sampledType, BSDFType::Specular);
-                const MaskP sampOk = didHit && (sample.pdf > FloatP(0.f));
+                    hitMask && has_flag(sample.sampledType, BSDFType::Specular);
+                const MaskP sampOk = validVtx && (sample.pdf > FloatP(0.f));
 
                 BSDFEvalP ev = ZeroEval();
-                bsdf->Eval(st.sw, sample.wi, wi, dg, TransportMode::Importance, &ev,
-                           didHit && !specular);
+                FloatP vtxCos(0.f); // cN carries the cos=1 override
+                EvalVertex(vtx, st.sw, sample.wi, &ev, &vtxCos,
+                           validVtx && !specular, TransportMode::Importance);
 
                 // Lux light SampleF: pdf = forward, pdfR = reverse.
+                // Scatter lanes: f = 1, pdf = pdfRev = phase.
                 light.pdf[s] = sample.pdf;
                 light.pdfR[s] = select(specular, sample.pdf, ev.pdfRev);
                 light.spec[s] = specular;
-                const FloatP cN = abs(dot(sample.wi, dg.ng)); // v.coso
+                const FloatP cN = select(mediumEvent, FloatP(1.f),
+                                         abs(dot(sample.wi, dg.ng))); // v.coso
                 light.coso[s] = cN;
                 // Lux vp.dARWeight = v.pdfR * v.tPdfR / vp.d2 * vp.coso
                 light.dARWeight[s - 1] =
@@ -1034,17 +1263,24 @@ namespace lux2
                 const MaskP kill = rrActive && (light.rr[s] < urr);
                 beta = select(rrActive && !kill,
                               newBeta * divp(FloatP(1.f), light.rr[s]), newBeta);
-                alive &= !(didHit && !(sample.pdf > FloatP(0.f)));
+                alive &= !(validVtx && !(sample.pdf > FloatP(0.f)));
                 alive &= !kill;
 
-                const Point3fP spawn =
+                const Point3fP surfSpawn =
                     OffsetRay(hit.p, hit.ngeo, sample.wi, FloatP(EPS_RAY));
-                ray.o = select(alive, spawn, ray.o);
+                const Point3fP medSpawn = fr.p + sample.wi * FloatP(EPS_RAY);
+                ray.o = select(alive,
+                               select(mediumEvent, medSpawn, surfSpawn), ray.o);
                 ray.d = select(alive, sample.wi, ray.d);
                 ray.mint = FloatP(EPS_RAY);
                 ray.maxt = FloatP(INF_F);
                 ray.wavelengths = st.sw.w;
                 ray.mask = UInt32P(0xFFFFFFFFu);
+                if (ctx.hasMedia)
+                    ray.medium = select(mediumEvent, ray.medium,
+                                        select(hitMask,
+                                               SwapMedium(hit, sample.wi),
+                                               ray.medium));
                 ray.UpdateReciprocalDirection();
             }
             *nLightOut = nLight;
@@ -1067,12 +1303,12 @@ namespace lux2
                           divp(FloatP(1.f), eye.d2[ei - 1]);
             // eyeV.rr (nEye > 1), eyeV.rrR
             const FloatP den = ecosi * ef.pdfRev;
-            tr.eRR_last = select(den > FloatP(PDF_EPS),
+            tr.eRR_last = select(den > FloatP(EPS_DENOM),
                                  min(FloatP(1.f),
                                      max(ctx.lightRR,
                                          ef.f * eye.coso[ei] * divp(FloatP(1.f), den))),
                                  FloatP(0.f));
-            tr.eRRR_last = select(ef.pdf > FloatP(PDF_EPS),
+            tr.eRRR_last = select(ef.pdf > FloatP(EPS_DENOM),
                                   min(FloatP(1.f),
                                       max(ctx.eyeRR, ef.f * divp(FloatP(1.f), ef.pdf))),
                                   FloatP(0.f));
@@ -1111,29 +1347,49 @@ namespace lux2
             Normal3fP lightN(0.f);
             FloatP pdfPos(0.f);
             SWCSpectrumP Le(0.f);
+            // The eye vertex may be a medium scatter.
+            const MaskP recvHasN = !eye.isMed[ei];
             const MaskP sampleOk = selLight->Sample_Li(
                 st.sw, eye.p[ei], eye.dg[ei].n, uPos.x(), uPos.y(), uComp, &lightP,
-                &wiL, &lightN, &pdfPos, &Le, base);
+                &wiL, &lightN, &pdfPos, &Le, base, recvHasN);
             const FloatP dist = enoki::norm(lightP - eye.p[ei]);
             const FloatP d2 = dist * dist;
             const FloatP pdfL = pdfPos * ctx.invNLights;
             const FloatP tmax = dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
 
+            // Phase on scatter lanes.
+            VertexP evx;
+            evx.valid = base;
+            evx.isMedium = eye.isMed[ei];
+            evx.p = eye.p[ei];
+            evx.dg = eye.dg[ei];
+            evx.wo = eye.wb[ei];
+            evx.k = eye.k[ei];
+            evx.bsdf = eye.bsdf[ei];
+            evx.med = eye.med[ei];
             BSDFEvalP ef = ZeroEval();
-            eye.bsdf[ei]->Eval(st.sw, wiL, eye.wb[ei], eye.dg[ei],
-                               TransportMode::Radiance, &ef, sampleOk);
+            FloatP ecosiV(0.f);
+            EvalVertex(evx, st.sw, wiL, &ef, &ecosiV, sampleOk);
+            // Density cosine = 1 at a scatter.
+            const FloatP ecosi = select(eye.isMed[ei], FloatP(1.f),
+                                        abs(dot(wiL, eye.dg[ei].ng)));
             const MaskP tryVis = sampleOk && (pdfL > FloatP(0.f)) &&
                                  (ef.f > SWCSpectrumP(0.f));
+            // Scatter lanes have ng == 0.
             const Point3fP shadowO =
                 OffsetRay(eye.p[ei], eye.dg[ei].ng, wiL, FloatP(EPS_RAY));
-            const MaskP vis = ShadowTr(ctx, shadowO, wiL, tmax, st.sw, tryVis);
-            const MaskP cont = tryVis && vis;
+            const UInt32P startMed = StartMedium(eye, ei, wiL);
+            const SWCSpectrumP Tr =
+                ConnectTr(ctx, shadowO, wiL, startMed, tmax, st.sw, st,
+                          Int32P(nE), lightIdx, SHADOW_SALT, tryVis);
+            const MaskP cont = tryVis && (Tr > SWCSpectrumP(0.f));
             if (!any(cont))
                 return;
 
-            // Lux Ld * lf * ef * flux / d2 for a diffuse emitter.
+            // Lux Ld * lf * ef * flux / d2 for a diffuse emitter, times the
+            // interval transmittance .
             const SWCSpectrumP Lc =
-                eye.flux[ei] * ef.f * Le * divp(FloatP(1.f), pdfL);
+                eye.flux[ei] * ef.f * Le * Tr * divp(FloatP(1.f), pdfL);
 
             const FloatP area =
                 enoki::gather<FloatP>(ctx.areaByIdx.data(), lightIdx, cont);
@@ -1141,19 +1397,18 @@ namespace lux2
             const FloatP cosLraw = dot(-wiL, lightN);
             const FloatP cosL =
                 select(cosLraw > FloatP(0.f), cosLraw, FloatP(0.f));
-            const FloatP ecosi = abs(dot(wiL, eye.dg[ei].ng));
 
-            // Virtual light vertex dAWeight = emission area pdf * sel
+            // Virtual light vertex dAWeight = emission area pdf * sel.
             nee.dAWeight[0] = ctx.invNLights * divp(FloatP(1.f), area);
 
             Transient tr;
             tr.isLightDirect = true;
             tr.pdfLightDirect = ConvertDensity(eye.p[ei], pdfL, lightP, lightN);
-            const FloatP lpdf = cosL * INVPI; // emitter pdf [D5]
+            const FloatP lpdf = cosL * INVPI; // emitter pdf
             FillEyeTransient(tr, eye, ei, ef, ecosi, lpdf, d2, ctx);
             // lightV.dARWeight = epdfR * etPdfR / d2 * lcoso
             tr.lAR_last = ef.pdf * cosL * divp(FloatP(1.f), d2);
-            tr.lRR_last = select(lpdf > FloatP(PDF_EPS),
+            tr.lRR_last = select(lpdf > FloatP(EPS_DENOM),
                                  min(FloatP(1.f),
                                      max(ctx.lightRR, cosL * divp(FloatP(1.f), lpdf))),
                                  FloatP(0.f));
@@ -1191,15 +1446,23 @@ namespace lux2
             const Vector3fP ewi = dRaw * enoki::sqrt(divp(FloatP(1.f), d2));
             const Vector3fP lwi = -ewi;
 
+            // Phase on scatter lanes, BSDF on surface lanes.
+            VertexP evx;
+            evx.valid = base;
+            evx.isMedium = eye.isMed[ei];
+            evx.p = eye.p[ei];
+            evx.dg = eye.dg[ei];
+            evx.wo = eye.wb[ei];
+            evx.k = eye.k[ei];
+            evx.bsdf = eye.bsdf[ei];
+            evx.med = eye.med[ei];
             BSDFEvalP ef = ZeroEval();
-            eye.bsdf[ei]->Eval(st.sw, ewi, eye.wb[ei], eye.dg[ei],
-                               TransportMode::Radiance, &ef, base);
+            FloatP ecosiV(0.f);
+            EvalVertex(evx, st.sw, ewi, &ef, &ecosiV, base);
 
-            // Origin (nL==1) uses the analytic emitter and deeper vertices
+            // Origin uses the analytic emitter and deeper vertices
             // use the BSDF. lf.pdf = lpdf, lf.pdfRev = lpdfR.
 
-            // TODO: lf is hoisted so a glass vertex on the light subpath can be
-            // ghost-tallied alongside the eye-side ef.
             FloatP lfv, lpdf, lpdfR(0.f);
             BSDFEvalP lf = ZeroEval();
             if (nL == 1)
@@ -1212,14 +1475,19 @@ namespace lux2
             }
             else
             {
-                // Lux EvalPath where F(sw, lightV.wi /*back*/, lwo /*toward-eye*/,
-                // reverse=false). SingleBSDF::F folds cos of its first arg and
-                // the |sideTest| ng-Jacobian keyed to (wiW/woW).
+                // Lux EvalPath F(sw, lightV.wi /*back*/, lwo /*toward-eye*/, reverse=false).
+                const MaskP lMed = light.isMed[li];
                 light.bsdf[li]->Eval(st.sw, light.wb[li], lwi, light.dg[li],
-                                     TransportMode::Importance, &lf, base);
-                lfv = lf.f;
-                lpdf = lf.pdfRev;
-                lpdfR = lf.pdf;
+                                     TransportMode::Importance, &lf,
+                                     base && !lMed);
+                const FloatP ph = select(
+                    lMed,
+                    light.med[li]->PhasePdf(st.sw, light.p[li], light.wb[li],
+                                            lwi, base && lMed),
+                    FloatP(0.f));
+                lfv = select(lMed, ph, lf.f);
+                lpdf = select(lMed, ph, lf.pdfRev);
+                lpdfR = select(lMed, ph, lf.pdf);
             }
 
             const SWCSpectrumP Lc0 = light.flux[li] * lfv * ef.f * eye.flux[ei];
@@ -1228,18 +1496,26 @@ namespace lux2
             if (!any(preCont))
                 return;
 
+            // Zero ng = no offset.
             const Point3fP shadowO =
                 OffsetRay(eye.p[ei], eye.dg[ei].ng, ewi, FloatP(EPS_RAY));
             const FloatP dist = enoki::sqrt(d2);
             const FloatP tmax = dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
-            const MaskP vis = ShadowTr(ctx, shadowO, ewi, tmax, st.sw, preCont);
-            const MaskP cont = preCont && vis;
+            const UInt32P startMed = StartMedium(eye, ei, ewi);
+            const SWCSpectrumP Tr =
+                ConnectTr(ctx, shadowO, ewi, startMed, tmax, st.sw, st,
+                          Int32P(nE), UInt32P(uint32_t(nE * 64 + nL)),
+                          BDPT_CONN_SALT, preCont);
+            const MaskP cont = preCont && (Tr > SWCSpectrumP(0.f));
             if (!any(cont))
                 return;
-            const SWCSpectrumP Lc = Lc0 * divp(FloatP(1.f), d2);
+            const SWCSpectrumP Lc = Lc0 * divp(FloatP(1.f), d2) * Tr;
 
-            const FloatP ecosi = abs(dot(ewi, eye.dg[ei].ng));
-            const FloatP lcoso = abs(dot(lwi, light.dg[li].ng));
+            // Density cosines = 1 at a scatter endpoint.
+            const FloatP ecosi = select(eye.isMed[ei], FloatP(1.f),
+                                        abs(dot(ewi, eye.dg[ei].ng)));
+            const FloatP lcoso = select(light.isMed[li], FloatP(1.f),
+                                        abs(dot(lwi, light.dg[li].ng)));
 
             Transient tr;
             tr.isLightDirect = false;
@@ -1250,7 +1526,7 @@ namespace lux2
             tr.lAR_prev = nL > 1 ? lpdfR * light.coso[li - 1] *
                                        divp(FloatP(1.f), light.d2[li - 1])
                                  : FloatP(0.f);
-            tr.lRR_last = select(lpdf > FloatP(PDF_EPS),
+            tr.lRR_last = select(lpdf > FloatP(EPS_DENOM),
                                  min(FloatP(1.f),
                                      max(ctx.lightRR, lfv * divp(FloatP(1.f), lpdf))),
                                  FloatP(0.f));
@@ -1260,7 +1536,7 @@ namespace lux2
             {
                 const FloatP den = lcoso * lpdfR;
                 tr.lRRR_last =
-                    select(den > FloatP(PDF_EPS),
+                    select(den > FloatP(EPS_DENOM),
                            min(FloatP(1.f),
                                max(ctx.eyeRR,
                                    lfv * light.cosi[li] * divp(FloatP(1.f), den))),
@@ -1268,15 +1544,15 @@ namespace lux2
             }
 
             // pdfLightDirect: nL==1 -> direct sampling of light0 from the eye
-            // vertex (Lux light->Pdf(vE.p, light0) * directWeight);
-            // nL>=2 -> Lux lightDirectPdf cached by TraceLight.
+            // vertex (light->Pdf(vE.p, light0) * directWeight).
             if (nL == 1)
             {
                 const LightPtr selLight = enoki::gather<LightPtr>(
                     ctx.lightPtrs.data(), light.selIdx, cont);
+                // Receiver = eye vertex ei; a scatter has no normal.
                 const FloatP pdfSolid =
                     selLight->Pdf_L(eye.p[ei], eye.dg[ei].n, light.p[0],
-                                    light.dg[0].n, cont, MaskP(true)) *
+                                    light.dg[0].n, cont, !eye.isMed[ei]) *
                     ctx.invNLights;
                 tr.pdfLightDirect =
                     ConvertDensity(eye.p[ei], pdfSolid, light.p[0], light.dg[0].ng);
@@ -1342,15 +1618,23 @@ namespace lux2
             }
             else
             {
-                // Lux F(sw, lightV.wi /*back*/, lwo /*toward-eye*/, false).
+                // F(sw, lightV.wi /*back*/, lwo /*toward-eye*/, false).
+                // Scatter lanes take the symmetric phase.
+                const MaskP lMed = light.isMed[li];
                 light.bsdf[li]->Eval(st.sw, light.wb[li], lwi, light.dg[li],
-                                     TransportMode::Importance, &lf, inView);
-                lfv = lf.f;
-                lpdf = lf.pdfRev;
-                lpdfR = lf.pdf;
+                                     TransportMode::Importance, &lf,
+                                     inView && !lMed);
+                const FloatP ph = select(
+                    lMed,
+                    light.med[li]->PhasePdf(st.sw, light.p[li], light.wb[li],
+                                            lwi, inView && lMed),
+                    FloatP(0.f));
+                lfv = select(lMed, ph, lf.f);
+                lpdf = select(lMed, ph, lf.pdfRev);
+                lpdfR = select(lMed, ph, lf.pdf);
             }
 
-            // Camera BSDF F = We (Lux PerspectiveBSDF::F).
+            // Camera BSDF F = We (PerspectiveBSDF::F).
             const SWCSpectrumP Lc0 = light.flux[li] * lfv * We;
             const MaskP preCont = inView && (d2 > FloatP(EPS_DENOM)) &&
                                   (Lc0 > SWCSpectrumP(0.f));
@@ -1360,14 +1644,18 @@ namespace lux2
             const FloatP dist = enoki::sqrt(d2);
             const FloatP tmax =
                 dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
-            const MaskP vis =
-                ShadowTr(ctx, eye.p[0], ewi, tmax, st.sw, preCont);
-            const MaskP cont = preCont && vis;
+            const SWCSpectrumP Tr =
+                ConnectTr(ctx, eye.p[0], ewi, ctx.cameraMediumID, tmax, st.sw,
+                          st, Int32P(0), UInt32P(uint32_t(1 * 64 + nL)),
+                          BDPT_CONN_SALT, preCont);
+            const MaskP cont = preCont && (Tr > SWCSpectrumP(0.f));
             if (!any(cont))
                 return;
-            const SWCSpectrumP Lc = Lc0 * divp(FloatP(1.f), d2);
+            const SWCSpectrumP Lc = Lc0 * divp(FloatP(1.f), d2) * Tr;
 
-            const FloatP lcoso = abs(dot(lwi, light.dg[li].ng));
+            // Density cosine = 1 at a scatter endpoint.
+            const FloatP lcoso = select(light.isMed[li], FloatP(1.f),
+                                        abs(dot(lwi, light.dg[li].ng)));
 
             Transient tr;
             tr.eAF_last = eye.pdfR[0] * cosCam * divp(FloatP(1.f), d2);
@@ -1381,7 +1669,7 @@ namespace lux2
                                     divp(FloatP(1.f), light.d2[li - 1])
                               : FloatP(0.f);
             tr.lRR_last =
-                select(lpdf > FloatP(PDF_EPS),
+                select(lpdf > FloatP(EPS_DENOM),
                        min(FloatP(1.f),
                            max(ctx.lightRR, lfv * divp(FloatP(1.f), lpdf))),
                        FloatP(0.f));
@@ -1391,7 +1679,7 @@ namespace lux2
             {
                 const FloatP den = lcoso * lpdfR;
                 tr.lRRR_last =
-                    select(den > FloatP(PDF_EPS),
+                    select(den > FloatP(EPS_DENOM),
                            min(FloatP(1.f),
                                max(ctx.eyeRR,
                                    lfv * light.cosi[li] *
@@ -1478,13 +1766,14 @@ namespace lux2
 
             const MaskP tryVis =
                 inView && (pdfL > FloatP(0.f)) && (We > FloatP(0.f));
-            const MaskP vis =
-                ShadowTr(ctx, eye.p[0], ewi, tmax, st.sw, tryVis);
-            const MaskP cont = tryVis && vis;
+            const SWCSpectrumP Tr =
+                ConnectTr(ctx, eye.p[0], ewi, ctx.cameraMediumID, tmax, st.sw,
+                          st, Int32P(1), lightIdx, SHADOW_SALT, tryVis);
+            const MaskP cont = tryVis && (Tr > SWCSpectrumP(0.f));
             if (!any(cont))
                 return;
 
-            const SWCSpectrumP Lc = We * Le * divp(FloatP(1.f), pdfL);
+            const SWCSpectrumP Lc = We * Le * Tr * divp(FloatP(1.f), pdfL);
 
             const FloatP cosLraw = dot(-wiL, lightN);
             const FloatP cosL =
@@ -1506,7 +1795,7 @@ namespace lux2
             tr.eRRR_last = FloatP(1.f);
             tr.lAR_last = We * cosL * divp(FloatP(1.f), d2);
             tr.lRR_last =
-                select(lpdf > FloatP(PDF_EPS),
+                select(lpdf > FloatP(EPS_DENOM),
                        min(FloatP(1.f),
                            max(ctx.lightRR, cosL * divp(FloatP(1.f), lpdf))),
                        FloatP(0.f));
@@ -1607,6 +1896,10 @@ namespace lux2
             ctx.areaByIdx[size_t(i)] = (l && !l->IsInfinite()) ? l->TotalArea() : 0.f;
         }
         ctx.camera = &camera;
+        ctx.mediumTable = &scene.GetMediumTable();
+        ctx.hasMedia = scene.HasMedia();
+        // Id 0 is the ambient composite.
+        ctx.cameraMediumID = UInt32P(LUX2_MEDIUM_CLEAR);
         ctx.eyeDepth = m_eyeDepth;
         ctx.lightDepth = m_lightDepth;
         ctx.eyeRR = FloatP(m_eyeRRThreshold);
@@ -1635,7 +1928,10 @@ namespace lux2
         light.Init(std::max(1, m_lightDepth));
         nee.Init(1);
 
-        Refill(sampler, jobs, sampleBasis, st, 1);
+        // BISECT(step2): fixed rotation; stripes should shift by BISECT_ROT
+        // columns if the artifact is lane-bound.
+        constexpr unsigned BISECT_ROT = 3;
+        Refill(sampler, jobs, sampleBasis, st, 1, BISECT_ROT);
         while (any(st.active))
         {
             Int32P nEye, nLight;
@@ -1663,7 +1959,7 @@ namespace lux2
             retire.Push(st, st.active);
             retire.Flush(dest, false);
             st.active = MaskP(false);
-            Refill(sampler, jobs, sampleBasis, st);
+            Refill(sampler, jobs, sampleBasis, st, 2, BISECT_ROT);
         }
         retire.Flush(dest, true);
         OccupancyTileEnd("bidir", tile.x0, tile.y0, unsigned(PACKET_WIDTH));
