@@ -3,22 +3,26 @@
 Renderer "sampler"
 
 Sampler "lowdiscrepancy"
+	"integer pixelsamples" [16]
 
 Accelerator "embree"
 
-SurfaceIntegrator "bdpt"
+SurfaceIntegrator "bidirectional"
 	"integer eyedepth" [8]
 	"integer lightdepth" [8]
 	"integer lightraycount" [1]
-	"float eyerrthreshold" [0.050000000000000]
-	"float lightrrthreshold" [0.050000000000000]
-	"string lightpathstrategy" ["one"]
+	"float eyerrthreshold" [0.000000000000000]
+	"float lightrrthreshold" [0.000000000000000]
+	"string lightpathstrategy" ["auto"]
 	"integer shadowraycount" [1]
-	"string lightstrategy" ["one"]
+	"string lightstrategy" ["auto"]
+	"bool uset1" ["true"]
+    	"bool diag" ["false"]
+    	"float diagthreshold" [0.00001]
 
 VolumeIntegrator "none"
 
-PixelFilter "blackmanharris"
+PixelFilter "gaussian"
 	"float xwidth" [3.299999952316284]
 	"float ywidth" [3.299999952316284]
 
@@ -59,7 +63,7 @@ Film "fleximage"
 	"integer displayinterval" [10]
 	"integer writeinterval" [180]
 	"integer flmwriteinterval" [900]
-	"integer halttime" [60]
+	"integer haltspp" [256]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]
 

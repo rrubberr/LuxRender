@@ -1,0 +1,73 @@
+# Geometry File
+
+AttributeBegin #  "Sphere"
+
+Transform [0.399999976158142 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.399999976158142 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.399999976158142 0.000000000000000 0.400000005960464 -0.200000002980232 0.400999993085861 1.000000000000000]
+
+NamedMaterial "Glass"
+
+Shape "plymesh"
+	"string filename" ["light_groups/Scene/00001/Icosphere_0000_m000.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Sphere"]
+
+AttributeEnd # ""
+
+AttributeBegin #  "Cube"
+
+Transform [0.866025388240814 0.500000000000000 0.000000000000000 0.000000000000000 -0.500000000000000 0.866025388240814 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 -0.400000005960464 0.400000005960464 0.400999993085861 1.000000000000000]
+
+NamedMaterial "Mirror"
+
+Shape "plymesh"
+	"string filename" ["light_groups/Scene/00001/Cube_002_0000_m000.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Cube"]
+
+AttributeEnd # ""
+
+AttributeBegin #  "Ceiling"
+
+Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 1.000000000000000]
+
+NamedMaterial "Matte-White"
+
+Shape "plymesh"
+	"string filename" ["light_groups/Scene/00001/Cube_001_0000_m000.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Ceiling"]
+
+AttributeEnd # ""
+
+AttributeBegin #  "Walls"
+
+Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 1.000000000000000]
+
+AttributeBegin #  ""
+
+NamedMaterial "Matte-Red"
+
+Shape "plymesh"
+	"string filename" ["light_groups/Scene/00001/Cube_0000_m000.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Walls"]
+
+AttributeEnd # ""
+
+AttributeBegin #  ""
+
+NamedMaterial "Matte-Green"
+
+Shape "plymesh"
+	"string filename" ["light_groups/Scene/00001/Cube_0000_m001.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Walls"]
+
+AttributeEnd # ""
+
+AttributeEnd # ""

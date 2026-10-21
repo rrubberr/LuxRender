@@ -8,15 +8,16 @@ Sampler "lowdiscrepancy"
 	"bool noiseaware" ["false"]
 
 Accelerator "embree"
-	"bool highquality" ["false"]
-	"bool robust" ["false"]
+	"bool highquality" ["true"]
+	"bool robust" ["true"]
 
-SurfaceIntegrator "path"
-	"integer maxdepth" [8]
-	"float rrcontinueprob" [0.649999976158142]
-	"string rrstrategy" ["efficiency"]
-	"bool includeenvironment" ["false"]
-	"bool directlightsampling" ["true"]
+SurfaceIntegrator "bidirectional"
+	"integer eyedepth" [8]
+	"integer lightdepth" [8]
+	"integer lightraycount" [1]
+	"float eyerrthreshold" [0.000000000000000]
+	"float lightrrthreshold" [0.000000000000000]
+	"string lightpathstrategy" ["auto"]
 	"integer shadowraycount" [1]
 	"string lightstrategy" ["auto"]
 
@@ -49,11 +50,11 @@ Film "fleximage"
 	"bool restart_resume_flm" ["false"]
 	"bool write_flm_direct" ["false"]
 	"bool write_exr_halftype" ["false"]
-	"bool write_exr_applyimaging" ["true"]
+	"bool write_exr_applyimaging" ["false"]
 	"bool write_exr_ZBuf" ["false"]
 	"string write_exr_compressiontype" ["ZIP (lossless)"]
 	"string write_exr_zbuf_normalizationtype" ["None"]
-	"bool write_exr" ["false"]
+	"bool write_exr" ["true"]
 	"string write_exr_channels" ["RGB"]
 	"bool write_png" ["true"]
 	"string write_png_channels" ["RGB"]
@@ -64,7 +65,7 @@ Film "fleximage"
 	"integer displayinterval" [10]
 	"integer writeinterval" [180]
 	"integer flmwriteinterval" [900]
-	"integer haltspp" [1024]
+	"integer haltspp" [64]
 	"integer variancerejection_k" [10]
 	"integer variancerejectionwarmup" [0]
 	"integer tilecount" [0]
@@ -84,7 +85,7 @@ AttributeBegin #  "Blue"
 
 Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.500000000000000 -0.500000000000000 2.100000143051147 1.000000000000000]
 
-LightGroup "default"
+LightGroup "Blue"
 
 NamedMaterial "Blue"
 
@@ -107,7 +108,7 @@ AttributeBegin #  "Green"
 
 Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 -0.500000000000000 -0.500000000000000 2.100000143051147 1.000000000000000]
 
-LightGroup "default"
+LightGroup "Green"
 
 NamedMaterial "Green"
 
@@ -130,7 +131,7 @@ AttributeBegin #  "White"
 
 Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.500000000000000 0.500000000000000 2.100000143051147 1.000000000000000]
 
-LightGroup "default"
+LightGroup "White"
 
 NamedMaterial "White"
 
@@ -153,7 +154,7 @@ AttributeBegin #  "Red"
 
 Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 -0.500000000000000 0.500000000000000 2.100000143051147 1.000000000000000]
 
-LightGroup "default"
+LightGroup "Red"
 
 NamedMaterial "Red"
 
