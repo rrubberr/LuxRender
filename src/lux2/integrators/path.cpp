@@ -138,13 +138,8 @@ namespace lux2
             FloatP tCur = FloatP(EPS_RAY);
             MaskP tracing = active;
             // Shadow stream.
-            RNGP rng;
-            {
-                UInt64P st, sq;
-                StreamKey(addr.seed, addr.sampleIdx, addr.bounce, addr.depth,
-                          lightIdx, SHADOW_SALT, &st, &sq);
-                rng.Seed(st, sq);
-            }
+            RNGP rng = KeyedRNG(addr.seed, addr.sampleIdx, addr.bounce,
+                                addr.depth, lightIdx, SHADOW_SALT);
 
             for (int i = 0; i < MAX_SHADOW_CROSSINGS && any(tracing); ++i)
             {
@@ -309,13 +304,8 @@ namespace lux2
                     const MediumPtr med =
                         ctx.mediumTable->Gather(ray.medium, inMedium);
                     // Flight stream.
-                    RNGP rng;
-                    {
-                        UInt64P stKey, sqKey;
-                        StreamKey(st.seed, st.sampleIdx, bounce, depth,
-                                  UInt32P(0u), FLIGHT_SALT, &stKey, &sqKey);
-                        rng.Seed(stKey, sqKey);
-                    }
+                    RNGP rng = KeyedRNG(st.seed, st.sampleIdx, bounce, depth,
+                                        UInt32P(0u), FLIGHT_SALT);
                     med->SampleInteraction(sw, ray, ray.mint, tEnd, uFlight,
                                            rng, &ms, inMedium);
 
@@ -711,8 +701,6 @@ namespace lux2
             alignas(64) uint32_t seeds[PACKET_WIDTH] = {}, sidxs[PACKET_WIDTH] = {};
 
             // Fold the sampler's configured base seed.
-            const uint64_t baseSeed = sampler.BaseSeed();
-
             bool anyFill = false;
             for (size_t i = 0; i < PACKET_WIDTH; ++i)
             {
@@ -726,10 +714,7 @@ namespace lux2
                 pys[i] = float(j.py);
                 sidxs[i] = j.s;
                 // Scramble.
-                const uint64_t h =
-                    ((sampleBasis ^ baseSeed) * 0x9E3779B97F4A7C15ull) ^
-                    (uint64_t(j.px) * 0xBF58476D1CE4E5B9ull) ^
-                    (uint64_t(j.py) * 0x94D049BB133111EBull);
+                const uint64_t h = PixelSeed(sampleBasis, sampler.BaseSeed(), j.px, j.py);
                 seeds[i] = uint32_t(h >> 32);
                 anyFill = true;
             }

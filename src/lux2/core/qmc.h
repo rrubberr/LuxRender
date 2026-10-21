@@ -29,6 +29,11 @@
 namespace lux2
 {
 
+    // Scramble constantscbroadcast across all lanes.
+    constexpr uint32_t SCRAMBLE_1D = 0x48bc48ebu;
+    constexpr uint32_t SCRAMBLE_2D_X = 0x98bc51abu;
+    constexpr uint32_t SCRAMBLE_2D_Y = 0x04223e2du;
+
     // Returns a uniformly distributed 32-bit integer per lane.
     inline UInt32P sample_tea_32(const UInt32P &v0_, const UInt32P &v1_,
                                  int rounds = 4)

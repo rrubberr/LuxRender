@@ -27,6 +27,7 @@
 #include "core/medium.h"
 #include "core/volumefield.h"
 #include "core/medium_call.h"
+#include "core/mediumptr_table.h"
 #include "core/tracked.h"
 #include "core/bsdf.h"
 #include "core/bsdf_call.h"
@@ -1246,6 +1247,91 @@ void CheckInterfaceSmoke()
     Check(Close(grid.GlobalMax(), 2.5f), "majorant global max matches");
 }
 
+void CheckMediumPtrLaneConsistency()
+{
+    std::cout << "[mediumptr] lane-consistent medium calls" << std::endl;
+
+    SpectrumWavelengthsP sw; sw.FromWavelength(FloatP(550.f));
+    const RayP ray = MakeRay();
+    const float L = 3.5f;
+
+    // Deterministic single-segment tracked medium (sa=0.3, ss=0.5, Le=1.3, g=2.5x).
+    static ForcedTrackedMedium med(0.3f, 0.5f, 1.3f, 2.5f, 0.0f);
+    MediumPtrTable tbl;
+    tbl.ptrs.push_back(&med);
+    tbl.RebuildNonVacuum();
+
+    const MediumPtr mp = tbl.Gather(UInt32P(uint32_t(0)), MaskP(true));
+    const FloatP uFlight = FloatP(0.3125f); // broadcast, identical all lanes
+
+    auto seedSame = [] (RNGP &rng)
+    {
+        const StreamKeyResult k = StreamKey(UInt32P(7u), UInt32P(3u), Int32P(1),
+                                            Int32P(0), UInt32P(0u), FLIGHT_SALT);
+        rng.Seed(k.state, k.seq); // broadcast -> identical streams
+    };
+    // Every active lane's float field must equal the scalar reference.
+    auto laneConst = [] (const char *name, const SWCSpectrumP &v,
+                         float ref, const MaskP &active)
+    {
+        for (size_t a = 0; a < PACKET_WIDTH; ++a)
+            if (bool(active[a]) && std::fabs(float(v[a]) - ref) > 1e-6f)
+            { std::cerr << "  FAIL: " << name << " lane " << a << std::endl; ++g_failures; return; }
+    };
+
+    struct Ref { Float w, e, d, k; bool scat, abs; };
+
+    // --- all active: record reference ---
+    Ref ref;
+    {
+        RNGP rng; seedSame(rng);
+        MediumSampleP o; ClearMediumSample(&o, FloatP(L));
+        mp->SampleInteraction(sw, ray, FloatP(0.f), FloatP(L), uFlight, rng, &o, MaskP(true));
+        laneConst("weight all-active", o.weight, float(o.weight[0]), MaskP(true));
+        laneConst("emission all-active", o.emission, float(o.emission[0]), MaskP(true));
+        ref = { float(o.weight[0]), float(o.emission[0]), float(o.d[0]), float(o.k[0]),
+                bool(o.scattered[0]), bool(o.absorbed[0]) };
+    }
+
+    // --- alternating 1,0,1,0,... ---
+    {
+        MaskP alt(false);
+        for (size_t i = 0; i < PACKET_WIDTH; i += 2) alt[i] = true;
+        RNGP rng; seedSame(rng);
+        MediumSampleP o; ClearMediumSample(&o, FloatP(L));
+        mp->SampleInteraction(sw, ray, FloatP(0.f), FloatP(L), uFlight, rng, &o, alt);
+        // Active lanes == all-active reference; masked lanes == cleared defaults.
+        laneConst("weight alternating(active)", o.weight, ref.w, alt);
+        laneConst("emission alternating(active)", o.emission, ref.e, alt);
+        for (size_t a = 0; a < PACKET_WIDTH; ++a)
+            if (bool(!alt[a])) {
+                if (std::fabs(float(o.weight[a]) - 1.f) > 1e-6f ||
+                    std::fabs(float(o.emission[a]) - 0.f) > 1e-6f) {
+                    std::cerr << "  FAIL: masked lane " << a << " not default" << std::endl; ++g_failures;
+                }
+            }
+    }
+
+    // --- first half 1,1,1,1,0,0,0,0 ---
+    {
+        MaskP half(false);
+        for (size_t i = 0; i < PACKET_WIDTH / 2; ++i) half[i] = true;
+        RNGP rng; seedSame(rng);
+        MediumSampleP o; ClearMediumSample(&o, FloatP(L));
+        mp->SampleInteraction(sw, ray, FloatP(0.f), FloatP(L), uFlight, rng, &o, half);
+        laneConst("weight first-half(active)", o.weight, ref.w, half);
+        laneConst("emission first-half(active)", o.emission, ref.e, half);
+        for (size_t a = 0; a < PACKET_WIDTH; ++a)
+            if (bool(!half[a])) {
+                if (std::fabs(float(o.weight[a]) - 1.f) > 1e-6f ||
+                    std::fabs(float(o.emission[a]) - 0.f) > 1e-6f) {
+                    std::cerr << "  FAIL: masked lane " << a << " not default" << std::endl; ++g_failures;
+                }
+            }
+    }
+    if (g_failures == 0) std::cout << "  ok:   MediumPtr calls lane-consistent" << std::endl;
+}
+
 } // namespace
 
 int main()
@@ -1270,6 +1356,7 @@ int main()
     CheckRegionTermination();
     CheckRegionMixtureConsistency();
     CheckRegionCoincidentSum();
+    CheckMediumPtrLaneConsistency();
 
     if (g_failures == 0)
     {

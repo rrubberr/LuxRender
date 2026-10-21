@@ -29,27 +29,6 @@
 namespace lux2
 {
 
-    uint64_t SplitMix64(uint64_t x)
-    {
-        x += 0x9E3779B97F4A7C15ull;
-        x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
-        x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
-        return x ^ (x >> 31);
-    }
-
-    uint64_t RoundSeed(uint64_t baseSeed, int round)
-    {
-        // Additive salt.
-        return baseSeed + uint64_t(uint32_t(round)) * 0x9E3779B97F4A7C15ull;
-    }
-
-    uint64_t GroupPassSeed(uint64_t baseSeed, int round, int group)
-    {
-        // Decorrelated.
-        return SplitMix64(RoundSeed(baseSeed, round) ^
-                          uint64_t(uint32_t(group)));
-    }
-
     void RunGroupPasses(Renderer &renderer, Scene &scene,
                         SurfaceIntegrator &integrator,
                         const std::atomic<bool> *aborted,

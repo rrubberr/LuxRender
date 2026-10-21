@@ -22,6 +22,8 @@
 #ifndef LUX2_RENDERERS_GROUPPASS_H
 #define LUX2_RENDERERS_GROUPPASS_H
 
+#include "core/rng.h"
+
 #include <atomic>
 #include <cstdint>
 
@@ -32,14 +34,7 @@ namespace lux2
     class Scene;
     class SurfaceIntegrator;
 
-    // 64-bit mixer.
-    uint64_t SplitMix64(uint64_t x);
-
-    // Correlated mode uses a shared base seed for every group.
-    uint64_t RoundSeed(uint64_t baseSeed, int round);
-
-    // Seed for decorrelated mode
-    uint64_t GroupPassSeed(uint64_t baseSeed, int round, int group);
+    // Seed helpers live in rng.h.
 
     // Lightgroup render wrapper.
     void RunGroupPasses(Renderer &renderer, Scene &scene,

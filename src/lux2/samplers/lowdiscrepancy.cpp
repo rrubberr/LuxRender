@@ -86,7 +86,7 @@ namespace lux2
         // Shuffle the sample order per dimension, then bit-reverse.
         const UInt32P permSeed = seed + dim;
         const UInt32P i = permute(sidx, m_sampleCount, permSeed);
-        const UInt32P scramble = sample_tea_32(seed, UInt32P(0x48bc48ebu));
+        const UInt32P scramble = sample_tea_32(seed, SCRAMBLE_1D);
         return radical_inverse_2(i, scramble);
     }
 
@@ -96,8 +96,8 @@ namespace lux2
         // One stream with two components via scramble.
         const UInt32P permSeed = seed + dim;
         const UInt32P i = permute(sidx, m_sampleCount, permSeed);
-        const UInt32P scrambleX = sample_tea_32(seed, UInt32P(0x98bc51abu));
-        const UInt32P scrambleY = sample_tea_32(seed, UInt32P(0x04223e2du));
+        const UInt32P scrambleX = sample_tea_32(seed, SCRAMBLE_2D_X);
+        const UInt32P scrambleY = sample_tea_32(seed, SCRAMBLE_2D_Y);
 
         Point2fP result;
         result.x() = radical_inverse_2(i, scrambleX);

@@ -173,6 +173,40 @@ int main() {
         Check(match, "Get1D/Get2D equal sequential Next* per lane");
     }
 
+    // ---- 7. lane invariance under broadcast inputs ----------------------
+    // Bisect (stripe artifact): identical (seed, sidx, dim) broadcast to
+    // every lane must produce identical values on every lane.
+    {
+        LDSampler s(16, 0);
+        bool ok = true;
+        for (uint32_t dim : {0u, 1u, 2u, 4u, 5u, 70u})
+            for (uint32_t sidx : {0u, 3u, 7u})
+            {
+                const FloatP u =
+                    s.Get1D(UInt32P(12345u), UInt32P(sidx), UInt32P(dim));
+                const Point2fP v =
+                    s.Get2D(UInt32P(12345u), UInt32P(sidx), UInt32P(dim));
+                for (size_t l = 1; l < PACKET_WIDTH; ++l)
+                {
+                    if (float(u[l]) != float(u[0]) ||
+                        float(v.x()[l]) != float(v.x()[0]) ||
+                        float(v.y()[l]) != float(v.y()[0]))
+                    {
+                        ok = false;
+                        std::cerr << "  divergent: dim=" << dim
+                                  << " sidx=" << sidx << " lane=" << l
+                                  << " u=" << float(u[l]) << "/"
+                                  << float(u[0]) << " vx="
+                                  << float(v.x()[l]) << "/"
+                                  << float(v.x()[0]) << " vy="
+                                  << float(v.y()[l]) << "/"
+                                  << float(v.y()[0]) << std::endl;
+                    }
+                }
+            }
+        Check(ok, "Get1D/Get2D lane-invariant for broadcast inputs");
+    }
+
     std::cout << (g_failures == 0 ? "ALL PASSED" : "FAILURES")
               << " (" << g_failures << ")" << std::endl;
     return g_failures == 0 ? 0 : 1;

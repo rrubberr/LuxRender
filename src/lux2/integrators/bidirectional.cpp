@@ -264,11 +264,8 @@ namespace lux2
         }
 #endif
 
-        // BISECT(step2): 'rot' rotates the dead-slot scan order, decoupling
-        // lane index from column (lane i no longer always gets x mod 8).
         void Refill(const Sampler &sampler, JobCursor &jobs,
-                    uint64_t sampleBasis, LaneState &st, int k = 2,
-                    unsigned rot = 0)
+                    uint64_t sampleBasis, LaneState &st, int k = 2)
         {
             const int nDead = enoki::count(!st.active);
             if (nDead < k)
@@ -284,9 +281,8 @@ namespace lux2
 
             const uint64_t baseSeed = sampler.BaseSeed();
             bool anyFill = false;
-            for (size_t r = 0; r < PACKET_WIDTH; ++r)
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
             {
-                const size_t i = (r + rot) % PACKET_WIDTH;
                 if (aliveF[i] > 0.f)
                     continue;
                 Job j;
@@ -296,10 +292,7 @@ namespace lux2
                 pxs[i] = float(j.px);
                 pys[i] = float(j.py);
                 sidxs[i] = j.s;
-                const uint64_t h =
-                    ((sampleBasis ^ baseSeed) * 0x9E3779B97F4A7C15ull) ^
-                    (uint64_t(j.px) * 0xBF58476D1CE4E5B9ull) ^
-                    (uint64_t(j.py) * 0x94D049BB133111EBull);
+                const uint64_t h = PixelSeed(sampleBasis, baseSeed, j.px, j.py);
                 seeds[i] = uint32_t(h >> 32);
                 anyFill = true;
             }
@@ -482,14 +475,9 @@ namespace lux2
                         ClearMediumSample(&ms, tEnd);
                         const MediumPtr med =
                             ctx.mediumTable->Gather(ray.medium, inMed);
-                        RNGP rng;
-                        {
-                            UInt64P sk, sq;
-                            StreamKey(st.seed, st.sampleIdx, bounce,
-                                      Int32P(c) + depthBase, UInt32P(0u),
-                                      FLIGHT_SALT, &sk, &sq);
-                            rng.Seed(sk, sq);
-                        }
+                        RNGP rng = KeyedRNG(st.seed, st.sampleIdx, bounce,
+                                            Int32P(c) + depthBase, UInt32P(0u),
+                                            FLIGHT_SALT);
                         const FloatP uFlight = rng.NextFloat(inMed);
                         med->SampleInteraction(st.sw, ray, ray.mint, tEnd,
                                                uFlight, rng, &ms, inMed);
@@ -574,13 +562,8 @@ namespace lux2
             UInt32P curMedium = startMedID;
             FloatP tCur = FloatP(EPS_RAY);
             MaskP tracing = active;
-            RNGP rng;
-            {
-                UInt64P sk, sq;
-                StreamKey(st.seed, st.sampleIdx, bounce, Int32P(0),
-                          connKey, salt, &sk, &sq);
-                rng.Seed(sk, sq);
-            }
+            RNGP rng = KeyedRNG(st.seed, st.sampleIdx, bounce, Int32P(0),
+                                connKey, salt);
             for (int i = 0; i < MAX_SHADOW_CROSSINGS && any(tracing); ++i)
             {
                 RayP shadow(origin, dir, tCur, tMax, FloatP(0.f));
@@ -1928,10 +1911,7 @@ namespace lux2
         light.Init(std::max(1, m_lightDepth));
         nee.Init(1);
 
-        // BISECT(step2): fixed rotation; stripes should shift by BISECT_ROT
-        // columns if the artifact is lane-bound.
-        constexpr unsigned BISECT_ROT = 3;
-        Refill(sampler, jobs, sampleBasis, st, 1, BISECT_ROT);
+        Refill(sampler, jobs, sampleBasis, st, 1);
         while (any(st.active))
         {
             Int32P nEye, nLight;
@@ -1959,7 +1939,7 @@ namespace lux2
             retire.Push(st, st.active);
             retire.Flush(dest, false);
             st.active = MaskP(false);
-            Refill(sampler, jobs, sampleBasis, st, 2, BISECT_ROT);
+            Refill(sampler, jobs, sampleBasis, st);
         }
         retire.Flush(dest, true);
         OccupancyTileEnd("bidir", tile.x0, tile.y0, unsigned(PACKET_WIDTH));
