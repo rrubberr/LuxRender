@@ -208,7 +208,9 @@ namespace lux2
             const BsdfPtrTable *table;
             const Camera *camera = nullptr;
             int nLights;
-            FloatP invNLights;
+            // Light sampling tables for the active group.
+            const LightsSamplingStrategy *lsD = nullptr; // NEE and direct density
+            const LightsSamplingStrategy *lsP = nullptr; // light subpath origin
             std::vector<const Light *> lightPtrs;
             std::vector<const Light *> areaPtrs;
             std::vector<std::int32_t> areaGroup;
@@ -372,7 +374,7 @@ namespace lux2
             }
         };
 
-        // RNG dimension layout (unchanged from the previous port).
+        // RNG dimension layout.
         inline UInt32P EyeDim(int v) { return UInt32P(uint32_t(2 + (v - 1) * 4)); }
         inline int LightOriginBaseI(int eyeDepth)
         {
@@ -395,6 +397,19 @@ namespace lux2
         {
             return neeBase + 4 * std::max(0, eyeDepth - 1);
         }
+
+        // RNG dimension namespace for "all" light subpaths.
+        constexpr uint32_t LIGHT_ALL_BASE = 1u << 22;
+
+        // Per-slot origin base for an "all" light subpath.
+        inline int AllLightBase(const WalkCtx &c, uint32_t slot)
+        {
+            return int(LIGHT_ALL_BASE +
+                       slot * uint32_t(6 + 4 * std::max(0, c.lightDepth - 1)));
+        }
+
+        // RNG dimension namespace for "all" NEE slots.
+        constexpr uint32_t NEE_ALL_BASE = 1u << 20;
 
         inline DifferentialGeometryP MakeDG(const HitP &hit, const Vector3fP &rayD,
                                             const MaskP &m)
@@ -816,17 +831,21 @@ namespace lux2
                               ? eye.pdfR[t - 1] * cB * invD2
                               : FloatP(0.f);
             // v.dAWeight = pdfArea * lightPathStrategy->Pdf
-            tr.eAR_last = ctx.invNLights * divp(FloatP(1.f), area);
+            const FloatP pLP =
+                enoki::gather<FloatP>(ctx.lsP->areaPSel.data(), h.lightID, cont);
+            tr.eAR_last = pLP * divp(FloatP(1.f), area);
             // vp.dAWeight = v.pdf * v.tPdf / vp.d2 * vp.cosi
             tr.eAR_prev = emitPdf * eye.cosi[t - 1] * invD2;
             tr.eRR_last = FloatP(1.f);
             tr.eRRR_last = FloatP(1.f);
             // ePdfDirect = direct sampling area density of point from vp,
             // times light-selection pdf.
+            const FloatP pD =
+                enoki::gather<FloatP>(ctx.lsD->areaPSel.data(), h.lightID, cont);
             const FloatP pdfSolid =
                 al->Pdf_L(eye.p[t - 1], eye.dg[t - 1].n, h.p, dg.n, cont,
                           MaskP(t > 1) && !eye.isMed[t - 1]) *
-                ctx.invNLights;
+                pD;
             tr.pdfLightDirect = ConvertDensity(eye.p[t - 1], pdfSolid, h.p, h.ngeo);
             tr.isLightDirect = false;
 
@@ -1039,15 +1058,19 @@ namespace lux2
         // ------------------------------------------------------------------
         // Light subpath
         // ------------------------------------------------------------------
-        void TraceLight(const WalkCtx &ctx, const Sampler &sampler, LaneState &st,
-                        Subpath &light, Int32P *nLightOut)
+        template <class LightT>
+        void TraceLightFrom(const WalkCtx &ctx, const Sampler &sampler,
+                            LaneState &st, Subpath &light, Int32P *nLightOut,
+                            const LightT &selLight, const UInt32P &selIdx,
+                            const FloatP &selPdf, int loBase, uint32_t slot)
         {
             const int maxV = ctx.lightDepth;
             const MaskP active = st.active;
-            const int loBase = LightOriginBaseI(ctx.eyeDepth);
+            // Medium RNG base.
+            const uint32_t K = 64u * uint32_t(ctx.eyeDepth + 1);
+            const Int32P depthBase = Int32P(int(K) * int(1 + slot));
 
             const UInt32P lo = UInt32P(uint32_t(loBase));
-            const FloatP uSel = sampler.Get1D(st.seed, st.sampleIdx, lo);
             const Point2fP uPos =
                 sampler.Get2D(st.seed, st.sampleIdx, lo + UInt32P(1u));
             const FloatP uComp0 =
@@ -1055,13 +1078,10 @@ namespace lux2
             const Point2fP uDir =
                 sampler.Get2D(st.seed, st.sampleIdx, lo + UInt32P(4u));
 
-            const MaskP la = active && (ctx.nLights > 0) && (maxV > 0);
-            const UInt32P lightIdx =
-                min(UInt32P(uint32_t(std::max(0, ctx.nLights - 1))),
-                    floor2int<UInt32P>(uSel * FloatP(float(ctx.nLights))));
-            const LightPtr selLight =
-                enoki::gather<LightPtr>(ctx.lightPtrs.data(), lightIdx, la);
+            // Selection done by the caller.
+            const UInt32P lightIdx = selIdx;
             light.selIdx = lightIdx;
+            const MaskP la = active && (ctx.nLights > 0) && (maxV > 0);
 
             BSDFPtr ebsdf(nullptr);
             DifferentialGeometryP edg;
@@ -1080,7 +1100,6 @@ namespace lux2
                              (pdfArea > FloatP(0.f));
 
             // Lux light0.dAWeight = pdfArea * lPdf; Le /= lPdf.
-            const FloatP selPdf = ctx.invNLights;
             const FloatP aF0 = selPdf * pdfArea;
             const FloatP cos0 = abs(dot(wi0, edg.n));
             const FloatP f0 = cos0 * divp(FloatP(1.f), pdfDir);
@@ -1130,9 +1149,8 @@ namespace lux2
                 HitP hit;
                 FlightResult fr;
                 IntersectCollapsed(
-                    ctx, ray, alive, st, Int32P(s),
-                    Int32P(64 * (ctx.eyeDepth + 1)), &beta, nullptr, hit, fr,
-                    [](const HitP &, const Vector3fP &, const MaskP &) {});
+                    ctx, ray, alive, st, Int32P(s), depthBase, &beta, nullptr,
+                    hit, fr, [](const HitP &, const Vector3fP &, const MaskP &) {});
                 alive &= !fr.absorbed;
                 // Scatter vertices survive the miss check.
                 const MaskP mediumEvent = fr.mediumEvent && alive;
@@ -1180,19 +1198,22 @@ namespace lux2
                 {
                     // Direct sampling of light[0] from vertex 1,
                     // area measure at light[0]. Vertex 1 may be a scatter.
+                    const FloatP pD =
+                        enoki::gather<FloatP>(ctx.lsD->pSel.data(), lightIdx,
+                                              validVtx);
                     const FloatP pdfSolid =
                         selLight->Pdf_L(light.p[1], light.dg[1].n, light.p[0],
-                                        light.dg[0].n, didHit,
+                                        light.dg[0].n, validVtx,
                                         !light.isMed[1]) *
-                        ctx.invNLights;
+                        pD;
                     light.directPdf1 =
                         ConvertDensity(light.p[1], pdfSolid, light.p[0], light.dg[0].ng);
                     if (ctx.checkDensity)
                     {
                         const FloatP area = enoki::gather<FloatP>(
-                            ctx.areaByIdx.data(), lightIdx, didHit);
+                            ctx.areaByIdx.data(), lightIdx, validVtx);
                         BidirCheckAreaDensity("directPdf1", light.directPdf1,
-                                              area, ctx.invNLights);
+                                              area, pD);
                     }
                 }
 
@@ -1269,6 +1290,44 @@ namespace lux2
             *nLightOut = nLight;
         }
 
+        void TraceLight(const WalkCtx &ctx, const Sampler &sampler, LaneState &st,
+                        Subpath &light, Int32P *nLightOut, uint32_t slot)
+        {
+            if (ctx.lsP->kind == LightsSamplingStrategy::StrategyKind::All)
+            {
+                // One light subpath per task slot.
+                const uint32_t k = ctx.lsP->task[slot];
+                const int loBase = AllLightBase(ctx, slot);
+                // Guard the dim layout.
+                assert(loBase != LightOriginBaseI(ctx.eyeDepth));
+                for (uint32_t s = 0; s < ctx.lsP->TaskCount(); ++s)
+                    if (s != slot)
+                        assert(loBase != AllLightBase(ctx, s));
+                // And the NEE "all" namespace must sit below this one.
+                const uint32_t nT = ctx.lsP->TaskCount();
+                assert(uint32_t(NEE_ALL_BASE +
+                                (uint32_t(ctx.eyeDepth) * nT + nT) * 2u) <
+                       LIGHT_ALL_BASE);
+                TraceLightFrom(ctx, sampler, st, light, nLightOut,
+                               ctx.lightPtrs[k], UInt32P(k),
+                               FloatP(ctx.lsP->pSel[k]), loBase, slot);
+            }
+            else
+            {
+                const int loBase = LightOriginBaseI(ctx.eyeDepth);
+                const MaskP la =
+                    st.active && (ctx.nLights > 0) && (ctx.lightDepth > 0);
+                const UInt32P lo = UInt32P(uint32_t(loBase));
+                const FloatP uSel =
+                    sampler.Get1D(st.seed, st.sampleIdx, lo);
+                const LightPick pick = SampleLight(*ctx.lsP, uSel, la);
+                const LightPtr sel = enoki::gather<LightPtr>(
+                    ctx.lightPtrs.data(), pick.idx, la);
+                TraceLightFrom(ctx, sampler, st, light, nLightOut, sel,
+                               pick.idx, pick.pSel, loBase, 0u);
+            }
+        }
+
         // ------------------------------------------------------------------
         // Eye part of EvalPath
         // ------------------------------------------------------------------
@@ -1310,102 +1369,133 @@ namespace lux2
             const MaskP base = st.active && (nEye >= Int32P(nE)) && (ctx.nLights > 0);
             if (!any(base))
                 return;
-            const int neeBase =
-                NeeBaseI(LightOriginBaseI(ctx.eyeDepth), ctx.lightDepth);
-            const UInt32P nd = NeeDim(neeBase, ei);
-            const FloatP uSel = sampler.Get1D(st.seed, st.sampleIdx, nd);
-            const Point2fP uPos =
-                sampler.Get2D(st.seed, st.sampleIdx, nd + UInt32P(1u));
-            const FloatP uComp =
-                sampler.Get1D(st.seed, st.sampleIdx, nd + UInt32P(3u));
 
-            const UInt32P lightIdx =
-                min(UInt32P(uint32_t(std::max(0, ctx.nLights - 1))),
-                    floor2int<UInt32P>(uSel * FloatP(float(ctx.nLights))));
-            const LightPtr selLight =
-                enoki::gather<LightPtr>(ctx.lightPtrs.data(), lightIdx, base);
+            // One NEE connection for a single light.
+            auto directOne = [&](const auto &light, const UInt32P &lightIdx,
+                                 const UInt32P &shadowKey, const FloatP &pSel,
+                                 const Point2fP &uPos, const FloatP &uComp)
+            {
+                Point3fP lightP(0.f);
+                Vector3fP wiL(0.f);
+                Normal3fP lightN(0.f);
+                FloatP pdfPos(0.f);
+                SWCSpectrumP Le(0.f);
+                // The eye vertex may be a medium scatter.
+                const MaskP recvHasN = !eye.isMed[ei];
+                const MaskP sampleOk = light->Sample_Li(
+                    st.sw, eye.p[ei], eye.dg[ei].n, uPos.x(), uPos.y(), uComp,
+                    &lightP, &wiL, &lightN, &pdfPos, &Le, base, recvHasN);
+                const FloatP dist = enoki::norm(lightP - eye.p[ei]);
+                const FloatP d2 = dist * dist;
+                const FloatP pdfL = pdfPos * pSel;
+                const FloatP tmax =
+                    dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
 
-            Point3fP lightP(0.f);
-            Vector3fP wiL(0.f);
-            Normal3fP lightN(0.f);
-            FloatP pdfPos(0.f);
-            SWCSpectrumP Le(0.f);
-            // The eye vertex may be a medium scatter.
-            const MaskP recvHasN = !eye.isMed[ei];
-            const MaskP sampleOk = selLight->Sample_Li(
-                st.sw, eye.p[ei], eye.dg[ei].n, uPos.x(), uPos.y(), uComp, &lightP,
-                &wiL, &lightN, &pdfPos, &Le, base, recvHasN);
-            const FloatP dist = enoki::norm(lightP - eye.p[ei]);
-            const FloatP d2 = dist * dist;
-            const FloatP pdfL = pdfPos * ctx.invNLights;
-            const FloatP tmax = dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
+                // Phase on scatter lanes.
+                VertexP evx;
+                evx.valid = base;
+                evx.isMedium = eye.isMed[ei];
+                evx.p = eye.p[ei];
+                evx.dg = eye.dg[ei];
+                evx.wo = eye.wb[ei];
+                evx.k = eye.k[ei];
+                evx.bsdf = eye.bsdf[ei];
+                evx.med = eye.med[ei];
+                BSDFEvalP ef = ZeroEval();
+                FloatP ecosiV(0.f);
+                EvalVertex(evx, st.sw, wiL, &ef, &ecosiV, sampleOk);
+                // Density cosine = 1 at a scatter.
+                const FloatP ecosi = select(eye.isMed[ei], FloatP(1.f),
+                                            abs(dot(wiL, eye.dg[ei].ng)));
+                const MaskP tryVis = sampleOk && (pdfL > FloatP(0.f)) &&
+                                     (ef.f > SWCSpectrumP(0.f));
+                if (none(tryVis))
+                    return;
+                // Scatter lanes have ng == 0.
+                const Point3fP shadowO =
+                    OffsetRay(eye.p[ei], eye.dg[ei].ng, wiL, FloatP(EPS_RAY));
+                const UInt32P startMed = StartMedium(eye, ei, wiL);
+                const SWCSpectrumP Tr = ConnectTr(
+                    ctx, shadowO, wiL, startMed, tmax, st.sw, st, Int32P(nE),
+                    shadowKey, SHADOW_SALT, tryVis);
+                const MaskP cont = tryVis && (Tr > SWCSpectrumP(0.f));
+                if (!any(cont))
+                    return;
 
-            // Phase on scatter lanes.
-            VertexP evx;
-            evx.valid = base;
-            evx.isMedium = eye.isMed[ei];
-            evx.p = eye.p[ei];
-            evx.dg = eye.dg[ei];
-            evx.wo = eye.wb[ei];
-            evx.k = eye.k[ei];
-            evx.bsdf = eye.bsdf[ei];
-            evx.med = eye.med[ei];
-            BSDFEvalP ef = ZeroEval();
-            FloatP ecosiV(0.f);
-            EvalVertex(evx, st.sw, wiL, &ef, &ecosiV, sampleOk);
-            // Density cosine = 1 at a scatter.
-            const FloatP ecosi = select(eye.isMed[ei], FloatP(1.f),
-                                        abs(dot(wiL, eye.dg[ei].ng)));
-            const MaskP tryVis = sampleOk && (pdfL > FloatP(0.f)) &&
-                                 (ef.f > SWCSpectrumP(0.f));
-            // Scatter lanes have ng == 0.
-            const Point3fP shadowO =
-                OffsetRay(eye.p[ei], eye.dg[ei].ng, wiL, FloatP(EPS_RAY));
-            const UInt32P startMed = StartMedium(eye, ei, wiL);
-            const SWCSpectrumP Tr =
-                ConnectTr(ctx, shadowO, wiL, startMed, tmax, st.sw, st,
-                          Int32P(nE), lightIdx, SHADOW_SALT, tryVis);
-            const MaskP cont = tryVis && (Tr > SWCSpectrumP(0.f));
-            if (!any(cont))
-                return;
+                // Lux Ld * lf * ef * flux / d2 for a diffuse emitter, times the
+                // interval transmittance.
+                const SWCSpectrumP Lc =
+                    eye.flux[ei] * ef.f * Le * Tr * divp(FloatP(1.f), pdfL);
 
-            // Lux Ld * lf * ef * flux / d2 for a diffuse emitter, times the
-            // interval transmittance .
-            const SWCSpectrumP Lc =
-                eye.flux[ei] * ef.f * Le * Tr * divp(FloatP(1.f), pdfL);
+                const FloatP area =
+                    enoki::gather<FloatP>(ctx.areaByIdx.data(), lightIdx, cont);
+                // One sided emitter.
+                const FloatP cosLraw = dot(-wiL, lightN);
+                const FloatP cosL =
+                    select(cosLraw > FloatP(0.f), cosLraw, FloatP(0.f));
 
-            const FloatP area =
-                enoki::gather<FloatP>(ctx.areaByIdx.data(), lightIdx, cont);
-            // One sided emitter.
-            const FloatP cosLraw = dot(-wiL, lightN);
-            const FloatP cosL =
-                select(cosLraw > FloatP(0.f), cosLraw, FloatP(0.f));
+                // Virtual light vertex dAWeight = emission area pdf * lsP selection.
+                const FloatP pLP =
+                    enoki::gather<FloatP>(ctx.lsP->pSel.data(), lightIdx, cont);
+                nee.dAWeight[0] = pLP * divp(FloatP(1.f), area);
 
-            // Virtual light vertex dAWeight = emission area pdf * sel.
-            nee.dAWeight[0] = ctx.invNLights * divp(FloatP(1.f), area);
+                Transient tr;
+                tr.isLightDirect = true;
+                tr.pdfLightDirect = ConvertDensity(eye.p[ei], pdfL, lightP, lightN);
+                const FloatP lpdf = cosL * INVPI; // emitter pdf
+                FillEyeTransient(tr, eye, ei, ef, ecosi, lpdf, d2, ctx);
+                // lightV.dARWeight = epdfR * etPdfR / d2 * lcoso
+                tr.lAR_last = ef.pdf * cosL * divp(FloatP(1.f), d2);
+                tr.lRR_last = select(lpdf > FloatP(EPS_DENOM),
+                                     min(FloatP(1.f),
+                                         max(ctx.lightRR,
+                                             cosL * divp(FloatP(1.f), lpdf))),
+                                     FloatP(0.f));
+                tr.lRRR_last = FloatP(1.f); // nLight == 1
 
-            Transient tr;
-            tr.isLightDirect = true;
-            tr.pdfLightDirect = ConvertDensity(eye.p[ei], pdfL, lightP, lightN);
-            const FloatP lpdf = cosL * INVPI; // emitter pdf
-            FillEyeTransient(tr, eye, ei, ef, ecosi, lpdf, d2, ctx);
-            // lightV.dARWeight = epdfR * etPdfR / d2 * lcoso
-            tr.lAR_last = ef.pdf * cosL * divp(FloatP(1.f), d2);
-            tr.lRR_last = select(lpdf > FloatP(EPS_DENOM),
-                                 min(FloatP(1.f),
-                                     max(ctx.lightRR, cosL * divp(FloatP(1.f), lpdf))),
-                                 FloatP(0.f));
-            tr.lRRR_last = FloatP(1.f); // nLight == 1
+                Breakdown bd;
+                const FloatP w = divp(FloatP(1.f),
+                                      WeightPath(ctx, eye, nE, nee, 1, tr,
+                                                 ctx.diag ? &bd : nullptr));
+                st.L = select(cont, st.L + Lc * w, st.L);
+                BidirTallyGhost(ctx.diag, ef, sampleOk, cont, Lc, w,
+                                eye.bsdf[ei]->flags(), nE, /*nL*/ 1);
+                BidirRecordFirefly(ctx.diag, ctx.cfg.threshold, st.x, st.y, cont,
+                                   Lc, w, d2, /*s*/ 1, nE, &bd);
+            };
 
-            Breakdown bd;
-            const FloatP w = divp(FloatP(1.f),
-                                  WeightPath(ctx, eye, nE, nee, 1, tr,
-                                             ctx.diag ? &bd : nullptr));
-            st.L = select(cont, st.L + Lc * w, st.L);
-            BidirTallyGhost(ctx.diag, ef, sampleOk, cont, Lc, w,
-                            eye.bsdf[ei]->flags(), nE, /*nL*/ 1);
-            BidirRecordFirefly(ctx.diag, ctx.cfg.threshold, st.x, st.y, cont,
-                               Lc, w, d2, /*s*/ 1, nE, &bd);
+            if (ctx.lsD->kind == LightsSamplingStrategy::StrategyKind::All)
+            {
+                // One task per slot.
+                const uint32_t nT = ctx.lsD->TaskCount();
+                for (uint32_t s = 0; s < nT; ++s)
+                {
+                    const uint32_t k = ctx.lsD->task[s];
+                    // Two dims per slot.
+                    const UInt32P d =
+                        UInt32P(NEE_ALL_BASE) +
+                        (UInt32P(ei) * UInt32P(nT) + UInt32P(s)) * UInt32P(2u);
+                    directOne(ctx.lightPtrs[k], UInt32P(k), UInt32P(s),
+                              FloatP(ctx.lsD->pSel[k]),
+                              sampler.Get2D(st.seed, st.sampleIdx, d),
+                              sampler.Get1D(st.seed, st.sampleIdx, d + UInt32P(1u)));
+                }
+            }
+            else
+            {
+                const int neeBase =
+                    NeeBaseI(LightOriginBaseI(ctx.eyeDepth), ctx.lightDepth);
+                const UInt32P nd = NeeDim(neeBase, ei);
+                const FloatP uSel = sampler.Get1D(st.seed, st.sampleIdx, nd);
+                const Point2fP uPos =
+                    sampler.Get2D(st.seed, st.sampleIdx, nd + UInt32P(1u));
+                const FloatP uComp =
+                    sampler.Get1D(st.seed, st.sampleIdx, nd + UInt32P(3u));
+                const LightPick pick = SampleLight(*ctx.lsD, uSel, base);
+                directOne(enoki::gather<LightPtr>(ctx.lightPtrs.data(), pick.idx,
+                                                  base),
+                          pick.idx, pick.idx, pick.pSel, uPos, uComp);
+            }
         }
 
         // ------------------------------------------------------------------
@@ -1413,7 +1503,8 @@ namespace lux2
         // ------------------------------------------------------------------
         void ConnectGeneral(const WalkCtx &ctx, LaneState &st, const Subpath &eye,
                             const Subpath &light, int nE, int nL,
-                            const Int32P &nEye, const Int32P &nLight)
+                            const Int32P &nEye, const Int32P &nLight,
+                            uint32_t slot)
         {
             if (!want(ctx.cfg, nL == 1 ? Strat::Origin : Strat::General, nE, nL))
                 return;
@@ -1445,7 +1536,6 @@ namespace lux2
 
             // Origin uses the analytic emitter and deeper vertices
             // use the BSDF. lf.pdf = lpdf, lf.pdfRev = lpdfR.
-
             FloatP lfv, lpdf, lpdfR(0.f);
             BSDFEvalP lf = ZeroEval();
             if (nL == 1)
@@ -1485,9 +1575,11 @@ namespace lux2
             const FloatP dist = enoki::sqrt(d2);
             const FloatP tmax = dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
             const UInt32P startMed = StartMedium(eye, ei, ewi);
+            const uint32_t K = 64u * uint32_t(ctx.eyeDepth + 1);
             const SWCSpectrumP Tr =
                 ConnectTr(ctx, shadowO, ewi, startMed, tmax, st.sw, st,
-                          Int32P(nE), UInt32P(uint32_t(nE * 64 + nL)),
+                          Int32P(nE),
+                          UInt32P(uint32_t(slot * K + nE * 64 + nL)),
                           BDPT_CONN_SALT, preCont);
             const MaskP cont = preCont && (Tr > SWCSpectrumP(0.f));
             if (!any(cont))
@@ -1527,16 +1619,19 @@ namespace lux2
             }
 
             // pdfLightDirect: nL==1 -> direct sampling of light0 from the eye
-            // vertex (light->Pdf(vE.p, light0) * directWeight).
+            // vertex (light->Pdf(vE.p, light0) * lsD selection).
             if (nL == 1)
             {
                 const LightPtr selLight = enoki::gather<LightPtr>(
                     ctx.lightPtrs.data(), light.selIdx, cont);
+                const FloatP pD =
+                    enoki::gather<FloatP>(ctx.lsD->pSel.data(), light.selIdx,
+                                          cont);
                 // Receiver = eye vertex ei; a scatter has no normal.
                 const FloatP pdfSolid =
                     selLight->Pdf_L(eye.p[ei], eye.dg[ei].n, light.p[0],
                                     light.dg[0].n, cont, !eye.isMed[ei]) *
-                    ctx.invNLights;
+                    pD;
                 tr.pdfLightDirect =
                     ConvertDensity(eye.p[ei], pdfSolid, light.p[0], light.dg[0].ng);
                 if (ctx.checkDensity)
@@ -1544,7 +1639,7 @@ namespace lux2
                     const FloatP area = enoki::gather<FloatP>(
                         ctx.areaByIdx.data(), light.selIdx, cont);
                     BidirCheckAreaDensity("pdfLightDirect", tr.pdfLightDirect,
-                                          area, ctx.invNLights);
+                                          area, pD);
                 }
             }
             else
@@ -1569,7 +1664,8 @@ namespace lux2
         // ------------------------------------------------------------------
         void ConnectCamera(const WalkCtx &ctx, LaneState &st,
                            const Subpath &eye, const Subpath &light,
-                           int nL, const Int32P &nLight, Film &film)
+                           int nL, const Int32P &nLight, Film &film,
+                           uint32_t slot)
         {
             if (!want(ctx.cfg, nL == 1 ? Strat::Origin : Strat::General,
                       /*nE*/ 1, nL))
@@ -1627,9 +1723,11 @@ namespace lux2
             const FloatP dist = enoki::sqrt(d2);
             const FloatP tmax =
                 dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
+            const uint32_t K = 64u * uint32_t(ctx.eyeDepth + 1);
             const SWCSpectrumP Tr =
                 ConnectTr(ctx, eye.p[0], ewi, ctx.cameraMediumID, tmax, st.sw,
-                          st, Int32P(0), UInt32P(uint32_t(1 * 64 + nL)),
+                          st, Int32P(0),
+                          UInt32P(uint32_t(slot * K + 1 * 64 + nL)),
                           BDPT_CONN_SALT, preCont);
             const MaskP cont = preCont && (Tr > SWCSpectrumP(0.f));
             if (!any(cont))
@@ -1673,10 +1771,13 @@ namespace lux2
             {
                 const LightPtr selLight = enoki::gather<LightPtr>(
                     ctx.lightPtrs.data(), light.selIdx, cont);
+                const FloatP pD =
+                    enoki::gather<FloatP>(ctx.lsD->pSel.data(), light.selIdx,
+                                          cont);
                 const FloatP pdfSolid =
                     selLight->Pdf_L(eye.p[0], Normal3fP(0.f), light.p[0],
                                     light.dg[0].n, cont, MaskP(false)) *
-                    ctx.invNLights;
+                    pD;
                 tr.pdfLightDirect = ConvertDensity(eye.p[0], pdfSolid,
                                                    light.p[0], light.dg[0].ng);
             }
@@ -1711,86 +1812,115 @@ namespace lux2
             if (!any(base))
                 return;
 
-            const int camNeeBase = CamNeeBaseI(
-                NeeBaseI(LightOriginBaseI(ctx.eyeDepth), ctx.lightDepth),
-                ctx.eyeDepth);
-            const UInt32P nd = UInt32P(uint32_t(camNeeBase));
-            const FloatP uSel = sampler.Get1D(st.seed, st.sampleIdx, nd);
-            const Point2fP uPos =
-                sampler.Get2D(st.seed, st.sampleIdx, nd + UInt32P(1u));
-            const FloatP uComp =
-                sampler.Get1D(st.seed, st.sampleIdx, nd + UInt32P(3u));
+            // One camera NEE connection for a single light.
+            auto directOne = [&](const auto &light, const UInt32P &lightIdx,
+                                 const UInt32P &shadowKey, const FloatP &pSel,
+                                 const Point2fP &uPos, const FloatP &uComp)
+            {
+                Point3fP lightP(0.f);
+                Vector3fP wiL(0.f);
+                Normal3fP lightN(0.f);
+                FloatP pdfPos(0.f);
+                SWCSpectrumP Le(0.f);
+                const MaskP sampleOk = light->Sample_Li(
+                    st.sw, eye.p[0], Normal3fP(0.f), uPos.x(), uPos.y(), uComp,
+                    &lightP, &wiL, &lightN, &pdfPos, &Le, base, MaskP(false));
+                const FloatP dist = enoki::norm(lightP - eye.p[0]);
+                const FloatP d2 = dist * dist;
+                const FloatP pdfL = pdfPos * pSel;
+                const FloatP tmax =
+                    dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
 
-            const UInt32P lightIdx =
-                min(UInt32P(uint32_t(std::max(0, ctx.nLights - 1))),
-                    floor2int<UInt32P>(uSel * FloatP(float(ctx.nLights))));
-            const LightPtr selLight =
-                enoki::gather<LightPtr>(ctx.lightPtrs.data(), lightIdx, base);
+                const Vector3fP ewi =
+                    (lightP - eye.p[0]) * enoki::sqrt(divp(FloatP(1.f), d2));
+                FloatP px(0.f), py(0.f), We(0.f), cosCam(0.f);
+                const MaskP inView =
+                    ctx.camera->Project(ewi, &px, &py, &We, &cosCam, sampleOk);
 
-            Point3fP lightP(0.f);
-            Vector3fP wiL(0.f);
-            Normal3fP lightN(0.f);
-            FloatP pdfPos(0.f);
-            SWCSpectrumP Le(0.f);
-            const MaskP sampleOk = selLight->Sample_Li(
-                st.sw, eye.p[0], Normal3fP(0.f), uPos.x(), uPos.y(), uComp,
-                &lightP, &wiL, &lightN, &pdfPos, &Le, base, MaskP(false));
-            const FloatP dist = enoki::norm(lightP - eye.p[0]);
-            const FloatP d2 = dist * dist;
-            const FloatP pdfL = pdfPos * ctx.invNLights;
-            const FloatP tmax =
-                dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
+                const MaskP tryVis =
+                    inView && (pdfL > FloatP(0.f)) && (We > FloatP(0.f));
+                if (none(tryVis))
+                    return;
+                const SWCSpectrumP Tr = ConnectTr(
+                    ctx, eye.p[0], ewi, ctx.cameraMediumID, tmax, st.sw, st,
+                    Int32P(1), shadowKey, SHADOW_SALT, tryVis);
+                const MaskP cont = tryVis && (Tr > SWCSpectrumP(0.f));
+                if (!any(cont))
+                    return;
 
-            const Vector3fP ewi =
-                (lightP - eye.p[0]) * enoki::sqrt(divp(FloatP(1.f), d2));
-            FloatP px(0.f), py(0.f), We(0.f), cosCam(0.f);
-            const MaskP inView =
-                ctx.camera->Project(ewi, &px, &py, &We, &cosCam, sampleOk);
+                const SWCSpectrumP Lc = We * Le * Tr * divp(FloatP(1.f), pdfL);
 
-            const MaskP tryVis =
-                inView && (pdfL > FloatP(0.f)) && (We > FloatP(0.f));
-            const SWCSpectrumP Tr =
-                ConnectTr(ctx, eye.p[0], ewi, ctx.cameraMediumID, tmax, st.sw,
-                          st, Int32P(1), lightIdx, SHADOW_SALT, tryVis);
-            const MaskP cont = tryVis && (Tr > SWCSpectrumP(0.f));
-            if (!any(cont))
-                return;
+                const FloatP cosLraw = dot(-wiL, lightN);
+                const FloatP cosL =
+                    select(cosLraw > FloatP(0.f), cosLraw, FloatP(0.f));
+                const FloatP area =
+                    enoki::gather<FloatP>(ctx.areaByIdx.data(), lightIdx, cont);
 
-            const SWCSpectrumP Lc = We * Le * Tr * divp(FloatP(1.f), pdfL);
+                // Virtual light vertex dAWeight = emission area pdf * lsP selection.
+                const FloatP pLP =
+                    enoki::gather<FloatP>(ctx.lsP->pSel.data(), lightIdx, cont);
+                nee.dAWeight[0] = pLP * divp(FloatP(1.f), area);
 
-            const FloatP cosLraw = dot(-wiL, lightN);
-            const FloatP cosL =
-                select(cosLraw > FloatP(0.f), cosLraw, FloatP(0.f));
-            const FloatP area =
-                enoki::gather<FloatP>(ctx.areaByIdx.data(), lightIdx, cont);
+                Transient tr;
+                tr.isLightDirect = true;
+                tr.pdfLightDirect = ConvertDensity(eye.p[0], pdfL, lightP, lightN);
+                const FloatP lpdf = cosL * INVPI;
+                tr.eAF_last = eye.pdfR[0] * cosCam * divp(FloatP(1.f), d2);
+                tr.eAR_last = lpdf * cosCam * divp(FloatP(1.f), d2);
+                tr.eAR_prev = FloatP(0.f);
+                tr.eRR_last = FloatP(1.f);
+                tr.eRRR_last = FloatP(1.f);
+                tr.lAR_last = We * cosL * divp(FloatP(1.f), d2);
+                tr.lRR_last =
+                    select(lpdf > FloatP(EPS_DENOM),
+                           min(FloatP(1.f),
+                               max(ctx.lightRR,
+                                   cosL * divp(FloatP(1.f), lpdf))),
+                           FloatP(0.f));
+                tr.lRRR_last = FloatP(1.f);
 
-            nee.dAWeight[0] = ctx.invNLights * divp(FloatP(1.f), area);
+                Breakdown bd;
+                const FloatP w = divp(FloatP(1.f),
+                                      WeightPath(ctx, eye, 1, nee, 1, tr,
+                                                 ctx.diag ? &bd : nullptr));
+                film.SplatLight(px, py, Lc * w, st.sw, cont);
+                BidirRecordFirefly(ctx.diag, ctx.cfg.threshold, px, py, cont, Lc,
+                                   w, d2, /*s*/ 1, /*t*/ 1, &bd);
+            };
 
-            Transient tr;
-            tr.isLightDirect = true;
-            tr.pdfLightDirect =
-                ConvertDensity(eye.p[0], pdfL, lightP, lightN);
-            const FloatP lpdf = cosL * INVPI;
-            tr.eAF_last = eye.pdfR[0] * cosCam * divp(FloatP(1.f), d2);
-            tr.eAR_last = lpdf * cosCam * divp(FloatP(1.f), d2);
-            tr.eAR_prev = FloatP(0.f);
-            tr.eRR_last = FloatP(1.f);
-            tr.eRRR_last = FloatP(1.f);
-            tr.lAR_last = We * cosL * divp(FloatP(1.f), d2);
-            tr.lRR_last =
-                select(lpdf > FloatP(EPS_DENOM),
-                       min(FloatP(1.f),
-                           max(ctx.lightRR, cosL * divp(FloatP(1.f), lpdf))),
-                       FloatP(0.f));
-            tr.lRRR_last = FloatP(1.f);
-
-            Breakdown bd;
-            const FloatP w = divp(FloatP(1.f),
-                                  WeightPath(ctx, eye, 1, nee, 1, tr,
-                                             ctx.diag ? &bd : nullptr));
-            film.SplatLight(px, py, Lc * w, st.sw, cont);
-            BidirRecordFirefly(ctx.diag, ctx.cfg.threshold, px, py, cont, Lc,
-                               w, d2, /*s*/ 1, /*t*/ 1, &bd);
+            if (ctx.lsD->kind == LightsSamplingStrategy::StrategyKind::All)
+            {
+                // One task per slot.
+                const uint32_t nT = ctx.lsD->TaskCount();
+                for (uint32_t s = 0; s < nT; ++s)
+                {
+                    const uint32_t k = ctx.lsD->task[s];
+                    // Two dims per slot.
+                    const UInt32P d =
+                        UInt32P(NEE_ALL_BASE) +
+                        (UInt32P(s)) * UInt32P(2u);
+                    directOne(ctx.lightPtrs[k], UInt32P(k), UInt32P(s),
+                              FloatP(ctx.lsD->pSel[k]),
+                              sampler.Get2D(st.seed, st.sampleIdx, d),
+                              sampler.Get1D(st.seed, st.sampleIdx, d + UInt32P(1u)));
+                }
+            }
+            else
+            {
+                const int camNeeBase = CamNeeBaseI(
+                    NeeBaseI(LightOriginBaseI(ctx.eyeDepth), ctx.lightDepth),
+                    ctx.eyeDepth);
+                const UInt32P nd = UInt32P(uint32_t(camNeeBase));
+                const FloatP uSel = sampler.Get1D(st.seed, st.sampleIdx, nd);
+                const Point2fP uPos =
+                    sampler.Get2D(st.seed, st.sampleIdx, nd + UInt32P(1u));
+                const FloatP uComp =
+                    sampler.Get1D(st.seed, st.sampleIdx, nd + UInt32P(3u));
+                const LightPick pick = SampleLight(*ctx.lsD, uSel, base);
+                directOne(enoki::gather<LightPtr>(ctx.lightPtrs.data(), pick.idx,
+                                                  base),
+                          pick.idx, pick.idx, pick.pSel, uPos, uComp);
+            }
         }
     } // namespace
 
@@ -1799,6 +1929,20 @@ namespace lux2
     void BidirIntegrator::Start(const Scene &scene)
     {
         m_scene = &scene;
+
+        // Build the two light sampling tables.
+        m_lsD.clear();
+        m_lsP.clear();
+        for (int g = 0; g < scene.LightGroupCount(); ++g)
+        {
+            m_lsD.push_back(CreateLightsSamplingStrategy(
+                m_lightStrategy, scene.GroupLights(g), g, scene,
+                LightRole::Direct));
+            m_lsP.push_back(CreateLightsSamplingStrategy(
+                m_lightPathStrategy, scene.GroupLights(g), g, scene,
+                LightRole::LightPath));
+        }
+
 #ifdef LUX2_INTEGRATOR_DEBUG
         if (m_diagCfg.diag && !m_diagStore)
         {
@@ -1855,8 +1999,27 @@ namespace lux2
         ctx.multiGroup = scene.LightGroupCount() > 1;
         ctx.lightPtrs = scene.GroupLights(ctx.activeGroup);
         ctx.nLights = static_cast<int>(ctx.lightPtrs.size());
-        ctx.invNLights =
-            ctx.nLights > 0 ? FloatP(1.f / float(ctx.nLights)) : FloatP(0.f);
+        // Sampling tables indexed by active light group.
+        LightsSamplingStrategy fallbackD;
+        LightsSamplingStrategy fallbackP;
+        if (ctx.activeGroup >= 0 &&
+            ctx.activeGroup < static_cast<int>(m_lsD.size()))
+        {
+            ctx.lsD = &m_lsD[ctx.activeGroup];
+            ctx.lsP = &m_lsP[ctx.activeGroup];
+        }
+        else
+        {
+            // Fallback for RenderTile without Start().
+            fallbackD = CreateLightsSamplingStrategy(m_lightStrategy, ctx.lightPtrs,
+                                                     ctx.activeGroup, scene,
+                                                     LightRole::Direct);
+            ctx.lsD = &fallbackD;
+            fallbackP = CreateLightsSamplingStrategy(
+                m_lightPathStrategy, ctx.lightPtrs, ctx.activeGroup, scene,
+                LightRole::LightPath);
+            ctx.lsP = &fallbackP;
+        }
         const int nArea = scene.AreaLightCount();
         ctx.areaPtrs.reserve(nArea);
         ctx.areaById.resize(size_t(std::max(0, nArea)), 0.f);
@@ -1914,25 +2077,39 @@ namespace lux2
         Refill(sampler, jobs, sampleBasis, st, 1);
         while (any(st.active))
         {
-            Int32P nEye, nLight;
+            Int32P nEye;
             TraceEye(ctx, camera, sampler, st, eye, &nEye); // also does s==0
-            TraceLight(ctx, sampler, st, light, &nLight);
 
+            // Eye-only strategies run once. Light subpaths loop over slots:
+            // one per task under lightpathstrategy "all", else a single pass.
             const int maxT = std::min(m_eyeDepth, int(enoki::hmax(nEye)));
-            const int maxS = std::min(m_lightDepth, int(enoki::hmax(nLight)));
-            if (ctx.useT1)
+            const uint32_t nSlots =
+                (ctx.lsP->kind == LightsSamplingStrategy::StrategyKind::All)
+                    ? ctx.lsP->TaskCount()
+                    : 1u;
+            for (uint32_t slot = 0; slot < nSlots; ++slot)
             {
-                ConnectCameraDirect(ctx, sampler, st, eye, nee,
-                                    scene.GetFilm());
-                for (int s = 1; s <= maxS; ++s)
-                    ConnectCamera(ctx, st, eye, light, s, nLight,
-                                  scene.GetFilm());
-            }
-            for (int t = 2; t <= maxT; ++t)
-            {
-                ConnectDirect(ctx, sampler, st, eye, nee, t, nEye);
-                for (int s = 1; s <= maxS; ++s)
-                    ConnectGeneral(ctx, st, eye, light, t, s, nEye, nLight);
+                Int32P nLight;
+                TraceLight(ctx, sampler, st, light, &nLight, slot);
+                const int maxS =
+                    std::min(m_lightDepth, int(enoki::hmax(nLight)));
+                if (ctx.useT1)
+                {
+                    if (slot == 0)
+                        ConnectCameraDirect(ctx, sampler, st, eye, nee,
+                                            scene.GetFilm());
+                    for (int s = 1; s <= maxS; ++s)
+                        ConnectCamera(ctx, st, eye, light, s, nLight,
+                                      scene.GetFilm(), slot);
+                }
+                for (int t = 2; t <= maxT; ++t)
+                {
+                    if (slot == 0)
+                        ConnectDirect(ctx, sampler, st, eye, nee, t, nEye);
+                    for (int s = 1; s <= maxS; ++s)
+                        ConnectGeneral(ctx, st, eye, light, t, s, nEye, nLight,
+                                       slot);
+                }
             }
 
             st.L = select(enoki::isfinite(st.L), st.L, SWCSpectrumP(0.f));
@@ -1969,14 +2146,15 @@ namespace lux2
         cfg.misPower = p ? p->FindOneFloat("mispower", 2.f) : 2.f;
         cfg.diag = p ? p->FindOneBool("diag", false) : false;
         cfg.threshold = p ? p->FindOneFloat("diagthreshold", 0.f) : 0.f;
+        const std::string lightStrategy =
+            p ? p->FindOneString("lightstrategy", "one") : "one";
+        const std::string lightPathStrategy =
+            p ? p->FindOneString("lightpathstrategy", "one") : "one";
         if (p)
-        {
-            p->EraseString("lightstrategy");
-            p->EraseString("lightpathstrategy");
             p->EraseString("mismode");
-        }
         return std::make_shared<BidirIntegrator>(
-            eyeDepth, lightDepth, maxDepth, eyeRR, lightRR, useT1, debug, cfg);
+            eyeDepth, lightDepth, maxDepth, eyeRR, lightRR, useT1, debug, cfg,
+            lightStrategy, lightPathStrategy);
     }
 
     LUX2_REGISTER_SURFACE_INTEGRATOR(BidirIntegrator, "bidirectional");

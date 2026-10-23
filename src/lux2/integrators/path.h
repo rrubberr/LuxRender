@@ -24,9 +24,11 @@
 
 #include "core/color.h"
 #include "core/integrator.h"
+#include "core/renderinghints.h"
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace lux2
 {
@@ -49,12 +51,14 @@ namespace lux2
         PathIntegrator(int maxDepth, float rrContinueProb,
                        const std::string &rrStrategy,
                        bool includeEnvironment, bool directLightSampling,
+                       const std::string &lightStrategy,
                        LightMode lightMode = LightMode::MIS)
             : m_maxDepth(maxDepth),
               m_rrContinueProb(rrContinueProb),
               m_rrStrategy(rrStrategy),
               m_includeEnvironment(includeEnvironment),
               m_directLightSampling(directLightSampling),
+              m_lightStrategy(lightStrategy),
               m_lightMode(lightMode) {}
 
         int PassCount() const override { return 1; }
@@ -73,6 +77,7 @@ namespace lux2
         const std::string &RRStrategy() const { return m_rrStrategy; }
         bool IncludeEnvironment() const { return m_includeEnvironment; }
         bool DirectLightSampling() const { return m_directLightSampling; }
+        const std::string &LightStrategy() const { return m_lightStrategy; }
         LightMode GetLightMode() const { return m_lightMode; }
 
         static std::shared_ptr<SurfaceIntegrator> CreateSurfaceIntegrator(
@@ -84,7 +89,11 @@ namespace lux2
         std::string m_rrStrategy;
         bool m_includeEnvironment;
         bool m_directLightSampling;
+        std::string m_lightStrategy;
         LightMode m_lightMode;
+
+        // Light sampling tables.
+        std::vector<LightsSamplingStrategy> m_ls;
 
         const Scene *m_scene = nullptr;
     };

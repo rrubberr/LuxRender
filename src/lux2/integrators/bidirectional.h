@@ -23,11 +23,13 @@
 #define LUX2_INTEGRATORS_BIDIRECTIONAL_H
 
 #include "core/integrator.h"
+#include "core/renderinghints.h"
 #include "integrators/integrator_debug.h"
 
 #include <atomic>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace lux2
 {
@@ -60,7 +62,9 @@ namespace lux2
     public:
         BidirIntegrator(int eyeDepth, int lightDepth, int maxDepth,
                         float eyeRRThreshold, float lightRRThreshold,
-                        bool useT1, bool debug, const DiagConfig &diagCfg)
+                        bool useT1, bool debug, const DiagConfig &diagCfg,
+                        const std::string &lightStrategy = "one",
+                        const std::string &lightPathStrategy = "one")
             : m_eyeDepth(eyeDepth),
               m_lightDepth(lightDepth),
               m_maxDepth(maxDepth),
@@ -68,7 +72,9 @@ namespace lux2
               m_lightRRThreshold(lightRRThreshold),
               m_useT1(useT1),
               m_debug(debug),
-              m_diagCfg(diagCfg)
+              m_diagCfg(diagCfg),
+              m_lightStrategy(lightStrategy),
+              m_lightPathStrategy(lightPathStrategy)
         {
             // Total depth clamp.
             if (m_maxDepth < 0)
@@ -96,6 +102,11 @@ namespace lux2
         int MaxDepth() const { return m_maxDepth; }
         bool UseT1() const { return m_useT1; }
         bool Debug() const { return m_debug; }
+        const std::string &LightStrategy() const { return m_lightStrategy; }
+        const std::string &LightPathStrategy() const
+        {
+            return m_lightPathStrategy;
+        }
 
         static std::shared_ptr<SurfaceIntegrator> CreateSurfaceIntegrator(
             const PluginContext &ctx);
@@ -108,6 +119,12 @@ namespace lux2
         float m_lightRRThreshold;
         bool m_useT1;
         bool m_debug;
+        std::string m_lightStrategy;
+        std::string m_lightPathStrategy;
+
+        // Light sampling tables.
+        std::vector<LightsSamplingStrategy> m_lsD;
+        std::vector<LightsSamplingStrategy> m_lsP;
 
         const Scene *m_scene = nullptr;
         // So diagnostics cannot flood the log.

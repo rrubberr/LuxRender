@@ -49,6 +49,9 @@ namespace lux2
         bool IsInfinite() const override { return false; }
         UInt group() const override { return m_group; }
 
+        // Total emitted luminous flux.
+        float Power() const override;
+
         // A point has no surface.
         SWCSpectrumP Le(const RayP &, MaskP) const override
         {
