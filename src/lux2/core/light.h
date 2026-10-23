@@ -52,6 +52,13 @@ namespace lux2
         // Total emitting surface area (m^2).
         virtual float TotalArea() const { return 0.f; }
 
+        // Total emitted luminous flux, for power/importance weighting.
+        virtual float Power() const { return 1.f; }
+
+        // Importance hint from the lxs param.
+        float Importance() const { return m_importance; }
+        void SetImportance(float v) { m_importance = v; }
+
         // Light group index.
         virtual UInt group() const = 0;
 
@@ -110,6 +117,7 @@ namespace lux2
     protected:
         // Group index backing the default group() override.
         UInt m_group = 0;
+        float m_importance = 1.f; // RenderingHints default
     };
 
 } // namespace lux2

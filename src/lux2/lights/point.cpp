@@ -51,12 +51,12 @@ namespace lux2
     }
 
     MaskP PointLight::Sample_Li(const SpectrumWavelengthsP &sw,
-                               const Point3fP &p, const Normal3fP &,
-                               const FloatP &, const FloatP &, const FloatP &,
-                               Point3fP *lightP, Vector3fP *wi,
-                               Normal3fP *lightN, FloatP *pdf,
-                               SWCSpectrumP *LeOut, MaskP active,
-                               MaskP) const
+                                const Point3fP &p, const Normal3fP &,
+                                const FloatP &, const FloatP &, const FloatP &,
+                                Point3fP *lightP, Vector3fP *wi,
+                                Normal3fP *lightN, FloatP *pdf,
+                                SWCSpectrumP *LeOut, MaskP active,
+                                MaskP) const
     {
         // Broadcast the world position to every lane.
         const Point3fP lp(FloatP(m_pos.x()), FloatP(m_pos.y()),
@@ -87,6 +87,15 @@ namespace lux2
         enoki::masked(*LeOut, active) = base * (FloatP(m_gain) * invDistSq);
 
         return valid;
+    }
+
+    float PointLight::Power() const
+    {
+        // Lux Lbase->Y() * gain * 4pi.
+        const std::optional<float> Y = m_L->IntegratedLuminance();
+        if (!Y.has_value())
+            return m_gain;
+        return 4.f * PI * (*Y) * m_gain;
     }
 
     std::shared_ptr<Light> PointLight::CreateLight(const PluginContext &ctx)
@@ -122,8 +131,13 @@ namespace lux2
                        : Point3f(0.f, 0.f, 0.f);
         const Point3f worldPos = ctx.transform * from;
 
-        return std::make_shared<PointLight>(std::move(le), gain, power, efficacy,
-                                            worldPos);
+        auto light = std::make_shared<PointLight>(std::move(le), gain, power,
+                                                  efficacy, worldPos);
+        // Importance hint for power/importance weighting.
+        const float importance =
+            ctx.params ? ctx.params->FindOneFloat("importance", 1.f) : 1.f;
+        light->SetImportance(importance);
+        return light;
     }
 
     LUX2_REGISTER_LIGHT(PointLight, "point");

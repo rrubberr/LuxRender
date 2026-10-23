@@ -115,6 +115,15 @@ namespace lux2
     {
     }
 
+    float AreaLight::Power() const
+    {
+        // Lux gain * area * pi * Le->Y().
+        const std::optional<float> Y = m_Le->IntegratedLuminance();
+        if (!Y.has_value())
+            return m_gain * PI * m_totalArea;
+        return PI * m_totalArea * (*Y) * m_gain;
+    }
+
     void AreaLight::RecomputeNormalization()
     {
         // geometryTerm = PI * area for a one sided Lambertian emitter.
@@ -444,7 +453,13 @@ namespace lux2
             ctx.params ? ctx.params->FindOneFloat("power", 100.f) : 100.f;
         const float efficacy =
             ctx.params ? ctx.params->FindOneFloat("efficacy", 17.f) : 17.f;
-        return std::make_shared<AreaLight>(std::move(le), gain, power, efficacy);
+        auto light =
+            std::make_shared<AreaLight>(std::move(le), gain, power, efficacy);
+        // Importance hint for power/importance weighting.
+        const float importance =
+            ctx.params ? ctx.params->FindOneFloat("importance", 1.f) : 1.f;
+        light->SetImportance(importance);
+        return light;
     }
 
     LUX2_REGISTER_LIGHT(AreaLight, "area");

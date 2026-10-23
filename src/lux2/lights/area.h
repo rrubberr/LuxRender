@@ -92,6 +92,9 @@ namespace lux2
         // Total emitting area.
         float TotalArea() const override { return m_totalArea; }
 
+        // Total emitted luminous flux.
+        float Power() const override;
+
         static std::shared_ptr<Light> CreateLight(const PluginContext &ctx);
 
     private:

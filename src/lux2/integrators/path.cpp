@@ -55,6 +55,10 @@ namespace lux2
             return select(a > FloatP(0.f), a / (a + b), FloatP(0.f));
         }
 
+        // `All` strategy NEE slots draw from a high base so they
+        // never collide with the regular stride.
+        constexpr uint32_t NEE_ALL_DIM_BASE = 1u << 20;
+
         // Geometric offset.
         inline Point3fP OffsetRay(const Point3fP &p, const Normal3fP &ng,
                                   const Vector3fP &d, FloatP k)
@@ -74,6 +78,11 @@ namespace lux2
     void PathIntegrator::Start(const Scene &scene)
     {
         m_scene = &scene;
+        // Build light sampling tables once per group.
+        m_ls.clear();
+        for (int g = 0; g < scene.LightGroupCount(); ++g)
+            m_ls.push_back(CreateLightsSamplingStrategy(m_lightStrategy,
+                                                        scene.GroupLights(g), g, scene));
     }
 
     namespace
@@ -85,7 +94,8 @@ namespace lux2
             const EmbreeScene *embree;
             const BsdfPtrTable *table;
             int nLights;
-            FloatP invNLights;
+            // Light sampling tables.
+            const LightsSamplingStrategy *ls = nullptr;
             // Light pointers and infinite flags indexed by light id.
             std::vector<const Light *> lightPtrs;
             std::vector<float> lightInf;
@@ -235,7 +245,9 @@ namespace lux2
             const EmbreeScene *embree = ctx.embree;
             const BsdfPtrTable &table = *ctx.table;
             const int nLights = ctx.nLights;
-            const FloatP invNLights = ctx.invNLights;
+            // Regular light dims d0+3..5 are unused with `All`.
+            const bool neeAll =
+                ctx.ls->kind == LightsSamplingStrategy::StrategyKind::All;
             const bool FULL_MIS = ctx.FULL_MIS;
             const bool NEE = ctx.NEE;
             const bool includeEnv = ctx.includeEnv;
@@ -269,9 +281,10 @@ namespace lux2
             const Point2fP u2bsdf = src.Get2D(d0);
             const FloatP ucomp = src.Get1D(d0 + UInt32P(1u));
             const FloatP urr = src.Get1D(d0 + UInt32P(2u));
-            const FloatP ulight = src.Get1D(d0 + UInt32P(3u));
-            const Point2fP u2lpos = src.Get2D(d0 + UInt32P(4u));
-            const FloatP ulightcomp = src.Get1D(d0 + UInt32P(5u));
+            // In `All` dims d0+3..5 are unused so skip hash and radical inverse.
+            const FloatP ulight = neeAll ? FloatP(0.f) : src.Get1D(d0 + UInt32P(3u));
+            const Point2fP u2lpos = neeAll ? Point2fP(0.f) : src.Get2D(d0 + UInt32P(4u));
+            const FloatP ulightcomp = neeAll ? FloatP(0.f) : src.Get1D(d0 + UInt32P(5u));
             // Flight distance sample (media only).
             const FloatP uFlight =
                 hasMedia ? src.Get1D(d0 + UInt32P(6u)) : FloatP(0.f);
@@ -362,7 +375,7 @@ namespace lux2
                             const FloatP pdfLdir =
                                 light->Pdf_L(prevP, prevN, Point3fP(0.f),
                                              Normal3fP(0.f), la, recvHasN) *
-                                invNLights;
+                                FloatP(ctx.ls->pSel[k]);
                             envW = select(specularBounce || eq(depth, Int32P(0)),
                                           FloatP(1.f), misWeight(prevPdf, pdfLdir));
                         }
@@ -437,9 +450,12 @@ namespace lux2
                         // receiver hemisphere test must be skipped or Pdf_L
                         // returns 0 and misWeight overcounts.
                         const MaskP recvHasN = !prevIsMedium;
+                        // Light sampling weight by area light id.
+                        const FloatP pSel =
+                            enoki::gather<FloatP>(ctx.ls->areaPSel.data(),
+                                                  hit.lightID, la);
                         const FloatP pdfLEmitter =
-                            al->Pdf_L(prevP, prevN, p, n, la, recvHasN) *
-                            invNLights;
+                            al->Pdf_L(prevP, prevN, p, n, la, recvHasN) * pSel;
                         emW = select(specularBounce, FloatP(1.f),
                                      misWeight(prevPdf, pdfLEmitter));
                     }
@@ -483,76 +499,107 @@ namespace lux2
                 const MaskP neeGate = vtxAlive;
                 if (NEE && nLights > 0 && any(neeGate))
                 {
-                    const UInt32P lightIdx =
-                        min(UInt32P(uint32_t(nLights - 1)),
-                            floor2int<UInt32P>(ulight * FloatP(float(nLights))));
-                    const MaskP la = neeGate;
-                    const LightPtr light =
-                        enoki::gather<LightPtr>(ctx.lightPtrs.data(), lightIdx, la);
-                    const FloatP infF =
-                        enoki::gather<FloatP>(ctx.lightInf.data(), lightIdx, la);
-
-                    Point3fP lightP(0.f, 0.f, 0.f);
-                    Vector3fP wiL(0.f, 0.f, 0.f);
-                    Normal3fP lightN(0.f, 0.f, 0.f);
-                    FloatP pdfPos(0.f);
-                    SWCSpectrumP Le(0.f);
-                    // Medium receivers have no shading normal, skip the
-                    // hemisphere test so Pdf_L stays valid.
-                    const MaskP recvHasN = !mediumEvent;
-                    const MaskP sampleOk = light->Sample_Li(
-                        sw, vtx.p, vtx.dg.n, u2lpos.x(), u2lpos.y(), ulightcomp,
-                        &lightP, &wiL, &lightN, &pdfPos, &Le, la, recvHasN);
-                    const FloatP dist = enoki::norm(lightP - vtx.p);
-                    const FloatP pdfL = pdfPos * invNLights;
-
-                    // Shadow origin where surface vertices offset toward the arrival
-                    // side and medium vertices start at the event.
+                    // Shadow origin where surface vertices offset toward the
+                    // arrival side and medium vertices start at the event.
                     const Point3fP surfOff =
                         OffsetRay(hit.p, ng, vtx.wo, FloatP(EPS_RAY));
                     const Point3fP shadowO =
                         select(mediumEvent, medP, surfOff);
 
-                    // The shadow ray leaves through the face wiL crosses, so
-                    // a surface vertex uses SwapMedium(hit, wiL).
-                    const UInt32P shadowMedium =
-                        select(mediumEvent, ray.medium, SwapMedium(hit, wiL));
+                    // One NEE sample weighted by pSel.
+                    auto neeOne = [&](const auto &light, const UInt32P &shadowKey,
+                                      const FloatP &infF, const FloatP &pSel,
+                                      const Point2fP &u2, const FloatP &uc,
+                                      const MaskP &la) -> SWCSpectrumP
+                    {
+                        Point3fP lightP(0.f, 0.f, 0.f);
+                        Vector3fP wiL(0.f, 0.f, 0.f);
+                        Normal3fP lightN(0.f, 0.f, 0.f);
+                        FloatP pdfPos(0.f);
+                        SWCSpectrumP Le(0.f);
+                        // Medium receivers have no shading normal.
+                        const MaskP recvHasN = !mediumEvent;
+                        const MaskP sampleOk = light->Sample_Li(
+                            sw, vtx.p, vtx.dg.n, u2.x(), u2.y(), uc,
+                            &lightP, &wiL, &lightN, &pdfPos, &Le, la, recvHasN);
+                        const FloatP dist = enoki::norm(lightP - vtx.p);
+                        const FloatP pdfL = pdfPos * pSel;
 
-                    // Stop short of a finite emitter with an absolute margin
-                    // because a relative shrink can still clip its surface.
-                    const FloatP tmax =
-                        select(infF > FloatP(0.5f), INF,
-                               dist - enoki::max(FloatP(1e-3f),
-                                                 FloatP(1e-3f) * dist));
-                    const MaskP tryVis = la && sampleOk && (pdfL > FloatP(0.f));
-                    const StreamAddr addr{st.seed, st.sampleIdx, bounce, depth};
-                    const SWCSpectrumP Tr = ShadowTransmittance(
-                        ctx, shadowO, wiL, shadowMedium, tmax, sw, addr,
-                        lightIdx, tryVis);
+                        // The shadow ray leaves through the face wiL crosses.
+                        const UInt32P shadowMedium =
+                            select(mediumEvent, ray.medium, SwapMedium(hit, wiL));
 
-                    // SDF Eval on surface lanes, phase
-                    // pdf on medium lanes.
-                    BSDFEvalP ev;
-                    FloatP cosTerm(FloatP(0.f));
-                    EvalVertex(vtx, sw, wiL, &ev, &cosTerm, la);
+                        // Stop before a finite emitter with an absolute margin.
+                        const FloatP tmax =
+                            select(infF > FloatP(0.5f), INF,
+                                   dist - enoki::max(FloatP(1e-3f),
+                                                     FloatP(1e-3f) * dist));
 
-                    FloatP neeW(1.f);
-                    if (FULL_MIS)
-                        neeW = misWeight(pdfL, ev.pdf);
-                    // Surface order so geometry only NEE is untouched,
-                    // medium lanes feed ev.f == phaseVal.
-                    const MaskP ok =
-                        tryVis && (Tr > SWCSpectrumP(0.f)) &&
-                        (pdfL > FloatP(0.f)) && (cosTerm > FloatP(0.f));
-                    const SWCSpectrumP Ld = select(
-                        ok,
-                        neeW * throughput * Le * ev.f * Tr /
-                            max(pdfL, FloatP(EPS_DENOM)),
-                        SWCSpectrumP(0.f));
-                    L = L + Ld;
+                        // Skip shadow and SDF when no lane can contribute.
+                        const MaskP tryVis = la && sampleOk && (pdfL > FloatP(0.f));
+                        if (none(tryVis))
+                            return SWCSpectrumP(0.f);
+
+                        const StreamAddr addr{st.seed, st.sampleIdx, bounce, depth};
+                        const SWCSpectrumP Tr = ShadowTransmittance(
+                            ctx, shadowO, wiL, shadowMedium, tmax, sw, addr,
+                            shadowKey, tryVis);
+
+                        // SDF Eval on surface lanes, phase pdf on medium lanes.
+                        BSDFEvalP ev;
+                        FloatP cosTerm(FloatP(0.f));
+                        EvalVertex(vtx, sw, wiL, &ev, &cosTerm, la);
+
+                        FloatP neeW(1.f);
+                        if (FULL_MIS)
+                            neeW = misWeight(pdfL, ev.pdf);
+                        // Medium lanes, ev.f == phaseVal.
+                        const MaskP ok =
+                            tryVis && (Tr > SWCSpectrumP(0.f)) &&
+                            (pdfL > FloatP(0.f)) && (cosTerm > FloatP(0.f));
+                        return select(
+                            ok,
+                            neeW * throughput * Le * ev.f * Tr /
+                                max(pdfL, FloatP(EPS_DENOM)),
+                            SWCSpectrumP(0.f));
+                    };
+
+                    if (ctx.ls->kind == LightsSamplingStrategy::StrategyKind::All)
+                    {
+                        // One task per slot.
+                        const uint32_t nT = ctx.ls->TaskCount();
+                        for (uint32_t s = 0; s < nT; ++s)
+                        {
+                            const uint32_t k = ctx.ls->task[s];
+                            // Two dims per slot.
+                            const UInt32P d =
+                                UInt32P(NEE_ALL_DIM_BASE) +
+                                (UInt32P(bounce) * UInt32P(nT) +
+                                 UInt32P(s)) *
+                                    UInt32P(2u);
+                            L = L + neeOne(ctx.lightPtrs[k], UInt32P(s),
+                                           FloatP(ctx.lightInf[k]),
+                                           FloatP(ctx.ls->pSel[k]),
+                                           src.Get2D(d), src.Get1D(d + UInt32P(1u)),
+                                           neeGate);
+                        }
+                    }
+                    else
+                    {
+                        const LightPick pick =
+                            SampleLight(*ctx.ls, ulight, neeGate);
+                        const UInt32P idx = pick.idx;
+                        const FloatP pSel = pick.pSel;
+                        const LightPtr light =
+                            enoki::gather<LightPtr>(ctx.lightPtrs.data(), idx, neeGate);
+                        const FloatP infF =
+                            enoki::gather<FloatP>(ctx.lightInf.data(), idx, neeGate);
+                        L = L + neeOne(light, idx, infF, pSel, u2lpos,
+                                       ulightcomp, neeGate);
+                    }
                 }
 
-                // Continuation-direction sample.
+                // Continuation direction sample.
                 Point2fP uPhase = u2bsdf;
                 if (hasMedia && any(mediumEvent))
                     uPhase = src.Get2D(d0 + UInt32P(1u));
@@ -566,8 +613,8 @@ namespace lux2
                 // covered too.
                 alive &= !(vtxAlive && (sample.pdf <= FloatP(0.f)));
 
-                // Russian roulette, once per vertex. Surface lanes use the
-                // lobe value sample.f; medium lanes use cumulative throughput
+                // Russian roulette per vertex. Surface lanes use the
+                // lobe value sample.f; medium lanes use throughput
                 // because sample.f is 1 by construction.
                 const MaskP rrActive = alive && (depth > Int32P(RR_START));
                 if (any(rrActive))
@@ -599,7 +646,7 @@ namespace lux2
                                            BSDFType::Specular)),
                            specularBounce);
 
-                // Spawn. Surface vertices offset along ng, medium vertices step
+                // Surface vertices offset along ng, medium vertices step
                 // a fixed epsilon.
                 const Point3fP surfSpawn =
                     OffsetRay(hit.p, ng, sample.wi, FloatP(EPS_RAY));
@@ -608,7 +655,7 @@ namespace lux2
                     select(mediumEvent, medSpawn, surfSpawn);
 
                 // Medium swap where surface vertices cross the boundary the sampled
-                // direction leaves through, medium vertices keep membership.
+                // direction leaves through.
                 const UInt32P newMedium = SwapMedium(hit, sample.wi);
 
                 const RayP contRay(spawn, sample.wi, FloatP(EPS_RAY), INF,
@@ -624,10 +671,7 @@ namespace lux2
                 ray.medium = select(mediumEvent, ray.medium,
                                     select(hitMask, newMedium, ray.medium));
 
-                // Bookkeeping. A Null boundary is a pass-through vertex: it
-                // advances the RNG counter and crossings but not the semantic
-                // depth. Medium vertices carry sampledType == 0, so
-                // the surface formulas reduce to the medium writes.
+                // Bookkeeping.
                 const MaskP isNull =
                     has_flag(sample.sampledType, BSDFType::Null);
                 bounce = select(valid, bounce + Int32P(1), bounce);
@@ -652,7 +696,7 @@ namespace lux2
             uint32_t s;
         };
 
-        // Enumerates (px, py, s) jobs over tiles in scanline order.
+        // Enumerate (px, py, s) jobs over tiles in scanline order.
         struct JobCursor
         {
             int x0, y0, x1, y1;
@@ -682,7 +726,7 @@ namespace lux2
             }
         };
 
-        // Fill dead lanes with the next jobs.
+        // Fill dead lanes with next jobs.
         template <class SamplerT>
         void Refill(const Camera &camera, const SamplerT &sampler,
                     JobCursor &jobs, uint64_t sampleBasis, PathLanes &st,
@@ -700,7 +744,7 @@ namespace lux2
             alignas(64) float pxs[PACKET_WIDTH] = {}, pys[PACKET_WIDTH] = {};
             alignas(64) uint32_t seeds[PACKET_WIDTH] = {}, sidxs[PACKET_WIDTH] = {};
 
-            // Fold the sampler's configured base seed.
+            // Fold the sampler's base seed.
             bool anyFill = false;
             for (size_t i = 0; i < PACKET_WIDTH; ++i)
             {
@@ -870,8 +914,19 @@ namespace lux2
         ctx.lightPtrs = scene.GroupLights(activeGroup);
         ctx.lightInf = scene.GroupLightInf(activeGroup);
         ctx.nLights = static_cast<int>(ctx.lightPtrs.size());
-        ctx.invNLights =
-            ctx.nLights > 0 ? FloatP(1.f / float(ctx.nLights)) : FloatP(0.f);
+        // Sampling tables indexed by active light group.
+        LightsSamplingStrategy fallback;
+        if (activeGroup >= 0 &&
+            activeGroup < static_cast<int>(m_ls.size()))
+            ctx.ls = &m_ls[activeGroup];
+        else
+        {
+            // Fallback for a caller that runs RenderTile without Start()
+            // (e.g. a scene with no light groups).
+            fallback = CreateLightsSamplingStrategy(m_lightStrategy, ctx.lightPtrs,
+                                                    activeGroup, scene);
+            ctx.ls = &fallback;
+        }
 
         const int nArea = scene.AreaLightCount();
         ctx.areaPtrs.reserve(nArea);
@@ -941,13 +996,13 @@ namespace lux2
             lightMode = PathIntegrator::LightMode::NEE;
         else if (lightModeStr == "bsdf")
             lightMode = PathIntegrator::LightMode::BSDF;
-        // "lightstrategy" is accepted and ignored.
-        if (p)
-            p->EraseString("lightstrategy");
+        // Light sampling strategy.
+        const std::string lightStrategy =
+            p ? p->FindOneString("lightstrategy", "one") : "one";
 
         return std::make_shared<PathIntegrator>(
             maxDepth, rrContinueProb, rrStrategy,
-            includeEnvironment, directLightSampling, lightMode);
+            includeEnvironment, directLightSampling, lightStrategy, lightMode);
     }
 
     LUX2_REGISTER_SURFACE_INTEGRATOR(PathIntegrator, "path");
