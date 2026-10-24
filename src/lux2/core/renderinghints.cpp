@@ -25,7 +25,9 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace lux2
 {
@@ -94,9 +96,30 @@ namespace lux2
                 return {-1, n <= 5u};
             if (name == "autopowerimp")
                 return {2, n <= 5u};
-            LOG(LUX_WARNING, LUX_BADTOKEN)
-                << "lightstrategy '" << name << "' unknown. Using \"one\".";
+            // Warn once per unknown.
+            static std::unordered_set<std::string> warned;
+            if (warned.insert(name).second)
+                LOG(LUX_WARNING, LUX_BADTOKEN)
+                    << "lightstrategy '" << name << "' unknown. Using \"one\".";
             return {-1, false};
+        }
+
+        // Remap All where unsupported (allowAll == false).
+        static bool NormalizeLightStrategyNameImpl(const std::string &in,
+                                                   std::string *out)
+        {
+            if (in == "all" || in == "auto")
+            {
+                *out = "one";
+                return true;
+            }
+            if (in == "allpowerimp" || in == "autopowerimp")
+            {
+                *out = "powerimp";
+                return true;
+            }
+            *out = in;
+            return false;
         }
 
         // A delta light has no surface. Infinite lights report TotalArea()==0
@@ -129,6 +152,26 @@ namespace lux2
         return enoki::select(active, idx, UInt32P(0u));
     }
 
+    bool NormalizeLightStrategyName(const std::string &in, std::string *out,
+                                    bool allowAll)
+    {
+        if (allowAll)
+        {
+            *out = in;
+            return false;
+        }
+        static std::once_flag once;
+        const bool changed = NormalizeLightStrategyNameImpl(in, out);
+        if (changed)
+        {
+            std::call_once(once, []
+                           { LOG(LUX_WARNING, LUX_SYSTEM)
+                                 << "lightstrategy: \"all\" mode not yet supported here; "
+                                    "downgrading to \"one\"."; });
+        }
+        return changed;
+    }
+
     // Uniform/Cdf selection of one light for NEE.
     LightPick SampleLight(const LightsSamplingStrategy &ls, const FloatP &uLight,
                           const MaskP &active)
@@ -151,16 +194,21 @@ namespace lux2
         const std::string &name,
         const std::vector<const Light *> &group,
         int groupId,
-        const Scene &scene)
+        const Scene &scene,
+        LightRole role,
+        bool allowAll)
     {
         LightsSamplingStrategy ls;
         const size_t n = group.size();
         if (n == 0)
             return ls;
 
-        const StrategySpec spec = ResolveStrategy(name, n);
+        std::string normName;
+        NormalizeLightStrategyName(name, &normName, allowAll);
+        const StrategySpec spec = ResolveStrategy(normName, n);
         const int weightKind = spec.weightKind;
         const bool isAll = spec.isAll;
+        const bool lightPath = role == LightRole::LightPath;
 
         // `degenerate` is set only when the weights cannot form a CDF.
         ls.pSel.assign(n, 1.f / float(n));
@@ -218,13 +266,16 @@ namespace lux2
             std::vector<float> mult(n, 0.f);
             for (uint32_t k : ls.task)
                 mult[k] += 1.f;
-            // Every delta light gets at least one slot.
-            for (uint32_t k = 0; k < n; ++k)
+            // Every delta light gets at least one slot on the direct side.
+            if (!lightPath)
             {
-                if (mult[k] == 0.f && IsDelta(group[k]))
+                for (uint32_t k = 0; k < n; ++k)
                 {
-                    mult[k] = 1.f;
-                    ls.task.push_back(k);
+                    if (mult[k] == 0.f && IsDelta(group[k]))
+                    {
+                        mult[k] = 1.f;
+                        ls.task.push_back(k);
+                    }
                 }
             }
             ls.pSel = std::move(mult); // pSel == n_k
@@ -236,12 +287,19 @@ namespace lux2
         {
             if (ls.pSel[k] != 0.f)
                 continue;
+            if (lightPath && IsDelta(group[k]))
+                continue; // delta lights cannot start a light subpath
             LOG(LUX_WARNING, LUX_SYSTEM)
                 << "lightstrategy: light " << k
                 << (IsDelta(group[k])
                         ? " (delta) has zero sampling weight and will not appear."
-                        : " has zero sampling weight; it is reachable only through BSDF"
-                          " hits and will be absent with lightmode=nee.");
+                    : lightPath
+                        ? " has zero sampling weight; it never starts a"
+                          " light subpath and is reachable only through BSDF"
+                          " hits and nee."
+                        : " has zero sampling weight; it is reachable only"
+                          " through BSDF hits and will be absent with"
+                          " lightmode=nee.");
         }
 
         // By area light id, pointer map.

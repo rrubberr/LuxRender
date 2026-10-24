@@ -17,8 +17,8 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef RENDERINGHINTS_H
-#define RENDERINGHINTS_H
+#ifndef LUX2_RENDERINGHINTS_H
+#define LUX2_RENDERINGHINTS_H
 
 #include "core/vecp.h"
 #include <cstdint>
@@ -30,6 +30,13 @@ namespace lux2
 
     class Light;
     class Scene;
+
+    // Both share one table builder in bidirectional.
+    enum class LightRole
+    {
+        Direct,
+        LightPath
+    };
 
     // pSel/cdf/task are indexed by group-light index k.
     struct LightsSamplingStrategy
@@ -54,7 +61,13 @@ namespace lux2
         const std::string &name,
         const std::vector<const Light *> &group,
         int groupId,
-        const Scene &scene);
+        const Scene &scene,
+        LightRole role = LightRole::Direct,
+        bool allowAll = true);
+
+    // Map to a valid strategy name.
+    bool NormalizeLightStrategyName(const std::string &in, std::string *out,
+                                    bool allowAll);
 
     // CDF inversion.
     UInt32P SearchSortedCDF(const std::vector<float> &cdf, const FloatP &u,
@@ -72,4 +85,4 @@ namespace lux2
 
 } // namespace lux2
 
-#endif // RENDERINGHINTS_H
+#endif // LUX2_RENDERINGHINTS_H

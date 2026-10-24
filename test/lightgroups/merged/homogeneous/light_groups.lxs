@@ -11,13 +11,16 @@ Accelerator "embree"
 	"bool highquality" ["true"]
 	"bool robust" ["true"]
 
-SurfaceIntegrator "path"
-	"integer maxdepth" [8]
-	"float rrcontinueprob" [0.649999976158142]
-	"string rrstrategy" ["efficiency"]
-	"bool includeenvironment" ["true"]
-	"bool directlightsampling" ["true"]
-	"string lightstrategy" ["all"]
+SurfaceIntegrator "bidirectional"
+	"integer eyedepth" [8]
+	"integer lightdepth" [8]
+	"integer lightraycount" [1]
+	"float eyerrthreshold" [0.000000000000000]
+	"float lightrrthreshold" [0.000000000000000]
+	"string lightpathstrategy" ["auto"]
+	"integer shadowraycount" [1]
+	"bool nomis" ["false"]
+	"string lightstrategy" ["one"]
 
 VolumeIntegrator "multi"
 
