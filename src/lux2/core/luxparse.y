@@ -26,8 +26,8 @@
 #include "core/context2.h"
 #include "core/error.h"
 #include "core/paramset.h"
-#include "core/geometry.h"
-#include "core/spectrum.h"
+#include "core/math/geometry.h"
+#include "core/color/spectrum.h"
 #include <cstdarg>
 #include <sstream>
 

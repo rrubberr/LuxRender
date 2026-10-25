@@ -85,8 +85,9 @@ endif()
 # Build liblux2.so #
 ####################
 
-file(GLOB LUX2_CORE_SRC CONFIGURE_DEPENDS
+file(GLOB_RECURSE LUX2_CORE_SRC CONFIGURE_DEPENDS
 	core/*.cpp
+	core/**/*.cpp
 	shapes/*.cpp
 	textures/*.cpp
 	materials/*.cpp

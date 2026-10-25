@@ -22,9 +22,9 @@
 #ifndef LUX2_RAY_H
 #define LUX2_RAY_H
 
-#include "core/vecp.h"
-#include "core/geometry.h"
-#include "core/spectrum.h"
+#include "core/math/vecp.h"
+#include "core/math/geometry.h"
+#include "core/color/spectrum.h"
 
 #include <limits>
 

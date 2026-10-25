@@ -33,14 +33,14 @@
 #include "core/bsdf_call.h"
 #include "core/phase.h"
 #include "core/lux2.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/rng.h"
 #include "media/homogeneous.h"
 #include "media/regionset.h"
 
 // VertexP / EvalVertex / SampleVertex under test. Pulls in the dispatch
 // headers itself; included here so the operator-> specializations are visible.
-#include "integrators/vertex.h"
+#include "integrators/core/vertex.h"
 
 #include <cmath>
 #include <cstdint>

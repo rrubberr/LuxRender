@@ -25,8 +25,8 @@
 #include "core/bsdf_call.h"
 #include "core/medium_call.h"
 #include "core/phase.h"
-#include "core/ray.h"
-#include "core/spectrum.h"
+#include "core/math/ray.h"
+#include "core/color/spectrum.h"
 
 #include <enoki/array.h>
 

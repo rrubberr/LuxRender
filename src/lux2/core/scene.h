@@ -37,8 +37,8 @@
 #include "core/graphicsstate.h"
 #include "core/bsdfptr_table.h"
 
-#include "core/bbox.h"
-#include "core/transform.h"
+#include "core/math/bbox.h"
+#include "core/math/transform.h"
 
 #include <cstdint>
 #include <vector>

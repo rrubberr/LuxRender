@@ -22,10 +22,10 @@
 #ifndef LUX2_BSDF_H
 #define LUX2_BSDF_H
 
-#include "core/vecp.h"
-#include "core/geometry.h"
-#include "core/spectrum.h"
-#include "core/color.h"
+#include "core/math/vecp.h"
+#include "core/math/geometry.h"
+#include "core/color/spectrum.h"
+#include "core/color/color.h"
 #include "core/bsdf_type.h"
 
 #include <cstdint>

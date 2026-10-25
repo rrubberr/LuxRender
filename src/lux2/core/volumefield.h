@@ -22,10 +22,10 @@
 #ifndef LUX2_VOLUMEFIELD_H
 #define LUX2_VOLUMEFIELD_H
 
-#include "core/vecp.h"
-#include "core/geometry.h"
-#include "core/bbox.h"
-#include "core/math.h"
+#include "core/math/vecp.h"
+#include "core/math/geometry.h"
+#include "core/math/bbox.h"
+#include "core/math/math.h"
 
 #include <algorithm>
 #include <cstdint>

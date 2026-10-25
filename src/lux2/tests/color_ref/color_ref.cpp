@@ -25,9 +25,9 @@
 
 #include "color_ref.h"
 
-#include "../../core/data/rgbE_32.h"
-#include "../../core/data/rgbD65_32.h"
-#include "../../core/data/xyzbasis.h"
+#include "../../core/color/data/rgbE_32.h"
+#include "../../core/color/data/rgbD65_32.h"
+#include "../../core/color/data/xyzbasis.h"
 
 namespace colorref {
 

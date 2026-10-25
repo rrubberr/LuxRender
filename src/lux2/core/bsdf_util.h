@@ -23,7 +23,7 @@
 #define LUX2_BSDF_UTIL_H
 
 #include "core/bsdf.h"
-#include "core/math.h"
+#include "core/math/math.h"
 
 namespace lux2
 {

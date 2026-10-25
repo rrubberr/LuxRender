@@ -22,9 +22,9 @@
 #ifndef LUX2_SAMPLING_H
 #define LUX2_SAMPLING_H
 
-#include "core/geometry.h"
-#include "core/math.h"
-#include "core/vecp.h"
+#include "core/math/geometry.h"
+#include "core/math/math.h"
+#include "core/math/vecp.h"
 
 namespace lux2
 {

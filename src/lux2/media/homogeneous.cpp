@@ -21,7 +21,7 @@
 
 #include "media/homogeneous.h"
 
-#include "core/color.h"
+#include "core/color/color.h"
 #include "core/dynload.h"
 #include "core/paramset.h"
 #include "core/register.h"

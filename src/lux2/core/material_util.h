@@ -22,7 +22,7 @@
 #ifndef LUX2_MATERIAL_UTIL_H
 #define LUX2_MATERIAL_UTIL_H
 
-#include "core/color.h"
+#include "core/color/color.h"
 #include "core/dynload.h"
 #include "core/paramset.h"
 #include "core/texture.h"

@@ -27,7 +27,7 @@
 #include "core/queryableregistry.h"
 #include "core/renderstats.h"
 #include "core/scene.h"
-#include "core/transform_stack.h"
+#include "core/math/transform_stack.h"
 
 #include <atomic>
 #include <map>

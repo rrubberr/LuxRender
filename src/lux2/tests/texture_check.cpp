@@ -21,8 +21,8 @@
 
 #include "core/texture.h"
 #include "core/fresnel.h"
-#include "core/spectrum.h"
-#include "core/vecp.h"
+#include "core/color/spectrum.h"
+#include "core/math/vecp.h"
 #include "textures/constant.h"
 #include "textures/fresnelcolor.h"
 

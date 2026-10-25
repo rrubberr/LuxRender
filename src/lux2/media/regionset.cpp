@@ -21,7 +21,7 @@
 
 #include "media/regionset.h"
 
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/phase.h"
 
 #include <enoki/array.h>

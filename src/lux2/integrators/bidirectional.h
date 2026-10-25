@@ -24,7 +24,7 @@
 
 #include "core/integrator.h"
 #include "core/renderinghints.h"
-#include "integrators/integrator_debug.h"
+#include "integrators/debug/integrator_debug.h"
 
 #include <atomic>
 #include <memory>

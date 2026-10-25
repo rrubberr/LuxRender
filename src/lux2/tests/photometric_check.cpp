@@ -21,11 +21,11 @@
 //      (IntegratedLuminance -> PhotometricGainFactor -> Sample_Li gain) without
 //      referencing legacy numbers.
 
-#include "core/color.h"
-#include "core/data/xyzbasis.h"
-#include "core/geometry.h"
+#include "core/color/color.h"
+#include "core/color/data/xyzbasis.h"
+#include "core/math/geometry.h"
 #include "core/light.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/shape.h"
 #include "core/texture.h"
 #include "lights/area.h"

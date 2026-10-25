@@ -22,7 +22,7 @@
 #ifndef LUX2_INTEGRATORS_PATH_H
 #define LUX2_INTEGRATORS_PATH_H
 
-#include "core/color.h"
+#include "core/color/color.h"
 #include "core/integrator.h"
 #include "core/renderinghints.h"
 

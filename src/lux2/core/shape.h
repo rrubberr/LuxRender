@@ -22,9 +22,9 @@
 #ifndef LUX2_SHAPE_H
 #define LUX2_SHAPE_H
 
-#include "core/geometry.h"
-#include "core/bbox.h"
-#include "core/transform.h"
+#include "core/math/geometry.h"
+#include "core/math/bbox.h"
+#include "core/math/transform.h"
 
 #include <vector>
 #include <cstdint>

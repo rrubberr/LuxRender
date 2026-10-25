@@ -22,7 +22,7 @@
 #ifndef LUX2_FRESNEL_H
 #define LUX2_FRESNEL_H
 
-#include "core/spectrum.h"
+#include "core/color/spectrum.h"
 
 namespace lux2
 {

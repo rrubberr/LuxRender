@@ -22,8 +22,8 @@
 #ifndef LUX2_PARAMSET_H
 #define LUX2_PARAMSET_H
 
-#include "core/geometry.h"
-#include "core/spectrum.h"
+#include "core/math/geometry.h"
+#include "core/color/spectrum.h"
 #include "core/error.h"
 
 #include <string>

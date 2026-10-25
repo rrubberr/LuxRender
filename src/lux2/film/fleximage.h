@@ -24,7 +24,7 @@
 
 #include "core/film.h"
 #include "core/filter.h"
-#include "core/colorsystem.h"
+#include "core/color/colorsystem.h"
 
 #include <algorithm>
 #include <atomic>

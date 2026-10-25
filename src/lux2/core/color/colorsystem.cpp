@@ -19,7 +19,7 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "core/colorsystem.h"
+#include "core/color/colorsystem.h"
 
 #include <enoki/matrix.h>
 

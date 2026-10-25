@@ -22,8 +22,8 @@
 #ifndef LUX2_COLOR_H
 #define LUX2_COLOR_H
 
-#include "core/vecp.h"
-#include "core/spectrum.h"
+#include "core/math/vecp.h"
+#include "core/color/spectrum.h"
 
 #include <enoki/array.h>
 

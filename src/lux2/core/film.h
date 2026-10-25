@@ -22,9 +22,9 @@
 #ifndef LUX2_FILM_H
 #define LUX2_FILM_H
 
-#include "core/vecp.h"
-#include "core/spectrum.h"
-#include "core/color.h"
+#include "core/math/vecp.h"
+#include "core/color/spectrum.h"
+#include "core/color/color.h"
 #include "core/api.h"
 
 #include <cstdint>

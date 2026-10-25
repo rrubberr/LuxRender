@@ -21,8 +21,8 @@
 // the scalar's c[single_w] (and Y). Every packet lane carries the same
 // broadcast input, so lane 0 is compared against the scalar result.
 
-#include "core/color.h"
-#include "core/colorsystem.h"
+#include "core/color/color.h"
+#include "core/color/colorsystem.h"
 #include "core/texture.h"
 
 #include "color_ref/color_ref.h"

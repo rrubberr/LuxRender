@@ -17,14 +17,14 @@
 // (maxdepth=0). Environment cases were dropped along with InfiniteLight.
 // Also checks termination and finiteness.
 
-#include "core/color.h"
+#include "core/color/color.h"
 #include "core/dynload.h"
 #include "core/film.h"
 #include "core/paramset.h"
 #include "core/scene.h"
-#include "core/spectrum.h"
+#include "core/color/spectrum.h"
 #include "core/tilequeue.h"
-#include "core/transform.h"
+#include "core/math/transform.h"
 #include "integrators/path.h"
 
 #include <cmath>

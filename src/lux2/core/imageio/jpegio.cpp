@@ -19,10 +19,10 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "core/jpegio.h"
+#include "core/imageio/jpegio.h"
 
 #include "core/error.h"
-#include "core/math.h"
+#include "core/math/math.h"
 
 extern "C"
 {

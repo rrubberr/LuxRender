@@ -20,7 +20,7 @@
 #ifndef LUX2_RENDERINGHINTS_H
 #define LUX2_RENDERINGHINTS_H
 
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 #include <cstdint>
 #include <string>
 #include <vector>

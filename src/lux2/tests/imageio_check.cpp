@@ -14,11 +14,11 @@
 // Verifies the EXR and PNG writers/readers: round-trips, crop layout,
 // channel modes, and error paths.
 
-#include "core/colorsystem.h"
-#include "core/exrio.h"
-#include "core/jpegio.h"
-#include "core/pngio.h"
-#include "core/tiffio.h"
+#include "core/color/colorsystem.h"
+#include "core/imageio/exrio.h"
+#include "core/imageio/jpegio.h"
+#include "core/imageio/pngio.h"
+#include "core/imageio/tiffio.h"
 
 #include <algorithm>
 #include <cmath>

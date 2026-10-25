@@ -23,7 +23,7 @@
 #define LUX2_LOWDISCREPANCY_H
 
 #include "core/sampler.h"
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 #include <cstdint>
 #include <memory>

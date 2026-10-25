@@ -22,7 +22,7 @@
 #include "cameras/perspective.h"
 
 #include "core/dynload.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/paramset.h"
 #include "core/register.h"
 

@@ -25,9 +25,9 @@
 #include "core/dynload.h"
 #include "core/fresnel.h"
 #include "core/material_util.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/register.h"
-#include "core/schlick_distribution.h"
+#include "core/color/schlick_distribution.h"
 
 #include <enoki/array.h>
 

@@ -22,12 +22,12 @@
 #ifndef LUX2_LUX2_H
 #define LUX2_LUX2_H
 
-#include "core/vecp.h"
-#include "core/geometry.h"
-#include "core/spectrum.h"
-#include "core/bbox.h"
-#include "core/transform.h"
-#include "core/ray.h"
+#include "core/math/vecp.h"
+#include "core/math/geometry.h"
+#include "core/color/spectrum.h"
+#include "core/math/bbox.h"
+#include "core/math/transform.h"
+#include "core/math/ray.h"
 #include "core/rng.h"
 
 #endif // LUX2_LUX2_H

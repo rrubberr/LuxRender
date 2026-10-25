@@ -20,18 +20,18 @@
  ***************************************************************************/
 
 #include "integrators/bidirectional.h"
-#include "integrators/integrator_debug.h"
-#include "integrators/vertex.h"
+#include "integrators/debug/integrator_debug.h"
+#include "integrators/core/vertex.h"
 
 #include "core/bsdf_call.h"
 #include "core/bsdfptr_table.h"
 #include "core/camera.h"
-#include "core/color.h"
+#include "core/color/color.h"
 #include "core/dynload.h"
-#include "core/embree2.h"
+#include "core/accel/embree2.h"
 #include "core/light.h"
 #include "core/light_call.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/medium.h"
 #include "core/mediumptr_table.h"
 #include "core/register.h"

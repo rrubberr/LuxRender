@@ -22,7 +22,7 @@
 #ifndef LUX2_GEOMETRY_H
 #define LUX2_GEOMETRY_H
 
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 #include <utility>
 

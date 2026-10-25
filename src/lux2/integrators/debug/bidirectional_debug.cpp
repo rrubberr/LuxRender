@@ -23,11 +23,11 @@
 
 #ifdef LUX2_INTEGRATOR_DEBUG
 
-#include "integrators/integrator_debug.h"
+#include "integrators/debug/integrator_debug.h"
 
 #include "core/bsdf_call.h"
 #include "core/error.h"
-#include "core/math.h"
+#include "core/math/math.h"
 
 #include <enoki/array.h>
 

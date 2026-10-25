@@ -22,9 +22,9 @@
 #ifndef LUX2_SCHLICK_DISTRIBUTION_H
 #define LUX2_SCHLICK_DISTRIBUTION_H
 
-#include "core/vecp.h"
-#include "core/geometry.h"
-#include "core/math.h"
+#include "core/math/vecp.h"
+#include "core/math/geometry.h"
+#include "core/math/math.h"
 
 namespace lux2
 {

@@ -16,10 +16,10 @@
 // normalized readback, Merge, validity rejection, and premultiplied alpha.
 
 #include "film/fleximage.h"
-#include "core/color.h"
-#include "core/colorsystem.h"
+#include "core/color/color.h"
+#include "core/color/colorsystem.h"
 #include "core/dynload.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "filters/gaussian.h"
 
 #include <cmath>

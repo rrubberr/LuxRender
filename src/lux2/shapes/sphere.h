@@ -23,8 +23,8 @@
 #define LUX2_SHAPE_SPHERE_H
 
 #include "core/shape.h"
-#include "core/bbox.h"
-#include "core/transform.h"
+#include "core/math/bbox.h"
+#include "core/math/transform.h"
 
 #include <memory>
 

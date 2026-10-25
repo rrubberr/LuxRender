@@ -19,11 +19,11 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_EXRIO_H
-#define LUX2_EXRIO_H
+#ifndef LUX2_TIFFIO_H
+#define LUX2_TIFFIO_H
 
-#include "core/imagereader.h"
-#include "core/spectrum.h"
+#include "core/imageio/imagereader.h"
+#include "core/color/spectrum.h"
 
 #include <string>
 #include <vector>
@@ -31,41 +31,29 @@
 namespace lux2
 {
 
-    // Write an EXR.
-    bool WriteOpenEXRImage(int channeltype, bool halftype, int compressiontype,
-                           const std::string &name,
-                           const std::vector<RGBColor> &pixels,
-                           const std::vector<float> &alpha,
-                           int xRes, int yRes,
-                           int totalXRes, int totalYRes,
-                           int xOffset, int yOffset);
+    class ColorSystem;
 
-    // One named float channel for multichannel EXR output.
-    struct EXRChannel
+    // TIFF compression codes.
+    enum TiffCompression
     {
-        std::string name;    // e.g. "beauty.R", "KeyLight.G"
-        const float *pixels; // xRes*yRes, row-major
+        TIFF_COMPRESSION_NONE = 0,
+        TIFF_COMPRESSION_LZW = 1,
+        TIFF_COMPRESSION_DEFLATE = 2
     };
 
-    // Write an EXR from an arbitrary list of named planar channels.
-    bool WriteOpenEXRChannels(bool halftype, int compressiontype,
-                              const std::string &name,
-                              const std::vector<EXRChannel> &channels,
-                              int xRes, int yRes,
-                              int totalXRes, int totalYRes,
-                              int xOffset, int yOffset);
+    // bitdepth selects the sample format.
+    bool WriteTiffImage(int channeltype, int bitdepth, int compressiontype,
+                        const std::string &name,
+                        const std::vector<RGBColor> &pixels,
+                        const std::vector<float> &alpha,
+                        int xPixelCount, int yPixelCount,
+                        int xResolution, int yResolution,
+                        int xPixelStart, int yPixelStart,
+                        const ColorSystem &cSystem, float screenGamma);
 
-    // Read an EXR into a FLOAT ImageData.
-    bool ReadOpenEXRImage(const std::string &name, ImageData *out);
-
-    // List every channel name in an EXR.
-    bool ListOpenEXRChannels(const std::string &name,
-                             std::vector<std::string> *out);
-
-    // Read one named channel.
-    bool ReadOpenEXRChannel(const std::string &name, const std::string &channel,
-                            std::vector<float> *out);
+    // Returns native sample type.
+    bool ReadTiffImage(const std::string &name, ImageData *out);
 
 } // namespace lux2
 
-#endif // LUX2_EXRIO_H
+#endif // LUX2_TIFFIO_H

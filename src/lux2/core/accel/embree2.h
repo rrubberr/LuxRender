@@ -22,9 +22,9 @@
 #ifndef LUX2_EMBREE2_H
 #define LUX2_EMBREE2_H
 
-#include "core/ray.h"
-#include "core/geometry.h"
-#include "core/bbox.h"
+#include "core/math/ray.h"
+#include "core/math/geometry.h"
+#include "core/math/bbox.h"
 
 #include <embree4/rtcore.h>
 

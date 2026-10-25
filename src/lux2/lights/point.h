@@ -24,7 +24,7 @@
 
 #include "core/light.h"
 #include "core/texture.h"
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 #include <memory>
 

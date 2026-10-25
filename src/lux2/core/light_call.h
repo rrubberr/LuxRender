@@ -23,7 +23,7 @@
 #define LUX2_LIGHT_CALL_H
 
 #include "core/light.h"
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 #include <enoki/array.h>
 

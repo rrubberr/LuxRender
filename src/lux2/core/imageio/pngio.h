@@ -22,8 +22,8 @@
 #ifndef LUX2_PNGIO_H
 #define LUX2_PNGIO_H
 
-#include "core/imagereader.h"
-#include "core/spectrum.h"
+#include "core/imageio/imagereader.h"
+#include "core/color/spectrum.h"
 
 #include <string>
 #include <vector>

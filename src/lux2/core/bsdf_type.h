@@ -22,7 +22,7 @@
 #ifndef LUX2_BSDF_TYPE_H
 #define LUX2_BSDF_TYPE_H
 
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 #include <cstdint>
 

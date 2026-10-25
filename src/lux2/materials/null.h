@@ -25,7 +25,7 @@
 #include "core/material.h"
 #include "core/bsdf.h"
 #include "core/bsdf_type.h"
-#include "core/math.h"
+#include "core/math/math.h"
 
 #include <memory>
 

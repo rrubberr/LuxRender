@@ -19,30 +19,65 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#ifndef LUX2_JPEGIO_H
-#define LUX2_JPEGIO_H
+#ifndef LUX2_TRANSFORM_STACK_H
+#define LUX2_TRANSFORM_STACK_H
 
-#include "core/imagereader.h"
-#include "core/spectrum.h"
+#include "core/math/transform.h"
 
+#include <map>
 #include <string>
 #include <vector>
 
 namespace lux2
 {
 
-    // JPEG is 8-bit with no alpha channel.
-    bool WriteJpegImage(int channeltype, int quality, bool subsampling,
-                        const std::string &name,
-                        const std::vector<RGBColor> &pixels,
-                        const std::vector<float> &alpha,
-                        int xPixelCount, int yPixelCount,
-                        int xResolution, int yResolution,
-                        int xPixelStart, int yPixelStart);
+    class TransformStack
+    {
+    public:
+        TransformStack() = default;
 
-    // Always returns 3-channel UNSIGNED_CHAR data.
-    bool ReadJpegImage(const std::string &name, ImageData *out);
+        // The current object-to-world transform.
+        const Transform &current() const { return m_current; }
+
+        // Post multiply the current transform (Translate/Rotate/Scale/Concat/LookAt).
+        void postMultiply(const Transform &t) { m_current = m_current * t; }
+
+        // Replace the current transform.
+        void set(const Transform &t) { m_current = t; }
+
+        void identity() { m_current = Transform(); }
+
+        // TransformBegin/End.
+        void push() { m_stack.push_back(m_current); }
+        void pop()
+        {
+            if (!m_stack.empty())
+            {
+                m_current = m_stack.back();
+                m_stack.pop_back();
+            }
+        }
+
+        // CoordinateSystem / CoordSysTransform.
+        void nameCoordinateSystem(const std::string &name)
+        {
+            m_named[name] = m_current;
+        }
+        bool useCoordinateSystem(const std::string &name)
+        {
+            auto it = m_named.find(name);
+            if (it == m_named.end())
+                return false;
+            m_current = it->second;
+            return true;
+        }
+
+    private:
+        Transform m_current;
+        std::vector<Transform> m_stack;
+        std::map<std::string, Transform> m_named;
+    };
 
 } // namespace lux2
 
-#endif // LUX2_JPEGIO_H
+#endif // LUX2_TRANSFORM_STACK_H

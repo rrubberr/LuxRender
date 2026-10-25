@@ -19,11 +19,11 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "core/color.h"
+#include "core/color/color.h"
 
-#include "core/data/rgbE_32.h"
-#include "core/data/rgbD65_32.h"
-#include "core/data/xyzbasis.h"
+#include "core/color/data/rgbE_32.h"
+#include "core/color/data/rgbD65_32.h"
+#include "core/color/data/xyzbasis.h"
 
 #include <cmath>
 #include <vector>

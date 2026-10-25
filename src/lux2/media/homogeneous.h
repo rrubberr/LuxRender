@@ -23,11 +23,11 @@
 #define LUX2_MEDIA_HOMOGENEOUS_H
 
 #include "core/medium.h"
-#include "core/bbox.h"
-#include "core/color.h"
-#include "core/math.h"
+#include "core/math/bbox.h"
+#include "core/color/color.h"
+#include "core/math/math.h"
 #include "core/phase.h"
-#include "core/transform.h"
+#include "core/math/transform.h"
 
 #include <enoki/array.h>
 

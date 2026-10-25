@@ -22,7 +22,7 @@
 #ifndef LUX2_TONEMAP_H
 #define LUX2_TONEMAP_H
 
-#include "core/spectrum.h"
+#include "core/color/spectrum.h"
 
 #include <map>
 #include <memory>

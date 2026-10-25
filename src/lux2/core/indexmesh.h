@@ -22,10 +22,10 @@
 #ifndef LUX2_INDEXMESH_H
 #define LUX2_INDEXMESH_H
 
-#include "core/bbox.h"
-#include "core/geometry.h"
+#include "core/math/bbox.h"
+#include "core/math/geometry.h"
 #include "core/shape.h"
-#include "core/transform.h"
+#include "core/math/transform.h"
 
 #include <array>
 #include <cmath>

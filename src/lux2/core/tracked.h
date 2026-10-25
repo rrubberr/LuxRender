@@ -23,9 +23,9 @@
 #define LUX2_CORE_TRACKED_H
 
 #include "core/medium.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/rng.h"
-#include "core/spectrum.h"
+#include "core/color/spectrum.h"
 
 #include <enoki/array.h>
 

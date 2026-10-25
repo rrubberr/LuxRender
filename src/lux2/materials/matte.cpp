@@ -24,7 +24,7 @@
 #include "core/bsdf_util.h"
 #include "core/dynload.h"
 #include "core/material_util.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/register.h"
 #include "core/sampling.h"
 

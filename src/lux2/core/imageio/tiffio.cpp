@@ -19,11 +19,11 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "core/tiffio.h"
+#include "core/imageio/tiffio.h"
 
-#include "core/colorsystem.h"
+#include "core/color/colorsystem.h"
 #include "core/error.h"
-#include "core/math.h"
+#include "core/math/math.h"
 
 extern "C"
 {

@@ -22,7 +22,7 @@
 #ifndef LUX2_QMC_H
 #define LUX2_QMC_H
 
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 #include <enoki/array.h>
 

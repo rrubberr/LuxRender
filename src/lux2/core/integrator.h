@@ -22,9 +22,9 @@
 #ifndef LUX2_INTEGRATOR_H
 #define LUX2_INTEGRATOR_H
 
-#include "core/vecp.h"
-#include "core/spectrum.h"
-#include "core/ray.h"
+#include "core/math/vecp.h"
+#include "core/color/spectrum.h"
+#include "core/math/ray.h"
 #include "core/sampler.h"
 #include "core/tilequeue.h"
 

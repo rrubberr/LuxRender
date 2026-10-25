@@ -29,7 +29,7 @@
 
 #ifdef LUX2_INTEGRATOR_DEBUG
 
-#include "integrators/integrator_debug.h"
+#include "integrators/debug/integrator_debug.h"
 
 #include <atomic>
 #include <cstdio>

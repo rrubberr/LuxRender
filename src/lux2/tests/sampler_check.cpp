@@ -15,7 +15,7 @@
 
 #include "samplers/lowdiscrepancy.h"
 #include "core/qmc.h"
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 #include <enoki/array.h>
 

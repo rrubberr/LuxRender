@@ -20,7 +20,7 @@
 #ifndef LUX2_RNG_H
 #define LUX2_RNG_H
 
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 #include <enoki/random.h>
 

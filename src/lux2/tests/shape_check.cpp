@@ -14,7 +14,7 @@
 // Shape tessellation.
 
 #include "core/dynload.h"
-#include "core/embree2.h"
+#include "core/accel/embree2.h"
 #include "core/paramset.h"
 #include "core/scene.h"
 #include "core/shape.h"

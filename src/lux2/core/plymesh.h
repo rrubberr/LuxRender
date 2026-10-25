@@ -22,9 +22,9 @@
 #ifndef LUX2_PLYMESH_H
 #define LUX2_PLYMESH_H
 
-#include "core/bbox.h"
+#include "core/math/bbox.h"
 #include "core/error.h"
-#include "core/geometry.h"
+#include "core/math/geometry.h"
 
 #include <array>
 #include <cstdint>

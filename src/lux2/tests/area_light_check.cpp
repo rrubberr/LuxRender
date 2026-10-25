@@ -14,10 +14,10 @@
 // Verifies the area light:
 
 #include "lights/area.h"
-#include "core/color.h"
-#include "core/geometry.h"
+#include "core/color/color.h"
+#include "core/math/geometry.h"
 #include "core/shape.h"
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 #include "textures/constant.h"
 
 #include <cmath>

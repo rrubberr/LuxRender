@@ -13,10 +13,10 @@
 
 // EmbreeScene build + packet intersect/occlude/shade.
 
-#include "core/embree2.h"
+#include "core/accel/embree2.h"
 #include "core/scene.h"
 #include "core/shape.h"
-#include "core/ray.h"
+#include "core/math/ray.h"
 
 #include <cmath>
 #include <cstdint>

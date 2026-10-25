@@ -22,7 +22,7 @@
 #ifndef LUX2_TRANSFORM_H
 #define LUX2_TRANSFORM_H
 
-#include "core/geometry.h"
+#include "core/math/geometry.h"
 
 #include <enoki/matrix.h>
 #include <enoki/transform.h>

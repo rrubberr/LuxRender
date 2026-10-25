@@ -14,9 +14,9 @@
 // Verifies the perspective camera.
 
 #include "cameras/perspective.h"
-#include "core/ray.h"
-#include "core/transform.h"
-#include "core/vecp.h"
+#include "core/math/ray.h"
+#include "core/math/transform.h"
+#include "core/math/vecp.h"
 
 #include <cmath>
 #include <iostream>

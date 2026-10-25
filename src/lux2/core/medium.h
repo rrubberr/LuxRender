@@ -22,12 +22,12 @@
 #ifndef LUX2_MEDIUM_H
 #define LUX2_MEDIUM_H
 
-#include "core/vecp.h"
-#include "core/geometry.h"
-#include "core/spectrum.h"
-#include "core/color.h"
-#include "core/bbox.h"
-#include "core/ray.h"
+#include "core/math/vecp.h"
+#include "core/math/geometry.h"
+#include "core/color/spectrum.h"
+#include "core/color/color.h"
+#include "core/math/bbox.h"
+#include "core/math/ray.h"
 #include "core/rng.h"
 #include "core/volumefield.h"
 

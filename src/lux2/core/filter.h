@@ -22,7 +22,7 @@
 #ifndef LUX2_FILTER_H
 #define LUX2_FILTER_H
 
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 namespace lux2
 {

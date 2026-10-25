@@ -26,9 +26,9 @@
 #include "core/bsdf_call.h"
 #include "core/bsdfptr_table.h"
 #include "core/bsdf_type.h"
-#include "core/geometry.h"
-#include "core/spectrum.h"
-#include "core/vecp.h"
+#include "core/math/geometry.h"
+#include "core/color/spectrum.h"
+#include "core/math/vecp.h"
 
 #include <cstdint>
 #include <iostream>

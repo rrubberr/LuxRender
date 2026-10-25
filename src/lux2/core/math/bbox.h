@@ -22,7 +22,7 @@
 #ifndef LUX2_BBOX_H
 #define LUX2_BBOX_H
 
-#include "core/geometry.h"
+#include "core/math/geometry.h"
 
 #include <limits>
 

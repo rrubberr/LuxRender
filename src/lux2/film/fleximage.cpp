@@ -21,13 +21,13 @@
 
 #include "film/fleximage.h"
 
-#include "core/color.h"
-#include "core/colorsystem.h"
+#include "core/color/color.h"
+#include "core/color/colorsystem.h"
 #include "core/dynload.h"
-#include "core/exrio.h"
-#include "core/math.h"
+#include "core/imageio/exrio.h"
+#include "core/math/math.h"
 #include "core/paramset.h"
-#include "core/pngio.h"
+#include "core/imageio/pngio.h"
 #include "core/register.h"
 #include "core/tonemap.h"
 

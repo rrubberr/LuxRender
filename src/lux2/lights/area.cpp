@@ -25,7 +25,7 @@
 #include "core/bsdf_type.h"
 #include "core/dynload.h"
 #include "core/error.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/paramset.h"
 #include "core/register.h"
 #include "core/sampling.h"

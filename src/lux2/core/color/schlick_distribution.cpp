@@ -19,9 +19,9 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "core/schlick_distribution.h"
+#include "core/color/schlick_distribution.h"
 
-#include "core/math.h"
+#include "core/math/math.h"
 
 namespace lux2
 {

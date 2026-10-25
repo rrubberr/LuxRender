@@ -19,10 +19,10 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "core/embree2.h"
+#include "core/accel/embree2.h"
 #include "core/scene.h"
 #include "core/shape.h"
-#include "core/math.h"
+#include "core/math/math.h"
 #include "core/error.h"
 
 #include <cstring>

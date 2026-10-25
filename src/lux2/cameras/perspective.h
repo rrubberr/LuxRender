@@ -23,7 +23,7 @@
 #define LUX2_PERSPECTIVE_H
 
 #include "core/camera.h"
-#include "core/transform.h"
+#include "core/math/transform.h"
 
 #include <memory>
 

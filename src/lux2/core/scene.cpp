@@ -22,7 +22,7 @@
 #include "core/scene.h"
 
 #include "core/dynload.h"
-#include "core/embree2.h"
+#include "core/accel/embree2.h"
 #include "core/shape.h"
 #include "core/texture.h"
 #include "lights/area.h"

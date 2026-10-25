@@ -19,7 +19,7 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "core/exrio.h"
+#include "core/imageio/exrio.h"
 
 #include "core/error.h"
 

@@ -22,9 +22,9 @@
 #ifndef LUX2_CAMERA_H
 #define LUX2_CAMERA_H
 
-#include "core/vecp.h"
-#include "core/geometry.h"
-#include "core/ray.h"
+#include "core/math/vecp.h"
+#include "core/math/geometry.h"
+#include "core/math/ray.h"
 
 namespace lux2
 {

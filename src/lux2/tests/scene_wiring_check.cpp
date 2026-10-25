@@ -15,7 +15,7 @@
 
 #include "core/paramset.h"
 #include "core/scene.h"
-#include "core/transform.h"
+#include "core/math/transform.h"
 #include "lights/area.h"
 
 #include <cmath>

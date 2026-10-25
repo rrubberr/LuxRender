@@ -14,7 +14,7 @@
 // Verifies the QMC substrate.
 
 #include "core/qmc.h"
-#include "core/vecp.h"
+#include "core/math/vecp.h"
 
 #include <cmath>
 #include <cstdint>

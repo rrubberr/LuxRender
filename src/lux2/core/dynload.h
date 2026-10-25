@@ -33,7 +33,7 @@
 #include "core/film.h"
 #include "core/integrator.h"
 #include "core/renderer.h"
-#include "core/transform.h"
+#include "core/math/transform.h"
 
 #include <map>
 #include <string>

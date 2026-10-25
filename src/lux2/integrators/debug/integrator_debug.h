@@ -24,8 +24,8 @@
 #ifndef LUX2_INTEGRATORS_INTEGRATOR_DEBUG_H
 #define LUX2_INTEGRATORS_INTEGRATOR_DEBUG_H
 
-#include "core/spectrum.h"
-#include "core/vecp.h"
+#include "core/color/spectrum.h"
+#include "core/math/vecp.h"
 
 #include <cstddef>
 #include <cstdint>

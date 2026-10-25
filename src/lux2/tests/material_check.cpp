@@ -22,10 +22,10 @@
 
 #include "core/bsdf.h"
 #include "core/bsdf_type.h"
-#include "core/spectrum.h"
+#include "core/color/spectrum.h"
 #include "core/texture.h"
-#include "core/vecp.h"
-#include "core/math.h"
+#include "core/math/vecp.h"
+#include "core/math/math.h"
 #include "core/fresnel.h"
 #include "materials/matte.h"
 #include "materials/metal2.h"

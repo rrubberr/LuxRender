@@ -22,8 +22,8 @@
 #ifndef LUX2_SAMPLER_H
 #define LUX2_SAMPLER_H
 
-#include "core/vecp.h"
-#include "core/geometry.h"
+#include "core/math/vecp.h"
+#include "core/math/geometry.h"
 
 #include <cstdint>
 #include <memory>
