@@ -183,3 +183,20 @@ target_include_directories(lux2photometriccheck PRIVATE ${CMAKE_CURRENT_SOURCE_D
 target_link_libraries(lux2photometriccheck PRIVATE lux2)
 add_test(NAME lux2photometriccheck COMMAND lux2photometriccheck)
 set_tests_properties(lux2photometriccheck PROPERTIES TIMEOUT 180)
+
+# Wavefront microbenchmarks.
+
+set(WF_SOURCES
+	wf/wf_layout.cpp
+	wf/wf_scatter.cpp
+	wf/wf_add_to_sample.cpp
+)
+
+foreach(_wf ${WF_SOURCES})
+	get_filename_component(_wfname ${_wf} NAME_WE)
+	add_executable(lux2wf_${_wfname} ${_wf})
+	target_include_directories(lux2wf_${_wfname} PRIVATE
+		${CMAKE_CURRENT_SOURCE_DIR}/..
+		${CMAKE_CURRENT_SOURCE_DIR}/wf
+	)
+endforeach()

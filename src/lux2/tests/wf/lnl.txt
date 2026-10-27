@@ -1,0 +1,82 @@
+===== lux2wf_wf_layout =====
+=== B1: AoS vs per-field SoA vertex layout (W=8) ===
+GEOM_WORDS=32 MIS_WORDS=8 BLOCK_V=8
+units: TSC ticks, timer overhead (98) subtracted
+
+arena: 262144 records, AoS geom 33.6 MB + mis 8.4 MB, SoA 41.9 MB (field stride 262160 words, staggered)
+
+--- B1a endpoint geom load (gather 32 fields x 8 lanes) ---
+  [hot ] AoS:    318.8 cyc/packet,   16.0 lines
+  [hot ] SoA:    437.9 cyc/packet,   32.0 lines
+  [cold] AoS:   2624.0 cyc/packet,   16.0 lines
+  [cold] SoA:   7962.0 cyc/packet,  256.0 lines
+
+--- B1b walker write (geom 32 + MIS 8 = 40 words/packet, stores drained) ---
+  [hot ] AoS:    705.0 cyc/packet,   20.0 lines
+  [hot ] SoA:    739.7 cyc/packet,   40.0 lines
+  [cold] AoS:   1770.0 cyc/packet,   24.0 lines
+  [cold] SoA:  18348.0 cyc/packet,  319.8 lines
+
+--- B1c MIS loop (5 fields x path length n, 8 distinct paths) ---
+  n=  8: AoS   438.0 cyc,   4.0 lines/lane (ceil(n/2)=4); SoA   452.0 cyc,   5.0 lines/lane (5*ceil(n/16)=5)
+  n= 16: AoS   816.0 cyc,   8.0 lines/lane (ceil(n/2)=8); SoA   794.0 cyc,   5.0 lines/lane (5*ceil(n/16)=5)
+  n= 48: AoS  2172.0 cyc,  24.0 lines/lane (ceil(n/2)=24); SoA  2040.0 cyc,  15.0 lines/lane (5*ceil(n/16)=15)
+  n=128: AoS  5716.0 cyc,  64.0 lines/lane (ceil(n/2)=64); SoA  5590.0 cyc,  40.0 lines/lane (5*ceil(n/16)=40)
+
+Decision rule: keep AoS unless SoA endpoint-load/write cost is
+materially lower on the target (CLX). Report cyc/packet above.
+===== lux2wf_wf_scatter =====
+=== B2: scatter vs transpose write/read (W=8) ===
+GEOM_WORDS=32 MIS_WORDS=8
+units: TSC ticks, timer overhead (106) subtracted
+
+arena: 32768 records x 32 words = 4.2 MB
+
+--- Part 1: scatter geom record (32 words/packet, stores drained) ---
+  [hot ] scatter:    679.8 cyc/packet,  16.0 lines
+  [cold] scatter:   1192.0 cyc/packet,  16.0 lines
+
+--- Part 2/2b: skipped (needs AVX-512; W=8 here) ---
+
+--- Part 3: MIS field gather (5 fields x 8 paths) ---
+  [hot ] gather (5 scattered MIS fields):     53.1 cyc
+  [hot ] contiguous load (packed)       :      9.0 cyc   (same data: yes)
+  [cold] gather (5 scattered MIS fields):   1440.0 cyc
+  [cold] contiguous load (packed)       :     42.0 cyc   (same data: yes)
+  -> MIS-loop share of a connector step is measured by the
+     occupancy harness; if >20-25% at depth 48/128, pull Phase 10 forward.
+
+Decision rule: if scatter cyc/packet > 10% of a walker step,
+switch the geom write to the transpose + aligned-store form.
+===== lux2wf_wf_add_to_sample =====
+=== B3: AddToSample scalar loop vs scatter_add (W=8) ===
+AVX512CD available: no  (scatter_add falls back to a scalar loop: the comparison is meaningless)
+units: TSC ticks, timer overhead (112) subtracted
+
+--- AddToSample: hot (consecutive distinct ids) ---
+  [scalar ]     14.4 cyc
+  [scatter]     17.4 cyc
+
+--- AddToSample: cold (random ids, flushed) ---
+  [scalar ]    630.0 cyc
+  [scatter]    620.0 cyc
+
+--- AddToSample: pairs (W/2 conflicts) ---
+  [scalar ]     30.4 cyc
+  [scatter]     30.6 cyc
+
+--- AddToSample: all-same (full conflict chain) ---
+  [scalar ]    106.0 cyc
+  [scatter]    106.8 cyc
+
+--- correctness: scalar vs scatter equivalence ---
+  distinct           uint32 exact: YES   float max rel err: 0.00e+00 (ok)
+  pairs              uint32 exact: YES   float max rel err: 0.00e+00 (ok)
+  all-same           uint32 exact: YES   float max rel err: 0.00e+00 (ok)
+  random in [0,4)    uint32 exact: YES   float max rel err: 0.00e+00 (ok)
+  random in [0,64)   uint32 exact: YES   float max rel err: 0.00e+00 (ok)
+  random over pool   uint32 exact: YES   float max rel err: 0.00e+00 (ok)
+  all patterns equivalent
+
+Keep the chosen form behind one AddToSample function so the swap
+is a one-line change. Report cyc for hot/cold above.
