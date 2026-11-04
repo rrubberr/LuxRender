@@ -127,8 +127,10 @@ TARGET_LINK_LIBRARIES(lux2 PUBLIC
 # Build tests #
 ###############
 
-# Test check executables (defined in tests/CMakeLists.txt).
-add_subdirectory(tests)
+# Test check executables are only built in Debug configuration.
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	add_subdirectory(tests)
+endif()
 
 
 #####################

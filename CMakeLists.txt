@@ -79,9 +79,6 @@ if(NOT UPPER_BUILD_TYPE STREQUAL "RELEASE" AND NOT UPPER_BUILD_TYPE STREQUAL "DE
 		"Only 'Release' and 'Debug' are allowed.")
 endif()
 
-# Forwarded to LuxRender's build to enable/disable the TBB backends.
-option(LUX_USE_TBB "Use Intel TBB instead of Boost.Thread for the render path" ON)
-
 # Forwarded to the LuxRender2's build to enable/disable integrator debug.
 option(LUX2_INTEGRATOR_DEBUG "Compile lux2 integrator debug instrumentation" OFF)
 
@@ -94,10 +91,6 @@ set(
     -DCMAKE_CXX_STANDARD=20
 	-DCMAKE_POSITION_INDEPENDENT_CODE=TRUE
     -DCMAKE_PREFIX_PATH=${BUILD_DIR}
-    -DBoost_LIBRARY_DIRS=${LIB_DIR}
-    -DBoost_INCLUDE_DIRS=${INC_DIR}
-    -DBoost_NO_SYSTEM_PATHS=ON
-    -DBoost_USE_STATIC_LIBS=ON
 )
 
 SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -118,43 +111,25 @@ add_custom_target(clean-all
 
 add_subdirectory(ext)
 
-###################
-# Build LuxRender #
-###################
+####################
+# Build LuxRender2 #
+####################
 
-set(LUX_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DBOOST_BIND_GLOBAL_PLACEHOLDERS -w -I${INC_DIR}/Imath -I${INC_DIR}/OpenEXR")
+set(LUX_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w -I${INC_DIR}/Imath -I${INC_DIR}/OpenEXR")
 
 # Where the finished binaries are collected.
 set(RELEASE_DIR "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}" CACHE PATH
-    "Directory the LuxRender binaries are copied to after the build")
-
-# The inner project's build directory.
-set(INNER_BUILD_DIR ${PFX_DIR}/LuxRender/build)
-
-# One COMMAND per copy.
-set(LUX_INSTALL_COMMAND
-    ${CMAKE_COMMAND} -E make_directory "${RELEASE_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy "${INNER_BUILD_DIR}/luxcomp"    "${RELEASE_DIR}/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${INNER_BUILD_DIR}/luxconsole" "${RELEASE_DIR}/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${INNER_BUILD_DIR}/luxmerger"  "${RELEASE_DIR}/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${INNER_BUILD_DIR}/luxrender"  "${RELEASE_DIR}/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${INNER_BUILD_DIR}/pylux.so"   "${RELEASE_DIR}/"
-    COMMAND ${CMAKE_COMMAND} -E copy "${INNER_BUILD_DIR}/liblux.so"  "${RELEASE_DIR}/"
-)
-
-# TBB and Embree are shared!
-list(APPEND LUX_INSTALL_COMMAND
-    COMMAND ${CMAKE_COMMAND}
-        -DLIB_DIR=${LIB_DIR}
-        -DRELEASE_DIR=${RELEASE_DIR}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallSharedLibs.cmake)
+    "Directory the LuxRender2 binaries are copied to after the build")
 
 ExternalProject_Add(
     LuxRender2
     DEPENDS
-        boost
         embree
         enoki
+        openexr
+        libpng
+        libjpeg-turbo
+        libtiff
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/lux2
     BINARY_DIR ${PFX_DIR}/LuxRender2/build
     PREFIX ${PFX_DIR}/LuxRender2
@@ -176,34 +151,8 @@ ExternalProject_Add(
         -DCMAKE_LINKER_TYPE=${CMAKE_LINKER_TYPE}
     CMAKE_CACHE_ARGS
         "-DCMAKE_CXX_FLAGS:STRING=${LUX_CXX_FLAGS}"
-    INSTALL_COMMAND ${CMAKE_COMMAND} -E echo "lux2: binaries copied by POST_BUILD"
-)
-
-ExternalProject_Add(
-    LuxRender
-    DEPENDS
-        boost
-        OpenImageIO
-        embree
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/lux
-    BINARY_DIR ${INNER_BUILD_DIR}
-    PREFIX ${PFX_DIR}/LuxRender
-    BUILD_ALWAYS 1
-    INSTALL_DIR ${BUILD_DIR}
-    CMAKE_ARGS
-        ${COMMON_LUX_PROJECT_ARGS}
-        -DLUX_USE_TBB=${LUX_USE_TBB}
-        -DCMAKE_FIND_ROOT_PATH=${BUILD_DIR}
-        -DCMAKE_PREFIX_PATH=${BUILD_DIR}
-        -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER
-        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
-        -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
-        -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
-        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-        -DCMAKE_LINKER_TYPE=${CMAKE_LINKER_TYPE}
-    CMAKE_CACHE_ARGS
-        "-DCMAKE_CXX_FLAGS:STRING=${LUX_CXX_FLAGS}"
-    INSTALL_COMMAND ${LUX_INSTALL_COMMAND}
+    INSTALL_COMMAND ${CMAKE_COMMAND}
+        -DLIB_DIR=${LIB_DIR}
+        -DRELEASE_DIR=${RELEASE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallSharedLibs.cmake
 )
