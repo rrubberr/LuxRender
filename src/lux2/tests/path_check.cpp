@@ -85,7 +85,7 @@ public:
 
     void Splat(const FloatP &, const FloatP &, const SWCSpectrumP &L,
                const SpectrumWavelengthsP &sw, const FloatP &alpha,
-               const FloatP &weight, int) override {
+               const FloatP &weight) override {
         const FloatP lum = SWCY(L, sw) * weight;
         const MaskP active = alpha > FloatP(0.f);
 

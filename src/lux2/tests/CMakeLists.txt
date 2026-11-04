@@ -19,8 +19,7 @@
 #   This project is based on PBRT; see <http://www.pbrt.org>              #
 ###########################################################################
 
-# Helper: create a lux2 check executable + test registration.
-# Usage: add_lux2_check(NAME <name> [SOURCES ...] [LINKS <target> ...] [WORKING_DIR <dir>])
+# Create a lux2 check executable + test registration.
 function(add_lux2_check)
 	cmake_parse_arguments(CHECK "" "NAME;WORKING_DIR" "SOURCES;LINKS" ${ARGN})
 
@@ -34,7 +33,6 @@ function(add_lux2_check)
 	endif()
 endfunction()
 
-# --- Tests linking only lux2 ---
 add_lux2_check(
 	NAME lux2corecheck
 	SOURCES core_check.cpp
@@ -112,7 +110,6 @@ add_lux2_check(
 	WORKING_DIR ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-# --- Tests linking lux2 + Threads::Threads ---
 add_lux2_check(
 	NAME lux2bsdfdispatchcheck
 	SOURCES bsdf_dispatch_check.cpp
@@ -131,7 +128,50 @@ add_lux2_check(
 	LINKS lux2 Threads::Threads
 )
 
-# --- Tests linking lux2 + Embree + Threads::Threads ---
+add_lux2_check(
+	NAME lux2neelayercheck
+	SOURCES nee_layer_check.cpp
+	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
+)
+
+add_lux2_check(
+	NAME lux2advancecheck
+	SOURCES advance_check.cpp
+	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
+)
+
+add_lux2_check(
+	NAME lux2pathcollapsecheck
+	SOURCES path_collapse_check.cpp
+	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
+)
+
+set_tests_properties(lux2pathcollapsecheck PROPERTIES TIMEOUT 300)
+
+add_lux2_check(
+	NAME lux2wfstoragecheck
+	SOURCES wf/storage_check.cpp
+	LINKS lux2
+)
+
+add_lux2_check(
+	NAME lux2wflanescheck
+	SOURCES wf/lanes_check.cpp
+	LINKS lux2
+)
+
+add_lux2_check(
+	NAME lux2wfstorecompile
+	SOURCES wf/store_compile.cpp
+	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
+)
+
+add_lux2_check(
+	NAME lux2wfschedulercheck
+	SOURCES wf/test_scheduler.cpp
+	LINKS lux2
+)
+
 add_lux2_check(
 	NAME lux2shapecheck
 	SOURCES shape_check.cpp
@@ -158,7 +198,6 @@ add_lux2_check(
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
 )
 
-# --- Tests linking lux2 + Embree + TBB + Threads::Threads ---
 add_lux2_check(
 	NAME lux2threadpoolcheck
 	SOURCES threadpool_check.cpp
@@ -171,13 +210,13 @@ add_lux2_check(
 	LINKS lux2 ${LUX2_EMBREE_TARGET} TBB::tbb Threads::Threads
 )
 
-# --- Special: colorcheck includes a reference implementation ---
+# Colorcheck includes a reference implementation.
 add_executable(lux2colorcheck color_check.cpp color_ref/color_ref.cpp)
 target_include_directories(lux2colorcheck PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(lux2colorcheck PRIVATE lux2)
 add_test(NAME lux2colorcheck COMMAND lux2colorcheck)
 
-# --- Special: photometriccheck uses the colorref illuminant SPD as golden ---
+# Photometriccheck uses the colorref illuminant SPD.
 add_executable(lux2photometriccheck photometric_check.cpp color_ref/color_ref.cpp)
 target_include_directories(lux2photometriccheck PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(lux2photometriccheck PRIVATE lux2)

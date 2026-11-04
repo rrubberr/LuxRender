@@ -90,8 +90,6 @@ namespace lux2
         enoki::masked(ray->time, active) = time;
         if (weight)
             enoki::masked(*weight, active) = FloatP(1.f);
-
-        ray->UpdateReciprocalDirection();
     }
 
     void PerspectiveCamera::SampleRay(const FloatP &uPixelX, const FloatP &uPixelY,

@@ -72,7 +72,7 @@ namespace lux2
 
         void Splat(const FloatP &x, const FloatP &y, const SWCSpectrumP &L,
                    const SpectrumWavelengthsP &sw, const FloatP &alpha,
-                   const FloatP &weight, int bufferId) override;
+                   const FloatP &weight) override;
 
         void SplatLight(const FloatP &x, const FloatP &y,
                         const SWCSpectrumP &L,

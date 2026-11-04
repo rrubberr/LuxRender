@@ -25,6 +25,7 @@
 #include "core/integrator.h"
 #include "core/renderinghints.h"
 #include "integrators/debug/integrator_debug.h"
+#include "integrators/wf/types.h"
 
 #include <atomic>
 #include <memory>
@@ -46,17 +47,6 @@ namespace lux2
         General = 3,  // ConnectGeneral with nL >= 2
     };
 
-    // Diagnostic configuration bundle.
-    struct DiagConfig
-    {
-        int onlyS = -1;        // -1 = all; else keep only this light vertex count
-        int onlyT = -1;        // -1 = all; else keep only this eye vertex count (nE)
-        bool noMis = false;    // w = 1 (isolates each strategy's Lc)
-        float misPower = 2.f;  // exponent p in the power heuristic (0,1,2)
-        bool diag = false;     // enable DiagStore tallies and firefly recorder
-        float threshold = 0.f; // firefly record threshold (0 = off)
-    };
-
     class BidirIntegrator : public SurfaceIntegrator
     {
     public:
@@ -64,7 +54,9 @@ namespace lux2
                         float eyeRRThreshold, float lightRRThreshold,
                         bool useT1, bool debug, const DiagConfig &diagCfg,
                         const std::string &lightStrategy = "one",
-                        const std::string &lightPathStrategy = "one")
+                        const std::string &lightPathStrategy = "one",
+                        int wfSamples = 128, int wfLightPool = 0,
+                        int wfHighWater = 0)
             : m_eyeDepth(eyeDepth),
               m_lightDepth(lightDepth),
               m_maxDepth(maxDepth),
@@ -74,7 +66,10 @@ namespace lux2
               m_debug(debug),
               m_diagCfg(diagCfg),
               m_lightStrategy(lightStrategy),
-              m_lightPathStrategy(lightPathStrategy)
+              m_lightPathStrategy(lightPathStrategy),
+              m_wfSamples(wfSamples < 1 ? 1 : wfSamples),
+              m_wfLightPool(wfLightPool),
+              m_wfHighWater(wfHighWater)
         {
             // Total depth clamp.
             if (m_maxDepth < 0)
@@ -121,6 +116,12 @@ namespace lux2
         bool m_debug;
         std::string m_lightStrategy;
         std::string m_lightPathStrategy;
+
+        // Wavefront pool sizing where wfLightPool/wfHighWater 0 means
+        // derive from wfSamples = (light = Ns*nT, high-water = 2*Ns).
+        int m_wfSamples;
+        int m_wfLightPool;
+        int m_wfHighWater;
 
         // Light sampling tables.
         std::vector<LightsSamplingStrategy> m_lsD;

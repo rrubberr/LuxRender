@@ -69,8 +69,8 @@ namespace lux2
         MaskP Occluded(const RayP &ray, MaskP active,
                        Coherent hint = Coherent::No) const;
 
-        // Fill hit.p/ngeo/sh_n/uv/matID/lightID from the tables.
-        void ShadeHit(const RayP &ray, HitP &hit) const;
+        // Fill from the tables.
+        void ShadeHit(HitP &hit) const;
 
         BBox WorldBound() const { return m_bound; }
         size_t TriangleCount() const { return m_triCount; }

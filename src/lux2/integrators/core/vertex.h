@@ -23,6 +23,7 @@
 #define LUX2_INTEGRATORS_VERTEX_H
 
 #include "core/bsdf_call.h"
+#include "core/bsdf_type.h"
 #include "core/medium_call.h"
 #include "core/phase.h"
 #include "core/math/ray.h"
@@ -35,6 +36,27 @@ namespace lux2
     // ---------------------------------------------------------------------------
     // VertexP
     // ---------------------------------------------------------------------------
+
+    // An evaluation with no lobes.
+    inline BSDFEvalP ZeroEval()
+    {
+        BSDFEvalP e;
+        e.f = SWCSpectrumP(0.f);
+        e.pdf = FloatP(0.f);
+        e.pdfRev = FloatP(0.f);
+        return e;
+    }
+
+    // May Pdf_L hemisphere test this shading normal against the light direction?
+    inline MaskP RecvHasNormal(const MaskP &surf, const BSDFPtr &bsdf)
+    {
+        // The OR of two BSDFType values is a plain uint32_t.
+        constexpr BSDFType kTransmit =
+            BSDFType(uint32_t(BSDFType::DiffuseTransmission) |
+                     uint32_t(BSDFType::GlossyTransmission));
+        const MaskP transmits = has_flag(bsdf->flags(surf), kTransmit);
+        return surf && !transmits;
+    }
 
     // A path vertex is a surface interaction or a medium scatter.
     struct VertexP

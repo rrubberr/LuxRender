@@ -57,7 +57,7 @@ void SplatOne(Film &film, float px, float py, float wl, float L,
     SpectrumWavelengthsP sw;
     sw.FromWavelength(FloatP(wl));
     film.Splat(FloatP(px), FloatP(py), SWCSpectrumP(L), sw, FloatP(alpha),
-               FloatP(weight), 0);
+               FloatP(weight));
 }
 
 XYZColorP ExpectedXYZ(float wl, float L) {

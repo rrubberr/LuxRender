@@ -398,7 +398,7 @@ namespace lux2
             return;
 
         IntersectPacket<PACKET_WIDTH>(m_scene, ray, hit, hint);
-        ShadeHit(ray, hit);
+        ShadeHit(hit);
     }
 
     // ---------------------------------------------------------------------------
@@ -418,7 +418,7 @@ namespace lux2
     // ShadeHit
     // ---------------------------------------------------------------------------
 
-    void EmbreeScene::ShadeHit(const RayP &ray, HitP &hit) const
+    void EmbreeScene::ShadeHit(HitP &hit) const
     {
         const MaskP active = hit.hit;
         if (none(active))

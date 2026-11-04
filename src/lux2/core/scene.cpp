@@ -24,9 +24,12 @@
 #include "core/dynload.h"
 #include "core/accel/embree2.h"
 #include "core/shape.h"
+#include "core/bsdf_type.h"
 #include "core/texture.h"
 #include "lights/area.h"
+#include "materials/matte.h"
 #include "materials/null.h"
+#include "textures/constant.h"
 #include "media/homogeneous.h"
 #include "media/regionset.h"
 
@@ -138,9 +141,12 @@ namespace lux2
             return mat;
         };
 
-        // Default to null material for unbound shapes.
+        // Default to matte for unbound shapes.
         {
-            auto defaultMat = std::make_shared<NullMaterial>();
+            auto defaultMat = std::make_shared<MatteMaterial>(
+                std::make_shared<ConstantColorTexture>(
+                    RGBColorP(FloatP(0.9f), FloatP(0.9f), FloatP(0.9f))),
+                std::make_shared<ConstantFloatTexture>(FloatP(0.f)));
             desc.materials.push_back(defaultMat);
             m_bsdfTable.ptrs.push_back(defaultMat->GetBSDF(DifferentialGeometryP{}));
         }
@@ -424,6 +430,17 @@ namespace lux2
 
         // All media are registered.
         m_mediumTable.RebuildNonVacuum();
+
+        // Record whether any material lets shadow rays through.
+        m_hasNull = false;
+        for (const BSDF *b : m_bsdfTable.ptrs)
+        {
+            if (b && has_flag(b->flags(), BSDFType::Null))
+            {
+                m_hasNull = true;
+                break;
+            }
+        }
 
         // Light instantiation.
         auto &lightReg = DynamicLoader::registeredLights();

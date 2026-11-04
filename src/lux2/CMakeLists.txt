@@ -66,9 +66,9 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 # Set compiler flags #
 ######################
 
-# GCC miscompiles Enoki's raw_coeff_ without -fno-strict-aliasing.
-ADD_DEFINITIONS(-march=native -g -ftree-vectorize -funroll-loops -fno-strict-aliasing -DHAVE_PTHREAD_H)
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O2")
+# GCC miscompiles Enoki raw_coeff_ without -fno-strict-aliasing.
+string(APPEND CMAKE_CXX_FLAGS_RELEASE " -march=native -O3 -g -ftree-vectorize -funroll-loops -fno-strict-aliasing")
+string(APPEND CMAKE_CXX_FLAGS_DEBUG " -march=native -O2 -g -fno-strict-aliasing")
 
 # Integrator debug instrumentation.
 option(LUX2_INTEGRATOR_DEBUG "Compile integrator debug instrumentation" OFF)
@@ -76,7 +76,7 @@ if(LUX2_INTEGRATOR_DEBUG)
 	ADD_DEFINITIONS(-DLUX2_INTEGRATOR_DEBUG)
 endif()
 
-# Where the finished binaries are collected.
+# Where the binaries are collected.
 if(NOT DEFINED LUX2_RELEASE_DIR)
 	set(LUX2_RELEASE_DIR ${CMAKE_BINARY_DIR})
 endif()

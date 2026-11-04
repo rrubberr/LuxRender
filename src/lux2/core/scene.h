@@ -254,6 +254,9 @@ namespace lux2
         // sample stride and media branches so geometry-only scenes stay exact.
         bool HasMedia() const { return m_mediumTable.HasMedia(); }
 
+        // True if any material is Null.
+        bool HasNull() const { return m_hasNull; }
+
         // True after a successful Commit.
         bool IsCommitted() const { return m_committed; }
 
@@ -290,6 +293,7 @@ namespace lux2
         std::vector<std::vector<const Light *>> m_groupLights; // NEE list
         std::vector<std::vector<float>> m_groupInf;            // infinite flag per entry
         mutable int m_activeGroup = 0;
+        bool m_hasNull = false;
         BBox m_worldBound;
         Summary m_summary;
         bool m_committed = false;

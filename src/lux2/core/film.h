@@ -92,8 +92,7 @@ namespace lux2
         // Splat contributions.
         virtual void Splat(const FloatP &x, const FloatP &y,
                            const SWCSpectrumP &L, const SpectrumWavelengthsP &sw,
-                           const FloatP &alpha, const FloatP &weight,
-                           int bufferId) = 0;
+                           const FloatP &alpha, const FloatP &weight) = 0;
 
         // Light tracing splats into a separate buffer without weighted mean normalization.
         virtual void SplatLight(const FloatP & /*x*/, const FloatP & /*y*/,

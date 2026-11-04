@@ -128,7 +128,7 @@ void CheckSpectrum() {
 	Check(AllClose(f, a * a + a), "spectrum fmadd");
 }
 
-// ray.h: RayP construction, d_rcp, operator(), payload; HitP validity.
+// ray.h: RayP construction, operator(), payload; HitP validity.
 void CheckRay() {
 	const float a = float(std::rand() % 10 + 1) / 10.f;
 	Point3fP o(FloatP(a), FloatP(0.f), FloatP(0.f));
@@ -137,18 +137,15 @@ void CheckRay() {
 		FloatP(std::numeric_limits<float>::infinity()), FloatP(0.f));
 	ray.InitPayload();
 
-	// d_rcp.y should be 1 (reciprocal of 1).
-	Check(AllClose(ray.d_rcp.y(), 1.f), "d_rcp computed");
-
 	// ray(2) == o + d*2 -> (a, 2, 0).
 	Point3fP pos = ray(FloatP(2.f));
 	Check(AllClose(pos.x(), a), "ray(t).x");
 	Check(AllClose(pos.y(), 2.f), "ray(t).y");
 
 	// Payload initialized.
-	Check(enoki::all(ray.throughput == FloatP(1.f)), "throughput init");
 	Check(enoki::all(ray.alive), "alive init true");
-	Check(enoki::hsum(ray.depth * ray.depth) == 0.f, "depth init zero");
+	Check(enoki::all(ray.mask == UInt32P(0xFFFFFFFFu)), "mask init all");
+	Check(enoki::all(ray.medium == UInt32P(LUX2_MEDIUM_CLEAR)), "medium init clear");
 
 	// HitP hit-mask field.
 	HitP hit;

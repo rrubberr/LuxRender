@@ -358,8 +358,7 @@ namespace lux2
     void FlexImageFilm::Splat(const FloatP &x, const FloatP &y,
                               const SWCSpectrumP &L,
                               const SpectrumWavelengthsP &sw,
-                              const FloatP &alpha, const FloatP &weight,
-                              int)
+                              const FloatP &alpha, const FloatP &weight)
     {
         XYZColorP xyzP = SWCToXYZ(L, sw);
 

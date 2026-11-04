@@ -56,8 +56,7 @@ public:
     int HaltTime() const override { return m_haltTime; }
 
     void Splat(const FloatP &, const FloatP &, const SWCSpectrumP &,
-               const SpectrumWavelengthsP &, const FloatP &, const FloatP &,
-               int) override {}
+               const SpectrumWavelengthsP &, const FloatP &, const FloatP &) override {}
     void Merge(Film *) override {}
     bool WriteImage(ImageType) override { return true; }
 

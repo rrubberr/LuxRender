@@ -53,7 +53,6 @@ RayP BroadcastRay(Point3f o, Vector3f d, float maxt) {
     RayP r;
     r.o = Point3fP(FloatP(o.x()), FloatP(o.y()), FloatP(o.z()));
     r.d = Vector3fP(FloatP(d.x()), FloatP(d.y()), FloatP(d.z()));
-    r.UpdateReciprocalDirection();
     r.mint = FloatP(0.f);
     r.maxt = FloatP(maxt);
     r.time = FloatP(0.f);
@@ -132,7 +131,6 @@ void CheckMissLanes() {
     }
     ray.o = Point3fP(ox, oy, oz);
     ray.d = Vector3fP(dx, dy, dz);
-    ray.UpdateReciprocalDirection();
     ray.mint = FloatP(0.f);
     ray.maxt = FloatP(100.f);
     ray.time = FloatP(0.f);

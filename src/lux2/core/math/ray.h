@@ -42,7 +42,6 @@ namespace lux2
     {
         Point3fP o;         // ray origin (3*FloatP)
         Vector3fP d;        // ray direction (3*FloatP)
-        Vector3fP d_rcp;    // component-wise reciprocal of d
         FloatP mint;        // minimum distance on the ray segment
         FloatP maxt;        // maximum distance on the ray segment
         FloatP time;        // motion blur time
@@ -54,42 +53,27 @@ namespace lux2
         // Visibility-group bitmask. Default to all.
         UInt32P mask = UInt32P(0xFFFFFFFFu);
 
-        // Integrator payload
-        SWCSpectrumP throughput = SWCSpectrumP(1.f); // accumulated spectral throughput
-        FloatP pdf = FloatP(0.f);                    // PDF of the current direction
-        Int32P depth = Int32P(0);                    // bounce count
-        MaskP specularBounce = MaskP(false);         // previous vertex was a specular interaction
-        MaskP alive = MaskP(true);                   // lane activity mask
+        // Lane activity.
+        MaskP alive = MaskP(true);
 
         RayP() = default;
 
         // Construct a ray packet from origin/direction.
         RayP(const Point3fP &o, const Vector3fP &d,
              const FloatP &mint, const FloatP &maxt, const FloatP &time)
-            : o(o), d(d), d_rcp(enoki::rcp(d)), mint(mint), maxt(maxt), time(time) {}
-
-        // Recompute d_rcp after mutating d.
-        void UpdateReciprocalDirection() { d_rcp = enoki::rcp(d); }
+            : o(o), d(d), mint(mint), maxt(maxt), time(time) {}
 
         // Position along the ray at parameter t: o + d * t.
         Point3fP operator()(const FloatP &t) const { return fmadd(d, t, o); }
 
-        // Initialize the payload for a primary ray batch.
+        // Initialize batch fields for a primary ray batch.
         void InitPayload()
         {
-            throughput = SWCSpectrumP(1.f);
-            pdf = FloatP(0.f);
-            depth = Int32P(0);
-            specularBounce = MaskP(false);
             alive = MaskP(true);
             mask = UInt32P(0xFFFFFFFFu);
             medium = UInt32P(LUX2_MEDIUM_CLEAR);
         }
     };
-
-    // ---------------------------------------------------------------------------
-    // HitP intersection result (Embree hit -> shading lookup)
-    // ---------------------------------------------------------------------------
 
     // The result of tracing a RayP packet against the Embree scene.
     struct HitP
@@ -109,7 +93,6 @@ namespace lux2
         Int32P lightID; // per-triangle area-light index, or -1
 
         // Triangle medium binding. Front is +ngeo, back is -ngeo.
-        // Unbound sides are ambient.
         UInt32P mediumFrontID = UInt32P(LUX2_MEDIUM_CLEAR);
         UInt32P mediumBackID = UInt32P(LUX2_MEDIUM_CLEAR);
 
