@@ -24,6 +24,7 @@
 #ifndef LUX2_INTEGRATORS_WF_MIS_H
 #define LUX2_INTEGRATORS_WF_MIS_H
 
+#include "integrators/debug/integrator_debug.h"
 #include "integrators/wf/storage.h"
 #include "integrators/wf/types.h"
 #include "integrators/lane/math.h"
@@ -271,6 +272,10 @@ namespace lux2
                 const FloatP pDirect = p * divp(tr.pdfLightDirect, aF0);
                 weight = select(dm, weight + pw(pDirect, k), weight);
             }
+            WfStatMis(iMax, jMax,
+                      enoki::hsum(select(act, nLightExt, zero)),
+                      enoki::hsum(select(act, nEyeExt, zero)),
+                      enoki::count(act));
             return weight;
         }
 

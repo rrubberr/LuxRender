@@ -69,6 +69,18 @@ namespace lux2
 
     BidirIntegrator::~BidirIntegrator() = default;
 
+    namespace
+    {
+        // wf_minfill: -1 = a full packet, otherwise clamped to [1, width].
+        uint32_t ResolveMinFill(int v)
+        {
+            if (v < 0)
+                return uint32_t(PACKET_WIDTH);
+            return std::min<uint32_t>(uint32_t(std::max(v, 1)),
+                                      uint32_t(PACKET_WIDTH));
+        }
+    } // namespace
+
     void BidirIntegrator::Start(const Scene &scene)
     {
         m_scene = &scene;
@@ -155,6 +167,17 @@ namespace lux2
         // Accumulators merged into the store at tile end.
         ctx.cfg = m_diagCfg;
 #ifdef LUX2_INTEGRATOR_DEBUG
+        {
+            // Record the configured depths.
+            static std::atomic<bool> s_depthLogged{false};
+            if (!s_depthLogged.exchange(true))
+                fprintf(stderr,
+                        "[WFSTAT] config eyeDepth=%d lightDepth=%d "
+                        "eyeRR=%.3f lightRR=%.3f wfSamples=%d minFill=%u\n",
+                        m_eyeDepth, m_lightDepth, m_eyeRRThreshold,
+                        m_lightRRThreshold, m_wfSamples,
+                        ResolveMinFill(m_wfMinFill));
+        }
         // Only the first tile runs the density check.
         ctx.checkDensity = m_debug && !m_densityChecked.exchange(true);
         BidirDiagLocal dl;
@@ -165,7 +188,7 @@ namespace lux2
         }
 #endif
 
-        // Light-path task count is one under `one`/`auto`, per task under `all`.
+        // Lightpath task count is one under `one`/`auto`, per task under `all`.
         const uint32_t nT =
             (ctx.lsP->kind == LightsSamplingStrategy::StrategyKind::All)
                 ? ctx.lsP->TaskCount()
@@ -177,6 +200,7 @@ namespace lux2
             m_wfLightPool > 0 ? uint32_t(m_wfLightPool) : kNs * nT;
         const uint32_t highWater =
             m_wfHighWater > 0 ? uint32_t(m_wfHighWater) : 2u * kNs;
+        const uint32_t minFill = ResolveMinFill(m_wfMinFill);
 
         wf::BlockArena arenaEye, arenaLight;
         wf::PathStore psEye, psLight;
@@ -185,16 +209,22 @@ namespace lux2
         wf::SampleTable tbl;
         tbl.Init(kNs, nT);
 
+        // [t][s] -> MIS bin lookup for the flattened connection queues.
+        wf::MisBinTable binTable;
+        binTable.Build(m_eyeDepth, m_lightDepth, ctx.useT1);
+
         wf::BidirEyeConsumer eyeCons(ctx, &psEye, &tbl);
         wf::BidirLightConsumer lightCons(ctx, &psLight);
-        wf::Scheduler sched(tbl, psEye, psLight, ctx.useT1);
+        wf::Scheduler sched(tbl, psEye, psLight, ctx.useT1, binTable);
 
         JobCursor jobs(tile, spp);
-        Film &film = scene.GetFilm();
+        // Light splats go to the worker's scratch film.
+        Film &film = dest;
 
         // Drain completed samples.
         auto flushRetire = [&]()
         {
+            WfTimer wt(WF_PH_RETIRE);
             float fx[PACKET_WIDTH], fy[PACKET_WIDTH], fL[PACKET_WIDTH];
             float falpha[PACKET_WIDTH], fw[PACKET_WIDTH], fwt[PACKET_WIDTH];
             const size_t n = sched.retireQueue.size();
@@ -227,6 +257,7 @@ namespace lux2
                            SWCSpectrumP(enoki::load_unaligned<FloatP>(fL)), sw,
                            enoki::load_unaligned<FloatP>(falpha),
                            enoki::load_unaligned<FloatP>(fw));
+                WfStatSplatted(int(cnt));
             }
             // pending==0 when every connector finished reading this sample's paths.
             for (uint32_t s : sched.retireQueue)
@@ -253,121 +284,265 @@ namespace lux2
             return enoki::load_unaligned<UInt32P>(a) < UInt32P(n);
         };
 
-        // Run one connector packet from a ready queue.
-        auto runNee = [&]() -> bool
+        // Store a packet's sample ids so each lane can settle its token.
+        auto completeItems = [&](const UInt32P &sample, uint32_t n)
         {
-            UInt32P sample;
-            const uint32_t n = sched.nee.FillPacket(sample);
+            WfTimer st(WF_PH_SCHED);
+            alignas(64) uint32_t sA[PACKET_WIDTH];
+            enoki::store_unaligned(sA, sample);
+            for (uint32_t i = 0; i < n; ++i)
+                sched.CompleteItem(sA[i]);
+        };
+
+        // Run one connector packet from a ready queue.
+        auto runNee = [&](uint32_t need, bool topUp) -> bool
+        {
+            UInt32P ePath, lPath, sample, slot;
+            Int32P t, s;
+            uint32_t n;
+            {
+                WfTimer st(WF_PH_SCHED);
+                const int bin = sched.nee.FullestBin();
+                if (bin < 0 || (!topUp && sched.nee.BinSize(bin) < need))
+                    return false;
+                n = sched.nee.Fill(bin, ePath, lPath, sample, slot, t, s, topUp);
+            }
             if (n == 0)
                 return false;
+            WfStatDispatch(WF_Q_NEE, int(n), n < uint32_t(PACKET_WIDTH));
+            WfTimer wt(WF_PH_NEE);
             const MaskP act = fillMask(n);
             wf::NeeConnector neeC(ctx, sampler, tbl, psEye);
-            neeC.ePath =
-                enoki::gather<UInt32P>(tbl.eyePath.data(), sample, act);
+            neeC.ePath = ePath;
             neeC.sample = sample;
             neeC.nE =
-                enoki::gather<Int32P>(sched.eyeN.data(), neeC.ePath, act);
-            neeC.t = Int32P(2);
+                enoki::gather<Int32P>(sched.eyeN.data(), ePath, act);
+            neeC.t = t;
             neeC.alive = act && (neeC.nE >= Int32P(2));
-            while (any(neeC.alive))
-                neeC.Step();
-            for (uint32_t i = 0; i < n; ++i)
-                sched.CompleteSample(sample, i);
+            neeC.Run();
+            completeItems(sample, n);
             return true;
         };
 
-        auto runCamNee = [&]() -> bool
+        auto runCamNee = [&](uint32_t need, bool topUp) -> bool
         {
-            UInt32P sample;
-            const uint32_t n = sched.camNee.FillPacket(sample);
+            UInt32P ePath, lPath, sample, slot;
+            Int32P t, s;
+            uint32_t n;
+            {
+                WfTimer st(WF_PH_SCHED);
+                const int bin = sched.camNee.FullestBin();
+                if (bin < 0 || (!topUp && sched.camNee.BinSize(bin) < need))
+                    return false;
+                n =
+                    sched.camNee.Fill(bin, ePath, lPath, sample, slot, t, s, topUp);
+            }
             if (n == 0)
                 return false;
+            WfStatDispatch(WF_Q_CAMNEE, int(n), n < uint32_t(PACKET_WIDTH));
+            WfTimer wt(WF_PH_CAMNEE);
             const MaskP act = fillMask(n);
             wf::CamNeeConnector cnee(ctx, sampler, tbl, psEye, &film);
-            cnee.ePath =
-                enoki::gather<UInt32P>(tbl.eyePath.data(), sample, act);
+            cnee.ePath = ePath;
             cnee.sample = sample;
             cnee.alive = act;
             cnee.Run();
-            for (uint32_t i = 0; i < n; ++i)
-                sched.CompleteSample(sample, i);
+            completeItems(sample, n);
             return true;
         };
 
-        // One Gen packet from the fullest bin.
-        auto runGen = [&]() -> bool
+        // One Gen packet: lanes are (t,s) items from the fullest bin.
+        auto runGen = [&](uint32_t need, bool topUp) -> bool
         {
-            const int bin = sched.gen.FullestBin();
-            if (bin < 0)
-                return false;
             UInt32P ePath, lPath, sample, slot;
-            const uint32_t n =
-                sched.gen.FillPacket(bin, ePath, lPath, sample, slot);
+            Int32P t, s;
+            uint32_t n;
+            {
+                WfTimer st(WF_PH_SCHED);
+                const int bin = sched.gen.FullestBin();
+                if (bin < 0 || (!topUp && sched.gen.BinSize(bin) < need))
+                    return false;
+                n = sched.gen.Fill(bin, ePath, lPath, sample, slot, t, s, topUp);
+            }
             if (n == 0)
                 return false;
+            WfStatDispatch(WF_Q_GEN, int(n), n < uint32_t(PACKET_WIDTH));
+            WfTimer wt(WF_PH_GEN);
             const MaskP act = fillMask(n);
-            wf::GenConnector gen(ctx, tbl, psEye, psLight, 0u);
+            wf::GenConnector gen(ctx, tbl, psEye, psLight);
             gen.ePath = ePath;
             gen.lPath = lPath;
             gen.sample = sample;
+            gen.slot = slot;
             gen.nE = enoki::gather<Int32P>(sched.eyeN.data(), ePath, act);
             gen.nL = enoki::gather<Int32P>(psLight.n.data(), lPath, act);
-            gen.t = Int32P(2);
-            gen.s = Int32P(1);
+            gen.t = t;
+            gen.s = s;
             gen.alive = act;
-            while (any(gen.alive))
-                gen.Step();
-            for (uint32_t i = 0; i < n; ++i)
-                sched.CompleteSample(sample, i);
+            gen.Run();
+            completeItems(sample, n);
             return true;
         };
 
-        auto runCam = [&]() -> bool
+        auto runCam = [&](uint32_t need, bool topUp) -> bool
         {
-            UInt32P lPath;
-            const uint32_t n = sched.cam.FillPacket(lPath);
+            UInt32P ePath, lPath, sample, slot;
+            Int32P t, s;
+            uint32_t n;
+            {
+                WfTimer st(WF_PH_SCHED);
+                const int bin = sched.cam.FullestBin();
+                if (bin < 0 || (!topUp && sched.cam.BinSize(bin) < need))
+                    return false;
+                n = sched.cam.Fill(bin, ePath, lPath, sample, slot, t, s, topUp);
+            }
             if (n == 0)
                 return false;
+            WfStatDispatch(WF_Q_CAM, int(n), n < uint32_t(PACKET_WIDTH));
+            WfTimer wt(WF_PH_CAM);
             const MaskP act = fillMask(n);
-            UInt32P sample =
-                enoki::gather<UInt32P>(psLight.owner.data(), lPath, act);
-            wf::CamConnector cam(ctx, tbl, psEye, psLight, 0u, &film);
-            cam.ePath =
-                enoki::gather<UInt32P>(tbl.eyePath.data(), sample, act);
+            wf::CamConnector cam(ctx, tbl, psEye, psLight, &film);
+            // Cam items carry only the sample.
+            cam.ePath = enoki::gather<UInt32P>(tbl.eyePath.data(), sample, act);
             cam.lPath = lPath;
             cam.sample = sample;
+            cam.slot = slot;
             cam.nL = enoki::gather<Int32P>(psLight.n.data(), lPath, act);
-            cam.s = Int32P(1);
+            cam.s = s;
             cam.alive = act && (cam.nL >= Int32P(1));
-            while (any(cam.alive))
-                cam.Step();
-            for (uint32_t i = 0; i < n; ++i)
-                sched.CompleteSample(sample, i);
+            cam.Run();
+            completeItems(sample, n);
             return true;
         };
 
+        // Alternate the walkers so neither starves.
+        bool eyeFirst = true;
+        auto stepWalkers = [&]() -> bool
+        {
+            for (int k = 0; k < 2; ++k)
+            {
+                const bool eye = (k == 0) == eyeFirst;
+                const bool ran =
+                    eye ? wf::StepEyeOnce(ctx, psEye, tbl, eyeCons, camera,
+                                          sampler, jobs, sampleBasis, sched, nT)
+                        : wf::StepLightOnce(ctx, psLight, tbl, lightCons,
+                                            sampler, 0u, sched);
+                if (ran)
+                {
+                    eyeFirst = !eye; // the other walker goes first next time
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // Stall flush.
+        auto runLargest = [&]() -> bool
+        {
+            const uint32_t sz[4] = {sched.nee.Size(), sched.camNee.Size(),
+                                    sched.gen.Size(), sched.cam.Size()};
+            int best = -1;
+            uint32_t bestN = 0;
+            for (int q = 0; q < 4; ++q)
+            {
+                if (sz[q] > bestN)
+                {
+                    bestN = sz[q];
+                    best = q;
+                }
+            }
+            switch (best)
+            {
+            case 0:
+                return runNee(1, true);
+            case 1:
+                return runCamNee(1, true);
+            case 2:
+                return runGen(1, true);
+            case 3:
+                return runCam(1, true);
+            default:
+                return false;
+            }
+        };
+
+#ifdef LUX2_INTEGRATOR_DEBUG
+        // Classify every sample slot by lifecycle state.
+        auto census = [&]()
+        {
+            int eyeWalk = 0, waitLight = 0, lightWalk = 0, pendOnly = 0;
+            for (uint32_t s = 0; s < kNs; ++s)
+            {
+                if (tbl.pending[s] == 0u)
+                    continue;
+                if (!tbl.eyeDone[s])
+                {
+                    ++eyeWalk;
+                    continue;
+                }
+                bool lWalk = false;
+                for (uint32_t j = 0; j < nT; ++j)
+                    if (tbl.LightPath(s, j) != wf::LUX_INVALID_PATH &&
+                        !tbl.LightDone(s, j))
+                        lWalk = true;
+                if (lWalk)
+                    ++lightWalk;
+                else if (tbl.nextLight[s] < tbl.nT)
+                    ++waitLight;
+                else
+                    ++pendOnly;
+            }
+            WfStatCensus(int(tbl.freeList.size()), eyeWalk, waitLight,
+                         lightWalk, pendOnly, int(sched.retireQueue.size()),
+                         int(sched.nee.Size()), int(sched.camNee.Size()),
+                         int(sched.gen.Size()), int(sched.cam.Size()));
+        };
+        uint64_t loopIter = 0;
+#endif
+
         // Main loop.
+        WfTimer loopTimer(WF_PH_LOOP);
         for (;;)
         {
-            // 1. Retire any completed samples first, then free.
+#ifdef LUX2_INTEGRATOR_DEBUG
+            if ((loopIter++ & 1023u) == 0u)
+                census();
+#endif
+            // Retire a full packet's worth at once.
+            if (sched.retireQueue.size() >= size_t(PACKET_WIDTH))
+            {
+                flushRetire();
+                WfStatLoopStep(WF_LOOP_RETIRE);
+                continue;
+            }
+            // Dispatch once a single bin holds minFill items.
+            if (runNee(minFill, false) || runCamNee(minFill, false) ||
+                runGen(minFill, false) || runCam(minFill, false))
+            {
+                WfStatLoopStep(WF_LOOP_DISPATCH);
+                continue;
+            }
+            // Feed the queues.
+            const bool admit = sched.gateSamples < highWater;
+            if (admit && stepWalkers())
+            {
+                WfStatLoopStep(WF_LOOP_WALKER);
+                continue;
+            }
+            // Walkers cannot progress!
+            if (runLargest())
+            {
+                WfStatLoopStep(WF_LOOP_FLUSH);
+                continue;
+            }
+            // Nothing else could run! Drain a partial retire batch!
             if (!sched.retireQueue.empty())
             {
                 flushRetire();
+                WfStatLoopStep(WF_LOOP_RETIRE);
                 continue;
             }
-            // 2. Fullest queue first.
-            if (runNee() || runCamNee() || runGen() || runCam())
-                continue;
-            // 3. Pressure on queued pairs.
-            const bool admit = sched.gen.Queued() < highWater;
-            if (admit && wf::StepEyeOnce(ctx, psEye, tbl, eyeCons, camera,
-                                         sampler, jobs, sampleBasis, sched, nT))
-                continue;
-            if (admit &&
-                wf::StepLightOnce(ctx, psLight, tbl, lightCons, sampler, 0u,
-                                  sched))
-                continue;
-            // 4. Terminate, no live walkers!
+            // 5. Terminate, no live walkers and no pending work!
             const bool eyeLive = any(eyeCons.Tail().core.alive);
             const bool lightLive = any(lightCons.Tail().core.alive);
             const bool pendingWork =
@@ -376,15 +551,27 @@ namespace lux2
                 !sched.retireQueue.empty();
             if (!eyeLive && !lightLive && !pendingWork)
                 break;
-            // Starvation guard.
-            if (wf::StepEyeOnce(ctx, psEye, tbl, eyeCons, camera, sampler, jobs,
-                                sampleBasis, sched, nT) ||
-                wf::StepLightOnce(ctx, psLight, tbl, lightCons, sampler, 0u,
-                                  sched))
+            // Step the walkers regardless of `admit`.
+            if (stepWalkers())
+            {
+                WfStatLoopStep(WF_LOOP_STARVE);
                 continue;
+            }
             break;
         }
+        // Drain buffered light splats into the shared frame.
+        film.FlushLightLog();
         // The loop only exits once retireQueue is drained.
+#ifdef LUX2_INTEGRATOR_DEBUG
+        // Any slot still pending at exit was stranded by a lost completion.
+        {
+            int leaked = 0;
+            for (uint32_t s = 0; s < kNs; ++s)
+                if (tbl.pending[s] != 0u)
+                    ++leaked;
+            WfStatLeakedSlots(leaked);
+        }
+#endif
         OccupancyTileEnd("bidir", tile.x0, tile.y0, unsigned(PACKET_WIDTH));
 
 #ifdef LUX2_INTEGRATOR_DEBUG
@@ -429,12 +616,14 @@ namespace lux2
         const int wfSamples = p ? p->FindOneInt("wf_samples", 128) : 128;
         const int wfLightPool = p ? p->FindOneInt("wf_lightpool", 0) : 0;
         const int wfHighWater = p ? p->FindOneInt("wf_highwater", 0) : 0;
+        // -1 = dispatch full packets only.
+        const int wfMinFill = p ? p->FindOneInt("wf_minfill", -1) : -1;
         if (p)
             p->EraseString("mismode");
         return std::make_shared<BidirIntegrator>(
             eyeDepth, lightDepth, maxDepth, eyeRR, lightRR, useT1, debug, cfg,
             lightStrategy, lightPathStrategy, wfSamples, wfLightPool,
-            wfHighWater);
+            wfHighWater, wfMinFill);
     }
 
     LUX2_REGISTER_SURFACE_INTEGRATOR(BidirIntegrator, "bidirectional");

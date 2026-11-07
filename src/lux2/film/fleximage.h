@@ -79,6 +79,9 @@ namespace lux2
                         const SpectrumWavelengthsP &sw,
                         MaskP active) override;
 
+        // Scratch films buffer light splats.
+        void FlushLightLog() override;
+
         void Merge(Film *other) override;
 
         // Scheduler interface
@@ -122,9 +125,15 @@ namespace lux2
         float *GetFloatFrameBuffer() override;
         float *GetAlphaBuffer() override;
 
-        // Accumulation buffers of the active group, crop window indexed.
-        // For single light group this is the whole frame.
+        // Accumulation buffers of the active group.
+        // For a single light group this is the whole frame.
         const std::vector<float> &BufX() const { return Active().bX; }
+
+        // Light accumulators of the active set.
+        const std::atomic<float> *LightX() const
+        {
+            return Active().lX.get();
+        }
         const std::vector<float> &BufY() const { return Active().bY; }
         const std::vector<float> &BufZ() const { return Active().bZ; }
         const std::vector<float> &BufAlpha() const { return Active().bAlpha; }
@@ -409,6 +418,9 @@ namespace lux2
         std::vector<FilmTile> m_tiles;
         int m_tileCols = 0;
         int m_tileRows = 0;
+        // Uniform grid step.
+        int m_tileW = 0;
+        int m_tileH = 0;
         std::vector<std::unique_ptr<std::mutex>> m_tileMutexes;
         // Tile sample count.
         std::vector<std::atomic<double>> m_tileSampleCount;
@@ -420,6 +432,32 @@ namespace lux2
         // Increment on each SetupTiles so an old directory
         // is caught by the MergeScratch assert.
         uint64_t m_epoch = 0;
+
+        // Worker light splat log.
+        struct SplatLog
+        {
+            std::vector<float> x, y, X, Y, Z;
+            void Clear()
+            {
+                x.clear();
+                y.clear();
+                X.clear();
+                Y.clear();
+                Z.clear();
+            }
+            size_t Size() const { return x.size(); }
+        };
+        // Append active lanes; flush early when the log reaches cap.
+        void LogLightSplats(const FloatP &x, const FloatP &y,
+                            const XYZColorP &xyz, MaskP active);
+        // Replay the whole log into m_master, then clear.
+        void ReplayLightLog();
+        // Master tile index containing (x,y).
+        int MasterTileAt(float x, float y) const;
+
+        SplatLog m_lightLog;
+        FlexImageFilm *m_master = nullptr; // set by MakeWorkerScratch
+        static constexpr size_t kLogCap = 64u * 1024u;
 
         // Scratch binding identity holds the tile and directory
         // epoch the scratch was last bound to.

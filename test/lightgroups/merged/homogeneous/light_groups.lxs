@@ -20,7 +20,8 @@ SurfaceIntegrator "bidirectional"
 	"string lightpathstrategy" ["auto"]
 	"integer shadowraycount" [1]
 	"bool nomis" ["false"]
-	"string lightstrategy" ["one"]
+	"bool uset1" ["true"]
+	"string lightstrategy" ["all"]
 
 VolumeIntegrator "multi"
 

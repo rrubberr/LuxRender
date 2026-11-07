@@ -60,6 +60,14 @@ void SplatOne(Film &film, float px, float py, float wl, float L,
                FloatP(weight));
 }
 
+// Broadcast a scalar light splat (SplatLight path).
+void SplatLightOne(Film &film, float px, float py, float wl, float L) {
+    SpectrumWavelengthsP sw;
+    sw.FromWavelength(FloatP(wl));
+    film.SplatLight(FloatP(px), FloatP(py), SWCSpectrumP(L), sw,
+                    MaskP(true));
+}
+
 XYZColorP ExpectedXYZ(float wl, float L) {
     SpectrumWavelengthsP sw;
     sw.FromWavelength(FloatP(wl));
@@ -441,6 +449,69 @@ void CheckTileHaloMerge() {
           "global SPP is the min across tiles");
 }
 
+// The scratch light-splat log must reproduce the direct atomic path
+// exactly: same footprint weights, same normalization, and correct
+// placement across tile boundaries (Cam splats project anywhere).
+void CheckLightSplatLog() {
+    GaussianFilter f(2.f, 2.f, 2.f);
+    const float full[4] = {0.f, 1.f, 0.f, 1.f};
+    const float wl = 560.f;
+
+    FlexImageFilm master(64, 64, &f, full, "out", false);
+    FlexImageFilm ref(64, 64, &f, full, "out", false);
+    const int halo = 3;
+    const int tiles = master.SetupTiles(32, halo, halo);
+    if (tiles != 4) {
+        Check(false, "light log: expected a 2x2 tile grid");
+        return;
+    }
+
+    auto scratch = master.MakeWorkerScratch();
+    if (!scratch) {
+        Check(false, "light log: scratch created");
+        return;
+    }
+
+    // Deterministic splat set per tile: centers hug owned-domain edges so
+    // footprints bleed across boundaries, plus one far from the window to
+    // exercise bins outside the scratch domain.
+    std::srand(42);
+    for (int ti = 0; ti < tiles; ++ti) {
+        const FilmTile t = master.GetTile(uint32_t(ti));
+        master.BindScratch(uint32_t(ti), *scratch);
+        for (int i = 0; i < 24; ++i) {
+            const float cx = float(t.x0) + RandUnit() * float(t.x1 - t.x0);
+            const float cy = float(t.y0) + RandUnit() * float(t.y1 - t.y0);
+            const float L = 0.25f + RandUnit();
+            SplatLightOne(*scratch, cx, cy, wl, L);
+            SplatLightOne(ref, cx, cy, wl, L);
+        }
+        // A point in the diagonally opposite tile: outside this scratch's
+        // window+halo; must still land via bin-by-tile replay.
+        const FilmTile &far = master.GetTile(uint32_t((ti + 3) % tiles));
+        const float fx = float(far.x0 + (far.x1 - far.x0) / 2) + 0.5f;
+        const float fy = float(far.y0 + (far.y1 - far.y0) / 2) + 0.5f;
+        SplatLightOne(*scratch, fx, fy, wl, 1.f);
+        SplatLightOne(ref, fx, fy, wl, 1.f);
+
+        scratch->FlushLightLog();
+    }
+
+    const auto &Lref = ref.LightX();
+    const auto &Lgot = master.LightX();
+    bool ok = Lref && Lgot;
+    if (ok) {
+        for (int y = 0; y < 64 && ok; ++y)
+            for (int x = 0; x < 64 && ok; ++x) {
+                const size_t i = size_t(y) * 64 + x;
+                if (!Close(Lgot[i].load(std::memory_order_relaxed),
+                           Lref[i].load(std::memory_order_relaxed)))
+                    ok = false;
+            }
+    }
+    Check(ok, "scratch light-splat log equals direct atomic splat path");
+}
+
 // Replicate the display pipeline from the film's raw accumulation buffers:
 // normalize, apply the named tonemap kernel, convert to RGB via the film's
 // colorspace, clamp, and gamma-encode. Returns the linear RGB and the 8-bit
@@ -817,6 +888,7 @@ int main() {
     CheckClear();
     CheckConcurrentMerge();
     CheckTileHaloMerge();
+    CheckLightSplatLog();
     CheckFrameBufferBasics();
     CheckFrameBufferLinear();
     CheckFrameBufferAutoLinear();

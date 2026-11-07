@@ -90,7 +90,7 @@ namespace lux2
         {
             SpectrumWavelengthsP sw;
             UInt32P seed, sampleIdx;
-            FloatP x, y, camPdfR0;
+            FloatP camPdfR0;
         };
         inline ConnIdent LoadIdent(const SampleTable &tbl, const UInt32P &sample)
         {
@@ -100,8 +100,6 @@ namespace lux2
                 enoki::gather<FloatP>(tbl.w.data(), sample, all));
             id.seed = enoki::gather<UInt32P>(tbl.seed.data(), sample, all);
             id.sampleIdx = enoki::gather<UInt32P>(tbl.sidx.data(), sample, all);
-            id.x = enoki::gather<FloatP>(tbl.x.data(), sample, all);
-            id.y = enoki::gather<FloatP>(tbl.y.data(), sample, all);
             id.camPdfR0 = enoki::gather<FloatP>(tbl.camPdfR0.data(), sample, all);
             return id;
         }
@@ -117,51 +115,42 @@ namespace lux2
             SampleTable &tbl;
             const PathStore &eyePs;
             const PathStore &lightPs;
-            uint32_t slot; // light path slot for ConnKey RNG
+            UInt32P slot; // per-lane light list index for ConnKey RNG
 
             GenConnector(const WalkCtx &cc, SampleTable &t, const PathStore &ePs,
-                         const PathStore &lPs, uint32_t slot_)
-                : c(cc), tbl(t), eyePs(ePs), lightPs(lPs), slot(slot_)
+                         const PathStore &lPs)
+                : c(cc), tbl(t), eyePs(ePs), lightPs(lPs)
             {
             }
 
-            // Evaluate one connection per live lane at (t,s), add Lc*w into the
-            // sample's L row, advance.
-            void Step()
+            // One connection per live lane.
+            void Run()
             {
+                WfStatGenStep(enoki::count(alive));
                 const MaskP base = alive && (nE >= Int32P(2)) && (nL >= Int32P(1));
                 if (any(base))
                     Connect(base);
-                Advance();
+                WfStatGenPacket(1);
             }
 
         private:
-            void Advance()
-            {
-                s = s + Int32P(1);
-                const MaskP rollS = alive && (s > nL);
-                s = select(rollS, Int32P(1), s);
-                t = select(rollS, t + Int32P(1), t);
-                const MaskP done = rollS && (t > nE);
-                alive = alive && !done;
-            }
-
             void Connect(const MaskP &base)
             {
                 const ConnIdent cid = LoadIdent(tbl, sample);
                 const SpectrumWavelengthsP &sw = cid.sw;
                 const UInt32P &seed = cid.seed, &sampleIdx = cid.sampleIdx;
-                (void)cid; // TODO: x/y unused here.
                 const Int32P ei = t - Int32P(1);
                 const Int32P li = s - Int32P(1);
                 const MaskP isOrigin = eq(s, Int32P(1)); // nL==1 branch, per lane
 
-                const VertexData E = LoadVertex(c, eyePs, ePath, ei, base);
-                const VertexData L0 = LoadVertex(c, lightPs, lPath, li, base);
+                const VertexData E =
+                    LoadVertex(c, eyePs, ePath, ei, base, WF_LOAD_GEN);
+                const VertexData L0 =
+                    LoadVertex(c, lightPs, lPath, li, base, WF_LOAD_GEN);
                 // Origin reads the emitter vertex 0 for one sided
                 // emission and direct pdf.
-                const VertexData Lz =
-                    LoadVertex(c, lightPs, lPath, Int32P(0), base && isOrigin);
+                const VertexData Lz = LoadVertex(c, lightPs, lPath, Int32P(0),
+                                                 base && isOrigin, WF_LOAD_GEN);
 
                 const Vector3fP dRaw = L0.p - E.p;
                 const FloatP d2 = dot(dRaw, dRaw);
@@ -217,7 +206,7 @@ namespace lux2
                     dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
                 const UInt32P startMed = StartMedium(E, ewi);
                 const ShadowRng rng{seed, sampleIdx, t, Int32P(0),
-                                    ConnKey(UInt32P(slot), t, s), BDPT_CONN_SALT};
+                                    ConnKey(slot, t, s), BDPT_CONN_SALT};
                 const Occlusion oc =
                     Occlude(c.shadow, shadowO, ewi, startMed, tmax, sw, rng, preCont);
                 const SWCSpectrumP Tr = oc.Tr;
@@ -319,13 +308,12 @@ namespace lux2
             {
             }
 
-            void Step()
+            // One NEE connection per live lane.
+            void Run()
             {
                 const MaskP base = alive && (nE >= Int32P(2)) && (c.nLights > 0);
                 if (any(base))
                     Connect(base);
-                t = t + Int32P(1);
-                alive = alive && !(t > nE);
             }
 
         private:
@@ -335,7 +323,8 @@ namespace lux2
                 const SpectrumWavelengthsP &sw = cid.sw;
                 const UInt32P &seed = cid.seed, &sampleIdx = cid.sampleIdx;
                 const Int32P ei = t - Int32P(1);
-                const VertexData E = LoadVertex(c, eyePs, ePath, ei, base);
+                const VertexData E =
+                    LoadVertex(c, eyePs, ePath, ei, base, WF_LOAD_NEE);
 
                 VertexP evx;
                 evx.valid = base;
@@ -497,7 +486,8 @@ namespace lux2
                 const SpectrumWavelengthsP &sw = cid.sw;
                 const UInt32P &seed = cid.seed, &sampleIdx = cid.sampleIdx;
                 const FloatP &camPdfR0 = cid.camPdfR0;
-                const VertexData E0 = LoadVertex(c, eyePs, ePath, Int32P(0), base);
+                const VertexData E0 =
+                    LoadVertex(c, eyePs, ePath, Int32P(0), base, WF_LOAD_CAMNEE);
 
                 const int camNeeBase = CamNeeBaseI(
                     NeeBaseI(LightOriginBaseI(c.eyeDepth), c.lightDepth),
@@ -605,22 +595,21 @@ namespace lux2
             SampleTable &tbl;
             const PathStore &eyePs;
             const PathStore &lightPs;
-            uint32_t slot;
+            UInt32P slot;
             Film *film;
 
             CamConnector(const WalkCtx &cc, SampleTable &t, const PathStore &ePs,
-                         const PathStore &lPs, uint32_t slot_, Film *film_)
-                : c(cc), tbl(t), eyePs(ePs), lightPs(lPs), slot(slot_), film(film_)
+                         const PathStore &lPs, Film *film_)
+                : c(cc), tbl(t), eyePs(ePs), lightPs(lPs), film(film_)
             {
             }
 
-            void Step()
+            // One camera connection per live lane.
+            void Run()
             {
                 const MaskP base = alive && (nL >= Int32P(1));
                 if (any(base))
                     Connect(base);
-                s = s + Int32P(1);
-                alive = alive && !(s > nL);
             }
 
         private:
@@ -633,10 +622,11 @@ namespace lux2
                 const Int32P li = s - Int32P(1);
                 const MaskP isOrigin = eq(s, Int32P(1));
                 const VertexData E0 =
-                    LoadVertex(c, eyePs, ePath, Int32P(0), base);
-                const VertexData L0 = LoadVertex(c, lightPs, lPath, li, base);
-                const VertexData Lz =
-                    LoadVertex(c, lightPs, lPath, Int32P(0), base && isOrigin);
+                    LoadVertex(c, eyePs, ePath, Int32P(0), base, WF_LOAD_CAM);
+                const VertexData L0 =
+                    LoadVertex(c, lightPs, lPath, li, base, WF_LOAD_CAM);
+                const VertexData Lz = LoadVertex(c, lightPs, lPath, Int32P(0),
+                                                 base && isOrigin, WF_LOAD_CAM);
 
                 const Vector3fP dRaw = L0.p - E0.p;
                 const FloatP d2 = dot(dRaw, dRaw);
@@ -682,7 +672,7 @@ namespace lux2
                 const FloatP tmax =
                     dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
                 const ShadowRng rng{seed, sampleIdx, Int32P(0), Int32P(0),
-                                    ConnKey(UInt32P(slot), Int32P(1), s),
+                                    ConnKey(slot, Int32P(1), s),
                                     BDPT_CONN_SALT};
                 const Occlusion oc = Occlude(c.shadow, E0.p, ewi, c.cameraMediumID,
                                              tmax, sw, rng, preCont);

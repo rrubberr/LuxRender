@@ -36,21 +36,18 @@
 namespace lux2
 {
 
-    // The intersection of a tile's scratch window with a destination tile's owned domain.
-    // Every domain lies inside both the scratch window and the destination by construction.
+    // The intersection of a tile's scratch window with a destination tile's domain.
     struct TileOverlap
     {
-        uint32_t tile;      // destination tile (may be the source tile itself)
-        int x0, y0, x1, y1; // crop-window-absolute scratch destination
+        uint32_t tile;      // destination tile
+        int x0, y0, x1, y1; // scratch destination
     };
 
-    // A rectangular pixel region used to partition the film into lock and
-    // ownership domains. The owned domain is the tile's pixels and the scratch
-    // window adds a filter halo. ovBegin/ovCount index the overlap list.
+    // A rectangular region used to partition the film.
     struct FilmTile
     {
-        int x0 = 0, y0 = 0, x1 = 0, y1 = 0;     // owned pixels (crop absolute)
-        int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0; // scratch window of owned pixels + halo
+        int x0 = 0, y0 = 0, x1 = 0, y1 = 0;     // owned pixels
+        int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0; // scratch window with halo
         uint32_t ovBegin = 0, ovCount = 0;      // slice of the overlap list
     };
 
@@ -58,7 +55,7 @@ namespace lux2
     enum ImageType
     {
         IMAGE_NONE = 0,
-        IMAGE_FILEOUTPUT = 1 << 0,  // write image file(s)
+        IMAGE_FILEOUTPUT = 1 << 0,  // write image file
         IMAGE_FLMOUTPUT = 1 << 1,   // write resume FLM file
         IMAGE_FRAMEBUFFER = 1 << 2, // refresh the display framebuffer
         IMAGE_FINAL = 1 << 3,       // final output before ending
@@ -75,7 +72,7 @@ namespace lux2
         virtual int XRes() const = 0;
         virtual int YRes() const = 0;
 
-        // Crop window in pixels (defaults to full frame).
+        // Crop window in pixels.
         virtual int XStart() const { return 0; }
         virtual int YStart() const { return 0; }
         virtual int XCount() const { return XRes(); }
@@ -105,10 +102,11 @@ namespace lux2
         // Merge another film's buffer into this one.
         virtual void Merge(Film *other) = 0;
 
-        // The film is partitioned into tiled lock/ownership domains. A tile index
-        // determines the scratch window, the owned domain, and the merge targets.
-        // Workers allocate one scratch at max size and retarget it via BindScratch.
-        // For Enoki I need a PACKET_WIDTH aligned tile grid.
+        // Drain buffered light splats into the shared frame.
+        virtual void FlushLightLog() {}
+
+        // The film is partitioned into tiles.
+        // For Enoki, create a PACKET_WIDTH aligned tile grid.
         virtual int SetupTiles(int tileSize, int haloX, int haloY)
         {
             (void)tileSize;
@@ -123,8 +121,7 @@ namespace lux2
             return FilmTile{};
         }
 
-        // A private accumulation buffer sized for the largest scratch window in
-        // the current directory.
+        // A private accumulation buffer sized for the largest scratch window.
         virtual std::unique_ptr<Film> MakeWorkerScratch() const
         {
             return nullptr;
@@ -165,7 +162,7 @@ namespace lux2
             return true;
         }
 
-        // Ordered group names used as the EXR channel prefix for AOVs
+        // Ordered group names used as the EXR channel prefix for AOVs.
         virtual void SetLightGroupNames(const std::vector<std::string> &names)
         {
             (void)names;
@@ -198,7 +195,7 @@ namespace lux2
             return 0.0;
         }
 
-        // Display framebuffer access for the C-API.
+        // Display framebuffer access for the C API.
         virtual void UpdateFrameBuffer() {}
         virtual unsigned char *GetFrameBuffer() { return nullptr; }
         virtual float *GetFloatFrameBuffer() { return nullptr; }

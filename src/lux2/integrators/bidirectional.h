@@ -56,7 +56,7 @@ namespace lux2
                         const std::string &lightStrategy = "one",
                         const std::string &lightPathStrategy = "one",
                         int wfSamples = 128, int wfLightPool = 0,
-                        int wfHighWater = 0)
+                        int wfHighWater = 0, int wfMinFill = -1)
             : m_eyeDepth(eyeDepth),
               m_lightDepth(lightDepth),
               m_maxDepth(maxDepth),
@@ -69,7 +69,8 @@ namespace lux2
               m_lightPathStrategy(lightPathStrategy),
               m_wfSamples(wfSamples < 1 ? 1 : wfSamples),
               m_wfLightPool(wfLightPool),
-              m_wfHighWater(wfHighWater)
+              m_wfHighWater(wfHighWater),
+              m_wfMinFill(wfMinFill)
         {
             // Total depth clamp.
             if (m_maxDepth < 0)
@@ -122,6 +123,8 @@ namespace lux2
         int m_wfSamples;
         int m_wfLightPool;
         int m_wfHighWater;
+        // Minimum queued items before a connector packet is dispatched.
+        int m_wfMinFill;
 
         // Light sampling tables.
         std::vector<LightsSamplingStrategy> m_lsD;

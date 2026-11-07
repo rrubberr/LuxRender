@@ -378,13 +378,13 @@ namespace lux2
                 core.alive &= !(core.alive && ev.escape);
             }
 
-            // Build the emitter origin for every active lane and set up the
-            // first ray.
-            MaskP BuildOrigin(const SamplerSource &src, uint32_t slot,
+            // Build the emitter origin and set up first ray.
+            MaskP BuildOrigin(const MaskP &fill, const SamplerSource &src,
+                              uint32_t slot,
                               const LightPtr &selLight, const UInt32P &selIdx,
                               const FloatP &selPdf)
             {
-                const MaskP la = mL.core.alive && (m_c.nLights > 0) &&
+                const MaskP la = fill && (m_c.nLights > 0) &&
                                  (m_c.lightDepth > 0);
                 if (!any(la))
                     return MaskP(false);
@@ -461,16 +461,17 @@ namespace lux2
                 }
 
                 // First ray out of the emitter.
-                mL.core.o = edg.p;
-                mL.core.d = wi0;
+                mL.core.o = select(fill, edg.p, mL.core.o);
+                mL.core.d = select(fill, wi0, mL.core.d);
                 mL.core.mint = FloatP(EPS_RAY);
                 mL.core.maxt = FloatP(INF_F);
                 mL.core.time = FloatP(0.f);
-                mL.core.medium = UInt32P(LUX2_MEDIUM_CLEAR);
+                mL.core.medium =
+                    select(fill, UInt32P(LUX2_MEDIUM_CLEAR), mL.core.medium);
                 mL.core.beta = select(ok, g.flux * f0, mL.core.beta);
-                mL.core.alive = ok;
+                mL.core.alive = select(fill, ok, mL.core.alive);
 
-                mL.v = select(ok, Int32P(1), Int32P(0));
+                mL.v = select(fill, select(ok, Int32P(1), Int32P(0)), mL.v);
                 mL.prevPdf = select(ok, pdfDir, mL.prevPdf);
                 mL.prevCoso = select(ok, coso0, mL.prevCoso);
                 mL.prevP = select(ok, edg.p, mL.prevP);

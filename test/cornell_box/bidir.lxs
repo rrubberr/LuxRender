@@ -8,8 +8,8 @@ Sampler "lowdiscrepancy"
 Accelerator "embree"
 
 SurfaceIntegrator "bidirectional"
-	"integer eyedepth" [8]
-	"integer lightdepth" [4]
+	"integer eyedepth" [16]
+	"integer lightdepth" [16]
 	"integer lightraycount" [1]
 	"float eyerrthreshold" [0.000000000000000]
 	"float lightrrthreshold" [0.000000000000000]
@@ -61,7 +61,7 @@ Film "fleximage"
 	"integer displayinterval" [10]
 	"integer writeinterval" [180]
 	"integer flmwriteinterval" [900]
-	"integer halttime" [60]
+	"integer haltspp" [128]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]
 

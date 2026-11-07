@@ -221,21 +221,33 @@ namespace lux2
             EyeLanes &lane = cons.Tail();
             // Only fill when a free slot exists.
             if (tbl.HasFreeSlot())
+            {
+                WfTimer t(WF_PH_EYE_REFILL);
                 RefillEyeSched(c, ps, tbl, cons, camera, sampler, jobs, sampleBasis,
                                nT, c.useT1);
+            }
             const MaskP before = lane.core.alive;
             if (!any(before))
                 return false;
-            Event ev = Advance<Dir::Eye>(c, lane.core, cons, lane.core.alive);
-            cons.OnEvent(lane.core, ev);
-            cons.OnVertex(
-                SamplerSource{sampler, lane.core.seed, lane.core.sampleIdx},
-                lane.core, ev);
-            cons.Survival(lane.core);
-            cons.PostVertex(lane.core, ev);
+            WfStatWalker(WF_WALK_EYE, int(enoki::count(before)),
+                         int(tbl.freeList.size()));
+            Event ev;
+            {
+                WfTimer t(WF_PH_EYE_ADV);
+                ev = Advance<Dir::Eye>(c, lane.core, cons, lane.core.alive);
+                cons.OnEvent(lane.core, ev);
+                cons.OnVertex(
+                    SamplerSource{sampler, lane.core.seed, lane.core.sampleIdx},
+                    lane.core, ev);
+                cons.Survival(lane.core);
+                cons.PostVertex(lane.core, ev);
+            }
             const MaskP dying = before && !lane.core.alive;
             if (any(dying))
+            {
+                WfTimer t(WF_PH_DONE);
                 EyeDone(sched, ps, lane, dying);
+            }
             return true;
         }
 
@@ -262,6 +274,9 @@ namespace lux2
             const MaskP dead = !lane.core.alive;
             if (none(dead))
                 return false;
+#ifdef LUX2_INTEGRATOR_DEBUG
+            const MaskP aliveBefore = lane.core.alive;
+#endif
 
             // Choose one admissible sample per dead lane (nextLight < nT).
             alignas(64) float deadA[PACKET_WIDTH];
@@ -281,6 +296,7 @@ namespace lux2
                     continue; // sample not admitted yet
                 chosenS[nChosen++] = s;
             }
+            WfStatLightRefill(int(nChosen));
             if (nChosen == 0)
                 return false;
 
@@ -339,8 +355,12 @@ namespace lux2
             lane = Blend(fill, fresh, lane);
 
             const MaskP ok = cons.BuildOrigin(
-                SamplerSource{sampler, lane.core.seed, lane.core.sampleIdx}, slot,
-                lp.light, lp.idx, lp.pSel);
+                fill, SamplerSource{sampler, lane.core.seed, lane.core.sampleIdx},
+                slot, lp.light, lp.idx, lp.pSel);
+#ifdef LUX2_INTEGRATOR_DEBUG
+            // A refill must never kill a lane that was midflight.
+            WfStatLightKill(int(enoki::count(aliveBefore && !lane.core.alive)));
+#endif
 
             // Path selPdf, owner sample, list index j; and bump sample's nextLight.
             {
@@ -414,20 +434,32 @@ namespace lux2
                                   Scheduler &sched)
         {
             LightLanes &lane = cons.Tail();
-            RefillLightSched(c, ps, tbl, cons, sampler, slot, sched);
+            {
+                WfTimer t(WF_PH_LIGHT_REFILL);
+                RefillLightSched(c, ps, tbl, cons, sampler, slot, sched);
+            }
             const MaskP before = lane.core.alive;
             if (!any(before))
                 return false;
-            Event ev = Advance<Dir::Light>(c, lane.core, cons, lane.core.alive);
-            cons.OnEvent(lane.core, ev);
-            cons.OnVertex(
-                SamplerSource{sampler, lane.core.seed, lane.core.sampleIdx},
-                lane.core, ev);
-            cons.Survival(lane.core);
-            cons.PostVertex(lane.core, ev);
+            WfStatWalker(WF_WALK_LIGHT, int(enoki::count(before)),
+                         int(tbl.freeList.size()));
+            Event ev;
+            {
+                WfTimer t(WF_PH_LIGHT_ADV);
+                ev = Advance<Dir::Light>(c, lane.core, cons, lane.core.alive);
+                cons.OnEvent(lane.core, ev);
+                cons.OnVertex(
+                    SamplerSource{sampler, lane.core.seed, lane.core.sampleIdx},
+                    lane.core, ev);
+                cons.Survival(lane.core);
+                cons.PostVertex(lane.core, ev);
+            }
             const MaskP dying = before && !lane.core.alive;
             if (any(dying))
+            {
+                WfTimer t(WF_PH_DONE);
                 LightDone(sched, ps, lane, dying);
+            }
             return true;
         }
 

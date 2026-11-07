@@ -25,6 +25,7 @@
 #define LUX2_INTEGRATORS_WF_POOL_VIEW_H
 
 #include "integrators/core/vertex.h"
+#include "integrators/debug/integrator_debug.h"
 #include "integrators/wf/storage.h"
 #include "integrators/wf/types.h"
 
@@ -73,10 +74,13 @@ namespace lux2
         }
 
         // Gather vertex `idx` of `path` for the lanes where `act` holds.
+        // `site` attributes the call in debug stats only.
         inline VertexData LoadVertex(const WalkCtx &c, const PathStore &ps,
                                      const UInt32P &path, const Int32P &idx,
-                                     const MaskP &act)
+                                     const MaskP &act,
+                                     WfLoadSite site = WF_LOAD_OTHER)
         {
+            WfStatLoad(site, enoki::count(act));
             const UInt32P rec = RecIdx(ps, path, idx, act);
             const VertexGeomP g = LoadGeom(ps.arena->geomWords.data(), rec, act);
             const VertexMisP mv = LoadMis(ps.arena->misWords.data(), rec, act);
