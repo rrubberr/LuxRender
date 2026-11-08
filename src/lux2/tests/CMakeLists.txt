@@ -182,6 +182,12 @@ add_lux2_check(
 )
 
 add_lux2_check(
+	NAME lux2wfmisweightcheck
+	SOURCES wf/mis_weight_check.cpp
+	LINKS lux2
+)
+
+add_lux2_check(
 	NAME lux2shapecheck
 	SOURCES shape_check.cpp
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads

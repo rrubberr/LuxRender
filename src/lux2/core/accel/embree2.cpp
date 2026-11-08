@@ -615,4 +615,3 @@ namespace lux2
     }
 
 } // namespace lux2
-A
