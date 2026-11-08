@@ -73,6 +73,21 @@ namespace lux2
             return r;
         }
 
+        // Position of vertex `idx` of `path` only.
+        inline Point3fP LoadPosition(const PathStore &ps, const UInt32P &path,
+                                     const Int32P &idx, const MaskP &act)
+        {
+            const UInt32P rec = RecIdx(ps, path, idx, act);
+            const uint32_t *base = ps.arena->geomWords.data();
+            return Point3fP(
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p), act)),
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p + 1), act)),
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p + 2), act)));
+        }
+
         // Gather vertex `idx` of `path` for the lanes where `act` holds.
         // `site` attributes the call in debug stats only.
         inline VertexData LoadVertex(const WalkCtx &c, const PathStore &ps,

@@ -32,6 +32,7 @@
 #include <enoki/array.h>
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <memory>
 
@@ -58,6 +59,10 @@ namespace lux2
             // Each projected spectrum is <= its own channel max so
             // sigma_t(sw) = sa(sw)+ss(sw) <= maxChannel(sa) + maxChannel(ss).
             m_sigmaTMaxRGB = MaxChannel(sigmaA) + MaxChannel(sigmaS);
+            // Fold each coefficient's Smits reconstruction into one table.
+            BuildSmitsTable(BroadcastRGB(sigmaA), false, m_tblA.data());
+            BuildSmitsTable(BroadcastRGB(sigmaS), false, m_tblS.data());
+            BuildSmitsTable(BroadcastRGB(Le), true, m_tblE.data());
         }
 
         // Attach a local space box and its volume-to-world transform.
@@ -104,17 +109,18 @@ namespace lux2
         const BBox &LocalBox() const { return m_localBox; }
         const Transform &WorldToLocal() const { return m_worldToLocal; }
 
-        // Coefficient queries carry no containment.
+        // Coefficient queries carry no containment. Each coefficient's Smits
+        // reconstruction goes into a table.
         SWCSpectrumP SigmaA(const SpectrumWavelengthsP &sw, const Point3fP &,
                             MaskP) const override
         {
-            return RGBToSmitsSPD(BroadcastRGB(m_sigmaA), sw, false);
+            return SampleRegular1(m_tblA.data(), sw.binRGB, sw.offsetRGB);
         }
 
         SWCSpectrumP SigmaS(const SpectrumWavelengthsP &sw, const Point3fP &,
                             MaskP) const override
         {
-            return RGBToSmitsSPD(BroadcastRGB(m_sigmaS), sw, false);
+            return SampleRegular1(m_tblS.data(), sw.binRGB, sw.offsetRGB);
         }
 
         SWCSpectrumP Lve(const SpectrumWavelengthsP &sw, const Point3fP &,
@@ -123,7 +129,8 @@ namespace lux2
             if (!m_emissive)
                 return SWCSpectrumP(0.f);
             // Emission is radiance, illuminant basis.
-            return RGBToSmitsSPD(BroadcastRGB(m_Le), sw, true);
+            return Clamped(SampleRegular1(m_tblE.data(), sw.binRGB,
+                                          sw.offsetRGB));
         }
 
         void SampleInteraction(const SpectrumWavelengthsP &sw, const RayP &ray,
@@ -243,6 +250,8 @@ namespace lux2
         }
 
         RGBColor m_sigmaA, m_sigmaS, m_Le;
+        // Per-coefficient folded Smits tables (weights+scale baked in).
+        std::array<float, SMITS_BINS> m_tblA{}, m_tblS{}, m_tblE{};
         float m_k = 0.f; // Schlick k from g
         bool m_emissive = false;
         float m_sigmaTMaxRGB = 0.f; // sw independent sigma_t upper bound

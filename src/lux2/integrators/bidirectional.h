@@ -86,7 +86,11 @@ namespace lux2
 
         void RenderTile(const Scene &scene, const Tile &tile,
                         Film &dest, Sampler &sampler,
+                        IntegratorWorkerState *ws,
                         uint64_t sampleBasis, uint32_t spp) override;
+
+        // Worker arena.
+        std::unique_ptr<IntegratorWorkerState> NewWorkerState() const override;
 
         // Flush and free the debug buffers.
         void End(const Scene &scene) override;

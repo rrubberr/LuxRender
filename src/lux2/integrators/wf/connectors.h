@@ -486,8 +486,9 @@ namespace lux2
                 const SpectrumWavelengthsP &sw = cid.sw;
                 const UInt32P &seed = cid.seed, &sampleIdx = cid.sampleIdx;
                 const FloatP &camPdfR0 = cid.camPdfR0;
-                const VertexData E0 =
-                    LoadVertex(c, eyePs, ePath, Int32P(0), base, WF_LOAD_CAMNEE);
+                // Camera vertex. Only the position is needed.
+                const Point3fP E0 =
+                    LoadPosition(eyePs, ePath, Int32P(0), base);
 
                 const int camNeeBase = CamNeeBaseI(
                     NeeBaseI(LightOriginBaseI(c.eyeDepth), c.lightDepth),
@@ -509,7 +510,7 @@ namespace lux2
             }
 
         private:
-            void DirectOne(const MaskP &base, const VertexData &E0,
+            void DirectOne(const MaskP &base, const Point3fP &E0p,
                            const auto &light, const UInt32P &lightIdx,
                            const UInt32P &shadowKey, const FloatP &infF,
                            const FloatP &pSel, const Point2fP &uPos,
@@ -521,7 +522,7 @@ namespace lux2
                 const FloatP &camPdfR0 = cid.camPdfR0;
                 // A camera vertex has no shading normal to test.
                 const LiSample li =
-                    SampleLi(sw, light, infF, E0.p, Normal3fP(0.f), MaskP(false),
+                    SampleLi(sw, light, infF, E0p, Normal3fP(0.f), MaskP(false),
                              pSel, uPos, uComp, base);
                 const FloatP d2 = li.dist * li.dist;
                 const Vector3fP &ewi = li.wi;
@@ -536,7 +537,7 @@ namespace lux2
 
                 const ShadowRng rng{seed, sampleIdx, Int32P(1), Int32P(0),
                                     shadowKey, SHADOW_SALT};
-                const Occlusion oc = Occlude(c.shadow, E0.p, ewi, c.cameraMediumID,
+                const Occlusion oc = Occlude(c.shadow, E0p, ewi, c.cameraMediumID,
                                              li.tmax, sw, rng, tryVis);
                 const SWCSpectrumP Tr = oc.Tr;
                 const MaskP cont = oc.ok;
@@ -557,7 +558,7 @@ namespace lux2
                 const FloatP pLP =
                     enoki::gather<FloatP>(c.lsP->pSel.data(), lightIdx, cont);
                 tr.isLightDirect = true;
-                tr.pdfLightDirect = ConvertDensity(E0.p, li.pdfL, li.p, li.n);
+                tr.pdfLightDirect = ConvertDensity(E0p, li.pdfL, li.p, li.n);
                 tr.lAR_last = We * cosL * invD2;
                 tr.lRR_last =
                     select(lpdf > FloatP(EPS_DENOM),
@@ -621,14 +622,14 @@ namespace lux2
                 const FloatP &camPdfR0 = cid.camPdfR0;
                 const Int32P li = s - Int32P(1);
                 const MaskP isOrigin = eq(s, Int32P(1));
-                const VertexData E0 =
-                    LoadVertex(c, eyePs, ePath, Int32P(0), base, WF_LOAD_CAM);
+                // Camera vertex: only the position is needed.
+                const Point3fP E0 = LoadPosition(eyePs, ePath, Int32P(0), base);
                 const VertexData L0 =
                     LoadVertex(c, lightPs, lPath, li, base, WF_LOAD_CAM);
                 const VertexData Lz = LoadVertex(c, lightPs, lPath, Int32P(0),
                                                  base && isOrigin, WF_LOAD_CAM);
 
-                const Vector3fP dRaw = L0.p - E0.p;
+                const Vector3fP dRaw = L0.p - E0;
                 const FloatP d2 = dot(dRaw, dRaw);
                 const Vector3fP ewi = dRaw * enoki::sqrt(divp(FloatP(1.f), d2));
                 const Vector3fP lwi = -ewi;
@@ -674,7 +675,7 @@ namespace lux2
                 const ShadowRng rng{seed, sampleIdx, Int32P(0), Int32P(0),
                                     ConnKey(slot, Int32P(1), s),
                                     BDPT_CONN_SALT};
-                const Occlusion oc = Occlude(c.shadow, E0.p, ewi, c.cameraMediumID,
+                const Occlusion oc = Occlude(c.shadow, E0, ewi, c.cameraMediumID,
                                              tmax, sw, rng, preCont);
                 const SWCSpectrumP Tr = oc.Tr;
                 const MaskP cont = oc.ok;
@@ -719,11 +720,11 @@ namespace lux2
                 const FloatP pD =
                     enoki::gather<FloatP>(c.lsD->pSel.data(), selIdx, cont);
                 const FloatP pdfSolid =
-                    selLight->Pdf_L(E0.p, Normal3fP(0.f), Lz.p, Lz.dg.n,
+                    selLight->Pdf_L(E0, Normal3fP(0.f), Lz.p, Lz.dg.n,
                                     cont && isOrigin, MaskP(false)) *
                     pD;
                 const FloatP oPdfLD =
-                    ConvertDensity(E0.p, pdfSolid, Lz.p, Lz.dg.ng);
+                    ConvertDensity(E0, pdfSolid, Lz.p, Lz.dg.ng);
                 const FloatP dPdfLD = GatherDirectPdf1(lightPs, lPath, cont);
                 tr.pdfLightDirect = select(isOrigin, oPdfLD, dPdfLD);
                 tr.isLightDirect = false;

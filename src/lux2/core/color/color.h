@@ -86,6 +86,10 @@ namespace lux2
                                const SpectrumWavelengthsP &sw,
                                bool illuminant);
 
+    // Precompute a constant color's Smits reconstruction.
+    void BuildSmitsTable(const RGBColorP &rgb, bool illuminant,
+                         float out[SMITS_BINS]);
+
     // ---------------------------------------------------------------------------
     // CIE luminance / tristimulus
     // ---------------------------------------------------------------------------

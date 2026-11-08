@@ -69,6 +69,7 @@ namespace lux2
 
         void RenderTile(const Scene &scene, const Tile &tile,
                         Film &dest, Sampler &sampler,
+                        IntegratorWorkerState *ws,
                         uint64_t sampleBasis, uint32_t spp) override;
 
         // Accessors.

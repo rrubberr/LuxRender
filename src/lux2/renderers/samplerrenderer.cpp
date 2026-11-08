@@ -52,10 +52,12 @@ namespace lux2
     {
         // Worker state holds a sampler clone plus one scratch buffer allocated
         // at the largest tile window and retargeted per item via BindScratch.
+        // iws is the integrator's persistent worker state.
         struct WorkerState
         {
             std::unique_ptr<Sampler> sampler;
             std::unique_ptr<Film> scratch;
+            std::unique_ptr<IntegratorWorkerState> iws;
         };
 
         // The write policy is selected by COMPILE time for now.
@@ -89,20 +91,18 @@ namespace lux2
                 }
                 film.BindScratch(tile, *ws.scratch);
 
+                if (!ws.iws)
+                    ws.iws = integrator.NewWorkerState();
+
                 // Disjoint sample range gives a unique seed basis.
                 integrator.RenderTile(scene, tileRect, *ws.scratch, *ws.sampler,
-                                      begin, count);
-                film.MergeScratch(tile, *ws.scratch); // locks only here
+                                      ws.iws.get(), begin, count);
+                film.MergeRegion(*ws.scratch); // locks only here
                 film.AddTileSampleCount(tile, double(count));
             }
             else
             {
-                // Correlated (MLT): TODO. A chain lives in the worker slot;
-                // writes go directly to the shared frame via atomic scatter_add
-                // (low splat rate, scattered addresses), with a batched splat-log
-                // as a fallback if profiling demands it. Accounting switches to a
-                // global mutation counter and the film applies a bootstrap scale
-                // at snapshot time. Intentionally empty until the MLT sink lands.
+                // TODO: Correlated (MLT, ERPT) scheduler with feedback.
             }
         }
     } // namespace

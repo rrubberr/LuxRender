@@ -40,6 +40,8 @@ namespace lux2
         float misPower = 2.f;  // exponent p in the power heuristic (0,1,2)
         bool diag = false;     // enable DiagStore tallies and firefly recorder
         float threshold = 0.f; // firefly record threshold (0 = off)
+        // Reorder connection packets by path id for arena locality.
+        bool wfSortByPath = false;
     };
 
     // Bidirectional's estimator state and debug accumulator.

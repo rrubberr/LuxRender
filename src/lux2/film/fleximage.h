@@ -25,6 +25,7 @@
 #include "core/film.h"
 #include "core/filter.h"
 #include "core/color/colorsystem.h"
+#include "core/memory/huge_alloc.h"
 
 #include <algorithm>
 #include <atomic>
@@ -90,7 +91,7 @@ namespace lux2
         FilmTile GetTile(uint32_t index) const override;
         std::unique_ptr<Film> MakeWorkerScratch() const override;
         void BindScratch(uint32_t tile, Film &scratch) const override;
-        void MergeScratch(uint32_t tile, const Film &scratch) override;
+        void MergeRegion(Film &scratch) override;
         void AddTileSampleCount(uint32_t tile, double n) override;
         // Global SPP = min across tiles once a partition exists, else a
         // flat counter.
@@ -127,17 +128,21 @@ namespace lux2
 
         // Accumulation buffers of the active group.
         // For a single light group this is the whole frame.
-        const std::vector<float> &BufX() const { return Active().bX; }
+        const HugeVector<float> &BufX() const { return Active().bX; }
 
-        // Light accumulators of the active set.
-        const std::atomic<float> *LightX() const
+        // Light accumulator of the active set for one pixel channel
+        // (BufferSet::LX/LY/LZ).
+        float LightAt(size_t pix, int comp) const
         {
-            return Active().lX.get();
+            const BufferSet &b = Active();
+            if (b.lRGB.empty())
+                return 0.f;
+            return b.lRGB[pix * BufferSet::kStride + comp];
         }
-        const std::vector<float> &BufY() const { return Active().bY; }
-        const std::vector<float> &BufZ() const { return Active().bZ; }
-        const std::vector<float> &BufAlpha() const { return Active().bAlpha; }
-        const std::vector<float> &BufWeight() const { return Active().bW; }
+        const HugeVector<float> &BufY() const { return Active().bY; }
+        const HugeVector<float> &BufZ() const { return Active().bZ; }
+        const HugeVector<float> &BufAlpha() const { return Active().bAlpha; }
+        const HugeVector<float> &BufWeight() const { return Active().bW; }
 
         // Lightgroup accumulation.
         void SetLightGroupCount(int n) override;
@@ -288,55 +293,14 @@ namespace lux2
         // One accumulation set per lightgroup.
         struct BufferSet
         {
-            std::vector<float> bX, bY, bZ, bAlpha, bW;
-            // Light tracing accumulators.
-            std::unique_ptr<std::atomic<float>[]> lX, lY, lZ;
+            // Interleaved light tracing accumulator.
+            static constexpr size_t kStride = 4;
+            enum { LX = 0, LY = 1, LZ = 2 };
 
-            BufferSet() = default;
-            BufferSet(BufferSet &&) = default;
-            BufferSet &operator=(BufferSet &&) = default;
-
-            BufferSet(const BufferSet &o)
-                : bX(o.bX), bY(o.bY), bZ(o.bZ),
-                  bAlpha(o.bAlpha), bW(o.bW)
-            {
-                CopyAtomicsFrom(o);
-            }
-            BufferSet &operator=(const BufferSet &o)
-            {
-                if (this == &o)
-                    return *this;
-                bX = o.bX;
-                bY = o.bY;
-                bZ = o.bZ;
-                bAlpha = o.bAlpha;
-                bW = o.bW;
-                CopyAtomicsFrom(o);
-                return *this;
-            }
-
-        private:
-            void CopyAtomicsFrom(const BufferSet &o)
-            {
-                const size_t n = o.bX.size();
-                auto copyOne = [&](
-                                   const std::unique_ptr<std::atomic<float>[]> &src,
-                                   std::unique_ptr<std::atomic<float>[]> &dst)
-                {
-                    if (!src)
-                    {
-                        dst.reset();
-                        return;
-                    }
-                    dst = std::make_unique<std::atomic<float>[]>(n);
-                    for (size_t i = 0; i < n; ++i)
-                        dst[i].store(src[i].load(std::memory_order_relaxed),
-                                     std::memory_order_relaxed);
-                };
-                copyOne(o.lX, lX);
-                copyOne(o.lY, lY);
-                copyOne(o.lZ, lZ);
-            }
+            HugeVector<float> bX, bY, bZ, bAlpha, bW;
+            // Light tracing accumulators (interleaved, size = 4 * npix).
+            // Plain floats.
+            HugeVector<float> lRGB;
         };
 
         // Composite modifiers.
@@ -425,13 +389,11 @@ namespace lux2
         // Tile sample count.
         std::vector<std::atomic<double>> m_tileSampleCount;
 
-        // Merge directory where each tile's FilmTile.ovBegin/ovCount
-        // indexes a slice of the list.
-        std::vector<TileOverlap> m_overlaps;
         size_t m_maxScratchArea = 0;
-        // Increment on each SetupTiles so an old directory
-        // is caught by the MergeScratch assert.
-        uint64_t m_epoch = 0;
+        // Filter halo.
+        int m_haloX = 0, m_haloY = 0;
+        // Replay bin grid.
+        int m_binW = 0, m_binH = 0, m_binCols = 0, m_binRows = 0;
 
         // Worker light splat log.
         struct SplatLog
@@ -450,19 +412,24 @@ namespace lux2
         // Append active lanes; flush early when the log reaches cap.
         void LogLightSplats(const FloatP &x, const FloatP &y,
                             const XYZColorP &xyz, MaskP active);
-        // Replay the whole log into m_master, then clear.
+        // Densify the log into scratch.
         void ReplayLightLog();
-        // Master tile index containing (x,y).
-        int MasterTileAt(float x, float y) const;
+        // Replay bin index containing pixel (x,y).
+        uint32_t BinAt(const FlexImageFilm *M, float x, float y) const;
+
+        // A private scratch carrying only the interleaved light buffer.
+        std::unique_ptr<FlexImageFilm> MakeLightScratch() const;
+        // Point a light scratch at [x0,x1)x[y0,y1) and zero its lRGB.
+        void BindLightScratch(int x0, int y0, int x1, int y1,
+                              FlexImageFilm &scratch) const;
 
         SplatLog m_lightLog;
         FlexImageFilm *m_master = nullptr; // set by MakeWorkerScratch
-        static constexpr size_t kLogCap = 64u * 1024u;
-
-        // Scratch binding identity holds the tile and directory
-        // epoch the scratch was last bound to.
-        mutable uint32_t m_boundTile = 0;
-        mutable uint64_t m_boundEpoch = 0;
+        // Replay flush threshold.
+        size_t m_logCap = 64u * 1024u;
+        // Light channel scratch and counting arrays.
+        std::unique_ptr<FlexImageFilm> m_lightScratch;
+        std::vector<uint32_t> m_binCount, m_binStart, m_binCursor, m_sorted;
 
         // Serialize WriteImage() for display timer and render thread.
         mutable std::mutex m_writeMutex;

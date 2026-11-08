@@ -36,19 +36,11 @@
 namespace lux2
 {
 
-    // The intersection of a tile's scratch window with a destination tile's domain.
-    struct TileOverlap
-    {
-        uint32_t tile;      // destination tile
-        int x0, y0, x1, y1; // scratch destination
-    };
-
     // A rectangular region used to partition the film.
     struct FilmTile
     {
         int x0 = 0, y0 = 0, x1 = 0, y1 = 0;     // owned pixels
         int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0; // scratch window with halo
-        uint32_t ovBegin = 0, ovCount = 0;      // slice of the overlap list
     };
 
     // Which outputs to write.
@@ -130,13 +122,8 @@ namespace lux2
         // Point a worker scratch at a tile scratch window and zero it.
         virtual void BindScratch(uint32_t tile, Film &scratch) const {}
 
-        // Merge a worker's scratch into the shared frame with each precomputed
-        // overlap region under that destination tile's lock.
-        virtual void MergeScratch(uint32_t tile, const Film &scratch)
-        {
-            (void)tile;
-            (void)scratch;
-        }
+        // Merge a scratch into the shared frame.
+        virtual void MergeRegion(Film &scratch) { (void)scratch; }
 
         // Global SampleCount() is the min across tiles.
         virtual void AddTileSampleCount(uint32_t tile, double n)

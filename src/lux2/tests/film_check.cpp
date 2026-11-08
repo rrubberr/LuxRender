@@ -279,8 +279,7 @@ bool BuffersEqual(const FlexImageFilm &a, const FlexImageFilm &b,
     return true;
 }
 
-// A worker scratch accumulates a tile's window; MergeScratch maps it into
-// the master. With one full-frame tile the scratch window is the crop.
+// A worker scratch accumulates a tile's window.
 void CheckScratchMerge() {
     GaussianFilter f(2.f, 2.f, 2.f);
     const float full[4] = {0.f, 1.f, 0.f, 1.f};
@@ -315,7 +314,7 @@ void CheckScratchMerge() {
     SplatOne(*blk, 24.5f, 30.5f, wl, 1.3f, 1.f, 1.f);
     SplatOne(ref, 24.5f, 30.5f, wl, 1.3f, 1.f, 1.f);
 
-    master.MergeScratch(0, *scratch);
+    master.MergeRegion(*scratch);
     master.AddTileSampleCount(0, 3.0);
     ref.AddSampleCount(3.0);
 
@@ -415,8 +414,7 @@ void CheckTileHaloMerge() {
     if (tiles != 4)
         return;
 
-    // One scratch reused across tiles, as the renderer does: BindScratch
-    // retargets and zeroes it per visit.
+    // One scratch reused across tiles.
     auto scratch = master.MakeWorkerScratch();
     if (!scratch)
         return;
@@ -438,7 +436,7 @@ void CheckTileHaloMerge() {
                 SplatOne(ref, cx[i], cy[j], wl, 1.f, 1.f, 1.f);
             }
 
-        master.MergeScratch(uint32_t(ti), *scratch);
+        master.MergeRegion(*scratch);
         master.AddTileSampleCount(uint32_t(ti), 9.0);
         ref.AddSampleCount(9.0);
     }
@@ -497,18 +495,15 @@ void CheckLightSplatLog() {
         scratch->FlushLightLog();
     }
 
-    const auto &Lref = ref.LightX();
-    const auto &Lgot = master.LightX();
-    bool ok = Lref && Lgot;
-    if (ok) {
-        for (int y = 0; y < 64 && ok; ++y)
-            for (int x = 0; x < 64 && ok; ++x) {
-                const size_t i = size_t(y) * 64 + x;
-                if (!Close(Lgot[i].load(std::memory_order_relaxed),
-                           Lref[i].load(std::memory_order_relaxed)))
+    bool ok = true;
+    for (int y = 0; y < 64 && ok; ++y)
+        for (int x = 0; x < 64 && ok; ++x) {
+            const size_t i = size_t(y) * 64 + x;
+            for (int c = 0; c < 3; ++c) {
+                if (!Close(master.LightAt(i, c), ref.LightAt(i, c)))
                     ok = false;
             }
-    }
+        }
     Check(ok, "scratch light-splat log equals direct atomic splat path");
 }
 

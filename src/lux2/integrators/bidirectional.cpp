@@ -139,8 +139,25 @@ namespace lux2
 #endif
     }
 
+    namespace
+    {
+        // Persistent worker wavefront storage.
+        struct BidirWorkerState : IntegratorWorkerState
+        {
+            wf::BlockArena arenaEye, arenaLight;
+            wf::PathStore psEye, psLight;
+        };
+    } // namespace
+
+    std::unique_ptr<IntegratorWorkerState>
+    BidirIntegrator::NewWorkerState() const
+    {
+        return std::make_unique<BidirWorkerState>();
+    }
+
     void BidirIntegrator::RenderTile(const Scene &scene, const Tile &tile,
                                      Film &dest, Sampler &sampler,
+                                     IntegratorWorkerState *ws,
                                      uint64_t sampleBasis, uint32_t spp)
     {
         const Camera &camera = scene.GetCamera();
@@ -202,8 +219,12 @@ namespace lux2
             m_wfHighWater > 0 ? uint32_t(m_wfHighWater) : 2u * kNs;
         const uint32_t minFill = ResolveMinFill(m_wfMinFill);
 
-        wf::BlockArena arenaEye, arenaLight;
-        wf::PathStore psEye, psLight;
+        // Persistent worker arenas.
+        BidirWorkerState &state = *static_cast<BidirWorkerState *>(ws);
+        wf::BlockArena &arenaEye = state.arenaEye;
+        wf::BlockArena &arenaLight = state.arenaLight;
+        wf::PathStore &psEye = state.psEye;
+        wf::PathStore &psLight = state.psLight;
         psEye.Init(&arenaEye, kNs);
         psLight.Init(&arenaLight, kLightPool);
         wf::SampleTable tbl;
@@ -216,6 +237,13 @@ namespace lux2
         wf::BidirEyeConsumer eyeCons(ctx, &psEye, &tbl);
         wf::BidirLightConsumer lightCons(ctx, &psLight);
         wf::Scheduler sched(tbl, psEye, psLight, binTable);
+        if (ctx.cfg.wfSortByPath)
+        {
+            sched.gen.SetSortByPath(true);
+            sched.nee.SetSortByPath(true);
+            sched.camNee.SetSortByPath(true);
+            sched.cam.SetSortByPath(true);
+        }
 
         JobCursor jobs(tile, spp);
         // Light splats go to the worker's scratch film.
@@ -607,6 +635,7 @@ namespace lux2
         cfg.misPower = p ? p->FindOneFloat("mispower", 2.f) : 2.f;
         cfg.diag = p ? p->FindOneBool("diag", false) : false;
         cfg.threshold = p ? p->FindOneFloat("diagthreshold", 0.f) : 0.f;
+        cfg.wfSortByPath = p ? p->FindOneBool("wf_sortpath", false) : false;
         const std::string lightStrategy =
             p ? p->FindOneString("lightstrategy", "one") : "one";
         const std::string lightPathStrategy =

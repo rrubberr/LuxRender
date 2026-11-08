@@ -95,15 +95,7 @@ namespace lux2
             s.bZ.assign(n, 0.f);
             s.bAlpha.assign(n, 0.f);
             s.bW.assign(n, 0.f);
-            s.lX = std::make_unique<std::atomic<float>[]>(n);
-            s.lY = std::make_unique<std::atomic<float>[]>(n);
-            s.lZ = std::make_unique<std::atomic<float>[]>(n);
-            for (size_t i = 0; i < n; ++i)
-            {
-                s.lX[i].store(0.f, std::memory_order_relaxed);
-                s.lY[i].store(0.f, std::memory_order_relaxed);
-                s.lZ[i].store(0.f, std::memory_order_relaxed);
-            }
+            s.lRGB.assign(n * BufferSet::kStride, 0.f);
         }
         m_gmod.assign(m_groups.size(), GroupModifier{});
         m_activeGroup = 0;
@@ -129,10 +121,11 @@ namespace lux2
         m_tileH = th;
 
         m_tiles.clear();
-        m_overlaps.clear();
         m_tileCols = 0;
         m_tileRows = 0;
         m_maxScratchArea = 0;
+        m_haloX = haloX;
+        m_haloY = haloY;
         if (m_xCount <= 0 || m_yCount <= 0)
             return 0;
 
@@ -175,37 +168,18 @@ namespace lux2
                 m_maxScratchArea, size_t(t.sx1 - t.sx0) * size_t(t.sy1 - t.sy0));
         }
 
-        // A scratch domain reaches at most ceil(halo/tileDim)
-        // grid cells per axis.
-        const int kx = (haloX + tw - 1) / tw;
-        const int ky = (haloY + th - 1) / th;
-        for (int r = 0; r < m_tileRows; ++r)
-        {
-            for (int c = 0; c < m_tileCols; ++c)
-            {
-                FilmTile &t = m_tiles[size_t(r) * m_tileCols + c];
-                t.ovBegin = uint32_t(m_overlaps.size());
-                for (int rr = std::max(0, r - ky); rr <= std::min(m_tileRows - 1, r + ky); ++rr)
-                {
-                    for (int cc = std::max(0, c - kx); cc <= std::min(m_tileCols - 1, c + kx); ++cc)
-                    {
-                        const uint32_t n = uint32_t(rr * m_tileCols + cc);
-                        const FilmTile &nb = m_tiles[n];
-                        TileOverlap o;
-                        o.tile = n;
-                        o.x0 = std::max(t.sx0, nb.x0);
-                        o.y0 = std::max(t.sy0, nb.y0);
-                        o.x1 = std::min(t.sx1, nb.x1);
-                        o.y1 = std::min(t.sy1, nb.y1);
-                        if (o.x1 > o.x0 && o.y1 > o.y0)
-                            m_overlaps.push_back(o);
-                    }
-                }
-                t.ovCount = uint32_t(m_overlaps.size()) - t.ovBegin;
-            }
-        }
-
-        ++m_epoch; // invalidate any scratch from the old directory
+        // Replay bin grid.
+        const int targetPx = 16384;
+        const int side =
+            std::max(pw, int(std::sqrt(double(targetPx))) -
+                             2 * std::max(haloX, haloY));
+        m_binW = m_binH = std::max(pw, side);
+        m_binCols = (m_xCount + m_binW - 1) / m_binW;
+        m_binRows = (m_yCount + m_binH - 1) / m_binH;
+        // Flush threshold ~1% of frame pixels so bins stay dense enough to
+        // amortize their clear+merge cost.
+        m_logCap = std::max<size_t>(4096,
+                                    size_t(m_xCount) * size_t(m_yCount) / 100u);
         return int(m_tiles.size());
     }
 
@@ -241,8 +215,6 @@ namespace lux2
                         &s.m_groups[0].bZ, &s.m_groups[0].bAlpha,
                         &s.m_groups[0].bW})
             v->assign(n, 0.f);
-        s.m_boundTile = tile;
-        s.m_boundEpoch = m_epoch;
     }
 
     FilmTile FlexImageFilm::GetTile(uint32_t index) const
@@ -255,10 +227,13 @@ namespace lux2
     void FlexImageFilm::AddRegion(const FlexImageFilm &src,
                                   int x0, int y0, int x1, int y1)
     {
-        // The domain is guaranteed inside both films by the overlap directory.
-        // A scratch carries one set and merges into this film's active group.
+        // The domain is guaranteed inside both films by MergeRegion's grid
+        // arithmetic. A scratch carries one channel and merges into this
+        // film's active group.
         BufferSet &d = Active();
         const BufferSet &s = src.Active();
+        const bool eye = !s.bX.empty();
+        const bool light = !s.lRGB.empty();
         const int rowLen = x1 - x0;
         for (int y = y0; y < y1; ++y)
         {
@@ -266,46 +241,69 @@ namespace lux2
                                  size_t(x0 - m_xStart);
             const size_t sBase = size_t(y - src.m_yStart) * src.m_xCount +
                                  size_t(x0 - src.m_xStart);
-            float *dX = d.bX.data() + dBase;
-            const float *sX = s.bX.data() + sBase;
-            float *dY = d.bY.data() + dBase;
-            const float *sY = s.bY.data() + sBase;
-            float *dZ = d.bZ.data() + dBase;
-            const float *sZ = s.bZ.data() + sBase;
-            float *dA = d.bAlpha.data() + dBase;
-            const float *sA = s.bAlpha.data() + sBase;
-            float *dW = d.bW.data() + dBase;
-            const float *sW = s.bW.data() + sBase;
-            for (int i = 0; i < rowLen; ++i)
+            if (eye)
             {
-                dX[i] += sX[i];
-                dY[i] += sY[i];
-                dZ[i] += sZ[i];
-                dA[i] += sA[i];
-                dW[i] += sW[i];
+                float *dX = d.bX.data() + dBase;
+                const float *sX = s.bX.data() + sBase;
+                float *dY = d.bY.data() + dBase;
+                const float *sY = s.bY.data() + sBase;
+                float *dZ = d.bZ.data() + dBase;
+                const float *sZ = s.bZ.data() + sBase;
+                float *dA = d.bAlpha.data() + dBase;
+                const float *sA = s.bAlpha.data() + sBase;
+                float *dW = d.bW.data() + dBase;
+                const float *sW = s.bW.data() + sBase;
+                for (int i = 0; i < rowLen; ++i)
+                {
+                    dX[i] += sX[i];
+                    dY[i] += sY[i];
+                    dZ[i] += sZ[i];
+                    dA[i] += sA[i];
+                    dW[i] += sW[i];
+                }
+            }
+            if (light)
+            {
+                // Interleaved kStride floats per pixel, contiguous in x.
+                float *dL = d.lRGB.data() + dBase * BufferSet::kStride;
+                const float *sL = s.lRGB.data() + sBase * BufferSet::kStride;
+                const int n = rowLen * int(BufferSet::kStride);
+                for (int i = 0; i < n; ++i)
+                    dL[i] += sL[i];
             }
         }
     }
 
-    void FlexImageFilm::MergeScratch(uint32_t tile, const Film &scratch)
+    void FlexImageFilm::MergeRegion(Film &scratch)
     {
-        if (tile >= m_tiles.size())
-            return;
-        const FlexImageFilm *src = dynamic_cast<const FlexImageFilm *>(&scratch);
+        FlexImageFilm *src = dynamic_cast<FlexImageFilm *>(&scratch);
         if (!src || src == this)
             return;
 
-        // The scratch must be bound to this exact tile under the current
-        // directory.
-        assert(src->m_boundTile == tile && src->m_boundEpoch == m_epoch);
+        // Walk the overlapped tile range one at a time and
+        // add the intersection.
+        const int sx0 = src->m_xStart, sy0 = src->m_yStart;
+        const int sx1 = sx0 + src->m_xCount, sy1 = sy0 + src->m_yCount;
+        if (sx1 <= sx0 || sy1 <= sy0)
+            return;
 
-        // Walk the precomputed overlap list.
-        const FilmTile &t = m_tiles[tile];
-        for (uint32_t i = 0; i < t.ovCount; ++i)
+        const int c0 = std::max(0, (sx0 - m_xStart) / m_tileW);
+        const int c1 = std::min(m_tileCols - 1, (sx1 - 1 - m_xStart) / m_tileW);
+        const int r0 = std::max(0, (sy0 - m_yStart) / m_tileH);
+        const int r1 = std::min(m_tileRows - 1, (sy1 - 1 - m_yStart) / m_tileH);
+        for (int r = r0; r <= r1; ++r)
         {
-            const TileOverlap &o = m_overlaps[t.ovBegin + i];
-            std::lock_guard<std::mutex> lock(*m_tileMutexes[o.tile]);
-            AddRegion(*src, o.x0, o.y0, o.x1, o.y1);
+            for (int c = c0; c <= c1; ++c)
+            {
+                const uint32_t ti = uint32_t(r * m_tileCols + c);
+                const FilmTile &t = m_tiles[ti];
+                const int x0 = std::max(sx0, t.x0), y0 = std::max(sy0, t.y0);
+                const int x1 = std::min(sx1, t.x1), y1 = std::min(sy1, t.y1);
+                if (x1 <= x0 || y1 <= y0)
+                    continue;
+                std::lock_guard<std::mutex> lock(*m_tileMutexes[ti]);
+                AddRegion(*src, x0, y0, x1, y1);
+            }
         }
     }
 
@@ -339,16 +337,7 @@ namespace lux2
             std::fill(s.bZ.begin(), s.bZ.end(), 0.f);
             std::fill(s.bAlpha.begin(), s.bAlpha.end(), 0.f);
             std::fill(s.bW.begin(), s.bW.end(), 0.f);
-            const size_t n = s.bX.size();
-            for (size_t i = 0; i < n; ++i)
-            {
-                if (s.lX)
-                    s.lX[i].store(0.f, std::memory_order_relaxed);
-                if (s.lY)
-                    s.lY[i].store(0.f, std::memory_order_relaxed);
-                if (s.lZ)
-                    s.lZ[i].store(0.f, std::memory_order_relaxed);
-            }
+            std::fill(s.lRGB.begin(), s.lRGB.end(), 0.f);
         }
         m_sampleCount = 0.0;
         m_totalEyeSamples.store(0.0, std::memory_order_relaxed);
@@ -542,11 +531,15 @@ namespace lux2
         }
 
         BufferSet &bs = Active();
-        std::atomic<float> *pLX = bs.lX.get();
-        std::atomic<float> *pLY = bs.lY.get();
-        std::atomic<float> *pLZ = bs.lZ.get();
-        if (!pLX)
+        if (bs.lRGB.empty())
             return;
+
+        // Direct splats land on the master at arbitrary pixels (MLT).
+        std::vector<std::unique_ptr<std::lock_guard<std::mutex>>> guards;
+        guards.reserve(m_tileMutexes.size());
+        for (auto &mu : m_tileMutexes)
+            guards.push_back(std::make_unique<std::lock_guard<std::mutex>>(*mu));
+        float *pL = bs.lRGB.data();
 
         SplatFootprint(x, y, xyzP, ok, FloatP(1.f),
                        [&](const Int32P &idx, const FloatP &w,
@@ -566,9 +559,11 @@ namespace lux2
                            {
                                if (fm[i] <= 0.f)
                                    continue;
-                               pLX[fi[i]].fetch_add(fx[i], std::memory_order_relaxed);
-                               pLY[fi[i]].fetch_add(fy[i], std::memory_order_relaxed);
-                               pLZ[fi[i]].fetch_add(fz[i], std::memory_order_relaxed);
+                               float *p =
+                                   pL + size_t(fi[i]) * BufferSet::kStride;
+                               p[BufferSet::LX] += fx[i];
+                               p[BufferSet::LY] += fy[i];
+                               p[BufferSet::LZ] += fz[i];
                            }
                        });
     }
@@ -596,22 +591,10 @@ namespace lux2
             log.Y.push_back(Ya[i]);
             log.Z.push_back(Za[i]);
         }
-        if (log.Size() >= kLogCap)
+        // The cap is resolution-scaled on the master.
+        const size_t cap = m_master ? m_master->m_logCap : m_logCap;
+        if (log.Size() >= cap)
             ReplayLightLog();
-    }
-
-    int FlexImageFilm::MasterTileAt(float x, float y) const
-    {
-        if (m_tiles.empty() || m_tileW <= 0 || m_tileH <= 0)
-            return -1;
-        // Clamp the pixel into the grid before dividing.
-        const int c = enoki::clamp(int(std::floor(x)) - m_xStart, 0,
-                                   std::max(0, m_xCount - 1)) /
-                      m_tileW;
-        const int r = enoki::clamp(int(std::floor(y)) - m_yStart, 0,
-                                   std::max(0, m_yCount - 1)) /
-                      m_tileH;
-        return r * m_tileCols + c;
     }
 
     void FlexImageFilm::ReplayLightLog()
@@ -623,53 +606,65 @@ namespace lux2
         assert(M && !M->m_tiles.empty());
         const size_t n = log.Size();
 
-        // Bucket entries by the tile containing their center.
-        std::vector<std::vector<uint32_t>> bins(size_t(M->m_tiles.size()));
-        for (size_t i = 0; i < n; ++i)
-            bins[size_t(M->MasterTileAt(log.x[i], log.y[i]))].push_back(
-                uint32_t(i));
-
         const float xWidth = m_filter->GetXWidth();
         const float yWidth = m_filter->GetYWidth();
-        BufferSet &dst = M->Active();
-        const int mxs = M->m_xStart, mxc = M->m_xCount;
-        const int mys = M->m_yStart, myc = M->m_yCount;
         // Footprint taps per axis.
         const int nx = int(std::floor(2.f * xWidth + 1e-4f)) + 1;
         const int ny = int(std::floor(2.f * yWidth + 1e-4f)) + 1;
         assert(nx <= 64 && ny <= 64);
 
-        for (size_t t = 0; t < bins.size(); ++t)
+        // Create scratch sized for the largest bin plus halo.
+        if (!m_lightScratch)
+            m_lightScratch = M->MakeLightScratch();
+        FlexImageFilm *S = m_lightScratch.get();
+
+        const int nbins = M->m_binCols * M->m_binRows;
+        // Counting sort of log entries by the bin containing their center.
+        m_binCount.assign(size_t(nbins) + 1u, 0u);
+        for (size_t i = 0; i < n; ++i)
+            ++m_binCount[BinAt(M, log.x[i], log.y[i])];
+        uint32_t acc = 0;
+        m_binStart.resize(size_t(nbins));
+        for (int b = 0; b < nbins; ++b)
         {
-            if (bins[t].empty())
+            m_binStart[b] = acc;
+            acc += m_binCount[b];
+        }
+        m_sorted.resize(n);
+        m_binCursor = m_binStart; // per-bin write cursor
+        for (size_t i = 0; i < n; ++i)
+            m_sorted[m_binCursor[BinAt(M, log.x[i], log.y[i])]++] = uint32_t(i);
+
+        const int cropX1 = M->m_xStart + M->m_xCount;
+        const int cropY1 = M->m_yStart + M->m_yCount;
+        for (int b = 0; b < nbins; ++b)
+        {
+            const uint32_t begin = m_binStart[b];
+            const uint32_t end = begin + m_binCount[b];
+            if (begin == end)
                 continue;
+            const int bc = b % M->m_binCols, br = b / M->m_binCols;
+            const int bx0 = M->m_xStart + bc * M->m_binW;
+            const int by0 = M->m_yStart + br * M->m_binH;
+            // Scratch window = bin rect grown by halo, clamped to the crop.
+            const int sx0 = std::max(bx0 - M->m_haloX, M->m_xStart);
+            const int sy0 = std::max(by0 - M->m_haloY, M->m_yStart);
+            const int sx1 = std::min(bx0 + M->m_binW + M->m_haloX, cropX1);
+            const int sy1 = std::min(by0 + M->m_binH + M->m_haloY, cropY1);
+            M->BindLightScratch(sx0, sy0, sx1, sy1, *S);
+            float *sl = S->Active().lRGB.data();
+            const int sw = S->m_xCount;
 
-            // Lock the bucket's center tile plus its overlap neighborhood
-            // in ascending index order.
-            std::vector<uint32_t> want;
-            want.push_back(uint32_t(t));
-            const FilmTile &ft = M->m_tiles[t];
-            want.reserve(1u + ft.ovCount);
-            for (uint32_t i = 0; i < ft.ovCount; ++i)
-                want.push_back(M->m_overlaps[ft.ovBegin + i].tile);
-            std::sort(want.begin(), want.end());
-            want.erase(std::unique(want.begin(), want.end()), want.end());
-            std::vector<std::unique_ptr<std::lock_guard<std::mutex>>> locks;
-            locks.reserve(want.size());
-            for (uint32_t ti : want)
-                locks.push_back(
-                    std::make_unique<std::lock_guard<std::mutex>>(
-                        *M->m_tileMutexes[ti]));
-
-            for (uint32_t idx : bins[t])
+            // Densify using adds into the scratch.
+            for (uint32_t k = begin; k < end; ++k)
             {
+                const size_t idx = m_sorted[k];
                 const float px = log.x[idx], py = log.y[idx];
                 const float dx = px - 0.5f, dy = py - 0.5f;
                 const int loX = int(std::ceil(dx - xWidth));
                 const int hiX = int(std::floor(dx + xWidth));
                 const int loY = int(std::ceil(dy - yWidth));
                 const int hiY = int(std::floor(dy + yWidth));
-                // Tap weights.
                 float wx[64], wy[64];
                 float totalX = 0.f, totalY = 0.f;
                 for (int xr = 0; xr < nx; ++xr)
@@ -691,30 +686,63 @@ namespace lux2
                 for (int yr = 0; yr < ny; ++yr)
                 {
                     const int pyi = loY + yr;
-                    if (pyi < mys || pyi >= mys + myc)
+                    if (pyi < sy0 || pyi >= sy1)
                         continue;
                     for (int xr = 0; xr < nx; ++xr)
                     {
                         const int pxi = loX + xr;
-                        if (pxi < mxs || pxi >= mxs + mxc)
+                        if (pxi < sx0 || pxi >= sx1)
                             continue;
                         const float w = wx[xr] * wy[yr] * invTotal;
-                        const size_t d = size_t(pyi - mys) * mxc +
-                                         size_t(pxi - mxs);
-                        dst.lX[d].store(
-                            dst.lX[d].load(std::memory_order_relaxed) + w * ex,
-                            std::memory_order_relaxed);
-                        dst.lY[d].store(
-                            dst.lY[d].load(std::memory_order_relaxed) + w * ey,
-                            std::memory_order_relaxed);
-                        dst.lZ[d].store(
-                            dst.lZ[d].load(std::memory_order_relaxed) + w * ez,
-                            std::memory_order_relaxed);
+                        const size_t d =
+                            (size_t(pyi - sy0) * sw + size_t(pxi - sx0)) *
+                            BufferSet::kStride;
+                        sl[d + BufferSet::LX] += w * ex;
+                        sl[d + BufferSet::LY] += w * ey;
+                        sl[d + BufferSet::LZ] += w * ez;
                     }
                 }
             }
+            // Merge this bin's scratch into the master under lock.
+            M->MergeRegion(*S);
         }
         log.Clear();
+    }
+
+    uint32_t FlexImageFilm::BinAt(const FlexImageFilm *M, float x,
+                                  float y) const
+    {
+        // Clamp the pixel into the crop before dividing.
+        const int c = enoki::clamp(int(std::floor(x)) - M->m_xStart, 0,
+                                   std::max(0, M->m_xCount - 1)) /
+                      M->m_binW;
+        const int r = enoki::clamp(int(std::floor(y)) - M->m_yStart, 0,
+                                   std::max(0, M->m_yCount - 1)) /
+                      M->m_binH;
+        return uint32_t(r * M->m_binCols + c);
+    }
+
+    std::unique_ptr<FlexImageFilm> FlexImageFilm::MakeLightScratch() const
+    {
+        auto s = std::unique_ptr<FlexImageFilm>(new FlexImageFilm(
+            m_xres, m_yres, m_filter, 0, 0, 0, 0, m_premultiplyAlpha,
+            ScratchTag{}));
+        const size_t area =
+            size_t(m_binW + 2 * m_haloX) * size_t(m_binH + 2 * m_haloY);
+        s->m_groups[0].lRGB.reserve(area * BufferSet::kStride);
+        return s;
+    }
+
+    void FlexImageFilm::BindLightScratch(int x0, int y0, int x1, int y1,
+                                         FlexImageFilm &scratch) const
+    {
+        scratch.m_xStart = x0;
+        scratch.m_xCount = x1 - x0;
+        scratch.m_yStart = y0;
+        scratch.m_yCount = y1 - y0;
+        const size_t n = size_t(scratch.m_xCount) * size_t(scratch.m_yCount);
+        // assign() reuses reserved capacity: memset only.
+        scratch.m_groups[0].lRGB.assign(n * BufferSet::kStride, 0.f);
     }
 
     void FlexImageFilm::FlushLightLog()
@@ -910,18 +938,19 @@ namespace lux2
             acc += GroupConvertIsIdentity(g) ? c : sc.converts[g].Adapt(c);
         }
         // Light tracing contribution.
-        if (invP > 0.f && !sets.empty() && sets[0].lX)
+        if (invP > 0.f && !sets.empty() && !sets[0].lRGB.empty())
         {
             for (size_t g = 0; g < sets.size(); ++g)
             {
                 if (g >= m_gmod.size() || !m_gmod[g].enable)
                     continue;
                 const BufferSet &s = sets[g];
-                if (!s.lX)
+                if (s.lRGB.empty())
                     continue;
-                const float lx = s.lX[idx].load(std::memory_order_relaxed);
-                const float ly = s.lY[idx].load(std::memory_order_relaxed);
-                const float lz = s.lZ[idx].load(std::memory_order_relaxed);
+                const float *p = &s.lRGB[idx * BufferSet::kStride];
+                const float lx = p[BufferSet::LX];
+                const float ly = p[BufferSet::LY];
+                const float lz = p[BufferSet::LZ];
                 XYZColor lc(lx * invP, ly * invP, lz * invP);
                 acc += GroupConvertIsIdentity(g) ? lc : sc.converts[g].Adapt(lc);
             }
@@ -958,6 +987,13 @@ namespace lux2
                         d.bAlpha[base + i] = s.bAlpha[base + i];
                         d.bW[base + i] = s.bW[base + i];
                     }
+                    // lRGB is plain floats now, so it must be re-read under
+                    // the same tile lock as b* (the bulk copy above races
+                    // with concurrent merges).
+                    const size_t dl = base * BufferSet::kStride;
+                    const size_t rowL = len * BufferSet::kStride;
+                    for (size_t i = 0; i < rowL; ++i)
+                        d.lRGB[dl + i] = s.lRGB[dl + i];
                 }
             }
         }

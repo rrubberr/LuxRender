@@ -44,6 +44,12 @@ add_lux2_check(
 	LINKS lux2
 )
 
+add_lux2_check(
+	NAME lux2hugeallocheck
+	SOURCES huge_alloc_check.cpp
+	LINKS lux2
+)
+
 # Cornell Box scene data.
 set(LUX2_CORNELL_DATA ${CMAKE_CURRENT_SOURCE_DIR}/../../../test/cornell_box/cornell_box/Scene/00001)
 

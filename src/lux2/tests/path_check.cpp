@@ -209,7 +209,8 @@ double RunPass(SurfaceIntegrator &integ, Scene &scene) {
     t.x0 = 0; t.y0 = 0; t.x1 = 16; t.y1 = 16;
     LuminanceProbe probe(16, 16);
     auto sampler = scene.GetSampler().Clone();
-    integ.RenderTile(scene, t, probe, *sampler, 0, sampler->SampleCount());
+    integ.RenderTile(scene, t, probe, *sampler, nullptr, 0,
+                     sampler->SampleCount());
     return probe.MeanLuminance();
 }
 

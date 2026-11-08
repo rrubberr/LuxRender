@@ -27,6 +27,7 @@
 #include "core/color/color.h"
 #include "core/bsdf.h"
 
+#include <array>
 #include <optional>
 
 namespace lux2
@@ -126,17 +127,27 @@ namespace lux2
     public:
         explicit ConstantColorTexture(const RGBColorP &color,
                                       bool illuminant = false)
-            : m_color(color), m_illuminant(illuminant) {}
+            : m_color(color), m_illuminant(illuminant)
+        {
+            Rebuild();
+        }
 
         SWCSpectrumP Evaluate(const DifferentialGeometryP &,
                               const SpectrumWavelengthsP &sw,
                               MaskP = MaskP(true)) const override
         {
-            return RGBToSmitsSPD(m_color, sw, m_illuminant);
+            // Spectrum table.
+            const SWCSpectrumP r =
+                SampleRegular1(m_tbl.data(), sw.binRGB, sw.offsetRGB);
+            return m_illuminant ? Clamped(r) : r;
         }
 
         // Switch between the reflectant (E) and illuminant (D65) bases.
-        void SetIlluminant() { m_illuminant = true; }
+        void SetIlluminant()
+        {
+            m_illuminant = true;
+            Rebuild();
+        }
 
         bool IsConstant() const override { return true; }
 
@@ -150,8 +161,14 @@ namespace lux2
         }
 
     private:
+        void Rebuild()
+        {
+            BuildSmitsTable(m_color, m_illuminant, m_tbl.data());
+        }
+
         RGBColorP m_color;
         bool m_illuminant;
+        std::array<float, SMITS_BINS> m_tbl{};
     };
 
 } // namespace lux2

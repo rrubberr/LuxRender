@@ -98,36 +98,54 @@ namespace lux2
 
     } // namespace
 
+    namespace
+    {
+        // The seven Smits weights plus the basis scale.
+        struct SmitsW
+        {
+            FloatP wW, wC, wM, wY, wB, wG, wR;
+            float scale;
+            bool clamp;
+        };
+
+        SmitsW SmitsWeights(const RGBColorP &rgb, bool illuminant)
+        {
+            const FloatP r = rgb[0], g = rgb[1], b = rgb[2];
+
+            // Ordering masks.
+            const MaskP rMin = (r <= g) & (r <= b);
+            const MaskP gMin = (g <= r) & (g <= b);
+            const MaskP bMin = ~(rMin | gMin);
+
+            const MaskP gLeB = g <= b; // within rMin
+            const MaskP rLeB = r <= b; // within gMin
+            const MaskP rLeG = r <= g; // within bMin
+
+            SmitsW W;
+            W.wW = select(rMin, r, select(gMin, g, b));
+            W.wC = select(rMin, select(gLeB, g - r, b - r), FloatP(0.f));
+            W.wM = select(gMin, select(rLeB, r - g, b - g), FloatP(0.f));
+            W.wY = select(bMin, select(rLeG, r - b, g - b), FloatP(0.f));
+            W.wB = select(rMin & gLeB, b - g,
+                          select(rMin & ~gLeB, FloatP(0.f),
+                                 select(gMin & rLeB, b - r, FloatP(0.f))));
+            W.wG = select(rMin & ~gLeB, g - b,
+                          select(bMin & rLeG, g - r, FloatP(0.f)));
+            W.wR = select(gMin & ~rLeB, r - b,
+                          select(bMin & ~rLeG, r - g, FloatP(0.f)));
+            // Reflectant and illuminant tables differ by their scale.
+            W.scale = illuminant ? float(illumrgb2spect_scale)
+                                 : float(refrgb2spect_scale);
+            W.clamp = illuminant;
+            return W;
+        }
+    } // namespace
+
     SWCSpectrumP RGBToSmitsSPD(const RGBColorP &rgb,
                                const SpectrumWavelengthsP &sw,
                                bool illuminant)
     {
-        const FloatP r = rgb[0], g = rgb[1], b = rgb[2];
-
-        // Ordering masks.
-        const MaskP rMin = (r <= g) & (r <= b);
-        const MaskP gMin = (g <= r) & (g <= b);
-        const MaskP bMin = ~(rMin | gMin);
-
-        const MaskP gLeB = g <= b; // within rMin
-        const MaskP rLeB = r <= b; // within gMin
-        const MaskP rLeG = r <= g; // within bMin
-
-        // Lane weights for the three Smits primaries.
-        const FloatP wWhite = select(rMin, r, select(gMin, g, b));
-
-        // Secondary/secondary-primary weights.
-        const FloatP cyanW = select(gLeB, g - r, b - r);
-        const FloatP magW = select(rLeB, r - g, b - g);
-        const FloatP yelW = select(rLeG, r - b, g - b);
-
-        const FloatP wBlue = select(rMin & gLeB, b - g,
-                                    select(rMin & ~gLeB, FloatP(0.f),
-                                           select(gMin & rLeB, b - r, FloatP(0.f))));
-        const FloatP wGreen = select(rMin & ~gLeB, g - b,
-                                     select(bMin & rLeG, g - r, FloatP(0.f)));
-        const FloatP wRed = select(gMin & ~rLeB, r - b,
-                                   select(bMin & ~rLeG, r - g, FloatP(0.f)));
+        const SmitsW W = SmitsWeights(rgb, illuminant);
 
         const float *white = Pick(illuminant, refrgb2spect_white, illumrgb2spect_white);
         const float *cyan = Pick(illuminant, refrgb2spect_cyan, illumrgb2spect_cyan);
@@ -137,22 +155,43 @@ namespace lux2
         const float *green = Pick(illuminant, refrgb2spect_green, illumrgb2spect_green);
         const float *blue = Pick(illuminant, refrgb2spect_blue, illumrgb2spect_blue);
 
-        SWCSpectrumP result = Basis(white, sw, wWhite);
-        result += Basis(cyan, sw, select(rMin, cyanW, FloatP(0.f)));
-        result += Basis(magenta, sw, select(gMin, magW, FloatP(0.f)));
-        result += Basis(yellow, sw, select(bMin, yelW, FloatP(0.f)));
-        result += Basis(blue, sw, wBlue);
-        result += Basis(green, sw, wGreen);
-        result += Basis(red, sw, wRed);
+        SWCSpectrumP result = Basis(white, sw, W.wW);
+        result += Basis(cyan, sw, W.wC);
+        result += Basis(magenta, sw, W.wM);
+        result += Basis(yellow, sw, W.wY);
+        result += Basis(blue, sw, W.wB);
+        result += Basis(green, sw, W.wG);
+        result += Basis(red, sw, W.wR);
 
-        // Reflectant and illuminant tables differ only by their scale.
-        const float scale = illuminant ? float(illumrgb2spect_scale)
-                                       : float(refrgb2spect_scale);
-        result *= FloatP(scale);
-        if (illuminant)
+        result *= FloatP(W.scale);
+        if (W.clamp)
             result = Clamped(result);
 
         return result;
+    }
+
+    void BuildSmitsTable(const RGBColorP &rgb, bool illuminant,
+                         float out[SMITS_BINS])
+    {
+        // Constant weights and scale go into a table so evaluation, so
+        // sum_k w_k * lerp(t_k) == lerp(sum_k w_k t_k).
+        const SmitsW W = SmitsWeights(rgb, illuminant);
+
+        const float *white = Pick(illuminant, refrgb2spect_white, illumrgb2spect_white);
+        const float *cyan = Pick(illuminant, refrgb2spect_cyan, illumrgb2spect_cyan);
+        const float *magenta = Pick(illuminant, refrgb2spect_magenta, illumrgb2spect_magenta);
+        const float *yellow = Pick(illuminant, refrgb2spect_yellow, illumrgb2spect_yellow);
+        const float *red = Pick(illuminant, refrgb2spect_red, illumrgb2spect_red);
+        const float *green = Pick(illuminant, refrgb2spect_green, illumrgb2spect_green);
+        const float *blue = Pick(illuminant, refrgb2spect_blue, illumrgb2spect_blue);
+
+        // rgb is a broadcast color, the weights are uniform across lanes.
+        const float wW = W.wW[0], wC = W.wC[0], wM = W.wM[0], wY = W.wY[0];
+        const float wB = W.wB[0], wG = W.wG[0], wR = W.wR[0];
+        for (int i = 0; i < SMITS_BINS; ++i)
+            out[i] = W.scale * (wW * white[i] + wC * cyan[i] +
+                                wM * magenta[i] + wY * yellow[i] +
+                                wB * blue[i] + wG * green[i] + wR * red[i]);
     }
 
     // ---------------------------------------------------------------------------
@@ -179,10 +218,7 @@ namespace lux2
 
     XYZColorP SWCToXYZ(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw)
     {
-        // Monochromatic: cie(w) * s * 683 * (END - START) per channel. The
-        // scalar reference divides spd_cie* by WAVELENGTH_SAMPLES and then
-        // multiplies the single-sample result by WAVELENGTH_SAMPLES, so the
-        // factors cancel and CIE_SCALE is the exact match.
+        // Monochromatic cie(w) * s * 683 * (END - START) per channel.
         return XYZColorP(SampleCIE(CIE_X, sw) * s,
                          SampleCIE(CIE_Y, sw) * s,
                          SampleCIE(CIE_Z, sw) * s);

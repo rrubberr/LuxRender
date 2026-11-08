@@ -24,6 +24,7 @@
 
 #include "core/medium.h"
 #include "core/medium_call.h"
+#include "core/memory/huge_alloc.h"
 
 #include <enoki/array.h>
 
@@ -36,10 +37,10 @@ namespace lux2
     // Registry of medium pointers indexed by medium id.
     struct MediumPtrTable
     {
-        std::vector<const Medium *> ptrs;
+        HugeVector<const Medium *> ptrs;
 
         // 1 where the medium can scatter/absorb/emit.
-        std::vector<std::uint32_t> nonVacuum;
+        HugeVector<std::uint32_t> nonVacuum;
 
         // Recompute nonVacuum from the registered pointers.
         void RebuildNonVacuum()

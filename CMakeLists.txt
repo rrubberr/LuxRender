@@ -82,6 +82,9 @@ endif()
 # Forwarded to the LuxRender2's build to enable/disable integrator debug.
 option(LUX2_INTEGRATOR_DEBUG "Compile lux2 integrator debug instrumentation" OFF)
 
+# Buffers = vertex arenas, film accumulators, pointer tables.
+option(LUX_USE_HUGEPAGES "Back lux2 render buffers with huge pages" ON)
+
 ##############################
 # Set the default build args #
 ##############################
@@ -139,6 +142,7 @@ ExternalProject_Add(
         ${COMMON_LUX_PROJECT_ARGS}
         -DLUX2_RELEASE_DIR=${RELEASE_DIR}
         -DLUX2_INTEGRATOR_DEBUG=${LUX2_INTEGRATOR_DEBUG}
+        -DLUX_USE_HUGEPAGES=${LUX_USE_HUGEPAGES}
         -DCMAKE_FIND_ROOT_PATH=${BUILD_DIR}
         -DCMAKE_PREFIX_PATH=${BUILD_DIR}
         -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER

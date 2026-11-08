@@ -76,6 +76,12 @@ if(LUX2_INTEGRATOR_DEBUG)
 	ADD_DEFINITIONS(-DLUX2_INTEGRATOR_DEBUG)
 endif()
 
+# Hugepage backed render buffers (vertex arenas, film accumulators, tables).
+option(LUX_USE_HUGEPAGES "Back lux2 render buffers with huge pages" ON)
+if(LUX_USE_HUGEPAGES)
+	ADD_DEFINITIONS(-DLUX_USE_HUGEPAGES)
+endif()
+
 # Where the binaries are collected.
 if(NOT DEFINED LUX2_RELEASE_DIR)
 	set(LUX2_RELEASE_DIR ${CMAKE_BINARY_DIR})

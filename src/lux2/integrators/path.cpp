@@ -50,8 +50,10 @@ namespace lux2
 
     void PathIntegrator::RenderTile(const Scene &scene, const Tile &tile,
                                     Film &dest, Sampler &sampler,
+                                    IntegratorWorkerState *ws,
                                     uint64_t sampleBasis, uint32_t spp)
     {
+        (void)ws; // Path keeps no persistent worker state.
         const Camera &camera = scene.GetCamera();
         OccupancyBegin();
 

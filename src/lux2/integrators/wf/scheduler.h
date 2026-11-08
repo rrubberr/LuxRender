@@ -139,6 +139,9 @@ namespace lux2
 
             explicit ConnQueues(const MisBinTable *tbl) : m_tbl(tbl) {}
 
+            // Reorder each filled packet by (ePath, lPath).
+            void SetSortByPath(bool on) { m_sortByPath = on; }
+
             void Push(const ConnItem &it)
             {
                 const int b = m_tbl->At(it.t, it.s);
@@ -198,6 +201,39 @@ namespace lux2
                         SetSize(b, uint32_t(q.size()));
                 }
                 m_items -= k;
+                if (m_sortByPath && k > 1u)
+                {
+                    uint32_t ord[PACKET_WIDTH];
+                    for (uint32_t i = 0; i < k; ++i)
+                        ord[i] = i;
+                    std::sort(ord, ord + k, [&](uint32_t a, uint32_t b)
+                              {
+                                  return eA[a] != eA[b] ? eA[a] < eA[b]
+                                                        : lA[a] < lA[b];
+                              });
+                    alignas(64) uint32_t eT[PACKET_WIDTH], lT[PACKET_WIDTH],
+                        sT[PACKET_WIDTH], slT[PACKET_WIDTH];
+                    alignas(64) int32_t tT[PACKET_WIDTH], stT[PACKET_WIDTH];
+                    for (uint32_t i = 0; i < k; ++i)
+                    {
+                        const uint32_t j = ord[i];
+                        eT[i] = eA[j];
+                        lT[i] = lA[j];
+                        sT[i] = sA[j];
+                        slT[i] = slA[j];
+                        tT[i] = tA[j];
+                        stT[i] = stA[j];
+                    }
+                    for (uint32_t i = 0; i < k; ++i)
+                    {
+                        eA[i] = eT[i];
+                        lA[i] = lT[i];
+                        sA[i] = sT[i];
+                        slA[i] = slT[i];
+                        tA[i] = tT[i];
+                        stA[i] = stT[i];
+                    }
+                }
                 for (uint32_t i = k; i < PACKET_WIDTH; ++i)
                 {
                     eA[i] = lA[i] = sA[i] = slA[i] = 0u;
@@ -218,6 +254,7 @@ namespace lux2
 
             std::deque<ConnItem> m_bins[kBins];
             const MisBinTable *m_tbl = nullptr;
+            bool m_sortByPath = false;
             uint32_t m_items = 0u;
             // Bin occupancy.
             uint32_t m_binN[kBins] = {0u};

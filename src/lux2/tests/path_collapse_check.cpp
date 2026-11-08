@@ -210,7 +210,8 @@ double RunSeed(SurfaceIntegrator &integ, Scene &scene, uint64_t basis)
     t.y1 = scene.GetFilm().YRes();
     LuminanceProbe probe(scene.GetFilm().XRes(), scene.GetFilm().YRes());
     auto sampler = scene.GetSampler().Clone();
-    integ.RenderTile(scene, t, probe, *sampler, basis, sampler->SampleCount());
+    integ.RenderTile(scene, t, probe, *sampler, nullptr, basis,
+                     sampler->SampleCount());
     return probe.Mean();
 }
 

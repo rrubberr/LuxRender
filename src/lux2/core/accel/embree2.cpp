@@ -38,7 +38,12 @@ namespace lux2
     {
         static RTCDevice dev = []
         {
+#ifdef LUX_USE_HUGEPAGES
+            // Ask Embree explicitly for hugepages.
+            RTCDevice d = rtcNewDevice("hugepages=1");
+#else
             RTCDevice d = rtcNewDevice("");
+#endif
             rtcSetDeviceErrorFunction(
                 d,
                 [](void *, RTCError code, const char *str)

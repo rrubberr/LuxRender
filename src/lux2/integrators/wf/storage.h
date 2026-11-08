@@ -26,6 +26,7 @@
 
 #include "core/math/geometry.h"
 #include "core/math/vecp.h"
+#include "core/memory/huge_alloc.h"
 
 #include <enoki/array.h>
 
@@ -207,47 +208,14 @@ namespace lux2
                       "geom record must be cache-line aligned");
         static_assert(MIS_WORDS_TOTAL * 4 == 32, "mis record must be 32 B");
 
-        // 64-byte aligned vector.
-        template <class T>
-        struct AlignedAllocator
-        {
-            using value_type = T;
-            AlignedAllocator() = default;
-            template <class U>
-            AlignedAllocator(const AlignedAllocator<U> &)
-            {
-            }
-            T *allocate(size_t n)
-            {
-                return static_cast<T *>(
-                    ::operator new(n * sizeof(T), std::align_val_t(64)));
-            }
-            void deallocate(T *p, size_t) noexcept
-            {
-                ::operator delete(p, std::align_val_t(64));
-            }
-            template <class U>
-            bool operator==(const AlignedAllocator<U> &) const
-            {
-                return true;
-            }
-            template <class U>
-            bool operator!=(const AlignedAllocator<U> &) const
-            {
-                return false;
-            }
-        };
-        template <class T>
-        using AlignedVector = std::vector<T, AlignedAllocator<T>>;
-
         // Vertex arena.
         static_assert(PATH_STRIDE * GEOM_WORDS % 16 == 0);
         static_assert(PATH_STRIDE * MIS_WORDS % 16 == 0,
                       "mis record starts must stay 64B aligned");
         struct BlockArena
         {
-            AlignedVector<uint32_t> geomWords; // [nPaths * PATH_STRIDE * GEOM_WORDS]
-            AlignedVector<uint32_t> misWords;  // [nPaths * PATH_STRIDE * MIS_WORDS]
+            HugeVector<uint32_t> geomWords; // [nPaths * PATH_STRIDE * GEOM_WORDS]
+            HugeVector<uint32_t> misWords;  // [nPaths * PATH_STRIDE * MIS_WORDS]
 
             void Init(uint32_t nPaths)
             {

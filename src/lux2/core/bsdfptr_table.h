@@ -24,6 +24,7 @@
 
 #include "core/bsdf.h"
 #include "core/bsdf_call.h"
+#include "core/memory/huge_alloc.h"
 
 #include <enoki/array.h>
 
@@ -36,7 +37,7 @@ namespace lux2
     struct BsdfPtrTable
     {
         // Indexed by material id.
-        std::vector<const BSDF *> ptrs;
+        HugeVector<const BSDF *> ptrs;
 
         // Gather a BSDFPtr for the given material ids. Out of range = null.
         BSDFPtr Gather(const UInt32P &matID, MaskP active) const

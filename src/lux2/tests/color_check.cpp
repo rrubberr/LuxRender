@@ -151,6 +151,39 @@ void CheckIllum() {
 	Check(ok, "Smits illuminant");
 }
 
+// The folded table path (BuildSmitsTable + one lerp) must reproduce the
+// general RGBToSmitsSPD for a broadcast color, reflectant and illuminant.
+// This is the exactness guarantee behind the medium/texture fast path.
+void CheckSmitsTableFold() {
+	bool ok = true;
+	for (int t = 0; t < 64 && ok; ++t) {
+		const RGBColor rgb(RandUnit(), RandUnit(), RandUnit());
+		for (int illum = 0; illum < 2; ++illum) {
+			float tbl[lux2::SMITS_BINS];
+			lux2::BuildSmitsTable(ToP(rgb), illum != 0, tbl);
+			for (int k = 0; k < 48; ++k) {
+				const float wl = 380.f + RandUnit() * 340.f;
+				lux2::SpectrumWavelengthsP swp;
+				swp.FromWavelength(lux2::FloatP(wl));
+				const lux2::SWCSpectrumP ref =
+					lux2::RGBToSmitsSPD(ToP(rgb), swp, illum != 0);
+				lux2::SWCSpectrumP got =
+					lux2::SampleRegular1(tbl, swp.binRGB, swp.offsetRGB);
+				if (illum)
+					got = lux2::Clamped(got);
+				if (!Close(First(got), First(ref))) {
+					std::cerr << "  [dbg t=" << t << " illum=" << illum
+						<< " rgb=(" << rgb.c[0] << "," << rgb.c[1] << ","
+						<< rgb.c[2] << ") w=" << wl << " got=" << First(got)
+						<< " ref=" << First(ref) << "]\n";
+					ok = false;
+				}
+			}
+		}
+	}
+	Check(ok, "Smits folded table equals RGBToSmitsSPD");
+}
+
 // CIE luminance at a single wavelength must match SWCSpectrum::Y (single).
 void CheckLuminance() {
 	bool ok = true;
@@ -407,6 +440,7 @@ int main() {
 	CheckWavelengths();
 	CheckRefl();
 	CheckIllum();
+	CheckSmitsTableFold();
 	CheckLuminance();
 	CheckXYZ();
 	CheckYMatchesXYZ();
