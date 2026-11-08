@@ -52,7 +52,7 @@ namespace lux2
     public:
         BidirIntegrator(int eyeDepth, int lightDepth, int maxDepth,
                         float eyeRRThreshold, float lightRRThreshold,
-                        bool useT1, bool debug, const DiagConfig &diagCfg,
+                        bool debug, const DiagConfig &diagCfg,
                         const std::string &lightStrategy = "one",
                         const std::string &lightPathStrategy = "one",
                         int wfSamples = 128, int wfLightPool = 0,
@@ -62,7 +62,6 @@ namespace lux2
               m_maxDepth(maxDepth),
               m_eyeRRThreshold(eyeRRThreshold),
               m_lightRRThreshold(lightRRThreshold),
-              m_useT1(useT1),
               m_debug(debug),
               m_diagCfg(diagCfg),
               m_lightStrategy(lightStrategy),
@@ -96,7 +95,6 @@ namespace lux2
         int EyeDepth() const { return m_eyeDepth; }
         int LightDepth() const { return m_lightDepth; }
         int MaxDepth() const { return m_maxDepth; }
-        bool UseT1() const { return m_useT1; }
         bool Debug() const { return m_debug; }
         const std::string &LightStrategy() const { return m_lightStrategy; }
         const std::string &LightPathStrategy() const
@@ -113,7 +111,6 @@ namespace lux2
         int m_maxDepth; // total s+t-2 clamp (derived if <0)
         float m_eyeRRThreshold;
         float m_lightRRThreshold;
-        bool m_useT1;
         bool m_debug;
         std::string m_lightStrategy;
         std::string m_lightPathStrategy;

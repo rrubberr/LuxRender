@@ -193,10 +193,9 @@ namespace lux2
                                 weight);
             }
 
-            // nL == 0 when eye path hit a light where nE >= 2.
+            // nL == 0 when eye path hit a light (OnPassThrough always has nE >= 2).
             {
-                const MaskP cond =
-                    act && nl0 && ((nE - (one + one) >= one) || MaskP(ctx.useT1));
+                const MaskP cond = act && nl0;
                 const MaskP wide = cond && (nE >= (one + one));
                 FloatP pDirect = divp(tr.pdfLightDirect, eAF(nE - one, cond));
                 const MaskP rrOn = cond && (nE > Int32P(RR_START + 1));
@@ -206,8 +205,9 @@ namespace lux2
                 weight = select(cond && m, weight + pw(pDirect, k), weight);
             }
 
-            // Extend the light path toward the eye path.
-            const int minEye = ctx.useT1 ? 1 : 2;
+            // Extend the light path toward the eye path. The eye path's first
+            // vertex is a surface hit.
+            constexpr int minEye = 1;
             const Int32P nLightExt =
                 enoki::min(nE - Int32P(minEye),
                            Int32P(ctx.lightDepth) -

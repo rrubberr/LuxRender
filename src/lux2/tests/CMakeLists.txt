@@ -19,15 +19,20 @@
 #   This project is based on PBRT; see <http://www.pbrt.org>              #
 ###########################################################################
 
-# Create a lux2 check executable + test registration.
+# Create a lux2 check executable + test registration. Optional ARG is passed
+# to the test binary; optional WORKING_DIR sets working directory.
 function(add_lux2_check)
-	cmake_parse_arguments(CHECK "" "NAME;WORKING_DIR" "SOURCES;LINKS" ${ARGN})
+	cmake_parse_arguments(CHECK "" "NAME;WORKING_DIR;ARG" "SOURCES;LINKS" ${ARGN})
 
 	add_executable(${CHECK_NAME} ${CHECK_SOURCES})
 	target_include_directories(${CHECK_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 	target_link_libraries(${CHECK_NAME} PRIVATE ${CHECK_LINKS})
 
-	add_test(NAME ${CHECK_NAME} COMMAND ${CHECK_NAME})
+	if(CHECK_ARG)
+		add_test(NAME ${CHECK_NAME} COMMAND ${CHECK_NAME} ${CHECK_ARG})
+	else()
+		add_test(NAME ${CHECK_NAME} COMMAND ${CHECK_NAME})
+	endif()
 	if(CHECK_WORKING_DIR)
 		set_tests_properties(${CHECK_NAME} PROPERTIES WORKING_DIRECTORY ${CHECK_WORKING_DIR})
 	endif()
@@ -39,10 +44,14 @@ add_lux2_check(
 	LINKS lux2
 )
 
+# Cornell Box scene data.
+set(LUX2_CORNELL_DATA ${CMAKE_CURRENT_SOURCE_DIR}/../../../test/cornell_box/cornell_box/Scene/00001)
+
 add_lux2_check(
 	NAME lux2foundationcheck
 	SOURCES foundation_check.cpp
 	LINKS lux2
+	ARG ${LUX2_CORNELL_DATA}/floor_0000_m000.ply
 )
 
 set_tests_properties(lux2foundationcheck PROPERTIES TIMEOUT 120)
@@ -176,7 +185,7 @@ add_lux2_check(
 	NAME lux2shapecheck
 	SOURCES shape_check.cpp
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
-	WORKING_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../test/cornell_box/Scene/00001
+	ARG ${LUX2_CORNELL_DATA}/floor_0000_m000.ply
 )
 
 add_lux2_check(
@@ -185,11 +194,11 @@ add_lux2_check(
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
 )
 
+# scene_wiring_check builds scenes in memory.
 add_lux2_check(
 	NAME lux2scenewiringcheck
 	SOURCES scene_wiring_check.cpp
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
-	WORKING_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../test/cornell_box/Scene/00001
 )
 
 add_lux2_check(

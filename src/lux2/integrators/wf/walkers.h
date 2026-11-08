@@ -80,7 +80,8 @@ namespace lux2
             g.flux = SWCSpectrumP(1.f);
             g.k = FloatP(0.f);
             g.matID = UInt32P(0u);
-            g.medID = c.cameraMediumID;
+            // The camera vertex is a surface (aperture) vertex.
+            g.medID = UInt32P(LUX2_MEDIUM_CLEAR);
             g.medFront = c.cameraMediumID;
             g.medBack = c.cameraMediumID;
             StoreGeom(ps.arena->geomWords.data(), g, rec0, fill);
@@ -121,7 +122,7 @@ namespace lux2
         inline bool RefillEyeSched(const WalkCtx &c, PathStore &ps, SampleTable &tbl,
                                    BidirEyeConsumer &cons, const Camera &camera,
                                    const SamplerT &sampler, JobCursor &jobs,
-                                   uint64_t sampleBasis, uint32_t nT, bool useT1)
+                                   uint64_t sampleBasis, uint32_t nT)
         {
             EyeLanes &lane = cons.Tail();
             if (!tbl.HasFreeSlot())
@@ -145,16 +146,20 @@ namespace lux2
             std::vector<uint32_t> taken;
             const UInt32P paths = AllocPaths(ps, fill, taken);
 
+            // Solid-angle density of the primary ray. Seeds prevPdfR so the
+            // first surface vertex stores dARW[1] = camPdf * cos(v1) / d2.
+            const FloatP camPdf = camera.Pdf(plan.primary, fill);
+
             EyeLanes fresh = EyeLanes::Fresh(plan);
             fresh.path = paths;
             fresh.slot = slots;
             fresh.v = Int32P(1);
             fresh.core.medium = c.cameraMediumID;
+            fresh.prevPdfR = camPdf;
             lane = Blend(fill, fresh, lane);
 
             WriteCameraVertex(ps, c, tbl, lane, fill);
 
-            const FloatP camPdf = useT1 ? camera.Pdf(plan.primary, fill) : FloatP(0.f);
             alignas(64) float xA[PACKET_WIDTH], yA[PACKET_WIDTH], wA[PACKET_WIDTH],
                 cwA[PACKET_WIDTH], pdfA[PACKET_WIDTH];
             enoki::store_unaligned(xA, plan.x);
@@ -162,7 +167,8 @@ namespace lux2
             enoki::store_unaligned(wA, plan.sw.w);
             enoki::store_unaligned(cwA, plan.camWeight);
             enoki::store_unaligned(pdfA, camPdf);
-            const uint32_t pend = 1u + nT + (useT1 ? (1u + nT) : 0u);
+            // NEE + one Gen per light task + CamNee + one Cam per light task.
+            const uint32_t pend = 2u + 2u * nT;
             for (size_t i = 0; i < PACKET_WIDTH; ++i)
             {
                 if (fillA[i] <= 0.f)
@@ -224,7 +230,7 @@ namespace lux2
             {
                 WfTimer t(WF_PH_EYE_REFILL);
                 RefillEyeSched(c, ps, tbl, cons, camera, sampler, jobs, sampleBasis,
-                               nT, c.useT1);
+                               nT);
             }
             const MaskP before = lane.core.alive;
             if (!any(before))

@@ -32,6 +32,16 @@
 namespace lux2
 {
 
+    bool PerspectiveCamera::OriginPoint(Point3f *out) const
+    {
+        alignas(64) float x[PACKET_WIDTH], y[PACKET_WIDTH], z[PACKET_WIDTH];
+        enoki::store_unaligned(x, m_pos.x());
+        enoki::store_unaligned(y, m_pos.y());
+        enoki::store_unaligned(z, m_pos.z());
+        *out = Point3f(x[0], y[0], z[0]);
+        return true;
+    }
+
     PerspectiveCamera::PerspectiveCamera(const Transform &cameraToWorld,
                                          const float screen[4], float hither,
                                          float yon, float shutterOpen,

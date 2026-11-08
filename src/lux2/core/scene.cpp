@@ -516,6 +516,9 @@ namespace lux2
 
         // Build light group tables.
         m_lightGroups = desc.lightGroups;
+        // Place groupless lights in a default group.
+        if (!m_lights.empty() && m_lightGroups.empty())
+            m_lightGroups.push_back("default");
         const int groupCount = static_cast<int>(m_lightGroups.size());
         m_groupLights.assign(groupCount, {});
         m_groupInf.assign(groupCount, {});
@@ -674,6 +677,22 @@ namespace lux2
 
         // Keep the materials alive.
         m_materials = desc.materials;
+
+        // Resolve the medium enclosing each path origin.
+        if (m_embree && m_mediumTable.HasMedia())
+        {
+            Point3f op;
+            if (m_camera && m_camera->OriginPoint(&op))
+                m_cameraMedium = m_embree->MediumIDAt(op);
+            for (const auto &l : m_lights)
+            {
+                if (l->IsInfinite() || !l->OriginPoint(&op))
+                    continue;
+                const std::uint32_t med = m_embree->MediumIDAt(op);
+                if (med != LUX2_MEDIUM_CLEAR)
+                    m_lightMedium[l.get()] = med;
+            }
+        }
 
         m_committed = true;
     }

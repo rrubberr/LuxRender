@@ -48,7 +48,6 @@ namespace lux2
         const Camera *camera = nullptr;
         int eyeDepth = 8, lightDepth = 8;
         FloatP eyeRR, lightRR; // eyeThreshold, lightThreshold
-        bool useT1 = false;
         UInt32P cameraMediumID = UInt32P(LUX2_MEDIUM_CLEAR);
         // Verify that uniform area conversions of a solid angle
         // pdf recover the selection pdf.

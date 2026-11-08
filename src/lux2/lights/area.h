@@ -89,6 +89,9 @@ namespace lux2
         // Bind the emitting triangles and build the area CDF.
         void BindGeometry(const std::vector<TriangleDesc> &tris);
 
+        // Area weighted centroid of the emitting triangles.
+        bool OriginPoint(Point3f *out) const override;
+
         // Total emitting area.
         float TotalArea() const override { return m_totalArea; }
 

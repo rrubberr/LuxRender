@@ -174,6 +174,25 @@ namespace lux2
         RecomputeNormalization();
     }
 
+    bool AreaLight::OriginPoint(Point3f *out) const
+    {
+        if (m_triCount == 0 || m_totalArea <= 0.f)
+            return false;
+        // Area weighted centroid sum(area_i * (v0+v1+v2)/3) / totalArea.
+        Point3f c(0.f, 0.f, 0.f);
+        for (std::uint32_t i = 0; i < m_triCount; ++i)
+        {
+            const AreaTriangle<float> &at = m_tris[i];
+            const Vector3f e1 = at.v1 - at.v0;
+            const Vector3f e2 = at.v2 - at.v0;
+            const float a = 0.5f * enoki::sqrt(enoki::dot(enoki::cross(e1, e2),
+                                                          enoki::cross(e1, e2)));
+            c += (a / 3.f) * Point3f(at.v0 + at.v1 + at.v2);
+        }
+        *out = c / m_totalArea;
+        return true;
+    }
+
     SWCSpectrumP AreaLight::Le(const RayP &ray, MaskP active) const
     {
         // TODO: n=(0,0,1) and uv=(0,0). Correct for constant Le textures;

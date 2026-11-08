@@ -88,6 +88,8 @@ namespace lux2
             RayP shadow(origin, dir, tCur, tMax, FloatP(0.f));
             shadow.wavelengths = sw.w;
             shadow.mask = UInt32P(0xFFFFFFFFu);
+            // Only trace lanes still active.
+            shadow.alive = tracing;
             HitP hit;
             // Intersect shades the hit.
             c.embree->Intersect(shadow, hit, Coherent::No);

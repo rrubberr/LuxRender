@@ -48,8 +48,7 @@ namespace lux2
             std::vector<uint32_t> pending; // connections still owed
             std::vector<uint32_t> seed;    // sampler stream key
             std::vector<uint32_t> sidx;    // sample index
-            // Camera Pdf at the primary ray (useT1 only).
-            // TODO: Remove the useT1 flag, make always true.
+            // Solid angle density of the primary ray.
             std::vector<float> camPdfR0;
 
             std::vector<uint32_t> eyePath;   // eye pool path id for this sample

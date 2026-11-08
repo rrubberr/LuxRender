@@ -96,6 +96,9 @@ namespace lux2
                              MaskP active = MaskP(true),
                              MaskP receiverHasNormal = MaskP(true)) const = 0;
 
+        // A representative world-space emission point.
+        virtual bool OriginPoint(Point3f * /*out*/) const { return false; }
+
         // Sample an emission origin for light path construction.
         virtual MaskP Sample_Le(const SpectrumWavelengthsP &sw,
                                 const FloatP &u0, const FloatP &u1,

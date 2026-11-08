@@ -51,9 +51,14 @@ namespace lux2
         out.lightInf = scene.GroupLightInf(out.activeGroup);
         out.nLights = static_cast<int>(out.lightPtrs.size());
 
-        // Sampling tables indexed by the active light group. Without a matching
-        // prebuilt table (a caller that runs RenderTile without Start()) build
-        // one into the context, which owns it for the tile's lifetime.
+        // Origin medium per light.
+        out.lightMedium.assign(size_t(std::max(0, out.nLights)),
+                               LUX2_MEDIUM_CLEAR);
+        for (int i = 0; i < out.nLights; ++i)
+            out.lightMedium[size_t(i)] =
+                scene.LightMediumID(out.lightPtrs[size_t(i)]);
+
+        // Sampling tables indexed by the active light group.
         const bool haveD = opts.prebuiltD && out.activeGroup >= 0 &&
                            out.activeGroup < static_cast<int>(opts.prebuiltD->size());
         if (haveD)
@@ -66,8 +71,7 @@ namespace lux2
             out.lsD = &out.m_fallbackD;
         }
 
-        // The light-subpath table is only built for integrators that ask for
-        // it, so path pays nothing for a table it never reads.
+        // The light subpath table is only built for integrators that ask for it.
         if (opts.prebuiltP)
         {
             if (out.activeGroup >= 0 &&

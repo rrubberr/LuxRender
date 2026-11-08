@@ -257,6 +257,16 @@ namespace lux2
         // True if any material is Null.
         bool HasNull() const { return m_hasNull; }
 
+        // Medium enclosing the camera origin.
+        std::uint32_t CameraMediumID() const { return m_cameraMedium; }
+
+        // Medium enclosing a light's emission point.
+        std::uint32_t LightMediumID(const Light *l) const
+        {
+            auto it = m_lightMedium.find(l);
+            return it == m_lightMedium.end() ? LUX2_MEDIUM_CLEAR : it->second;
+        }
+
         // True after a successful Commit.
         bool IsCommitted() const { return m_committed; }
 
@@ -293,6 +303,9 @@ namespace lux2
         std::vector<std::vector<const Light *>> m_groupLights; // NEE list
         std::vector<std::vector<float>> m_groupInf;            // infinite flag per entry
         mutable int m_activeGroup = 0;
+        // Origin media resolved at commit (geometric point-location).
+        std::uint32_t m_cameraMedium = LUX2_MEDIUM_CLEAR;
+        std::map<const Light *, std::uint32_t> m_lightMedium;
         bool m_hasNull = false;
         BBox m_worldBound;
         Summary m_summary;

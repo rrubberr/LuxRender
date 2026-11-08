@@ -282,6 +282,83 @@ void CheckDegenerate() {
     Check(!nan, "no NaNs from degenerate triangle");
 }
 
+// Axis-aligned cube centered at origin, half-size h, with per-triangle
+// medium binding (front = outward/exterior side, back = interior). Winding
+// is generated so Embree's geometric normal points outward on every face.
+MeshDesc MakeMediumCube(float h, std::uint32_t frontID, std::uint32_t backID) {
+    MeshDesc m;
+    const Normal3f N[6] = {{1, 0, 0},  {-1, 0, 0}, {0, 1, 0},
+                           {0, -1, 0}, {0, 0, 1},  {0, 0, -1}};
+    // Tangents U,V chosen so cross(U,V) == N (right-handed outward winding).
+    const Vector3f U[6] = {{0, 1, 0},  {0, -1, 0}, {0, 0, 1},
+                           {0, 0, -1}, {1, 0, 0},  {-1, 0, 0}};
+    const Vector3f V[6] = {{0, 0, 1},  {0, 0, 1},  {1, 0, 0},
+                           {1, 0, 0},  {0, 1, 0},  {0, 1, 0}};
+    for (int f = 0; f < 6; ++f) {
+        const Point3f c(N[f].x() * h, N[f].y() * h, N[f].z() * h);
+        auto corner = [&](float su, float sv) {
+            return Point3f(c.x() + su * U[f].x() * h + sv * V[f].x() * h,
+                           c.y() + su * U[f].y() * h + sv * V[f].y() * h,
+                           c.z() + su * U[f].z() * h + sv * V[f].z() * h);
+        };
+        const Point3f p0 = corner(-1, -1), p1 = corner(1, -1),
+                      p2 = corner(1, 1), p3 = corner(-1, 1);
+        Normal3f nn(N[f].x(), N[f].y(), N[f].z());
+        TriangleDesc a = MakeTri(p0, p1, p2, nn, nn, nn, UV(0, 0), UV(1, 0),
+                                 UV(1, 1), 1, -1);
+        TriangleDesc b = MakeTri(p0, p2, p3, nn, nn, nn, UV(0, 0), UV(1, 1),
+                                 UV(0, 1), 1, -1);
+        a.mediumFrontID = frontID; a.mediumBackID = backID;
+        b.mediumFrontID = frontID; b.mediumBackID = backID;
+        m.tris.push_back(a);
+        m.tris.push_back(b);
+    }
+    m.bound = BBox(Point3f(-h, -h, -h), Point3f(h, h, h));
+    return m;
+}
+
+// MediumIDAt: point inside a closed volume resolves to the interior medium.
+void CheckMediumInside() {
+    std::cout << "[medium inside]" << std::endl;
+    EmbreeScene es;
+    std::vector<MeshDesc> meshes;
+    meshes.push_back(MakeMediumCube(1.f, 0u, 2u)); // exterior clear, interior 2
+    es.BuildFromMeshes(meshes);
+    Check(es.MediumIDAt(Point3f(0.f, 0.f, 0.f)) == 2u, "center -> interior 2");
+    Check(es.MediumIDAt(Point3f(0.5f, -0.3f, 0.7f)) == 2u,
+          "off-center inside -> 2");
+}
+
+// MediumIDAt: point outside a closed volume resolves to the exterior (clear).
+void CheckMediumOutside() {
+    std::cout << "[medium outside]" << std::endl;
+    EmbreeScene es;
+    std::vector<MeshDesc> meshes;
+    meshes.push_back(MakeMediumCube(1.f, 0u, 2u));
+    es.BuildFromMeshes(meshes);
+    Check(es.MediumIDAt(Point3f(3.f, 0.f, 0.f)) == 0u, "outside +X -> clear");
+    Check(es.MediumIDAt(Point3f(-2.f, 5.f, -1.f)) == 0u,
+          "far outside -> clear");
+}
+
+// MediumIDAt: a non-boundary triangle (front == back) is skipped, so a point
+// beside an open quad resolves to clear rather than the quad's medium.
+void CheckMediumSkipsNonBoundary() {
+    std::cout << "[medium skips non-boundary]" << std::endl;
+    EmbreeScene es;
+    std::vector<MeshDesc> meshes;
+    MeshDesc quad = MakeGround(9, -1); // z=0 plane, front==back==0
+    for (auto &t : quad.tris) {
+        t.mediumFrontID = 5u;
+        t.mediumBackID = 5u; // non-boundary: both sides identical
+    }
+    meshes.push_back(quad);
+    es.BuildFromMeshes(meshes);
+    // Point on the plane and a point above it: the quad is not an interface.
+    Check(es.MediumIDAt(Point3f(0.f, 0.f, 0.f)) == 0u, "on quad -> clear");
+    Check(es.MediumIDAt(Point3f(0.f, 0.f, 0.5f)) == 0u, "above quad -> clear");
+}
+
 // Coherent vs incoherent parity.
 void CheckCoherencyParity() {
     std::cout << "[coherency parity]" << std::endl;
@@ -387,6 +464,9 @@ int main() {
     CheckDegenerate();
     CheckCoherencyParity();
     CheckTailLanes();
+    CheckMediumInside();
+    CheckMediumOutside();
+    CheckMediumSkipsNonBoundary();
     CheckPerfSmoke();
 
     if (g_failures == 0) {

@@ -54,9 +54,9 @@ void TestMisLevel()
 
 void TestBinTable()
 {
-    // eyeDepth=lightDepth=16, useT1 -> minEye=1.
+    // eyeDepth=lightDepth=16, minEye=1.
     MisBinTable bt;
-    bt.Build(16, 16, /*useT1=*/true);
+    bt.Build(16, 16);
     // (t,s)=(1,1): iMax=min(0,..)=0, jMax=min(1,15)=1 -> (lvl0,lvl1).
     Check(bt.At(1, 1) == 0 * kMisLevels + 1, "bin(1,1)==(0,1)");
     // (t,s)=(8,4): iMax=min(7,12)=7->6, jMax=min(4,8)=4->4 -> 6*8+4.
@@ -81,7 +81,7 @@ void TestBinTable()
 void TestQueueFifoTopUp()
 {
     MisBinTable bt;
-    bt.Build(16, 16, true);
+    bt.Build(16, 16);
     ConnQueues q(&bt);
 
     // Push 3 items all at (t,s)=(8,4) -> same bin, FIFO order preserved.
@@ -116,7 +116,7 @@ void TestQueueFifoTopUp()
 void TestFullestBinIncremental()
 {
     MisBinTable bt;
-    bt.Build(16, 16, true);
+    bt.Build(16, 16);
     ConnQueues q(&bt);
 
     auto brute = [&]()
@@ -161,6 +161,60 @@ void TestFullestBinIncremental()
     Check(q.FullestBin() == -1, "empty -> fullest -1");
 }
 
+// Regression: a bin can hold far more than 64 items -- at eyeDepth=lightDepth=16
+// a single pair queues (nE-1)*nL = 225 Gen items and the quantized MIS levels
+// drop most of them into one bin. The occupancy tracking must stay correct for
+// counts above the bin count (the old bitmap indexed a 64-bit mask and a
+// kBins+1 array by item count).
+void TestFullestBinOver64()
+{
+    MisBinTable bt;
+    bt.Build(16, 16);
+    ConnQueues q(&bt);
+
+    auto brute = [&]()
+    {
+        int best = -1;
+        uint32_t bestN = 0;
+        for (int b = 0; b < ConnQueues::kBins; ++b)
+            if (q.BinSize(b) > bestN)
+            {
+                bestN = q.BinSize(b);
+                best = b;
+            }
+        return best;
+    };
+
+    const int big = bt.At(16, 16), small = bt.At(2, 2);
+    constexpr int kMany = 200; // > kBins
+    for (int i = 0; i < kMany; ++i)
+        q.Push({uint32_t(i), 0u, 0u, 0u, 16, 16});
+    for (int i = 0; i < 3; ++i)
+        q.Push({uint32_t(i), 0u, 0u, 0u, 2, 2});
+
+    Check(q.BinSize(big) == uint32_t(kMany), "over-capacity bin holds all items");
+    Check(q.FullestBin() == big && q.FullestBin() == brute(),
+          "fullest found with >64 items in one bin");
+
+    // Drain the big bin past both 64 and its own count; fullest must fall to
+    // the small bin only once the big one drops below it.
+    UInt32P ePath, lPath, sample, slot;
+    Int32P t, s;
+    int rounds = 0;
+    while (q.BinSize(big) > 3u && rounds < kMany)
+    {
+        q.Fill(q.FullestBin(), ePath, lPath, sample, slot, t, s, false);
+        Check(q.FullestBin() == brute(), "fullest tracks scan while draining");
+        ++rounds;
+    }
+    Check(q.FullestBin() == small && q.FullestBin() == brute(),
+          "fullest falls to the remaining bin");
+
+    while (!q.Empty())
+        q.Fill(q.FullestBin(), ePath, lPath, sample, slot, t, s, true);
+    Check(q.FullestBin() == -1, "empty -> fullest -1 after overflow");
+}
+
 // ---- Scheduler ---------------------------------------------------------
 void TestEmissionEyeFirst()
 {
@@ -171,8 +225,8 @@ void TestEmissionEyeFirst()
     eyePs.n.assign(64, 0u);
     lightPs.n.assign(64, 0u);
     MisBinTable bt;
-    bt.Build(16, 16, /*useT1=*/true);
-    Scheduler sched(tbl, eyePs, lightPs, /*useT1=*/true, bt);
+    bt.Build(16, 16);
+    Scheduler sched(tbl, eyePs, lightPs, bt);
 
     const uint32_t s = tbl.AcquireSlot();
     Check(s == 0u, "AcquireSlot returns slot 0 (LIFO head)");
@@ -181,13 +235,13 @@ void TestEmissionEyeFirst()
     eyePs.n[5] = 5u;
     lightPs.n[7] = 4u;
     lightPs.n[8] = 3u;
-    // Base pending: 1 NEE + nT Gen + useT1*(1 CamNee + nT Cam).
+    // Base pending: 1 NEE + nT Gen + 1 CamNee + nT Cam.
     tbl.pending[s] = 1u + 2u + (1u + 2u);
 
     // Eye done first: NEE expands to nE-1=4, CamNee=1, no Gen yet.
     sched.OnEyeDone(s, /*path=*/5);
     Check(sched.nee.Size() == 4u, "nee = nE-1 items on eye done");
-    Check(sched.camNee.Size() == 1u, "camNee = 1 item (useT1)");
+    Check(sched.camNee.Size() == 1u, "camNee = 1 item");
     Check(sched.gen.Size() == 0u, "no gen before lights done");
 
     // Light j=0 (nL=4): cam += 4, gen += (nE-1)*nL = 4*4 = 16.
@@ -218,25 +272,28 @@ void TestEmissionLightFirst()
     eyePs.n.assign(64, 0u);
     lightPs.n.assign(64, 0u);
     MisBinTable bt;
-    bt.Build(16, 16, /*useT1=*/false);
-    Scheduler sched(tbl, eyePs, lightPs, /*useT1=*/false, bt);
+    bt.Build(16, 16);
+    Scheduler sched(tbl, eyePs, lightPs, bt);
 
     const uint32_t s = tbl.AcquireSlot();
     tbl.SetLightPath(s, 0, 9u);
     eyePs.n[6] = 5u;
     lightPs.n[9] = 4u;
-    tbl.pending[s] = 1u + 1u; // NEE + Gen (useT1 off)
+    // Base pending: 1 NEE + nT Gen + 1 CamNee + nT Cam.
+    tbl.pending[s] = 1u + 1u + (1u + 1u);
 
     sched.OnLightDone(s, /*path=*/9, /*j=*/0);
-    Check(sched.cam.Empty(), "no cam when useT1 off");
+    Check(sched.cam.Size() == 4u, "cam = nL items even before eye done");
     Check(sched.gen.Size() == 0u, "no gen before eye done");
     Check(sched.nee.Empty(), "no nee before eye done");
 
     sched.OnEyeDone(s, /*path=*/6);
     Check(sched.nee.Size() == 4u, "nee = nE-1 when eye finally done");
+    Check(sched.camNee.Size() == 1u, "camNee = 1 item");
     Check(sched.gen.Size() == (5u - 1u) * 4u, "gen emitted once eye catches up");
 
-    const uint32_t total = sched.nee.Size() + sched.gen.Size();
+    const uint32_t total = sched.nee.Size() + sched.camNee.Size() +
+                           sched.gen.Size() + sched.cam.Size();
     for (uint32_t k = 0; k < total; ++k)
         sched.CompleteItem(s);
     Check(tbl.pending[s] == 0u, "pending balances to exactly 0 (light-first)");
@@ -251,8 +308,8 @@ void TestEmptyCursorSkipped()
     eyePs.n.assign(64, 0u);
     lightPs.n.assign(64, 0u);
     MisBinTable bt;
-    bt.Build(16, 16, false);
-    Scheduler sched(tbl, eyePs, lightPs, false, bt);
+    bt.Build(16, 16);
+    Scheduler sched(tbl, eyePs, lightPs, bt);
 
     const uint32_t s = tbl.AcquireSlot();
     tbl.SetLightPath(s, 0, 1u); // nL=1 -> valid (nL>=1)
@@ -260,7 +317,7 @@ void TestEmptyCursorSkipped()
     eyePs.n[3] = 1u;            // nE=1 -> invalid for Gen
     lightPs.n[1] = 1u;
     lightPs.n[2] = 0u;
-    tbl.pending[s] = 1u + 2u;
+    tbl.pending[s] = 1u + 2u + (1u + 2u);
 
     sched.OnEyeDone(s, /*path=*/3);
     sched.OnLightDone(s, 1u, 0);
@@ -270,12 +327,12 @@ void TestEmptyCursorSkipped()
     // Now a valid eye (nE=3) with one nL=1 and one nL=0 light.
     SampleTable tbl2;
     tbl2.Init(4, 2);
-    Scheduler sched2(tbl2, eyePs, lightPs, false, bt);
+    Scheduler sched2(tbl2, eyePs, lightPs, bt);
     const uint32_t s2 = tbl2.AcquireSlot();
     tbl2.SetLightPath(s2, 0, 1u); // nL=1 valid
     tbl2.SetLightPath(s2, 1, 2u); // nL=0 invalid
     eyePs.n[4] = 3u;
-    tbl2.pending[s2] = 1u + 2u;
+    tbl2.pending[s2] = 1u + 2u + (1u + 2u);
     sched2.OnEyeDone(s2, 4);
     sched2.OnLightDone(s2, 1u, 0);
     sched2.OnLightDone(s2, 2u, 1);
@@ -293,8 +350,8 @@ void TestCancelLightBalance()
     eyePs.n.assign(64, 0u);
     lightPs.n.assign(64, 0u);
     MisBinTable bt;
-    bt.Build(16, 16, /*useT1=*/true);
-    Scheduler sched(tbl, eyePs, lightPs, true, bt);
+    bt.Build(16, 16);
+    Scheduler sched(tbl, eyePs, lightPs, bt);
 
     const uint32_t s = tbl.AcquireSlot();
     eyePs.n[5] = 3u;
@@ -317,8 +374,8 @@ void TestPendingComplete()
     tbl.Init(4, 1);
     PathStore eyePs, lightPs;
     MisBinTable bt;
-    bt.Build(16, 16, false);
-    Scheduler sched(tbl, eyePs, lightPs, false, bt);
+    bt.Build(16, 16);
+    Scheduler sched(tbl, eyePs, lightPs, bt);
     const uint32_t s = tbl.AcquireSlot();
     tbl.pending[s] = 3u;
     Check(!sched.CompleteWork(s, 2u), "not complete at 1 owed");
@@ -335,6 +392,7 @@ int main()
     TestBinTable();
     TestQueueFifoTopUp();
     TestFullestBinIncremental();
+    TestFullestBinOver64();
     TestEmissionEyeFirst();
     TestEmissionLightFirst();
     TestEmptyCursorSkipped();

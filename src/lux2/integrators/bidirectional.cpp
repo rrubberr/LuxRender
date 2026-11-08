@@ -157,13 +157,13 @@ namespace lux2
             BuildTileCtx(scene, opts, ctx);
         }
         ctx.camera = &camera;
-        // Id 0 is the ambient composite.
-        ctx.cameraMediumID = UInt32P(LUX2_MEDIUM_CLEAR);
+        // Medium of the camera origin (id 0 = ambient composite when
+        // camera in vacuum).
+        ctx.cameraMediumID = UInt32P(scene.CameraMediumID());
         ctx.eyeDepth = m_eyeDepth;
         ctx.lightDepth = m_lightDepth;
         ctx.eyeRR = FloatP(m_eyeRRThreshold);
         ctx.lightRR = FloatP(m_lightRRThreshold);
-        ctx.useT1 = m_useT1 && camera.SupportsProject();
         // Accumulators merged into the store at tile end.
         ctx.cfg = m_diagCfg;
 #ifdef LUX2_INTEGRATOR_DEBUG
@@ -211,11 +211,11 @@ namespace lux2
 
         // [t][s] -> MIS bin lookup for the flattened connection queues.
         wf::MisBinTable binTable;
-        binTable.Build(m_eyeDepth, m_lightDepth, ctx.useT1);
+        binTable.Build(m_eyeDepth, m_lightDepth);
 
         wf::BidirEyeConsumer eyeCons(ctx, &psEye, &tbl);
         wf::BidirLightConsumer lightCons(ctx, &psLight);
-        wf::Scheduler sched(tbl, psEye, psLight, ctx.useT1, binTable);
+        wf::Scheduler sched(tbl, psEye, psLight, binTable);
 
         JobCursor jobs(tile, spp);
         // Light splats go to the worker's scratch film.
@@ -599,7 +599,6 @@ namespace lux2
         const int maxDepth = p ? p->FindOneInt("maxdepth", -1) : -1; // TODO: unused!
         const float eyeRR = p ? p->FindOneFloat("eyerrthreshold", 0.f) : 0.f;
         const float lightRR = p ? p->FindOneFloat("lightrrthreshold", 0.f) : 0.f;
-        const bool useT1 = p ? p->FindOneBool("uset1", false) : false;
         const bool debug = p ? p->FindOneBool("debug", false) : false;
         DiagConfig cfg;
         cfg.onlyS = p ? p->FindOneInt("onlys", -1) : -1;
@@ -621,7 +620,7 @@ namespace lux2
         if (p)
             p->EraseString("mismode");
         return std::make_shared<BidirIntegrator>(
-            eyeDepth, lightDepth, maxDepth, eyeRR, lightRR, useT1, debug, cfg,
+            eyeDepth, lightDepth, maxDepth, eyeRR, lightRR, debug, cfg,
             lightStrategy, lightPathStrategy, wfSamples, wfLightPool,
             wfHighWater, wfMinFill);
     }

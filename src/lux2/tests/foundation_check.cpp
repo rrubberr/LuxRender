@@ -515,9 +515,10 @@ void CheckMaterials(const std::string &plyPath) {
 		if (!b) allPtr = false;
 	Check(allPtr, "materials: every BSDF pointer non-null");
 
-	// Default material (id 0) is the null material.
-	Check((table.ptrs[0]->flags() & uint32_t(BSDFType::Null)) != 0u,
-		"materials: default (id 0) is a Null BSDF");
+	// Default material (id 0) matches legacy: an unbound shape falls back to
+	// matte (MakeMaterial("matte", ...)), i.e. a diffuse BSDF.
+	Check((table.ptrs[0]->flags() & uint32_t(BSDFType::DiffuseReflection)) != 0u,
+		"materials: default (id 0) is a matte (diffuse) BSDF");
 
 	// Every triangle's matID is in range; the unbound shape maps to id 0.
 	bool inRange = true;

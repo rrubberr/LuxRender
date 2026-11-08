@@ -321,6 +321,7 @@ namespace lux2
         WF_PH_NEE,
         WF_PH_CAMNEE,
         WF_PH_CAM,
+        WF_PH_SCHED,
         WF_PH_LOOP,
         WF_PH_COUNT
     };

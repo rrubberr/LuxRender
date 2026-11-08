@@ -513,4 +513,106 @@ namespace lux2
             enoki::gather<UInt32P>(mediumBackID.data(), gidx, active);
     }
 
+    namespace
+    {
+        // Resolve the medium on the origin side of the first interface
+        // crossed by a ray from p along unit dir.
+        bool CastMedium(const RTCScene scene, const Point3f &p,
+                        const Vector3f &dir,
+                        const std::vector<std::uint32_t> &base,
+                        const std::vector<std::uint32_t> &front,
+                        const std::vector<std::uint32_t> &back,
+                        std::uint32_t *out)
+        {
+            float tcur = 0.f;
+            for (int hop = 0; hop < 16; ++hop)
+            {
+                RTCRayHit rh{};
+                rh.ray.org_x = p.x();
+                rh.ray.org_y = p.y();
+                rh.ray.org_z = p.z();
+                rh.ray.dir_x = dir.x();
+                rh.ray.dir_y = dir.y();
+                rh.ray.dir_z = dir.z();
+                rh.ray.tnear = tcur + EPS_RAY;
+                rh.ray.tfar = INF_F;
+                rh.ray.time = 0.f;
+                rh.ray.mask = 0xFFFFFFFFu;
+                rh.ray.flags = 0;
+                rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
+
+                RTCIntersectArguments args;
+                rtcInitIntersectArguments(&args);
+                args.flags = RTC_RAY_QUERY_FLAG_INCOHERENT;
+                rtcIntersect1(scene, &rh, &args);
+
+                if (rh.hit.geomID == RTC_INVALID_GEOMETRY_ID)
+                    return false; // escaped: no boundary this direction
+
+                const std::size_t g =
+                    base[rh.hit.geomID] + rh.hit.primID;
+                const std::uint32_t f = front[g], b = back[g];
+                if (f == b)
+                {
+                    // Non-boundary triangle (emitter, wall).
+                    tcur = rh.ray.tfar;
+                    continue;
+                }
+
+                const float dnd = dir.x() * rh.hit.Ng_x + dir.y() * rh.hit.Ng_y +
+                                  dir.z() * rh.hit.Ng_z;
+                // dot(d, ng) > 0: ray leaves through the back side, so p sits
+                // on the back half space.
+                *out = (dnd > 0.f) ? b : f;
+                return true;
+            }
+            std::cerr << "[lux2 MediumIDAt] boundary skip limit reached at ("
+                      << p.x() << ", " << p.y() << ", " << p.z()
+                      << "); treating as outside\n";
+            return false;
+        }
+    } // namespace
+
+    std::uint32_t EmbreeScene::MediumIDAt(const Point3f &p) const
+    {
+        if (!m_scene)
+            return LUX2_MEDIUM_CLEAR;
+
+        const Vector3f dirs[6] = {Vector3f(1.f, 0.f, 0.f), Vector3f(-1.f, 0.f, 0.f),
+                                  Vector3f(0.f, 1.f, 0.f), Vector3f(0.f, -1.f, 0.f),
+                                  Vector3f(0.f, 0.f, 1.f), Vector3f(0.f, 0.f, -1.f)};
+
+        std::uint32_t vote[2] = {LUX2_MEDIUM_CLEAR, LUX2_MEDIUM_CLEAR};
+        int votes[2] = {0, 0};
+        for (int i = 0; i < 6; ++i)
+        {
+            std::uint32_t med = LUX2_MEDIUM_CLEAR;
+            if (!CastMedium(m_scene, p, dirs[i], geomToBase, mediumFrontID,
+                            mediumBackID, &med))
+                med = LUX2_MEDIUM_CLEAR;
+
+            if (votes[0] == 0 || med == vote[0])
+            {
+                vote[0] = med;
+                votes[0]++;
+            }
+            else if (votes[1] == 0 || med == vote[1])
+            {
+                vote[1] = med;
+                votes[1]++;
+            }
+            // A third distinct id is impossible for a point.
+        }
+
+        const std::uint32_t win = (votes[0] >= votes[1]) ? vote[0] : vote[1];
+        if (vote[0] != vote[1] && votes[0] == votes[1])
+        {
+            std::cerr << "[lux2 MediumIDAt] split medium vote at (" << p.x()
+                      << ", " << p.y() << ", " << p.z()
+                      << ") — leaky or overlapping volume boundary\n";
+        }
+        return win;
+    }
+
 } // namespace lux2
+A

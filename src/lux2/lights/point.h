@@ -81,6 +81,12 @@ namespace lux2
 
         static std::shared_ptr<Light> CreateLight(const PluginContext &ctx);
 
+        bool OriginPoint(Point3f *out) const override
+        {
+            *out = m_pos;
+            return true;
+        }
+
     private:
         std::shared_ptr<ColorTexture> m_L;
         float m_gain;  // effective = baseGain * photometric normalization

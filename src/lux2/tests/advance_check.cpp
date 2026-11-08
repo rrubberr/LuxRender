@@ -111,6 +111,20 @@ MeshDesc QuadAt(float z, uint32_t mat)
     return m;
 }
 
+// A Null quad at height z carrying a medium half-space binding: front (+z,
+// the side the ray comes from) is `frontID`, back (-z, into the volume) is
+// `backID`. Used to check that Advance persists a boundary medium swap.
+MeshDesc NullQuadMed(float z, uint32_t mat, uint32_t frontID, uint32_t backID)
+{
+    MeshDesc m = QuadAt(z, mat);
+    for (auto &t : m.tris)
+    {
+        t.mediumFrontID = frontID;
+        t.mediumBackID = backID;
+    }
+    return m;
+}
+
 LaneCore MakeLane(Point3f o, Vector3f d)
 {
     LaneCore c;
@@ -187,6 +201,30 @@ void CheckDoubleNull()
 
     Check(all(eq(ev.surface, MaskP(true))), "surface hit after two collapses");
     Check(cons.passThroughs[0] == 2, "two OnPassThrough for two Nulls");
+}
+
+// A Null boundary with a medium binding: crossing it must persist the exit
+// medium back onto the lane, even when the flight itself never scatters
+// (empty medium table). Regression for the lane.medium write-back.
+void CheckMediumWriteBack()
+{
+    std::cout << "[medium write-back]" << std::endl;
+    EmbreeScene es;
+    BsdfPtrTable table;
+    MediumPtrTable mtab;
+    TileCtx ctx;
+    // mat 1 = Null boundary (front clear, back medium id 3), mat 0 diffuse.
+    Setup(ctx, es, table, mtab,
+          {NullQuadMed(0.f, 1, 0u, 3u), QuadAt(-1.f, 0)});
+    ctx.hasMedia = true; // enable the boundary swap + write-back path
+
+    CountConsumer cons;
+    LaneCore lane = MakeLane(Point3f(0, 0, 1), Vector3f(0, 0, -1));
+    Event ev = Advance<Dir::Eye>(ctx, lane, cons, lane.alive);
+
+    Check(all(eq(ev.surface, MaskP(true))), "surface behind the boundary");
+    // Ray leaves through the back half-space (dot(d, ng) < 0) -> medium 3.
+    Check(lane.medium[0] == 3u, "lane.medium updated to the exit medium");
 }
 
 // A ray that hits nothing: escape.

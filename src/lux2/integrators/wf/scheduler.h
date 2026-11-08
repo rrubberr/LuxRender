@@ -80,9 +80,9 @@ namespace lux2
             // (level_i, level_j), b first.
             uint8_t neigh[kBins][kBins];
 
-            void Build(int eyeDepth, int lightDepth, bool useT1)
+            void Build(int eyeDepth, int lightDepth)
             {
-                const int minEye = useT1 ? 1 : 2;
+                constexpr int minEye = 1;
                 for (int t = 0; t <= MAX_DEPTH; ++t)
                 {
                     for (int s = 0; s <= MAX_DEPTH; ++s)
@@ -137,11 +137,7 @@ namespace lux2
         public:
             static constexpr int kBins = MisBinTable::kBins;
 
-            explicit ConnQueues(const MisBinTable *tbl) : m_tbl(tbl)
-            {
-                for (int i = 0; i <= kBins; ++i)
-                    m_atLvl[i] = -1;
-            }
+            explicit ConnQueues(const MisBinTable *tbl) : m_tbl(tbl) {}
 
             void Push(const ConnItem &it)
             {
@@ -158,10 +154,15 @@ namespace lux2
             // Bin with the most items.
             int FullestBin() const
             {
-                if (m_lvl == 0ull)
-                    return -1;
-                const int lvl = 63 - __builtin_clzll(m_lvl);
-                return m_atLvl[lvl];
+                int best = -1;
+                uint32_t bestN = 0;
+                for (int b = 0; b < kBins; ++b)
+                    if (m_binN[b] > bestN)
+                    {
+                        bestN = m_binN[b];
+                        best = b;
+                    }
+                return best;
             }
 
             // Fill up to PACKET_WIDTH items into the packet arrays.
@@ -213,40 +214,13 @@ namespace lux2
 
         private:
             // Record that bin `b` now holds `n` items.
-            void SetSize(int b, uint32_t n)
-            {
-                const uint32_t old = m_binN[b];
-                if (old == n)
-                    return;
-                // Move b out of `old`'s bookkeeping first.
-                m_binN[b] = n;
-                if (old > 0u && m_atLvl[old] == b)
-                {
-                    int rep = -1;
-                    for (int i = 0; i < kBins; ++i)
-                        if (m_binN[i] == old)
-                        {
-                            rep = i;
-                            break;
-                        }
-                    m_atLvl[old] = rep;
-                    if (rep < 0)
-                        m_lvl &= ~(1ull << old);
-                }
-                if (n > 0u && m_atLvl[n] < 0)
-                {
-                    m_atLvl[n] = b;
-                    m_lvl |= 1ull << n;
-                }
-            }
+            void SetSize(int b, uint32_t n) { m_binN[b] = n; }
 
             std::deque<ConnItem> m_bins[kBins];
             const MisBinTable *m_tbl = nullptr;
             uint32_t m_items = 0u;
-            // Incremental fullest bin state.
+            // Bin occupancy.
             uint32_t m_binN[kBins] = {0u};
-            int m_atLvl[kBins + 1];
-            uint64_t m_lvl = 0ull;
         };
 
         // Sample/path lifecycle.
@@ -255,7 +229,6 @@ namespace lux2
             SampleTable &tbl;
             const PathStore &eyePs;
             const PathStore &lightPs;
-            bool useT1 = false;
 
             const MisBinTable &bins;
             ConnQueues gen, nee, camNee, cam;
@@ -268,8 +241,8 @@ namespace lux2
             uint32_t gateSamples = 0u;
 
             Scheduler(SampleTable &t, const PathStore &ePs, const PathStore &lPs,
-                      bool useT1_, const MisBinTable &bins_)
-                : tbl(t), eyePs(ePs), lightPs(lPs), useT1(useT1_),
+                      const MisBinTable &bins_)
+                : tbl(t), eyePs(ePs), lightPs(lPs),
                   bins(bins_), gen(&bins_), nee(&bins_), camNee(&bins_),
                   cam(&bins_)
             {
@@ -291,9 +264,8 @@ namespace lux2
                 for (uint32_t k = 0; k < nCnt; ++k)
                     PushItem(nee, {path, 0u, sample, 0u, int32_t(2 + k), 1});
 
-                // CamNee.
-                if (useT1)
-                    PushItem(camNee, {path, 0u, sample, 0u, 1, 1});
+                // Direct light sampling from the camera vertex.
+                PushItem(camNee, {path, 0u, sample, 0u, 1, 1});
 
                 for (uint32_t j = 0; j < tbl.nT; ++j)
                 {
@@ -312,7 +284,8 @@ namespace lux2
             void CancelLight(uint32_t sample, uint32_t j)
             {
                 tbl.SetLightDone(sample, j);
-                CompleteWork(sample, 1u + (useT1 ? 1u : 0u));
+                // Settle Gen and Cam tokens.
+                CompleteWork(sample, 2u);
             }
 
             void OnLightDone(uint32_t sample, uint32_t path, uint32_t j)
@@ -320,8 +293,7 @@ namespace lux2
                 tbl.SetLightDone(sample, j);
                 const uint32_t nL = lightPs.n[path];
 
-                // Cam instance.
-                if (useT1)
+                // Connect each light vertex to the camera.
                 {
                     const uint32_t cCnt = nL >= 1u ? nL : 0u;
                     ReserveItems(sample, cCnt);

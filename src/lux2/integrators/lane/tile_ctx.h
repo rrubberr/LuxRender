@@ -80,6 +80,8 @@ namespace lux2
         // Lights of the active group, indexed by light id within the group.
         std::vector<const Light *> lightPtrs;
         std::vector<float> lightInf;
+        // Medium enclosing each light's emission point.
+        std::vector<std::uint32_t> lightMedium;
         int nLights = 0;
 
         // Area lights: by area id, and by lightPtrs index.

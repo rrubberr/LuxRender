@@ -196,6 +196,10 @@ namespace lux2
             tracing = isNull;
         }
 
+        // Persist medium swap back to the lane.
+        if (c.hasMedia)
+            lane.medium = ray.medium;
+
         // Classify the surviving lanes into four states.
         ev.absorbed = ev.absorbed && alive;
         ev.scatter = ev.scatter && alive && !ev.absorbed;

@@ -59,8 +59,10 @@ namespace lux2
             const HitP &h = ev.hit;
             VertexGeomP g;
             g.p = select(validVtx, h.p, Point3fP(0.f));
-            g.n = select(validVtx, ev.dg.n, Normal3fP(0.f));
-            g.ng = select(validVtx, ev.dg.ng, Normal3fP(0.f));
+            // ev.dg is only resolved for surface events.
+            const MaskP surf = validVtx && ev.surface;
+            g.n = select(surf, ev.dg.n, Normal3fP(0.f));
+            g.ng = select(surf, ev.dg.ng, Normal3fP(0.f));
             g.wb = Vector3fP(0.f); // filled by caller (wo)
             g.dp_du = h.dp_du;
             g.dp_dv = h.dp_dv;
@@ -135,8 +137,11 @@ namespace lux2
                 const FloatP emitPdf = abs(dot(wo, dg.n)) * INVPI; // v.pdf
 
                 Transient tr;
-                const MaskP hasPrev = (mL.v >= Int32P(2)) || MaskP(m_c.useT1);
-                tr.eAF_last = select(hasPrev, mL.prevPdfR * cB * invD2, FloatP(0.f));
+                // prevPdfR is camera-seeded at refill, so v==1 carries the
+                // camera arrival density.
+                tr.eAF_last = mL.prevPdfR * cB * invD2;
+                // pdfLightDirect uses lsD (the direct strategy's selection);
+                // the light-path term uses lsP.
                 const FloatP pLP = enoki::gather<FloatP>(m_c.lsP->areaPSel.data(),
                                                          h.lightID, cont);
                 tr.eAR_last = pLP * divp(FloatP(1.f), area);
@@ -205,11 +210,11 @@ namespace lux2
                 const UInt32P rec = RecIdx(*m_ps, mL.path, mL.v, writeV);
                 StoreGeom(m_ps->arena->geomWords.data(), g, rec, writeV);
 
-                // dARW[v] = pdfR[v-1] * cB / d2 (needs prevPdfR).
-                const MaskP hasPrev = (mL.v >= Int32P(2)) || MaskP(m_c.useT1);
+                // dARW[v] = pdfR[v-1] * cB / d2. prevPdfR is camera seeded at
+                // refill, so v==1 stores the camera-arrival density.
                 VertexMisP mv;
                 mv.dAW = FloatP(0.f); // patched at step v+1
-                mv.dARW = select(writeV && hasPrev,
+                mv.dARW = select(writeV,
                                  mL.prevPdfR * cB * divp(FloatP(1.f), d2), FloatP(0.f));
                 mv.cosi = FloatP(0.f); // set after sampling
                 mv.coso = cB;
@@ -431,9 +436,12 @@ namespace lux2
                 g.flux = select(ok, Le * divp(FloatP(1.f), aF0), SWCSpectrumP(0.f));
                 g.k = FloatP(0.f);
                 g.matID = UInt32P(0u); // origin BSDF is the emitter
+                // Origin medium.
+                const UInt32P med = enoki::gather<UInt32P>(
+                    m_c.lightMedium.data(), selIdx, fill);
                 g.medID = UInt32P(LUX2_MEDIUM_CLEAR);
-                g.medFront = UInt32P(LUX2_MEDIUM_CLEAR);
-                g.medBack = UInt32P(LUX2_MEDIUM_CLEAR);
+                g.medFront = med;
+                g.medBack = med;
                 const UInt32P rec0 = RecIdx(*m_ps, mL.path, Int32P(0), ok);
                 StoreGeom(m_ps->arena->geomWords.data(), g, rec0, ok);
 
@@ -466,8 +474,7 @@ namespace lux2
                 mL.core.mint = FloatP(EPS_RAY);
                 mL.core.maxt = FloatP(INF_F);
                 mL.core.time = FloatP(0.f);
-                mL.core.medium =
-                    select(fill, UInt32P(LUX2_MEDIUM_CLEAR), mL.core.medium);
+                mL.core.medium = select(fill, med, mL.core.medium);
                 mL.core.beta = select(ok, g.flux * f0, mL.core.beta);
                 mL.core.alive = select(fill, ok, mL.core.alive);
 

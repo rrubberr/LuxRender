@@ -72,6 +72,9 @@ namespace lux2
         // Fill from the tables.
         void ShadeHit(HitP &hit) const;
 
+        // Medium id containing the world point.
+        std::uint32_t MediumIDAt(const Point3f &p) const;
+
         BBox WorldBound() const { return m_bound; }
         size_t TriangleCount() const { return m_triCount; }
 
