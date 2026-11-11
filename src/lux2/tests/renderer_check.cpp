@@ -103,7 +103,7 @@ std::unique_ptr<Scene> MakeEmitterScene(int spp, int haltspp, int halttime) {
 
     d.rendererName = "sampler";
     d.samplerName = "";
-    d.samplerParams.AddInt("count", &spp, 1);
+    d.samplerParams.AddInt("pixelsamples", &spp, 1);
 
     d.cameraName = "perspective";
     d.cameraTransform = Transform::look_at(Point3f(0.f, 0.f, 4.f),
@@ -145,7 +145,7 @@ std::unique_ptr<Scene> MakeTwoGroupScene(int spp) {
     d.filmParams.AddInt("haltspp", &spp, 1);
     d.rendererName = "sampler";
     d.samplerName = "lowdiscrepancy";
-    d.samplerParams.AddInt("count", &spp, 1);
+    d.samplerParams.AddInt("pixelsamples", &spp, 1);
     d.cameraName = "perspective";
     d.cameraTransform = Transform::look_at(Point3f(0.f, 0.f, 8.f),
                                            Point3f(0.f, 0.f, 0.f),
@@ -209,7 +209,7 @@ int main() {
         d.filmParams.AddInt("xresolution", &xr, 1);
         d.filmParams.AddInt("yresolution", &yr, 1);
         d.rendererName = "no_such_renderer";
-        d.samplerParams.AddInt("count", &spp, 1);
+        d.samplerParams.AddInt("pixelsamples", &spp, 1);
         Scene s;
         s.Commit(d);
         auto *sr = dynamic_cast<SamplerRenderer *>(&s.GetRenderer());
@@ -306,7 +306,7 @@ int main() {
         d.rendererParams.AddInt("tilesize", &tileSize, 1);
         d.samplerName = "lowdiscrepancy";
         const int spp = 100000;
-        d.samplerParams.AddInt("count", &spp, 1);
+        d.samplerParams.AddInt("pixelsamples", &spp, 1);
         d.cameraName = "perspective";
         d.cameraTransform = Transform::look_at(Point3f(0.f, 0.f, 4.f),
                                                Point3f(0.f, 0.f, 0.f),

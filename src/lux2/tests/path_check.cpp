@@ -156,7 +156,7 @@ std::unique_ptr<Scene> MakeScene(const Point3f &camPos, const Point3f &target,
     const int xr = 16, yr = 16;
     d.filmParams.AddInt("xresolution", &xr, 1);
     d.filmParams.AddInt("yresolution", &yr, 1);
-    d.samplerParams.AddInt("count", &spp, 1);
+    d.samplerParams.AddInt("pixelsamples", &spp, 1);
 
     d.cameraName = "perspective";
     d.cameraTransform =
@@ -225,7 +225,7 @@ std::unique_ptr<Scene> MakeTwoGroupScene(double leA, double leB, int spp,
     const int xr = 16, yr = 16;
     d.filmParams.AddInt("xresolution", &xr, 1);
     d.filmParams.AddInt("yresolution", &yr, 1);
-    d.samplerParams.AddInt("count", &spp, 1);
+    d.samplerParams.AddInt("pixelsamples", &spp, 1);
 
     d.cameraName = "perspective";
     d.cameraTransform =

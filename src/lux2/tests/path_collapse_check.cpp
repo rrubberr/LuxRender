@@ -113,7 +113,7 @@ std::unique_ptr<Scene> MakeScene(const std::string &frontMat, int xr, int yr,
     SceneDescription d;
     d.filmParams.AddInt("xresolution", &xr, 1);
     d.filmParams.AddInt("yresolution", &yr, 1);
-    d.samplerParams.AddInt("count", &spp, 1);
+    d.samplerParams.AddInt("pixelsamples", &spp, 1);
     // One light group so the area light lands in GroupLights(0). Without it
     // groupCount is 0 and no light reaches the per-group NEE/env tables.
     d.lightGroups = std::vector<std::string>{"default"};

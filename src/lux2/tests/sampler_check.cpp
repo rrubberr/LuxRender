@@ -43,13 +43,14 @@ void Check(bool cond, const char *what) {
 int main() {
     std::cout << "lux2 sampler_check (Stage 2)" << std::endl;
 
-    // ---- 1. square power-of-two rounding --------------------------------
+    // ---- 1. power-of-two rounding, floored at PACKET_WIDTH --------------
     {
-        Check(LDSampler(1, 0).SampleCount() == 4, "spp 1 -> 4");
-        Check(LDSampler(4, 0).SampleCount() == 4, "spp 4 -> 4");
-        Check(LDSampler(5, 0).SampleCount() == 16, "spp 5 -> 16");
-        Check(LDSampler(16, 0).SampleCount() == 16, "spp 16 -> 16");
-        Check(LDSampler(17, 0).SampleCount() == 64, "spp 17 -> 64");
+        const uint32_t W = uint32_t(PACKET_WIDTH);
+        Check(LDSampler(1, 0).SampleCount() == W, "spp 1 -> W");
+        Check(LDSampler(W, 0).SampleCount() == W, "spp W -> W");
+        Check(LDSampler(W + 1, 0).SampleCount() == 2 * W, "spp W+1 -> 2W");
+        Check(LDSampler(2 * W, 0).SampleCount() == 2 * W, "spp 2W -> 2W");
+        Check(LDSampler(2 * W + 1, 0).SampleCount() == 4 * W, "spp 2W+1 -> 4W");
     }
 
     // ---- 2. range -------------------------------------------------------

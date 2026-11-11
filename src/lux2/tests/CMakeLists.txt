@@ -83,6 +83,12 @@ add_lux2_check(
 )
 
 add_lux2_check(
+	NAME lux2pixelsamplercheck
+	SOURCES pixelsampler_check.cpp
+	LINKS lux2
+)
+
+add_lux2_check(
 	NAME lux2filtercheck
 	SOURCES filter_check.cpp
 	LINKS lux2
