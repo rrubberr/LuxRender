@@ -1,0 +1,14 @@
+# Materials File
+
+MakeNamedMaterial "Grid"
+	"color Kd" [0.00000000 0.00000000 0.00000000]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Floor"
+	"color Kd" [0.63999999 0.63999999 0.63999999]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Area"
+	"string type" ["null"]

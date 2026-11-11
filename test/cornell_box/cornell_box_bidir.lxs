@@ -4,6 +4,7 @@ Renderer "sampler"
 
 Sampler "lowdiscrepancy"
 	"integer pixelsamples" [16]
+	"string pixelsampler" ["lowdiscrepancy"]
 
 Accelerator "embree"
 

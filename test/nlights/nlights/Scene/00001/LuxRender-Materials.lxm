@@ -1,0 +1,91 @@
+# Materials File
+
+MakeNamedMaterial "White"
+	"color Kd" [0.44798833 0.44798833 0.44798833]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Red"
+	"color Kd" [0.44798833 0.03630545 0.03630545]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Green"
+	"color Kd" [0.07726244 0.44798833 0.03630617]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Area.024"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.023"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.022"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.021"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.020"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.019"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.018"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.017"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.016"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.015"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.014"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.013"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.012"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.011"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.010"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.009"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.008"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.007"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.006"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.005"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.004"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.003"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.002"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area.001"
+	"string type" ["null"]
+
+MakeNamedMaterial "Area"
+	"string type" ["null"]

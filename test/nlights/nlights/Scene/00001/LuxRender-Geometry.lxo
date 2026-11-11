@@ -1,0 +1,71 @@
+# Geometry File
+
+AttributeBegin #  "Suzanne"
+
+Transform [0.399999976158142 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.327660799026489 -0.229430571198463 0.000000000000000 -0.000000000000000 0.229430571198463 0.327660799026489 0.000000000000000 0.000000000000000 0.000000000000000 0.219999998807907 1.000000000000000]
+
+NamedMaterial "White"
+
+Shape "plymesh"
+	"string filename" ["nlights/Scene/00001/Suzanne_0000_m000.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Suzanne"]
+
+AttributeEnd # ""
+
+AttributeBegin #  "Cube.001"
+
+Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 1.000000000000000]
+
+AttributeBegin #  ""
+
+NamedMaterial "White"
+
+Shape "plymesh"
+	"string filename" ["nlights/Scene/00001/Cube_001_0000_m000.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Cube.001"]
+
+AttributeEnd # ""
+
+AttributeBegin #  ""
+
+NamedMaterial "Red"
+
+Shape "plymesh"
+	"string filename" ["nlights/Scene/00001/Cube_001_0000_m001.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Cube.001"]
+
+AttributeEnd # ""
+
+AttributeBegin #  ""
+
+NamedMaterial "Green"
+
+Shape "plymesh"
+	"string filename" ["nlights/Scene/00001/Cube_001_0000_m002.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Cube.001"]
+
+AttributeEnd # ""
+
+AttributeEnd # ""
+
+AttributeBegin #  "Cube"
+
+Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 1.000000000000000]
+
+NamedMaterial "White"
+
+Shape "plymesh"
+	"string filename" ["nlights/Scene/00001/Cube_0000_m000.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Cube"]
+
+AttributeEnd # ""
