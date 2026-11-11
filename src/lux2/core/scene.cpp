@@ -559,6 +559,27 @@ namespace lux2
             }
         }
 
+        // Pixel sampler.
+        {
+            auto &psReg = DynamicLoader::registeredPixelSamplers();
+            const std::string psname = desc.pixelSamplerName.empty()
+                                           ? "linear"
+                                           : desc.pixelSamplerName;
+            auto it = psReg.find(psname);
+            if (it != psReg.end())
+            {
+                PluginContext pctx;
+                pctx.params = &desc.pixelSamplerParams;
+                m_pixelSampler = it->second(pctx);
+            }
+            else
+            {
+                LOG(LUX_ERROR, LUX_BADHANDLE)
+                    << "No pixel sampler plugin registered as '" << psname
+                    << "'";
+            }
+        }
+
         {
             auto &filterReg = DynamicLoader::registeredFilters();
             const std::string fname =

@@ -90,6 +90,13 @@ namespace lux2
         return *m;
     }
 
+    std::map<std::string, DynamicLoader::CreatePixelSampler> &DynamicLoader::registeredPixelSamplers()
+    {
+        static std::map<std::string, DynamicLoader::CreatePixelSampler> *m =
+            new std::map<std::string, DynamicLoader::CreatePixelSampler>;
+        return *m;
+    }
+
     std::map<std::string, DynamicLoader::CreateFilter> &DynamicLoader::registeredFilters()
     {
         static std::map<std::string, DynamicLoader::CreateFilter> *m =
@@ -150,6 +157,7 @@ namespace lux2
         add("FresnelTexture", keys(registeredFresnelTextures()));
         add("Camera", keys(registeredCameras()));
         add("Sampler", keys(registeredSamplers()));
+        add("PixelSampler", keys(registeredPixelSamplers()));
         add("Filter", keys(registeredFilters()));
         add("Film", keys(registeredFilms()));
         add("SurfaceIntegrator", keys(registeredSurfaceIntegrators()));

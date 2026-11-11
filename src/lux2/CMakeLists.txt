@@ -99,6 +99,7 @@ file(GLOB_RECURSE LUX2_CORE_SRC CONFIGURE_DEPENDS
 	materials/*.cpp
 	media/*.cpp
 	samplers/*.cpp
+	pixelsamplers/*.cpp
 	filters/*.cpp
 	cameras/*.cpp
 	lights/*.cpp

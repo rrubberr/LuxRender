@@ -42,6 +42,7 @@
 #define LUX2_REGISTER_FRESNEL_TEXTURE(T, name) LUX2_REGISTER_PLUGIN(RegisterFresnelTexture, T, name)
 #define LUX2_REGISTER_CAMERA(T, name) LUX2_REGISTER_PLUGIN(RegisterCamera, T, name)
 #define LUX2_REGISTER_SAMPLER(T, name) LUX2_REGISTER_PLUGIN(RegisterSampler, T, name)
+#define LUX2_REGISTER_PIXELSAMPLER(T, name) LUX2_REGISTER_PLUGIN(RegisterPixelSampler, T, name)
 #define LUX2_REGISTER_FILTER(T, name) LUX2_REGISTER_PLUGIN(RegisterFilter, T, name)
 #define LUX2_REGISTER_FILM(T, name) LUX2_REGISTER_PLUGIN(RegisterFilm, T, name)
 #define LUX2_REGISTER_SURFACE_INTEGRATOR(T, name) LUX2_REGISTER_PLUGIN(RegisterSurfaceIntegrator, T, name)

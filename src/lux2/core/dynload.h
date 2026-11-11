@@ -29,6 +29,7 @@
 #include "core/shape.h"
 #include "core/camera.h"
 #include "core/sampler.h"
+#include "core/pixelsampler.h"
 #include "core/filter.h"
 #include "core/film.h"
 #include "core/integrator.h"
@@ -110,6 +111,7 @@ namespace lux2
         LUX2_REGISTER_PLUGIN(FresnelTexture)
         LUX2_REGISTER_PLUGIN(Camera)
         LUX2_REGISTER_PLUGIN(Sampler)
+        LUX2_REGISTER_PLUGIN(PixelSampler)
         LUX2_REGISTER_PLUGIN(Filter)
         LUX2_REGISTER_PLUGIN(Film)
         LUX2_REGISTER_PLUGIN(SurfaceIntegrator)

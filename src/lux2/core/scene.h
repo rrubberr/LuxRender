@@ -30,6 +30,7 @@
 #include "core/integrator.h"
 #include "core/renderer.h"
 #include "core/sampler.h"
+#include "core/pixelsampler.h"
 #include "core/material.h"
 #include "core/medium.h"
 #include "core/mediumptr_table.h"
@@ -124,6 +125,8 @@ namespace lux2
         ParamSet rendererParams;
         std::string samplerName;
         ParamSet samplerParams;
+        std::string pixelSamplerName;
+        ParamSet pixelSamplerParams;
         std::string filmName;
         ParamSet filmParams;
         std::string filterName;
@@ -183,6 +186,7 @@ namespace lux2
         VolumeIntegrator &GetVolumeIntegrator() { return *m_volumeIntegrator; }
         Renderer &GetRenderer() { return *m_renderer; }
         Sampler &GetSampler() const { return *m_sampler; }
+        PixelSampler &GetPixelSampler() const { return *m_pixelSampler; }
         Filter &GetFilter() const { return *m_filter; }
 
         const std::vector<std::shared_ptr<Light>> &GetLights() const { return m_lights; }
@@ -290,6 +294,7 @@ namespace lux2
         std::shared_ptr<VolumeIntegrator> m_volumeIntegrator;
         std::shared_ptr<Renderer> m_renderer;
         std::shared_ptr<Sampler> m_sampler;
+        std::shared_ptr<PixelSampler> m_pixelSampler;
         std::shared_ptr<Filter> m_filter;
         std::vector<std::shared_ptr<Light>> m_lights;
         std::vector<std::shared_ptr<Light>> m_areaLights; // indexed by lightID

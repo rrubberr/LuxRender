@@ -114,6 +114,14 @@ namespace lux2
         m_desc.samplerParams = params;
     }
 
+    void Context2::PixelSampler(const std::string &name, const ParamSet &params)
+    {
+        if (!RequireOptions("PixelSampler"))
+            return;
+        m_desc.pixelSamplerName = name;
+        m_desc.pixelSamplerParams = params;
+    }
+
     void Context2::Accelerator(const std::string &name, const ParamSet &params)
     {
         // We always use Embree.
