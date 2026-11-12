@@ -62,6 +62,9 @@ set(PFX_DIR ${EXT_DIR}/pfx)
 
 PROJECT(lux)
 
+# Host ISA probe needs an enabled C++ language.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/HostISA.cmake)
+
 include(ExternalProject)
 
 #######################

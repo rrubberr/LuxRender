@@ -66,9 +66,12 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 # Set compiler flags #
 ######################
 
+# LUX_MARCH_FLAGS / LUX_PACKET_WIDTH.
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/HostISA.cmake)
+
 # GCC miscompiles Enoki raw_coeff_ without -fno-strict-aliasing.
-string(APPEND CMAKE_CXX_FLAGS_RELEASE " -march=native -O3 -g -ftree-vectorize -funroll-loops -fno-strict-aliasing")
-string(APPEND CMAKE_CXX_FLAGS_DEBUG " -march=native -O2 -g -fno-strict-aliasing")
+string(APPEND CMAKE_CXX_FLAGS_RELEASE " ${LUX_MARCH_FLAGS} -O3 -g -ftree-vectorize -funroll-loops -fno-strict-aliasing")
+string(APPEND CMAKE_CXX_FLAGS_DEBUG " ${LUX_MARCH_FLAGS} -O2 -g -fno-strict-aliasing")
 
 # Integrator debug instrumentation.
 option(LUX2_INTEGRATOR_DEBUG "Compile integrator debug instrumentation" OFF)

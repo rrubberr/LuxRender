@@ -44,6 +44,10 @@ set(PFX_DIR ${EXT_DIR}/pfx)
 ######################
 
 project(LuxRenderDeps)
+
+# Host ISA probe needs an enabled C++ language.
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/HostISA.cmake)
+
 include(ExternalProject)
 
 ##############################
@@ -188,8 +192,10 @@ lux_ext(openexr      DEPENDS OpenJPH Imath zlib-ng minizip-ng bzip2 xz
 	CACHE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} -I${INC_DIR}/openjph")
 # TBB and Embree are SHARED on purpose!
 lux_ext(tbb          ARGS -DTBB_TEST=OFF -DBUILD_SHARED_LIBS=ON)
+# Build only the ISA kernel that matches lux2's PACKET_WIDTH.
 lux_ext(embree       DEPENDS tbb
-	ARGS -DEMBREE_STATIC_LIB=FALSE -DEMBREE_TUTORIALS=FALSE -DEMBREE_ZIP_MODE=FALSE
+	ARGS ${LUX_EMBREE_ISA_ARGS}
+		-DEMBREE_STATIC_LIB=FALSE -DEMBREE_TUTORIALS=FALSE -DEMBREE_ZIP_MODE=FALSE
 		-DEMBREE_STAT_COUNTERS=FALSE -DEMBREE_BACKFACE_CULLING=FALSE
 		-DEMBREE_GEOMETRY_TRIANGLE=TRUE -DEMBREE_GEOMETRY_QUAD=TRUE
 		-DEMBREE_GEOMETRY_CURVE=FALSE -DEMBREE_GEOMETRY_USER=FALSE
