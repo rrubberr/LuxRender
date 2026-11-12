@@ -59,37 +59,15 @@ namespace lux2
                 scene.LightMediumID(out.lightPtrs[size_t(i)]);
 
         // Sampling tables indexed by the active light group.
-        const bool haveD = opts.prebuiltD && out.activeGroup >= 0 &&
-                           out.activeGroup < static_cast<int>(opts.prebuiltD->size());
-        if (haveD)
-            out.lsD = &(*opts.prebuiltD)[size_t(out.activeGroup)];
-        else
-        {
-            out.m_fallbackD = CreateLightsSamplingStrategy(
-                opts.directStrategy ? *opts.directStrategy : std::string(),
-                out.lightPtrs, out.activeGroup, scene, LightRole::Direct);
-            out.lsD = &out.m_fallbackD;
-        }
+        out.lsD = &(*opts.prebuiltD)[size_t(out.activeGroup)];
 
         // The light subpath table is only built for integrators that ask for it.
         if (opts.prebuiltP)
-        {
-            if (out.activeGroup >= 0 &&
-                out.activeGroup < static_cast<int>(opts.prebuiltP->size()))
-            {
-                out.lsP = &(*opts.prebuiltP)[size_t(out.activeGroup)];
-            }
-            else if (opts.pathStrategy)
-            {
-                out.m_fallbackP = CreateLightsSamplingStrategy(
-                    *opts.pathStrategy, out.lightPtrs, out.activeGroup, scene,
-                    LightRole::LightPath);
-                out.lsP = &out.m_fallbackP;
-            }
-        }
+            out.lsP = &(*opts.prebuiltP)[size_t(out.activeGroup)];
 
         // Area lights by id, and the area of each selected light by its index.
         const int nArea = scene.AreaLightCount();
+        out.areaPtrs.clear();
         out.areaPtrs.reserve(size_t(nArea));
         out.areaById.assign(size_t(std::max(0, nArea)), 0.f);
         for (int a = 0; a < nArea; ++a)

@@ -19,8 +19,7 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-// Tile constant context shared by every lane integrator. One Build() replaces
-// the per-integrator setup that path and bidirectional carried separately.
+// Tile context shared by all integrators.
 
 #ifndef LUX2_INTEGRATORS_LANE_TILE_CTX_H
 #define LUX2_INTEGRATORS_LANE_TILE_CTX_H
@@ -44,22 +43,15 @@ namespace lux2
     class MediumPtrTable;
     class Scene;
 
-    // What Build() needs beyond the scene. The prebuilt per-group tables come
-    // from Start(); when RenderTile runs without Start() (a scene with no
-    // light groups) Build falls back to the named strategies.
+    // What Build() needs beyond the scene.
     struct TileCtxOptions
     {
-        // Per-group tables built once at Start(), indexed by group.
+        // Tables built at Start() and indexed by group.
         const std::vector<LightsSamplingStrategy> *prebuiltD = nullptr;
         const std::vector<LightsSamplingStrategy> *prebuiltP = nullptr;
-        // Strategy names used to build a fallback table.
-        const std::string *directStrategy = nullptr;
-        const std::string *pathStrategy = nullptr;
     };
 
-    // Immutable after Build(); passed by const reference. Not copyable: lsD and
-    // lsP may address the owned fallback tables, so a copy would alias the
-    // original's storage.
+    // Immutable after Build(). Not copyable.
     struct TileCtx
     {
         TileCtx() = default;
@@ -70,7 +62,7 @@ namespace lux2
         const BsdfPtrTable *table = nullptr;
         const MediumPtrTable *mediumTable = nullptr;
         bool hasMedia = false;
-        // Occlusion inputs; hasMedia/hasNull decide the fast path.
+        // Occlusion inputs.
         ShadowCtx shadow;
 
         // Active lightgroup filtering.
@@ -84,27 +76,21 @@ namespace lux2
         std::vector<std::uint32_t> lightMedium;
         int nLights = 0;
 
-        // Area lights: by area id, and by lightPtrs index.
+        // Area lights by area id, and by lightPtrs.
         std::vector<const Light *> areaPtrs;
         std::vector<std::int32_t> areaGroup;
         std::vector<float> areaById;
         std::vector<float> areaByIdx;
 
-        // Sampling tables for the active group. lsD drives NEE and direct
-        // densities; lsP drives light subpath origins (bidirectional only).
+        // Sampling tables for the active group.
         const LightsSamplingStrategy *lsD = nullptr;
         const LightsSamplingStrategy *lsP = nullptr;
 
       private:
-        // Owned fallback tables; lsD/lsP point here when Start() never ran.
-        LightsSamplingStrategy m_fallbackD, m_fallbackP;
-
         friend void BuildTileCtx(const Scene &, const TileCtxOptions &, TileCtx &);
     };
 
-    // Fill everything derivable from the scene: group filtering, light and area
-    // tables, media/Null flags, occlusion inputs and the strategy selection.
-    // Integrator-specific options are assigned by the caller afterwards.
+    // Fill everything derivable from the scene.
     void BuildTileCtx(const Scene &scene, const TileCtxOptions &opts, TileCtx &out);
 
 } // namespace lux2

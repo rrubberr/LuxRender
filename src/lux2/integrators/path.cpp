@@ -43,9 +43,15 @@ namespace lux2
         m_scene = &scene;
         // Build light sampling tables once per group.
         m_ls.clear();
-        for (int g = 0; g < scene.LightGroupCount(); ++g)
+        const int tableGroups = std::max(1, scene.LightGroupCount());
+        for (int g = 0; g < tableGroups; ++g)
             m_ls.push_back(CreateLightsSamplingStrategy(m_lightStrategy,
                                                         scene.GroupLights(g), g, scene));
+
+        // Scene derived context for the active group is read only while rendering.
+        TileCtxOptions opts;
+        opts.prebuiltD = &m_ls;
+        BuildTileCtx(scene, opts, m_ctx);
     }
 
     void PathIntegrator::RenderTile(const Scene &scene, const Tile &tile,
@@ -58,13 +64,7 @@ namespace lux2
         OccupancyBegin();
 
         // Path integrator switches.
-        TileCtx ctx;
-        {
-            TileCtxOptions opts;
-            opts.prebuiltD = &m_ls;
-            opts.directStrategy = &m_lightStrategy;
-            BuildTileCtx(scene, opts, ctx);
-        }
+        const TileCtx &ctx = m_ctx;
         PathConfig cfg;
         cfg.FULL_MIS = (m_lightMode == LightMode::MIS);
         cfg.NEE = (m_lightMode != LightMode::BSDF) && m_directLightSampling;

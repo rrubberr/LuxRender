@@ -217,11 +217,14 @@ namespace lux2
             HugeVector<uint32_t> geomWords; // [nPaths * PATH_STRIDE * GEOM_WORDS]
             HugeVector<uint32_t> misWords;  // [nPaths * PATH_STRIDE * MIS_WORDS]
 
+            // Size the arena once per capacity change.
             void Init(uint32_t nPaths)
             {
                 const size_t recs = size_t(nPaths) * PATH_STRIDE;
-                geomWords.assign(recs * GEOM_WORDS, 0u);
-                misWords.assign(recs * MIS_WORDS, 0u);
+                if (geomWords.size() != recs * GEOM_WORDS)
+                    geomWords.resize(recs * GEOM_WORDS);
+                if (misWords.size() != recs * MIS_WORDS)
+                    misWords.resize(recs * MIS_WORDS);
             }
         };
 

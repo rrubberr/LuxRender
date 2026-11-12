@@ -25,6 +25,7 @@
 #include "core/integrator.h"
 #include "core/renderinghints.h"
 #include "integrators/debug/integrator_debug.h"
+#include "integrators/wf/scheduler.h"
 #include "integrators/wf/types.h"
 
 #include <atomic>
@@ -74,6 +75,7 @@ namespace lux2
             // Total depth clamp.
             if (m_maxDepth < 0)
                 m_maxDepth = m_eyeDepth + m_lightDepth;
+            m_binTable.Build(m_eyeDepth, m_lightDepth);
         }
 
         ~BidirIntegrator() override;
@@ -130,6 +132,9 @@ namespace lux2
         // Light sampling tables.
         std::vector<LightsSamplingStrategy> m_lsD;
         std::vector<LightsSamplingStrategy> m_lsP;
+
+        // [t][s] -> MIS bin lookup.
+        wf::MisBinTable m_binTable;
 
         const Scene *m_scene = nullptr;
         // So diagnostics cannot flood the log.

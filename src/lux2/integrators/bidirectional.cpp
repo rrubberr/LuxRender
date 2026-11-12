@@ -88,7 +88,8 @@ namespace lux2
         // Build the light sampling tables.
         m_lsD.clear();
         m_lsP.clear();
-        for (int g = 0; g < scene.LightGroupCount(); ++g)
+        const int tableGroups = std::max(1, scene.LightGroupCount());
+        for (int g = 0; g < tableGroups; ++g)
         {
             m_lsD.push_back(CreateLightsSamplingStrategy(
                 m_lightStrategy, scene.GroupLights(g), g, scene,
@@ -146,6 +147,10 @@ namespace lux2
         {
             wf::BlockArena arenaEye, arenaLight;
             wf::PathStore psEye, psLight;
+            // Scene derived context is only rebuilt when the key changes.
+            WalkCtx ctx;
+            const Scene *ctxScene = nullptr;
+            int ctxGroup = -1;
         };
     } // namespace
 
@@ -163,15 +168,18 @@ namespace lux2
         const Camera &camera = scene.GetCamera();
         OccupancyBegin();
 
-        // Scene derived parts.
-        WalkCtx ctx;
+        // Scene derived data is cached per worker until the scene or active
+        // light group changes.
+        BidirWorkerState &state = *static_cast<BidirWorkerState *>(ws);
+        WalkCtx &ctx = state.ctx;
+        if (state.ctxScene != &scene || state.ctxGroup != scene.GetActiveGroup())
         {
             TileCtxOptions opts;
             opts.prebuiltD = &m_lsD;
             opts.prebuiltP = &m_lsP;
-            opts.directStrategy = &m_lightStrategy;
-            opts.pathStrategy = &m_lightPathStrategy;
             BuildTileCtx(scene, opts, ctx);
+            state.ctxScene = &scene;
+            state.ctxGroup = scene.GetActiveGroup();
         }
         ctx.camera = &camera;
         // Medium of the camera origin (id 0 = ambient composite when
@@ -219,8 +227,7 @@ namespace lux2
             m_wfHighWater > 0 ? uint32_t(m_wfHighWater) : 2u * kNs;
         const uint32_t minFill = ResolveMinFill(m_wfMinFill);
 
-        // Persistent worker arenas.
-        BidirWorkerState &state = *static_cast<BidirWorkerState *>(ws);
+        // Persistent worker arenas (state/ctx resolved above).
         wf::BlockArena &arenaEye = state.arenaEye;
         wf::BlockArena &arenaLight = state.arenaLight;
         wf::PathStore &psEye = state.psEye;
@@ -231,12 +238,9 @@ namespace lux2
         tbl.Init(kNs, nT);
 
         // [t][s] -> MIS bin lookup for the flattened connection queues.
-        wf::MisBinTable binTable;
-        binTable.Build(m_eyeDepth, m_lightDepth);
-
         wf::BidirEyeConsumer eyeCons(ctx, &psEye, &tbl);
         wf::BidirLightConsumer lightCons(ctx, &psLight);
-        wf::Scheduler sched(tbl, psEye, psLight, binTable);
+        wf::Scheduler sched(tbl, psEye, psLight, m_binTable);
         if (ctx.cfg.wfSortByPath)
         {
             sched.gen.SetSortByPath(true);
