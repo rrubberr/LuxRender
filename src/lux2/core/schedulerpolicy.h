@@ -22,57 +22,27 @@
 #ifndef LUX2_SCHEDULERPOLICY_H
 #define LUX2_SCHEDULERPOLICY_H
 
-#include <algorithm>
 #include <atomic>
 #include <cstdint>
-#include <vector>
 
 namespace lux2
 {
 
-    // A claimed unit of work.
-    struct Claim
+    // The claimed unit of work is one pixel.
+    struct PixelClaim
     {
-        uint32_t tile;
-        uint32_t begin;
-        uint32_t count;
+        uint32_t pos;
     };
 
-    // Pick the tile with the fewest claimed samples.
-    // Returns false when every tile has reached haltSpp.
-    inline bool ClaimNext(std::vector<std::atomic<uint32_t>> &cursor,
-                          int haltSpp, uint32_t chunk, uint32_t startHint,
-                          Claim &out)
+    // Flat pixel claim. Returns false once the cursor is exhausted.
+    inline bool ClaimNext(std::atomic<uint32_t> &cursor, uint32_t total,
+                          PixelClaim &out)
     {
-        const uint32_t n = uint32_t(cursor.size());
-        for (;;)
-        {
-            uint32_t best = 0, bestV = UINT32_MAX;
-            for (uint32_t i = 0; i < n; ++i) // tiles are few; a scan is cheap
-            {
-                const uint32_t t = (i + startHint) % n;
-                const uint32_t v = cursor[t].load(std::memory_order_relaxed);
-                if (v < bestV)
-                {
-                    bestV = v;
-                    best = t;
-                }
-            }
-            if (haltSpp > 0 && bestV >= uint32_t(haltSpp))
-                return false;
-
-            const uint32_t c = haltSpp > 0
-                                   ? std::min(chunk, uint32_t(haltSpp) - bestV)
-                                   : chunk;
-            uint32_t expected = bestV;
-            if (cursor[best].compare_exchange_weak(expected, bestV + c,
-                                                   std::memory_order_relaxed))
-            {
-                out = Claim{best, bestV, c};
-                return true;
-            }
-            // Lost the race for that tile; rescan and try again.
-        }
+        const uint32_t p = cursor.fetch_add(1, std::memory_order_relaxed);
+        if (p >= total)
+            return false;
+        out.pos = p;
+        return true;
     }
 
 } // namespace lux2

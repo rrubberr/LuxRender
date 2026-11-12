@@ -3,6 +3,8 @@
 Renderer "sampler"
 
 Sampler "lowdiscrepancy"
+	"integer pixelsamples" [1024]
+	"string pixelsampler" ["hilbert"]
 
 Accelerator "embree"
 
@@ -57,7 +59,7 @@ Film "fleximage"
 	"integer displayinterval" [10]
 	"integer writeinterval" [180]
 	"integer flmwriteinterval" [900]
-	"integer halttime" [60]
+	"integer haltspp" [8192]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]
 

@@ -40,12 +40,6 @@
 namespace lux2
 {
 
-    namespace
-    {
-        // Round n up to a multiple of m (m > 0).
-        int RoundUp(int n, int m) { return ((n + m - 1) / m) * m; }
-    } // namespace
-
     FlexImageFilm::FlexImageFilm(int xres, int yres, const Filter *filter,
                                  const float crop[4],
                                  const std::string &filename,
@@ -62,26 +56,6 @@ namespace lux2
                                    m_yStart);
 
         AllocateSets(1);
-    }
-
-    // Private constructor.
-    FlexImageFilm::FlexImageFilm(int xres, int yres, const Filter *filter,
-                                 int xStart, int xCount, int yStart, int yCount,
-                                 bool premultiplyAlpha)
-        : m_xres(xres), m_yres(yres), m_xStart(xStart), m_xCount(xCount),
-          m_yStart(yStart), m_yCount(yCount), m_filter(filter),
-          m_premultiplyAlpha(premultiplyAlpha)
-    {
-        AllocateSets(1);
-    }
-
-    // Create a private accumulation buffer.
-    FlexImageFilm::FlexImageFilm(int xres, int yres, const Filter *filter,
-                                 int xStart, int xCount, int yStart, int yCount,
-                                 bool premultiplyAlpha, ScratchTag)
-        : FlexImageFilm(xres, yres, filter, xStart, xCount, yStart, yCount,
-                        premultiplyAlpha)
-    {
     }
 
     void FlexImageFilm::AllocateSets(int groupCount)
@@ -109,225 +83,6 @@ namespace lux2
         AllocateSets(n);
     }
 
-    // Scheduler interface.
-
-    int FlexImageFilm::SetupTiles(int tileSize, int haloX, int haloY)
-    {
-        // Tile dims rounded up to a multiple of PACKET_WIDTH.
-        const int pw = int(PACKET_WIDTH);
-        const int tw = std::max(pw, RoundUp(tileSize > 0 ? tileSize : m_xCount, pw));
-        const int th = std::max(pw, RoundUp(tileSize > 0 ? tileSize : m_yCount, pw));
-        m_tileW = tw;
-        m_tileH = th;
-
-        m_tiles.clear();
-        m_tileCols = 0;
-        m_tileRows = 0;
-        m_maxScratchArea = 0;
-        m_haloX = haloX;
-        m_haloY = haloY;
-        if (m_xCount <= 0 || m_yCount <= 0)
-            return 0;
-
-        const int cropX1 = m_xStart + m_xCount, cropY1 = m_yStart + m_yCount;
-        for (int y = m_yStart; y < cropY1; y += th)
-        {
-            const int y1 = std::min(y + th, cropY1);
-            ++m_tileRows;
-            m_tileCols = 0; // recomputed per row below; all rows share the split
-            for (int x = m_xStart; x < cropX1; x += tw)
-            {
-                const int x1 = std::min(x + tw, cropX1);
-                FilmTile t;
-                t.x0 = x;
-                t.y0 = y;
-                t.x1 = x1;
-                t.y1 = y1;
-                m_tiles.push_back(t);
-                ++m_tileCols;
-            }
-        }
-
-        // One mutex and one sample counter per tile.
-        m_tileMutexes.clear();
-        m_tileMutexes.reserve(m_tiles.size());
-        for (size_t i = 0; i < m_tiles.size(); ++i)
-            m_tileMutexes.push_back(std::make_unique<std::mutex>());
-        // Initialize each atomic to 0.
-        m_tileSampleCount = std::vector<std::atomic<double>>(m_tiles.size());
-
-        // Scratch window domain grown by the filter halo clamped
-        // to the crop window.
-        for (FilmTile &t : m_tiles)
-        {
-            t.sx0 = std::max(t.x0 - haloX, m_xStart);
-            t.sy0 = std::max(t.y0 - haloY, m_yStart);
-            t.sx1 = std::min(t.x1 + haloX, cropX1);
-            t.sy1 = std::min(t.y1 + haloY, cropY1);
-            m_maxScratchArea = std::max(
-                m_maxScratchArea, size_t(t.sx1 - t.sx0) * size_t(t.sy1 - t.sy0));
-        }
-
-        // Replay bin grid.
-        const int targetPx = 16384;
-        const int side =
-            std::max(pw, int(std::sqrt(double(targetPx))) -
-                             2 * std::max(haloX, haloY));
-        m_binW = m_binH = std::max(pw, side);
-        m_binCols = (m_xCount + m_binW - 1) / m_binW;
-        m_binRows = (m_yCount + m_binH - 1) / m_binH;
-        // Flush threshold ~1% of frame pixels so bins stay dense enough to
-        // amortize their clear+merge cost.
-        m_logCap = std::max<size_t>(4096,
-                                    size_t(m_xCount) * size_t(m_yCount) / 100u);
-        return int(m_tiles.size());
-    }
-
-    std::unique_ptr<Film> FlexImageFilm::MakeWorkerScratch() const
-    {
-        // Allocate at the largest scratch window.
-        auto s = std::unique_ptr<FlexImageFilm>(new FlexImageFilm(
-            m_xres, m_yres, m_filter, 0, 0, 0, 0, m_premultiplyAlpha,
-            ScratchTag{}));
-        for (auto *v : {&s->m_groups[0].bX, &s->m_groups[0].bY,
-                        &s->m_groups[0].bZ, &s->m_groups[0].bAlpha,
-                        &s->m_groups[0].bW})
-            v->reserve(m_maxScratchArea);
-        // Light splats buffer in the log and replay into this master.
-        s->m_master = const_cast<FlexImageFilm *>(this);
-        s->m_lightLog.x.reserve(4096);
-        return s;
-    }
-
-    void FlexImageFilm::BindScratch(uint32_t tile, Film &scratch) const
-    {
-        if (tile >= m_tiles.size())
-            return;
-        auto &s = static_cast<FlexImageFilm &>(scratch);
-        const FilmTile &t = m_tiles[tile];
-        s.m_xStart = t.sx0;
-        s.m_xCount = t.sx1 - t.sx0;
-        s.m_yStart = t.sy0;
-        s.m_yCount = t.sy1 - t.sy0;
-        const size_t n = size_t(s.m_xCount) * size_t(s.m_yCount);
-        // assign() reuses reserved capacity when n <= capacity(): memset only.
-        for (auto *v : {&s.m_groups[0].bX, &s.m_groups[0].bY,
-                        &s.m_groups[0].bZ, &s.m_groups[0].bAlpha,
-                        &s.m_groups[0].bW})
-            v->assign(n, 0.f);
-    }
-
-    FilmTile FlexImageFilm::GetTile(uint32_t index) const
-    {
-        if (index >= m_tiles.size())
-            return FilmTile{0, 0, 0, 0};
-        return m_tiles[index];
-    }
-
-    void FlexImageFilm::AddRegion(const FlexImageFilm &src,
-                                  int x0, int y0, int x1, int y1)
-    {
-        // The domain is guaranteed inside both films by MergeRegion's grid
-        // arithmetic. A scratch carries one channel and merges into this
-        // film's active group.
-        BufferSet &d = Active();
-        const BufferSet &s = src.Active();
-        const bool eye = !s.bX.empty();
-        const bool light = !s.lRGB.empty();
-        const int rowLen = x1 - x0;
-        for (int y = y0; y < y1; ++y)
-        {
-            const size_t dBase = size_t(y - m_yStart) * m_xCount +
-                                 size_t(x0 - m_xStart);
-            const size_t sBase = size_t(y - src.m_yStart) * src.m_xCount +
-                                 size_t(x0 - src.m_xStart);
-            if (eye)
-            {
-                float *dX = d.bX.data() + dBase;
-                const float *sX = s.bX.data() + sBase;
-                float *dY = d.bY.data() + dBase;
-                const float *sY = s.bY.data() + sBase;
-                float *dZ = d.bZ.data() + dBase;
-                const float *sZ = s.bZ.data() + sBase;
-                float *dA = d.bAlpha.data() + dBase;
-                const float *sA = s.bAlpha.data() + sBase;
-                float *dW = d.bW.data() + dBase;
-                const float *sW = s.bW.data() + sBase;
-                for (int i = 0; i < rowLen; ++i)
-                {
-                    dX[i] += sX[i];
-                    dY[i] += sY[i];
-                    dZ[i] += sZ[i];
-                    dA[i] += sA[i];
-                    dW[i] += sW[i];
-                }
-            }
-            if (light)
-            {
-                // Interleaved kStride floats per pixel, contiguous in x.
-                float *dL = d.lRGB.data() + dBase * BufferSet::kStride;
-                const float *sL = s.lRGB.data() + sBase * BufferSet::kStride;
-                const int n = rowLen * int(BufferSet::kStride);
-                for (int i = 0; i < n; ++i)
-                    dL[i] += sL[i];
-            }
-        }
-    }
-
-    void FlexImageFilm::MergeRegion(Film &scratch)
-    {
-        FlexImageFilm *src = dynamic_cast<FlexImageFilm *>(&scratch);
-        if (!src || src == this)
-            return;
-
-        // Walk the overlapped tile range one at a time and
-        // add the intersection.
-        const int sx0 = src->m_xStart, sy0 = src->m_yStart;
-        const int sx1 = sx0 + src->m_xCount, sy1 = sy0 + src->m_yCount;
-        if (sx1 <= sx0 || sy1 <= sy0)
-            return;
-
-        const int c0 = std::max(0, (sx0 - m_xStart) / m_tileW);
-        const int c1 = std::min(m_tileCols - 1, (sx1 - 1 - m_xStart) / m_tileW);
-        const int r0 = std::max(0, (sy0 - m_yStart) / m_tileH);
-        const int r1 = std::min(m_tileRows - 1, (sy1 - 1 - m_yStart) / m_tileH);
-        for (int r = r0; r <= r1; ++r)
-        {
-            for (int c = c0; c <= c1; ++c)
-            {
-                const uint32_t ti = uint32_t(r * m_tileCols + c);
-                const FilmTile &t = m_tiles[ti];
-                const int x0 = std::max(sx0, t.x0), y0 = std::max(sy0, t.y0);
-                const int x1 = std::min(sx1, t.x1), y1 = std::min(sy1, t.y1);
-                if (x1 <= x0 || y1 <= y0)
-                    continue;
-                std::lock_guard<std::mutex> lock(*m_tileMutexes[ti]);
-                AddRegion(*src, x0, y0, x1, y1);
-            }
-        }
-    }
-
-    void FlexImageFilm::AddTileSampleCount(uint32_t tile, double n)
-    {
-        if (tile >= m_tileSampleCount.size())
-            return;
-        m_tileSampleCount[tile].fetch_add(n, std::memory_order_relaxed);
-        const FilmTile &t = m_tiles[tile];
-        m_totalEyeSamples.fetch_add(
-            n * double(t.x1 - t.x0) * double(t.y1 - t.y0),
-            std::memory_order_relaxed);
-    }
-
-    double FlexImageFilm::SampleCount() const
-    {
-        if (m_tileSampleCount.empty())
-            return m_sampleCount; // flat counter when not partitioned
-        double mn = m_tileSampleCount[0].load(std::memory_order_relaxed);
-        for (const std::atomic<double> &v : m_tileSampleCount)
-            mn = std::min(mn, v.load(std::memory_order_relaxed));
-        return mn;
-    }
-
     void FlexImageFilm::Clear()
     {
         for (BufferSet &s : m_groups)
@@ -339,12 +94,11 @@ namespace lux2
             std::fill(s.bW.begin(), s.bW.end(), 0.f);
             std::fill(s.lRGB.begin(), s.lRGB.end(), 0.f);
         }
-        m_sampleCount = 0.0;
-        m_totalEyeSamples.store(0.0, std::memory_order_relaxed);
-        for (std::atomic<double> &v : m_tileSampleCount)
-            v.store(0.0, std::memory_order_relaxed);
+        m_totalCommitted.store(0.0, std::memory_order_relaxed);
     }
 
+    // Each sample writes its generating pixel once; reconstruction
+    // filtering happens at output (g = h (x) box in BuildDisplayImage).
     void FlexImageFilm::Splat(const FloatP &x, const FloatP &y,
                               const SWCSpectrumP &L,
                               const SpectrumWavelengthsP &sw,
@@ -368,49 +122,24 @@ namespace lux2
             xyzP[2] = xyzP[2] * alpha;
         }
 
-        const float xWidth = m_filter->GetXWidth();
-        const float yWidth = m_filter->GetYWidth();
-
-        // Sample center in continuous pixel space.
-        const FloatP dx = x - FloatP(0.5f);
-        const FloatP dy = y - FloatP(0.5f);
-
-        // Footprint bounds per lane.
-        Int32P loX, loY, hiX, hiY;
-        loX = enoki::ceil2int<Int32P>(dx - FloatP(xWidth));
-        hiX = enoki::floor2int<Int32P>(dx + FloatP(xWidth));
-        loY = enoki::ceil2int<Int32P>(dy - FloatP(yWidth));
-        hiY = enoki::floor2int<Int32P>(dy + FloatP(yWidth));
-
-        const int nx = enoki::floor2int<int>(2.f * xWidth + 1e-4f) + 1;
-        const int ny = enoki::floor2int<int>(2.f * yWidth + 1e-4f) + 1;
-
-        // Per-axis weight tables.
-        FloatP wx[64], wy[64];
-        FloatP totalX(0.f), totalY(0.f);
-        for (int xr = 0; xr < nx; ++xr)
-        {
-            const Int32P xPix = loX + Int32P(xr);
-            const FloatP off = enoki::abs(FloatP(xPix) - dx);
-            wx[xr] = m_filter->EvaluateXP(off);
-            totalX = enoki::select(xPix <= hiX, totalX + wx[xr], totalX);
-        }
-        for (int yr = 0; yr < ny; ++yr)
-        {
-            const Int32P yPix = loY + Int32P(yr);
-            const FloatP off = enoki::abs(FloatP(yPix) - dy);
-            wy[yr] = m_filter->EvaluateYP(off);
-            totalY = enoki::select(yPix <= hiY, totalY + wy[yr], totalY);
-        }
-        const FloatP invTotal =
-            enoki::rcp(enoki::max(totalX * totalY, FloatP(1e-20f)));
+        // The generating pixel is the one containing the sample position.
+        const Int32P px = enoki::floor2int<Int32P>(x);
+        const Int32P py = enoki::floor2int<Int32P>(y);
 
         const Int32P xStartP(m_xStart), yStartP(m_yStart), xCountP(m_xCount);
-        const int maxX = m_xStart + m_xCount - 1;
-        const int maxY = m_yStart + m_yCount - 1;
-        const Int32P maxXP(maxX), maxYP(maxY);
+        const Int32P maxXP(m_xStart + m_xCount - 1),
+            maxYP(m_yStart + m_yCount - 1);
+        MaskP ok = active && (px >= xStartP) && (px <= maxXP) &&
+                   (py >= yStartP) && (py <= maxYP);
+        if (!enoki::any(ok))
+            return;
+
         BufferSet &bs = Active();
         const Int32P nIdxP(int(bs.bX.size()) - 1);
+        // Clamp so masked lanes never form out of range addresses.
+        const Int32P idx =
+            enoki::clamp((py - yStartP) * xCountP + (px - xStartP), Int32P(0),
+                         nIdxP);
 
         float *bufX = bs.bX.data();
         float *bufY = bs.bY.data();
@@ -418,98 +147,11 @@ namespace lux2
         float *bufA = bs.bAlpha.data();
         float *bufW = bs.bW.data();
 
-        for (int yr = 0; yr < ny; ++yr)
-        {
-            const Int32P yPix = loY + Int32P(yr);
-            const MaskP rowOk = active && (yPix <= hiY) && (yPix >= yStartP) &&
-                                (yPix <= maxYP);
-            if (!enoki::any(rowOk))
-                continue;
-            for (int xr = 0; xr < nx; ++xr)
-            {
-                const Int32P xPix = loX + Int32P(xr);
-                MaskP enabled = rowOk && (xPix <= hiX) && (xPix >= xStartP) &&
-                                (xPix <= maxXP);
-                if (!enoki::any(enabled))
-                    continue;
-
-                const FloatP w = weight * wx[xr] * wy[yr] * invTotal;
-                Int32P idx = (yPix - yStartP) * xCountP + (xPix - xStartP);
-                // Clamp so masked-off lanes never form out-of-range addresses.
-                idx = enoki::clamp(idx, Int32P(0), nIdxP);
-
-                enoki::scatter_add(bufX, w * xyzP[0], idx, enabled);
-                enoki::scatter_add(bufY, w * xyzP[1], idx, enabled);
-                enoki::scatter_add(bufZ, w * xyzP[2], idx, enabled);
-                enoki::scatter_add(bufA, alpha * w, idx, enabled);
-                enoki::scatter_add(bufW, w, idx, enabled);
-            }
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // SplatFootprint.
-    // -----------------------------------------------------------------------
-    template <class Sink>
-    void FlexImageFilm::SplatFootprint(const FloatP &x, const FloatP &y,
-                                       const XYZColorP &xyz, MaskP active,
-                                       const FloatP &weight, Sink &&sink) const
-    {
-        const float xWidth = m_filter->GetXWidth();
-        const float yWidth = m_filter->GetYWidth();
-        const FloatP dx = x - FloatP(0.5f);
-        const FloatP dy = y - FloatP(0.5f);
-        Int32P loX, loY, hiX, hiY;
-        loX = enoki::ceil2int<Int32P>(dx - FloatP(xWidth));
-        hiX = enoki::floor2int<Int32P>(dx + FloatP(xWidth));
-        loY = enoki::ceil2int<Int32P>(dy - FloatP(yWidth));
-        hiY = enoki::floor2int<Int32P>(dy + FloatP(yWidth));
-        const int nx = enoki::floor2int<int>(2.f * xWidth + 1e-4f) + 1;
-        const int ny = enoki::floor2int<int>(2.f * yWidth + 1e-4f) + 1;
-
-        FloatP wx[64], wy[64];
-        FloatP totalX(0.f), totalY(0.f);
-        for (int xr = 0; xr < nx; ++xr)
-        {
-            const Int32P xPix = loX + Int32P(xr);
-            wx[xr] = m_filter->EvaluateXP(enoki::abs(FloatP(xPix) - dx));
-            totalX = enoki::select(xPix <= hiX, totalX + wx[xr], totalX);
-        }
-        for (int yr = 0; yr < ny; ++yr)
-        {
-            const Int32P yPix = loY + Int32P(yr);
-            wy[yr] = m_filter->EvaluateYP(enoki::abs(FloatP(yPix) - dy));
-            totalY = enoki::select(yPix <= hiY, totalY + wy[yr], totalY);
-        }
-        const FloatP invTotal =
-            enoki::rcp(enoki::max(totalX * totalY, FloatP(1e-20f)));
-
-        const Int32P xStartP(m_xStart), yStartP(m_yStart), xCountP(m_xCount);
-        const int maxX = m_xStart + m_xCount - 1;
-        const int maxY = m_yStart + m_yCount - 1;
-        const Int32P maxXP(maxX), maxYP(maxY);
-
-        for (int yr = 0; yr < ny; ++yr)
-        {
-            const Int32P yPix = loY + Int32P(yr);
-            const MaskP rowOk = active && (yPix <= hiY) && (yPix >= yStartP) &&
-                                (yPix <= maxYP);
-            if (!enoki::any(rowOk))
-                continue;
-            for (int xr = 0; xr < nx; ++xr)
-            {
-                const Int32P xPix = loX + Int32P(xr);
-                MaskP enabled = rowOk && (xPix <= hiX) && (xPix >= xStartP) &&
-                                (xPix <= maxXP);
-                if (!enoki::any(enabled))
-                    continue;
-                const FloatP w = weight * wx[xr] * wy[yr] * invTotal;
-                Int32P idx = (yPix - yStartP) * xCountP + (xPix - xStartP);
-                idx = enoki::clamp(idx, Int32P(0),
-                                   Int32P(int(m_xCount) * int(m_yCount) - 1));
-                sink(idx, w, xyz, enabled);
-            }
-        }
+        enoki::scatter_add(bufX, weight * xyzP[0], idx, ok);
+        enoki::scatter_add(bufY, weight * xyzP[1], idx, ok);
+        enoki::scatter_add(bufZ, weight * xyzP[2], idx, ok);
+        enoki::scatter_add(bufA, alpha * weight, idx, ok);
+        enoki::scatter_add(bufW, weight, idx, ok);
     }
 
     void FlexImageFilm::SplatLight(const FloatP &x, const FloatP &y,
@@ -523,232 +165,31 @@ namespace lux2
         if (!enoki::any(ok))
             return;
 
-        // Scratch films.
-        if (m_master)
-        {
-            LogLightSplats(x, y, xyzP, ok);
-            return;
-        }
-
         BufferSet &bs = Active();
         if (bs.lRGB.empty())
             return;
 
-        // Direct splats land on the master at arbitrary pixels (MLT).
-        std::vector<std::unique_ptr<std::lock_guard<std::mutex>>> guards;
-        guards.reserve(m_tileMutexes.size());
-        for (auto &mu : m_tileMutexes)
-            guards.push_back(std::make_unique<std::lock_guard<std::mutex>>(*mu));
-        float *pL = bs.lRGB.data();
-
-        SplatFootprint(x, y, xyzP, ok, FloatP(1.f),
-                       [&](const Int32P &idx, const FloatP &w,
-                           const XYZColorP &xyz, const MaskP &enabled)
-                       {
-                           alignas(64) float fx[PACKET_WIDTH], fy[PACKET_WIDTH],
-                               fz[PACKET_WIDTH];
-                           alignas(64) int fi[PACKET_WIDTH];
-                           alignas(64) float fm[PACKET_WIDTH];
-                           enoki::store_unaligned(fx, w * xyz[0]);
-                           enoki::store_unaligned(fy, w * xyz[1]);
-                           enoki::store_unaligned(fz, w * xyz[2]);
-                           enoki::store_unaligned(fi, idx);
-                           enoki::store_unaligned(fm,
-                                                  select(enabled, FloatP(1.f), FloatP(0.f)));
-                           for (int i = 0; i < PACKET_WIDTH; ++i)
-                           {
-                               if (fm[i] <= 0.f)
-                                   continue;
-                               float *p =
-                                   pL + size_t(fi[i]) * BufferSet::kStride;
-                               p[BufferSet::LX] += fx[i];
-                               p[BufferSet::LY] += fy[i];
-                               p[BufferSet::LZ] += fz[i];
-                           }
-                       });
-    }
-
-    void FlexImageFilm::LogLightSplats(const FloatP &x, const FloatP &y,
-                                       const XYZColorP &xyz, MaskP active)
-    {
-        alignas(64) float xa[PACKET_WIDTH], ya[PACKET_WIDTH];
-        alignas(64) float Xa[PACKET_WIDTH], Ya[PACKET_WIDTH], Za[PACKET_WIDTH];
-        alignas(64) float ma[PACKET_WIDTH];
-        enoki::store_unaligned(xa, x);
-        enoki::store_unaligned(ya, y);
-        enoki::store_unaligned(Xa, xyz[0]);
-        enoki::store_unaligned(Ya, xyz[1]);
-        enoki::store_unaligned(Za, xyz[2]);
-        enoki::store_unaligned(ma, select(active, FloatP(1.f), FloatP(0.f)));
-        auto &log = m_lightLog;
-        for (size_t i = 0; i < PACKET_WIDTH; ++i)
-        {
-            if (ma[i] <= 0.f)
-                continue;
-            log.x.push_back(xa[i]);
-            log.y.push_back(ya[i]);
-            log.X.push_back(Xa[i]);
-            log.Y.push_back(Ya[i]);
-            log.Z.push_back(Za[i]);
-        }
-        // The cap is resolution-scaled on the master.
-        const size_t cap = m_master ? m_master->m_logCap : m_logCap;
-        if (log.Size() >= cap)
-            ReplayLightLog();
-    }
-
-    void FlexImageFilm::ReplayLightLog()
-    {
-        SplatLog &log = m_lightLog;
-        if (log.Size() == 0)
+        const Int32P px = enoki::floor2int<Int32P>(x);
+        const Int32P py = enoki::floor2int<Int32P>(y);
+        const Int32P xStartP(m_xStart), yStartP(m_yStart), xCountP(m_xCount);
+        const Int32P maxXP(m_xStart + m_xCount - 1),
+            maxYP(m_yStart + m_yCount - 1);
+        ok = ok && (px >= xStartP) && (px <= maxXP) && (py >= yStartP) &&
+             (py <= maxYP);
+        if (!enoki::any(ok))
             return;
-        FlexImageFilm *M = m_master;
-        assert(M && !M->m_tiles.empty());
-        const size_t n = log.Size();
 
-        const float xWidth = m_filter->GetXWidth();
-        const float yWidth = m_filter->GetYWidth();
-        // Footprint taps per axis.
-        const int nx = int(std::floor(2.f * xWidth + 1e-4f)) + 1;
-        const int ny = int(std::floor(2.f * yWidth + 1e-4f)) + 1;
-        assert(nx <= 64 && ny <= 64);
+        const Int32P nIdxP(int(bs.bX.size()) - 1);
+        const Int32P idx =
+            enoki::clamp((py - yStartP) * xCountP + (px - xStartP), Int32P(0),
+                         nIdxP);
 
-        // Create scratch sized for the largest bin plus halo.
-        if (!m_lightScratch)
-            m_lightScratch = M->MakeLightScratch();
-        FlexImageFilm *S = m_lightScratch.get();
-
-        const int nbins = M->m_binCols * M->m_binRows;
-        // Counting sort of log entries by the bin containing their center.
-        m_binCount.assign(size_t(nbins) + 1u, 0u);
-        for (size_t i = 0; i < n; ++i)
-            ++m_binCount[BinAt(M, log.x[i], log.y[i])];
-        uint32_t acc = 0;
-        m_binStart.resize(size_t(nbins));
-        for (int b = 0; b < nbins; ++b)
-        {
-            m_binStart[b] = acc;
-            acc += m_binCount[b];
-        }
-        m_sorted.resize(n);
-        m_binCursor = m_binStart; // per-bin write cursor
-        for (size_t i = 0; i < n; ++i)
-            m_sorted[m_binCursor[BinAt(M, log.x[i], log.y[i])]++] = uint32_t(i);
-
-        const int cropX1 = M->m_xStart + M->m_xCount;
-        const int cropY1 = M->m_yStart + M->m_yCount;
-        for (int b = 0; b < nbins; ++b)
-        {
-            const uint32_t begin = m_binStart[b];
-            const uint32_t end = begin + m_binCount[b];
-            if (begin == end)
-                continue;
-            const int bc = b % M->m_binCols, br = b / M->m_binCols;
-            const int bx0 = M->m_xStart + bc * M->m_binW;
-            const int by0 = M->m_yStart + br * M->m_binH;
-            // Scratch window = bin rect grown by halo, clamped to the crop.
-            const int sx0 = std::max(bx0 - M->m_haloX, M->m_xStart);
-            const int sy0 = std::max(by0 - M->m_haloY, M->m_yStart);
-            const int sx1 = std::min(bx0 + M->m_binW + M->m_haloX, cropX1);
-            const int sy1 = std::min(by0 + M->m_binH + M->m_haloY, cropY1);
-            M->BindLightScratch(sx0, sy0, sx1, sy1, *S);
-            float *sl = S->Active().lRGB.data();
-            const int sw = S->m_xCount;
-
-            // Densify using adds into the scratch.
-            for (uint32_t k = begin; k < end; ++k)
-            {
-                const size_t idx = m_sorted[k];
-                const float px = log.x[idx], py = log.y[idx];
-                const float dx = px - 0.5f, dy = py - 0.5f;
-                const int loX = int(std::ceil(dx - xWidth));
-                const int hiX = int(std::floor(dx + xWidth));
-                const int loY = int(std::ceil(dy - yWidth));
-                const int hiY = int(std::floor(dy + yWidth));
-                float wx[64], wy[64];
-                float totalX = 0.f, totalY = 0.f;
-                for (int xr = 0; xr < nx; ++xr)
-                {
-                    wx[xr] = m_filter->EvaluateX(
-                        std::abs(float(loX + xr) - dx));
-                    if (loX + xr <= hiX)
-                        totalX += wx[xr];
-                }
-                for (int yr = 0; yr < ny; ++yr)
-                {
-                    wy[yr] = m_filter->EvaluateY(
-                        std::abs(float(loY + yr) - dy));
-                    if (loY + yr <= hiY)
-                        totalY += wy[yr];
-                }
-                const float invTotal = 1.f / std::max(totalX * totalY, 1e-20f);
-                const float ex = log.X[idx], ey = log.Y[idx], ez = log.Z[idx];
-                for (int yr = 0; yr < ny; ++yr)
-                {
-                    const int pyi = loY + yr;
-                    if (pyi < sy0 || pyi >= sy1)
-                        continue;
-                    for (int xr = 0; xr < nx; ++xr)
-                    {
-                        const int pxi = loX + xr;
-                        if (pxi < sx0 || pxi >= sx1)
-                            continue;
-                        const float w = wx[xr] * wy[yr] * invTotal;
-                        const size_t d =
-                            (size_t(pyi - sy0) * sw + size_t(pxi - sx0)) *
-                            BufferSet::kStride;
-                        sl[d + BufferSet::LX] += w * ex;
-                        sl[d + BufferSet::LY] += w * ey;
-                        sl[d + BufferSet::LZ] += w * ez;
-                    }
-                }
-            }
-            // Merge this bin's scratch into the master under lock.
-            M->MergeRegion(*S);
-        }
-        log.Clear();
-    }
-
-    uint32_t FlexImageFilm::BinAt(const FlexImageFilm *M, float x,
-                                  float y) const
-    {
-        // Clamp the pixel into the crop before dividing.
-        const int c = enoki::clamp(int(std::floor(x)) - M->m_xStart, 0,
-                                   std::max(0, M->m_xCount - 1)) /
-                      M->m_binW;
-        const int r = enoki::clamp(int(std::floor(y)) - M->m_yStart, 0,
-                                   std::max(0, M->m_yCount - 1)) /
-                      M->m_binH;
-        return uint32_t(r * M->m_binCols + c);
-    }
-
-    std::unique_ptr<FlexImageFilm> FlexImageFilm::MakeLightScratch() const
-    {
-        auto s = std::unique_ptr<FlexImageFilm>(new FlexImageFilm(
-            m_xres, m_yres, m_filter, 0, 0, 0, 0, m_premultiplyAlpha,
-            ScratchTag{}));
-        const size_t area =
-            size_t(m_binW + 2 * m_haloX) * size_t(m_binH + 2 * m_haloY);
-        s->m_groups[0].lRGB.reserve(area * BufferSet::kStride);
-        return s;
-    }
-
-    void FlexImageFilm::BindLightScratch(int x0, int y0, int x1, int y1,
-                                         FlexImageFilm &scratch) const
-    {
-        scratch.m_xStart = x0;
-        scratch.m_xCount = x1 - x0;
-        scratch.m_yStart = y0;
-        scratch.m_yCount = y1 - y0;
-        const size_t n = size_t(scratch.m_xCount) * size_t(scratch.m_yCount);
-        // assign() reuses reserved capacity: memset only.
-        scratch.m_groups[0].lRGB.assign(n * BufferSet::kStride, 0.f);
-    }
-
-    void FlexImageFilm::FlushLightLog()
-    {
-        if (m_master)
-            ReplayLightLog();
+        // Interleaved RGB at kStride floats per pixel.
+        float *pL = bs.lRGB.data();
+        const Int32P sIdx = idx * Int32P(BufferSet::kStride);
+        enoki::scatter_add(pL + BufferSet::LX, xyzP[0], sIdx, ok);
+        enoki::scatter_add(pL + BufferSet::LY, xyzP[1], sIdx, ok);
+        enoki::scatter_add(pL + BufferSet::LZ, xyzP[2], sIdx, ok);
     }
 
     void FlexImageFilm::Merge(Film *other)
@@ -784,7 +225,9 @@ namespace lux2
                 d.bW[i] += s.bW[i];
             }
         }
-        m_sampleCount += o->m_sampleCount;
+        m_totalCommitted.fetch_add(
+            o->m_totalCommitted.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
     }
 
     void FlexImageFilm::GetPixelNormalized(int x, int y, float xyz[3],
@@ -803,7 +246,11 @@ namespace lux2
 
         const SnapshotColor sc = MakeSnapshotColor();
         float a = 0.f;
-        const XYZColor c = CompositePixel(m_groups, sc, idx, a);
+        const double eyeSamples =
+            m_totalCommitted.load(std::memory_order_relaxed);
+        const float invP =
+            eyeSamples > 0.0 ? float(1.0 / eyeSamples) : 0.f;
+        const XYZColor c = CompositePixel(m_groups, sc, idx, a, invP);
         xyz[0] = c[0];
         xyz[1] = c[1];
         xyz[2] = c[2];
@@ -963,38 +410,51 @@ namespace lux2
     {
         // Bulk copy.
         out = m_groups;
+    }
 
-        if (!m_tileMutexes.empty())
+    // Separable convolution with the pixel integrated filter kernel.
+    void FlexImageFilm::FilterGrid(const std::vector<float> &in,
+                                   const std::vector<float> &gx,
+                                   const std::vector<float> &gy,
+                                   std::vector<float> &out) const
+    {
+        const int w = m_xCount, h = m_yCount;
+        const size_t n = size_t(w) * size_t(h);
+        const int rx = int(gx.size()) / 2;
+        const int ry = int(gy.size()) / 2;
+
+        // Horizontal pass.
+        std::vector<float> tmp(n, 0.f);
+        for (int y = 0; y < h; ++y)
         {
-            // Only the active set mutates during a sequential pass.
-            const size_t g = static_cast<size_t>(m_activeGroup);
-            BufferSet &d = out[g];
-            const BufferSet &s = m_groups[g];
-            for (size_t t = 0; t < m_tiles.size(); ++t)
+            const size_t row = size_t(y) * w;
+            for (int x = 0; x < w; ++x)
             {
-                const FilmTile &tl = m_tiles[t];
-                std::lock_guard<std::mutex> lock(*m_tileMutexes[t]);
-                for (int y = tl.y0; y < tl.y1; ++y)
+                float s = 0.f;
+                for (int k = -rx; k <= rx; ++k)
                 {
-                    const size_t base = size_t(y - m_yStart) * m_xCount +
-                                        size_t(tl.x0 - m_xStart);
-                    const size_t len = size_t(tl.x1 - tl.x0);
-                    for (size_t i = 0; i < len; ++i)
-                    {
-                        d.bX[base + i] = s.bX[base + i];
-                        d.bY[base + i] = s.bY[base + i];
-                        d.bZ[base + i] = s.bZ[base + i];
-                        d.bAlpha[base + i] = s.bAlpha[base + i];
-                        d.bW[base + i] = s.bW[base + i];
-                    }
-                    // lRGB is plain floats now, so it must be re-read under
-                    // the same tile lock as b* (the bulk copy above races
-                    // with concurrent merges).
-                    const size_t dl = base * BufferSet::kStride;
-                    const size_t rowL = len * BufferSet::kStride;
-                    for (size_t i = 0; i < rowL; ++i)
-                        d.lRGB[dl + i] = s.lRGB[dl + i];
+                    const int sx =
+                        std::clamp(x + k, 0, w - 1);
+                    s += gx[size_t(k + rx)] * in[row + size_t(sx)];
                 }
+                tmp[row + size_t(x)] = s;
+            }
+        }
+
+        // Vertical pass.
+        out.assign(n, 0.f);
+        for (int y = 0; y < h; ++y)
+        {
+            for (int x = 0; x < w; ++x)
+            {
+                float s = 0.f;
+                for (int k = -ry; k <= ry; ++k)
+                {
+                    const int sy =
+                        std::clamp(y + k, 0, h - 1);
+                    s += gy[size_t(k + ry)] * tmp[size_t(sy) * w + size_t(x)];
+                }
+                out[size_t(y) * w + size_t(x)] = s;
             }
         }
     }
@@ -1011,13 +471,9 @@ namespace lux2
         // One color setup for the whole snapshot.
         const SnapshotColor sc = MakeSnapshotColor();
 
-        // Scale light-tracing splats by 1/(total eye samples). The tiled
-        // path tracks this in m_totalEyeSamples; the flat path uses
-        // m_sampleCount (spp) times the pixel count.
+        // Scale light tracing splats by 1/(total eye samples).
         const double eyeSamples =
-            m_tileSampleCount.empty()
-                ? m_sampleCount * double(nPix)
-                : m_totalEyeSamples.load(std::memory_order_relaxed);
+            m_totalCommitted.load(std::memory_order_relaxed);
         const float invP = (eyeSamples > 0.0) ? float(1.0 / eyeSamples) : 0.f;
 
         std::vector<XYZColor> xyz(nPix, XYZColor(0.f));
@@ -1032,6 +488,26 @@ namespace lux2
                 if (alpha[i] > 0.f)
                     xyz[i] /= alpha[i];
             }
+        }
+
+        // Convolve the pixel means with the filter g = h (x) box.
+        if (m_filter->GetXWidth() > 0.5f || m_filter->GetYWidth() > 0.5f)
+        {
+            const std::vector<float> gx =
+                m_filter->PixelIntegratedWeightsX();
+            const std::vector<float> gy =
+                m_filter->PixelIntegratedWeightsY();
+            std::vector<float> ch(nPix), fo;
+            for (int c = 0; c < 3; ++c)
+            {
+                for (size_t i = 0; i < nPix; ++i)
+                    ch[i] = xyz[i][c];
+                FilterGrid(ch, gx, gy, fo);
+                for (size_t i = 0; i < nPix; ++i)
+                    xyz[i][c] = fo[i];
+            }
+            FilterGrid(alpha, gx, gy, fo);
+            alpha.swap(fo);
         }
 
         if (applyTonemap)
@@ -1079,7 +555,7 @@ namespace lux2
                 exportGroups.push_back(int(g));
         }
 
-        // Reserve each channel in the vector so .data() stays stable as we add.
+        // Reserve each channel in the vector so .data() stays stable.
         std::vector<std::vector<float>> planes;
         planes.reserve(3 + 1 + 3 * exportGroups.size());
         std::vector<EXRChannel> chans;
@@ -1104,6 +580,16 @@ namespace lux2
         }
         addPlane("A", std::vector<float>(alpha));
 
+        // AOV planes get the same filter as beauty.
+        const bool doFilter = m_filter->GetXWidth() > 0.5f ||
+                              m_filter->GetYWidth() > 0.5f;
+        std::vector<float> gx, gy, fo;
+        if (doFilter)
+        {
+            gx = m_filter->PixelIntegratedWeightsX();
+            gy = m_filter->PixelIntegratedWeightsY();
+        }
+
         for (int gi : exportGroups)
         {
             const size_t g = size_t(gi);
@@ -1127,6 +613,15 @@ namespace lux2
                 r[i] = rgb[0] * a;
                 gg[i] = rgb[1] * a;
                 bb[i] = rgb[2] * a;
+            }
+            if (doFilter)
+            {
+                FilterGrid(r, gx, gy, fo);
+                r.swap(fo);
+                FilterGrid(gg, gx, gy, fo);
+                gg.swap(fo);
+                FilterGrid(bb, gx, gy, fo);
+                bb.swap(fo);
             }
             const std::string base =
                 (gi < int(m_groupNames.size()) && !m_groupNames[gi].empty())
@@ -1351,7 +846,6 @@ namespace lux2
             // TORGB_GAMMA and unimplemented ids are ignored.
             break;
         }
-        ResetConvTest();
     }
 
     double FlexImageFilm::GetParameterValue(luxComponentParameters param,
@@ -1474,7 +968,6 @@ namespace lux2
         default:
             break;
         }
-        ResetConvTest();
     }
 
     std::string FlexImageFilm::GetStringParameterValue(

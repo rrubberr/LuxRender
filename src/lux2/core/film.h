@@ -36,13 +36,6 @@
 namespace lux2
 {
 
-    // A rectangular region used to partition the film.
-    struct FilmTile
-    {
-        int x0 = 0, y0 = 0, x1 = 0, y1 = 0;     // owned pixels
-        int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0; // scratch window with halo
-    };
-
     // Which outputs to write.
     enum ImageType
     {
@@ -93,44 +86,6 @@ namespace lux2
 
         // Merge another film's buffer into this one.
         virtual void Merge(Film *other) = 0;
-
-        // Drain buffered light splats into the shared frame.
-        virtual void FlushLightLog() {}
-
-        // The film is partitioned into tiles.
-        // For Enoki, create a PACKET_WIDTH aligned tile grid.
-        virtual int SetupTiles(int tileSize, int haloX, int haloY)
-        {
-            (void)tileSize;
-            (void)haloX;
-            (void)haloY;
-            return 0;
-        }
-        virtual int TileCount() const { return 0; }
-        virtual FilmTile GetTile(uint32_t index) const
-        {
-            (void)index;
-            return FilmTile{};
-        }
-
-        // A private accumulation buffer sized for the largest scratch window.
-        virtual std::unique_ptr<Film> MakeWorkerScratch() const
-        {
-            return nullptr;
-        }
-
-        // Point a worker scratch at a tile scratch window and zero it.
-        virtual void BindScratch(uint32_t tile, Film &scratch) const {}
-
-        // Merge a scratch into the shared frame.
-        virtual void MergeRegion(Film &scratch) { (void)scratch; }
-
-        // Global SampleCount() is the min across tiles.
-        virtual void AddTileSampleCount(uint32_t tile, double n)
-        {
-            (void)tile;
-            (void)n;
-        }
 
         // Zero the accumulation buffers.
         virtual void Clear() {}

@@ -20,6 +20,7 @@
 #include "core/color/colorsystem.h"
 #include "core/dynload.h"
 #include "core/math/math.h"
+#include "filters/box.h"
 #include "filters/gaussian.h"
 
 #include <cmath>
@@ -58,14 +59,6 @@ void SplatOne(Film &film, float px, float py, float wl, float L,
     sw.FromWavelength(FloatP(wl));
     film.Splat(FloatP(px), FloatP(py), SWCSpectrumP(L), sw, FloatP(alpha),
                FloatP(weight));
-}
-
-// Broadcast a scalar light splat (SplatLight path).
-void SplatLightOne(Film &film, float px, float py, float wl, float L) {
-    SpectrumWavelengthsP sw;
-    sw.FromWavelength(FloatP(wl));
-    film.SplatLight(FloatP(px), FloatP(py), SWCSpectrumP(L), sw,
-                    MaskP(true));
 }
 
 XYZColorP ExpectedXYZ(float wl, float L) {
@@ -154,11 +147,12 @@ void CheckSplatReadback() {
     }
     Check(ok, "splat readback matches SWCToXYZ");
 
-    // Neighbors must be non-zero (filter spreads) but unsampled far pixels
-    // must be exactly zero.
+    // Single-tap accumulation: a splat touches only its generating pixel.
+    // Reconstruction filtering happens at output time, so the raw buffer has
+    // no neighbor spread and unsampled pixels are exactly zero.
     float nxyz[3], nalpha;
     film.GetPixelNormalized(33, 32, nxyz, &nalpha);
-    Check(nxyz[1] > 0.f, "filter spreads to neighbor");
+    Check(nxyz[0] == 0.f && nalpha == 0.f, "single-tap: neighbor untouched");
     film.GetPixelNormalized(60, 60, nxyz, &nalpha);
     Check(nxyz[0] == 0.f && nalpha == 0.f, "far pixel unsampled");
 }
@@ -279,50 +273,6 @@ bool BuffersEqual(const FlexImageFilm &a, const FlexImageFilm &b,
     return true;
 }
 
-// A worker scratch accumulates a tile's window.
-void CheckScratchMerge() {
-    GaussianFilter f(2.f, 2.f, 2.f);
-    const float full[4] = {0.f, 1.f, 0.f, 1.f};
-    FlexImageFilm master(64, 64, &f, full, "out", false);
-    FlexImageFilm ref(64, 64, &f, full, "out", false);
-
-    const int tiles = master.SetupTiles(64, 3, 3);
-    Check(tiles == 1, "SetupTiles yields one tile for a full-frame grid");
-
-    auto scratch = master.MakeWorkerScratch();
-    Check(scratch != nullptr, "MakeWorkerScratch returns a film");
-    if (!scratch)
-        return;
-
-    // Geometry matches the master.
-    Check(scratch->XRes() == master.XRes() && scratch->YRes() == master.YRes(),
-          "scratch resolution matches master");
-
-    FlexImageFilm *blk = dynamic_cast<FlexImageFilm *>(scratch.get());
-    Check(blk != nullptr, "scratch is a FlexImageFilm");
-    if (!blk)
-        return;
-
-    master.BindScratch(0, *scratch);
-    const FilmTile t = master.GetTile(0);
-    Check(blk->XStart() == t.sx0 && blk->XCount() == t.sx1 - t.sx0 &&
-              blk->YStart() == t.sy0 && blk->YCount() == t.sy1 - t.sy0,
-          "bound scratch window matches the tile's halo window");
-
-    // Splat into the scratch and the reference.
-    const float wl = 560.f;
-    SplatOne(*blk, 24.5f, 30.5f, wl, 1.3f, 1.f, 1.f);
-    SplatOne(ref, 24.5f, 30.5f, wl, 1.3f, 1.f, 1.f);
-
-    master.MergeRegion(*scratch);
-    master.AddTileSampleCount(0, 3.0);
-    ref.AddSampleCount(3.0);
-
-    Check(BuffersEqual(master, ref), "scratch merge equals direct accumulation");
-    Check(Close(float(master.SampleCount()), float(ref.SampleCount())),
-          "scratch merge carries sample count");
-}
-
 // Clear() zeroes the buffers and sample count so a block can be reused.
 void CheckClear() {
     GaussianFilter f(2.f, 2.f, 2.f);
@@ -391,120 +341,6 @@ void CheckConcurrentMerge() {
           "concurrent merges equal serial merge");
     Check(Close(float(master.SampleCount()), float(serialRef.SampleCount())),
           "concurrent merges carry total sample count");
-}
-
-// A multi-tile partition: splats near a tile edge bleed into the scratch
-// halo and land in neighbouring tiles' owned pixels through the overlap
-// directory. Global SampleCount() is the min across tiles.
-void CheckTileHaloMerge() {
-    GaussianFilter f(2.f, 2.f, 2.f);
-    const float full[4] = {0.f, 1.f, 0.f, 1.f};
-    const float wl = 560.f;
-
-    FlexImageFilm master(64, 64, &f, full, "out", false);
-    FlexImageFilm ref(64, 64, &f, full, "out", false);
-
-    // Preexisting data outside a tile's domain must survive the merge.
-    SplatOne(master, 4.5f, 4.5f, wl, 1.f, 1.f, 1.f);
-    SplatOne(ref, 4.5f, 4.5f, wl, 1.f, 1.f, 1.f);
-
-    const int halo = 3; // >= ceil(filter radius)
-    const int tiles = master.SetupTiles(32, halo, halo);
-    Check(tiles == 4, "SetupTiles yields a 2x2 tile grid");
-    if (tiles != 4)
-        return;
-
-    // One scratch reused across tiles.
-    auto scratch = master.MakeWorkerScratch();
-    if (!scratch)
-        return;
-    for (int ti = 0; ti < tiles; ++ti) {
-        const FilmTile t = master.GetTile(uint32_t(ti));
-        master.BindScratch(uint32_t(ti), *scratch);
-
-        // Centers hug the owned-domain edges so footprints bleed across
-        // tile boundaries.
-        const float cx[3] = {float(t.x0) + 0.5f,
-                             float(t.x0 + t.x1 - 1) + 0.5f,
-                             float((t.x0 + t.x1) / 2) + 0.5f};
-        const float cy[3] = {float(t.y0) + 0.5f,
-                             float(t.y0 + t.y1 - 1) + 0.5f,
-                             float((t.y0 + t.y1) / 2) + 0.5f};
-        for (int i = 0; i < 3; ++i)
-            for (int j = 0; j < 3; ++j) {
-                SplatOne(*scratch, cx[i], cy[j], wl, 1.f, 1.f, 1.f);
-                SplatOne(ref, cx[i], cy[j], wl, 1.f, 1.f, 1.f);
-            }
-
-        master.MergeRegion(*scratch);
-        master.AddTileSampleCount(uint32_t(ti), 9.0);
-        ref.AddSampleCount(9.0);
-    }
-
-    Check(BuffersEqual(master, ref),
-          "tiled halo merge equals direct accumulation (incl. bleed)");
-    Check(Close(float(master.SampleCount()), 9.f),
-          "global SPP is the min across tiles");
-}
-
-// The scratch light-splat log must reproduce the direct atomic path
-// exactly: same footprint weights, same normalization, and correct
-// placement across tile boundaries (Cam splats project anywhere).
-void CheckLightSplatLog() {
-    GaussianFilter f(2.f, 2.f, 2.f);
-    const float full[4] = {0.f, 1.f, 0.f, 1.f};
-    const float wl = 560.f;
-
-    FlexImageFilm master(64, 64, &f, full, "out", false);
-    FlexImageFilm ref(64, 64, &f, full, "out", false);
-    const int halo = 3;
-    const int tiles = master.SetupTiles(32, halo, halo);
-    if (tiles != 4) {
-        Check(false, "light log: expected a 2x2 tile grid");
-        return;
-    }
-
-    auto scratch = master.MakeWorkerScratch();
-    if (!scratch) {
-        Check(false, "light log: scratch created");
-        return;
-    }
-
-    // Deterministic splat set per tile: centers hug owned-domain edges so
-    // footprints bleed across boundaries, plus one far from the window to
-    // exercise bins outside the scratch domain.
-    std::srand(42);
-    for (int ti = 0; ti < tiles; ++ti) {
-        const FilmTile t = master.GetTile(uint32_t(ti));
-        master.BindScratch(uint32_t(ti), *scratch);
-        for (int i = 0; i < 24; ++i) {
-            const float cx = float(t.x0) + RandUnit() * float(t.x1 - t.x0);
-            const float cy = float(t.y0) + RandUnit() * float(t.y1 - t.y0);
-            const float L = 0.25f + RandUnit();
-            SplatLightOne(*scratch, cx, cy, wl, L);
-            SplatLightOne(ref, cx, cy, wl, L);
-        }
-        // A point in the diagonally opposite tile: outside this scratch's
-        // window+halo; must still land via bin-by-tile replay.
-        const FilmTile &far = master.GetTile(uint32_t((ti + 3) % tiles));
-        const float fx = float(far.x0 + (far.x1 - far.x0) / 2) + 0.5f;
-        const float fy = float(far.y0 + (far.y1 - far.y0) / 2) + 0.5f;
-        SplatLightOne(*scratch, fx, fy, wl, 1.f);
-        SplatLightOne(ref, fx, fy, wl, 1.f);
-
-        scratch->FlushLightLog();
-    }
-
-    bool ok = true;
-    for (int y = 0; y < 64 && ok; ++y)
-        for (int x = 0; x < 64 && ok; ++x) {
-            const size_t i = size_t(y) * 64 + x;
-            for (int c = 0; c < 3; ++c) {
-                if (!Close(master.LightAt(i, c), ref.LightAt(i, c)))
-                    ok = false;
-            }
-        }
-    Check(ok, "scratch light-splat log equals direct atomic splat path");
 }
 
 // Replicate the display pipeline from the film's raw accumulation buffers:
@@ -653,7 +489,10 @@ void CheckFrameBufferLinear() {
 }
 
 void CheckFrameBufferAutoLinear() {
-    GaussianFilter f(2.f, 2.f, 2.f);
+    // Box filter (width <= 0.5) skips output-time reconstruction, so the
+    // autolinear mean is taken over the raw single-tap buffers and the
+    // reference below matches exactly.
+    BoxFilter f(0.5f, 0.5f);
     const float full[4] = {0.f, 1.f, 0.f, 1.f};
     FlexImageFilm film(32, 32, &f, full, "out", false);
 
@@ -879,11 +718,8 @@ int main() {
     CheckValidity();
     CheckPremultiply();
     CheckParameters();
-    CheckScratchMerge();
     CheckClear();
     CheckConcurrentMerge();
-    CheckTileHaloMerge();
-    CheckLightSplatLog();
     CheckFrameBufferBasics();
     CheckFrameBufferLinear();
     CheckFrameBufferAutoLinear();

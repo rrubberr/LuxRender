@@ -246,8 +246,6 @@ namespace lux2
         }
 
         JobCursor jobs(tile, spp);
-        // Light splats go to the worker's scratch film.
-        Film &film = dest;
 
         // Drain completed samples.
         auto flushRetire = [&]()
@@ -370,7 +368,7 @@ namespace lux2
             WfStatDispatch(WF_Q_CAMNEE, int(n), n < uint32_t(PACKET_WIDTH));
             WfTimer wt(WF_PH_CAMNEE);
             const MaskP act = fillMask(n);
-            wf::CamNeeConnector cnee(ctx, sampler, tbl, psEye, &film);
+            wf::CamNeeConnector cnee(ctx, sampler, tbl, psEye, &dest);
             cnee.ePath = ePath;
             cnee.sample = sample;
             cnee.alive = act;
@@ -429,7 +427,7 @@ namespace lux2
             WfStatDispatch(WF_Q_CAM, int(n), n < uint32_t(PACKET_WIDTH));
             WfTimer wt(WF_PH_CAM);
             const MaskP act = fillMask(n);
-            wf::CamConnector cam(ctx, tbl, psEye, psLight, &film);
+            wf::CamConnector cam(ctx, tbl, psEye, psLight, &dest);
             // Cam items carry only the sample.
             cam.ePath = enoki::gather<UInt32P>(tbl.eyePath.data(), sample, act);
             cam.lPath = lPath;
@@ -587,8 +585,6 @@ namespace lux2
             }
             break;
         }
-        // Drain buffered light splats into the shared frame.
-        film.FlushLightLog();
         // The loop only exits once retireQueue is drained.
 #ifdef LUX2_INTEGRATOR_DEBUG
         // Any slot still pending at exit was stranded by a lost completion.

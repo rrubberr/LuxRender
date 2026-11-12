@@ -36,7 +36,7 @@ namespace lux2
     class LDSampler : public Sampler
     {
     public:
-        // spp is rounded up to a square power of two.
+        // spp is rounded up to a power of two, at least PACKET_WIDTH.
         LDSampler(uint32_t sampleCount, uint64_t baseSeed);
 
         std::unique_ptr<Sampler> Clone() const override
@@ -62,7 +62,7 @@ namespace lux2
         static std::shared_ptr<Sampler> CreateSampler(const PluginContext &ctx);
 
     private:
-        uint32_t m_sampleCount;     // res^2
+        uint32_t m_sampleCount;     // permute range (pow2, >= PACKET_WIDTH)
         uint32_t m_dimensionIndex;  // per-sample stream counter
         uint32_t m_sampleIndex;     // current sample within the sequence
         uint64_t m_baseSeed;

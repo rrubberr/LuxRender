@@ -3,14 +3,14 @@
 Renderer "sampler"
 
 Sampler "lowdiscrepancy"
-	"integer pixelsamples" [16]
-	"string pixelsampler" ["lowdiscrepancy"]
+	"integer pixelsamples" [128]
+	"string pixelsampler" ["hilbert"]
 
 Accelerator "embree"
 
 SurfaceIntegrator "bidirectional"
-	"integer eyedepth" [16]
-	"integer lightdepth" [16]
+	"integer eyedepth" [8]
+	"integer lightdepth" [4]
 	"integer lightraycount" [1]
 	"float eyerrthreshold" [0.000000000000000]
 	"float lightrrthreshold" [0.000000000000000]

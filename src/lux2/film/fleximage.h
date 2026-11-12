@@ -40,7 +40,7 @@ namespace lux2
     struct PluginContext;
     class ToneMap;
 
-    // Fleximage accumulates XYZ with filter weights.
+    // PReconstruction filtering happens at output.
     class FlexImageFilm : public Film
     {
     public:
@@ -71,33 +71,33 @@ namespace lux2
         int XCount() const override { return m_xCount; }
         int YCount() const override { return m_yCount; }
 
+        // Accumulation at the generating pixel.
         void Splat(const FloatP &x, const FloatP &y, const SWCSpectrumP &L,
                    const SpectrumWavelengthsP &sw, const FloatP &alpha,
                    const FloatP &weight) override;
 
+        // Light splats add into the light buffer.
         void SplatLight(const FloatP &x, const FloatP &y,
                         const SWCSpectrumP &L,
                         const SpectrumWavelengthsP &sw,
                         MaskP active) override;
 
-        // Scratch films buffer light splats.
-        void FlushLightLog() override;
-
         void Merge(Film *other) override;
 
-        // Scheduler interface
-        int SetupTiles(int tileSize, int haloX, int haloY) override;
-        int TileCount() const override { return int(m_tiles.size()); }
-        FilmTile GetTile(uint32_t index) const override;
-        std::unique_ptr<Film> MakeWorkerScratch() const override;
-        void BindScratch(uint32_t tile, Film &scratch) const override;
-        void MergeRegion(Film &scratch) override;
-        void AddTileSampleCount(uint32_t tile, double n) override;
-        // Global SPP = min across tiles once a partition exists, else a
-        // flat counter.
-        double SampleCount() const override;
+        // Average samples per pixel == total committed / crop pixel count.
+        double SampleCount() const override
+        {
+            const double n =
+                m_totalCommitted.load(std::memory_order_relaxed);
+            const size_t nPix = size_t(m_xCount) * size_t(m_yCount);
+            return nPix ? n / double(nPix) : 0.0;
+        }
 
-        void AddSampleCount(double n) override { m_sampleCount += n; }
+        // Workers add a pixel's batch once that pixel finishes.
+        void AddSampleCount(double n) override
+        {
+            m_totalCommitted.fetch_add(n, std::memory_order_relaxed);
+        }
 
         bool WriteImage(ImageType type) override;
 
@@ -127,11 +127,13 @@ namespace lux2
         float *GetAlphaBuffer() override;
 
         // Accumulation buffers of the active group.
-        // For a single light group this is the whole frame.
         const HugeVector<float> &BufX() const { return Active().bX; }
+        const HugeVector<float> &BufY() const { return Active().bY; }
+        const HugeVector<float> &BufZ() const { return Active().bZ; }
+        const HugeVector<float> &BufAlpha() const { return Active().bAlpha; }
+        const HugeVector<float> &BufWeight() const { return Active().bW; }
 
-        // Light accumulator of the active set for one pixel channel
-        // (BufferSet::LX/LY/LZ).
+        // Light accumulator of the active set for one pixel channel.
         float LightAt(size_t pix, int comp) const
         {
             const BufferSet &b = Active();
@@ -139,10 +141,6 @@ namespace lux2
                 return 0.f;
             return b.lRGB[pix * BufferSet::kStride + comp];
         }
-        const HugeVector<float> &BufY() const { return Active().bY; }
-        const HugeVector<float> &BufZ() const { return Active().bZ; }
-        const HugeVector<float> &BufAlpha() const { return Active().bAlpha; }
-        const HugeVector<float> &BufWeight() const { return Active().bW; }
 
         // Lightgroup accumulation.
         void SetLightGroupCount(int n) override;
@@ -263,43 +261,26 @@ namespace lux2
         static std::shared_ptr<Film> CreateFilm(const PluginContext &ctx);
 
     private:
-        FlexImageFilm(int xres, int yres, const Filter *filter,
-                      int xStart, int xCount, int yStart, int yCount,
-                      bool premultiplyAlpha);
-
-        // A private accumulation buffer.
-        struct ScratchTag
-        {
-        };
-        FlexImageFilm(int xres, int yres, const Filter *filter,
-                      int xStart, int xCount, int yStart, int yCount,
-                      bool premultiplyAlpha, ScratchTag);
-
         // Allocate display buffers.
         void CreateFrameBuffer();
 
         // ToneMap built from current parameters.
         std::unique_ptr<ToneMap> BuildToneMap() const;
 
-        // Filter footprint loop.
-        template <class Sink>
-        void SplatFootprint(const FloatP &x, const FloatP &y,
-                            const XYZColorP &xyz, MaskP active,
-                            const FloatP &weight, Sink &&sink) const;
-
-        // Add src into this over [x0,x1)x[y0,y1).
-        void AddRegion(const FlexImageFilm &src, int x0, int y0, int x1, int y1);
-
         // One accumulation set per lightgroup.
         struct BufferSet
         {
             // Interleaved light tracing accumulator.
             static constexpr size_t kStride = 4;
-            enum { LX = 0, LY = 1, LZ = 2 };
+            enum
+            {
+                LX = 0,
+                LY = 1,
+                LZ = 2
+            };
 
             HugeVector<float> bX, bY, bZ, bAlpha, bW;
             // Light tracing accumulators (interleaved, size = 4 * npix).
-            // Plain floats.
             HugeVector<float> lRGB;
         };
 
@@ -319,9 +300,7 @@ namespace lux2
         // current crop area.
         void AllocateSets(int groupCount);
 
-        // Bradford convert for a group:
-        // Adapt(white -> ToXYZ(rgbScale)) * (temp>0 ? Adapt(white -> bb/Y) : I),
-        // then *= globalScale.
+        // Bradford convert for a group.
         ColorAdaptator ComputeConvert(const ColorSystem &cs,
                                       const XYZColor &white,
                                       const GroupModifier &m) const;
@@ -331,18 +310,24 @@ namespace lux2
         {
             ColorSystem cs;
             XYZColor white;
-            // Group convert.
             std::vector<ColorAdaptator> converts;
         };
         SnapshotColor MakeSnapshotColor() const;
 
-        // Composite one pixel. totalEyeSamples scales the light buffer (1/P).
+        // Composite one pixel. invP scales the light buffer (1/total samples).
         XYZColor CompositePixel(const std::vector<BufferSet> &sets,
                                 const SnapshotColor &sc, size_t idx,
                                 float &alpha, float invP = 0.f) const;
 
         // Copy the buffers of every set.
         void SnapshotAccum(std::vector<BufferSet> &out) const;
+
+        // Separably convolve a crop-sized scalar grid with the
+        // pixel integrated filter g. gx/gy are precomputed.
+        void FilterGrid(const std::vector<float> &in,
+                        const std::vector<float> &gx,
+                        const std::vector<float> &gy,
+                        std::vector<float> &out) const;
 
         // Normalize, tonemap, and convert to display RGB.
         bool BuildDisplayImage(std::vector<RGBColor> &rgb,
@@ -351,12 +336,6 @@ namespace lux2
 
         // Multichannel linear EXR with beauty.
         bool WriteGroupEXR(const std::vector<BufferSet> &sets) const;
-
-        // TODO: add convergence test.
-        void ResetConvTest()
-        {
-            // TODO: reset the convergence test once implemented.
-        }
 
         int m_xres, m_yres;
         int m_xStart, m_xCount, m_yStart, m_yCount;
@@ -371,65 +350,11 @@ namespace lux2
         // Bake GUI convert into exported AOVs.
         bool m_bakeGroupState = false;
 
-        double m_sampleCount = 0.0;
-        // Total eye splats across the frame.
-        std::atomic<double> m_totalEyeSamples{0.0};
+        // Total eye samples committed across the frame.
+        std::atomic<double> m_totalCommitted{0.0};
 
         // Mutex Merge() into a shared master film.
         mutable std::mutex m_mergeMutex;
-
-        // Tile mutex over tile's pixels in shared buffers.
-        std::vector<FilmTile> m_tiles;
-        int m_tileCols = 0;
-        int m_tileRows = 0;
-        // Uniform grid step.
-        int m_tileW = 0;
-        int m_tileH = 0;
-        std::vector<std::unique_ptr<std::mutex>> m_tileMutexes;
-        // Tile sample count.
-        std::vector<std::atomic<double>> m_tileSampleCount;
-
-        size_t m_maxScratchArea = 0;
-        // Filter halo.
-        int m_haloX = 0, m_haloY = 0;
-        // Replay bin grid.
-        int m_binW = 0, m_binH = 0, m_binCols = 0, m_binRows = 0;
-
-        // Worker light splat log.
-        struct SplatLog
-        {
-            std::vector<float> x, y, X, Y, Z;
-            void Clear()
-            {
-                x.clear();
-                y.clear();
-                X.clear();
-                Y.clear();
-                Z.clear();
-            }
-            size_t Size() const { return x.size(); }
-        };
-        // Append active lanes; flush early when the log reaches cap.
-        void LogLightSplats(const FloatP &x, const FloatP &y,
-                            const XYZColorP &xyz, MaskP active);
-        // Densify the log into scratch.
-        void ReplayLightLog();
-        // Replay bin index containing pixel (x,y).
-        uint32_t BinAt(const FlexImageFilm *M, float x, float y) const;
-
-        // A private scratch carrying only the interleaved light buffer.
-        std::unique_ptr<FlexImageFilm> MakeLightScratch() const;
-        // Point a light scratch at [x0,x1)x[y0,y1) and zero its lRGB.
-        void BindLightScratch(int x0, int y0, int x1, int y1,
-                              FlexImageFilm &scratch) const;
-
-        SplatLog m_lightLog;
-        FlexImageFilm *m_master = nullptr; // set by MakeWorkerScratch
-        // Replay flush threshold.
-        size_t m_logCap = 64u * 1024u;
-        // Light channel scratch and counting arrays.
-        std::unique_ptr<FlexImageFilm> m_lightScratch;
-        std::vector<uint32_t> m_binCount, m_binStart, m_binCursor, m_sorted;
 
         // Serialize WriteImage() for display timer and render thread.
         mutable std::mutex m_writeMutex;

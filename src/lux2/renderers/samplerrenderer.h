@@ -25,14 +25,12 @@
 #include "core/renderer.h"
 
 #include <atomic>
-#include <cstdint>
 #include <memory>
 
 namespace lux2
 {
 
     struct PluginContext;
-    class Film;
 
     // Renderer state for cooperative cancellation.
     enum class RenderState
@@ -42,13 +40,11 @@ namespace lux2
         Terminate
     };
 
-    // Workers render into scratch tiles and merge once per visit.
+    // Workers claim pixels per pass and splat directly into the film.
     class SamplerRenderer : public Renderer
     {
     public:
-        // tileSize <= 0 == auto == 2 * nWorkers target. tileSpp == 0 == auto.
-        SamplerRenderer(int tileSize, uint32_t tileSpp)
-            : m_tileSize(tileSize), m_tileSpp(tileSpp) {}
+        SamplerRenderer() = default;
 
         void Render(const Scene &scene, SurfaceIntegrator &integrator) override;
 
@@ -66,8 +62,6 @@ namespace lux2
         static std::shared_ptr<Renderer> CreateRenderer(const PluginContext &ctx);
 
     private:
-        int m_tileSize;     // tile edge in pixels; <= 0 == auto == 2 * nWorkers
-        uint32_t m_tileSpp; // samples per work item; 0 == auto
         std::atomic<RenderState> m_state{RenderState::Run};
     };
 

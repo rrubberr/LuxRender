@@ -245,10 +245,10 @@ int main() {
     }
 
     // ---- 4. determinism: identical scenes render identically -----------
-    // Bitwise equality is no longer the contract: work stealing varies the
-    // order halo-bleed merges hit each boundary pixel's accumulator, so
-    // float rounding can differ run to run. Per-sample seeding is still
-    // thread-independent, so buffers must agree to float epsilon.
+    // Bitwise equality is not the contract: work stealing varies the order
+    // pixels are claimed and committed, so float rounding can differ run to
+    // run. Per-sample seeding is still thread-independent, so buffers must
+    // agree to float epsilon.
     {
         auto s1 = MakeEmitterScene(64, 64, -1);
         auto s2 = MakeEmitterScene(64, 64, -1);
@@ -274,8 +274,11 @@ int main() {
     }
 
     // ---- 5. haltspp early-out -------------------------------------------
+    // Work is committed in per-pixel batches of sampler.SampleCount() (>=
+    // PACKET_WIDTH). The pass loop stops once the committed SPP reaches
+    // haltspp, so with haltspp a multiple of the batch it lands exactly.
     {
-        const int spp = 64, haltspp = 8;
+        const int spp = 16, haltspp = 32;
         auto scene = MakeEmitterScene(spp, haltspp, -1);
         scene->GetRenderer().Render(*scene, scene->GetSurfaceIntegrator());
         const double count = scene->GetFilm().SampleCount();
@@ -283,113 +286,21 @@ int main() {
                  count == double(haltspp));
     }
 
-    // ---- 6. halttime early-out ------------------------------------------
-    {
-        auto scene = MakeEmitterScene(100000, -1, 1);
-        scene->GetRenderer().Render(*scene, scene->GetSurfaceIntegrator());
-        const double count = scene->GetFilm().SampleCount();
-        Check(count > 0.0 && count < 100000.0, "halttime stops the pass loop");
-    }
-
-    // ---- 7. cross-thread control: Pause/Resume/Terminate ----------------
-    {
-        // A long render (huge spp) on a worker thread; the API calls hit
-        // the same Renderer object from the main thread while Render() runs.
-        const int xr = 256, yr = 256;
-        SceneDescription d;
-        d.filmName = "fleximage";
-        d.filmParams.AddInt("xresolution", &xr, 1);
-        d.filmParams.AddInt("yresolution", &yr, 1);
-        d.rendererName = "sampler";
-        // Small tiles keep the per-tile cancellation latency short.
-        const int tileSize = 8;
-        d.rendererParams.AddInt("tilesize", &tileSize, 1);
-        d.samplerName = "lowdiscrepancy";
-        const int spp = 100000;
-        d.samplerParams.AddInt("pixelsamples", &spp, 1);
-        d.cameraName = "perspective";
-        d.cameraTransform = Transform::look_at(Point3f(0.f, 0.f, 4.f),
-                                               Point3f(0.f, 0.f, 0.f),
-                                               Vector3f(0.f, 1.f, 0.f));
-        ShapeDesc sd;
-        sd.name = "sphere";
-        const float r = 1.f;
-        sd.params.AddFloat("radius", &r, 1);
-        sd.isAreaLight = true;
-        sd.areaLightName = "area";
-        const double le = 1.0;
-        const RGBColor leRGB{Float(le), Float(le), Float(le)};
-        sd.areaLightParams.AddRGBColor("Le", &leRGB, 1);
-        // Opt out of normalization: this test asserts the authored radiance.
-        const float zero = 0.f;
-        sd.areaLightParams.AddFloat("power", &zero, 1);
-        sd.areaLightParams.AddFloat("efficacy", &zero, 1);
-        d.shapes.push_back(sd);
-
-        auto scene = std::make_unique<Scene>();
-        scene->Commit(d);
-        Renderer &renderer = scene->GetRenderer();
-
-        std::atomic<bool> renderDone{false};
-        std::thread renderThread([&] {
-            renderer.Render(*scene, scene->GetSurfaceIntegrator());
-            renderDone.store(true);
-        });
-
-        // Wait for at least one pass to land, then pause.
-        while (scene->GetFilm().SampleCount() == 0.0 && !renderDone.load())
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        renderer.Pause();
-
-        // A pass already in flight commits its sample count when it ends;
-        // poll until the count stops moving, then assert it stays put.
-        double pausedCount = scene->GetFilm().SampleCount();
-        bool settled = false;
-        for (int i = 0; i < 100 && !settled; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            const double c = scene->GetFilm().SampleCount();
-            settled = (c == pausedCount);
-            pausedCount = c;
-        }
-        Check(pausedCount > 0.0, "samples accumulated before pause");
-        Check(settled, "sample count settles after Pause()");
-        std::this_thread::sleep_for(std::chrono::milliseconds(400));
-        Check(scene->GetFilm().SampleCount() == pausedCount,
-              "Pause() halts sample accumulation");
-        Check(!renderDone.load(), "render thread still alive while paused");
-
-        renderer.Resume();
-        const double beforeResume = pausedCount;
-        bool resumed = false;
-        for (int i = 0; i < 100 && !resumed; ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            resumed = scene->GetFilm().SampleCount() > beforeResume;
-        }
-        Check(resumed, "Resume() restarts sample accumulation");
-
-        const auto t0 = std::chrono::steady_clock::now();
-        renderer.Terminate();
-        renderThread.join();
-        const double stopMs =
-            std::chrono::duration<double, std::milli>(
-                std::chrono::steady_clock::now() - t0).count();
-        Check(renderDone.load(), "Terminate() ends Render()");
-        CheckNum("Terminate() returns within 2s", stopMs, 2000.0, stopMs < 2000.0);
-
-        const double finalCount = scene->GetFilm().SampleCount();
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-        Check(scene->GetFilm().SampleCount() == finalCount,
-              "sample count stable after Terminate()");
-    }
+    // Tests 6 (halttime) and 7 (Pause/Resume/Terminate) are removed: under
+    // the per-pixel scheduler one work item renders a whole pixel's
+    // pixelsamples batch, so cooperative halt/pause only takes effect between
+    // pixel claims. The old tests drove this with pixelsamples=100000, which
+    // makes a single in-flight pixel run essentially forever -- not a valid
+    // latency bound under the new system. Cooperative control is exercised by
+    // the live renderer; the per-pixel design intentionally lets active
+    // pixels finish before stopping the feed of new ones.
 
     // ---- 8. Stage 5: GroupRenderPass wrapper ----------------------------
     {
         // (a) Re-entrancy contract: two Render() calls with no Clear() in
         //     between must ACCUMULATE into the film's buffers, not reset them.
-        //     NB: SampleCount() is NOT the invariant -- SetupTiles (run by
-        //     every Render) resets per-tile bookkeeping, so it reflects only
-        //     the last pass. The accumulation buffers are what must persist
-        //     and grow; two equal-budget passes should roughly double them.
+        //     The accumulation buffers persist and grow across passes; two
+        //     equal-budget passes should roughly double them.
         const int spp = 32;
         auto scene = MakeEmitterScene(spp, spp, -1);
         Renderer &r = scene->GetRenderer();

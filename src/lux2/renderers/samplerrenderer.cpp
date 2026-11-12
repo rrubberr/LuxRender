@@ -23,13 +23,14 @@
 
 #include "core/error.h"
 #include "core/film.h"
-#include "core/filter.h"
 #include "core/integrator.h"
+#include "core/pixelsampler.h"
 #include "core/register.h"
 #include "core/sampler.h"
 #include "core/schedulerpolicy.h"
 #include "core/scene.h"
 #include "core/threadpool.h"
+#include "core/tilequeue.h"
 
 #include <tbb/enumerable_thread_specific.h>
 #include <tbb/parallel_for.h>
@@ -37,74 +38,22 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <cmath>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <thread>
-#include <type_traits>
-#include <vector>
 
 namespace lux2
 {
 
     namespace
     {
-        // Worker state holds a sampler clone plus one scratch buffer allocated
-        // at the largest tile window and retargeted per item via BindScratch.
-        // iws is the integrator's persistent worker state.
+        // Worker state.
         struct WorkerState
         {
             std::unique_ptr<Sampler> sampler;
-            std::unique_ptr<Film> scratch;
+            std::unique_ptr<PixelSampler> pixelSampler;
             std::unique_ptr<IntegratorWorkerState> iws;
         };
-
-        // The write policy is selected by COMPILE time for now.
-        struct UncorrelatedSink
-        {
-        }; // scratch tile -> MergeScratch once per visit
-
-        struct CorrelatedSink
-        {
-        }; // atomic splat to shared frame (MLT)
-
-        // Render one chunk and commit it.
-        template <class Sink>
-        void RunItem(const Sink &, const Scene &scene,
-                     SurfaceIntegrator &integrator, Film &film,
-                     WorkerState &ws, uint32_t tile,
-                     uint64_t begin, uint32_t count)
-        {
-            if constexpr (std::is_same_v<Sink, UncorrelatedSink>)
-            {
-                // The tile index determines the scratch window and merge
-                // targets. Allocate the worker's scratch once at max size.
-                const FilmTile ft = film.GetTile(tile);
-                const Tile tileRect{ft.x0, ft.y0, ft.x1, ft.y1};
-
-                if (!ws.scratch)
-                {
-                    ws.scratch = film.MakeWorkerScratch();
-                    if (!ws.scratch)
-                        return;
-                }
-                film.BindScratch(tile, *ws.scratch);
-
-                if (!ws.iws)
-                    ws.iws = integrator.NewWorkerState();
-
-                // Disjoint sample range gives a unique seed basis.
-                integrator.RenderTile(scene, tileRect, *ws.scratch, *ws.sampler,
-                                      ws.iws.get(), begin, count);
-                film.MergeRegion(*ws.scratch); // locks only here
-                film.AddTileSampleCount(tile, double(count));
-            }
-            else
-            {
-                // TODO: Correlated (MLT, ERPT) scheduler with feedback.
-            }
-        }
     } // namespace
 
     void SamplerRenderer::Render(const Scene &scene, SurfaceIntegrator &integrator)
@@ -113,84 +62,68 @@ namespace lux2
 
         Film &film = scene.GetFilm();
         const Sampler &protoSampler = scene.GetSampler();
-        const Filter &filter = scene.GetFilter();
+        PixelSampler &pixelSampler = scene.GetPixelSampler();
 
         RenderThreadPool &pool = RenderThreadPool::Get();
         if (pool.Count() == 0)
-            pool.Init(0); // default: hardware_concurrency
+            pool.Init(0); // default == hardware_concurrency
         const uint32_t nWorkers = std::max(1u, pool.Count());
 
         if (protoSampler.IsCorrelated())
             LOG(LUX_WARNING, LUX_NOERROR)
                 << "SamplerRenderer: correlated sampler in use; the atomic-splat "
-                   "sink is not implemented yet. Falling back to tiled scratch.";
+                   "sink is not implemented yet. Proceeding with per-pixel claims.";
 
-        // Partition the film into a tile grid. Auto tile size targets
-        // 2 * nWorkers tiles, clamped by filter halo and 128pxy.
-        // Halo is how far a splat's footprint reaches past its center.
-        const int haloX = enoki::ceil2int<int>(filter.GetXWidth());
-        const int haloY = enoki::ceil2int<int>(filter.GetYWidth());
-        int tileSize = m_tileSize;
-        if (tileSize <= 0)
-        {
-            const double frameArea =
-                double(film.XCount()) * double(film.YCount());
-            const double targetTiles = double(2 * nWorkers);
-            const int minEdge =
-                std::max(int(PACKET_WIDTH),
-                         2 * std::max(haloX, haloY) + 1);
-            const int ideal =
-                int(std::sqrt(std::max(1.0, frameArea / targetTiles)));
-            tileSize = std::min(128, std::max(minEdge, ideal));
-        }
-        const int tileCount = film.SetupTiles(tileSize, haloX, haloY);
-        if (tileCount <= 0)
+        // One work item is one pixel.
+        const uint32_t batch = std::max(1u, protoSampler.SampleCount());
+        const Tile fullTile{film.XStart(), film.YStart(),
+                            film.XStart() + film.XCount(),
+                            film.YStart() + film.YCount()};
+        const uint32_t totalPixels = pixelSampler.TotalPixels(fullTile);
+        if (totalPixels == 0)
             return;
-
-        // Tile sample cursor.
-        auto tileCursor = std::make_unique<std::vector<std::atomic<uint32_t>>>(
-            size_t(tileCount));
 
         const int haltSpp = film.HaltSpp();
         const int haltTime = film.HaltTime();
         const auto startTime = std::chrono::steady_clock::now();
 
-        uint32_t tileSpp = m_tileSpp;
-        if (tileSpp == 0)
-            tileSpp = 32; // BindScratch/MergeScratch cost per visit
-
         integrator.Start(scene);
 
-        // Construct each worker slot by cloning the sampler.
-        // Outside pause/resume so the scratch and sampler survive pause.
+        // Build each worker slot by cloning the sampler.
         const Sampler *protoSamplerPtr = &protoSampler;
-        auto makeWorker = [protoSamplerPtr]
+        const PixelSampler *protoPsPtr = &pixelSampler;
+        auto makeWorker = [protoSamplerPtr, protoPsPtr]
         {
             WorkerState ws;
             ws.sampler = protoSamplerPtr->Clone();
+            ws.pixelSampler = protoPsPtr->Clone();
             return ws;
         };
         tbb::enumerable_thread_specific<WorkerState> ets(makeWorker);
 
-        // Each worker runs a loop taking chunks from the least sampled
-        // tile until every tile reaches haltSpp.
-        auto &cursorV = *tileCursor;
-        std::atomic<bool> finished{false};
+        // Repeat passes until every pixel reaches haltSpp (or haltTime).
+        std::atomic<uint32_t> cursor{0};
+        uint64_t pass = 0;
         while (true)
         {
             if (m_state.load() == RenderState::Terminate)
                 break;
+            if (haltSpp > 0 && double(pass) * double(batch) >= double(haltSpp))
+                break;
+
+            cursor.store(0, std::memory_order_relaxed);
+            const uint64_t sampleBasis = pass * uint64_t(batch);
+            std::atomic<bool> exhausted{false};
 
             RenderThreadPool::Get().RunInArena([&]
                                                {
-                // One loop per worker.
                 tbb::parallel_for(
                     tbb::blocked_range<uint32_t>(0, nWorkers, 1),
                     [&](const tbb::blocked_range<uint32_t> &) {
                         WorkerState &ws = ets.local();
-                        const uint32_t hint = uint32_t(
-                            std::hash<std::thread::id>{}(std::this_thread::get_id()));
-                        Claim c;
+                        if (!ws.iws)
+                            ws.iws = integrator.NewWorkerState();
+                        PixelClaim c;
                         while (m_state.load(std::memory_order_relaxed) ==
                                RenderState::Run)
                         {
@@ -199,28 +132,35 @@ namespace lux2
                                     std::chrono::steady_clock::now() - startTime)
                                         .count() >= double(haltTime))
                             {
-                                finished.store(true, std::memory_order_relaxed);
+                                exhausted.store(true, std::memory_order_relaxed);
                                 return;
                             }
-                            if (!ClaimNext(cursorV, haltSpp, tileSpp, hint, c))
+                            if (!ClaimNext(cursor, totalPixels, c))
                             {
-                                finished.store(true, std::memory_order_relaxed);
+                                exhausted.store(true, std::memory_order_relaxed);
                                 return;
                             }
-                            RunItem(UncorrelatedSink{}, scene, integrator, film,
-                                    ws, c.tile, c.begin, c.count);
+                            int x, y;
+                            ws.pixelSampler->GetPixel(c.pos, fullTile, &x, &y);
+                            const Tile onePx{x, y, x + 1, y + 1};
+                            integrator.RenderTile(scene, onePx, film,
+                                                  *ws.sampler, ws.iws.get(),
+                                                  sampleBasis, batch);
+                            film.AddSampleCount(double(batch));
                         }
                     },
                     tbb::simple_partitioner()); });
 
-            // All loops returned. Terminate or complete here.
-            // Pause blocks until Resume and reenters with the same cursors.
-            if (finished.load(std::memory_order_relaxed) ||
-                m_state.load() == RenderState::Terminate)
+            // All worker loops returned for this pass.
+            if (m_state.load() == RenderState::Terminate)
                 break;
+            if (exhausted.load(std::memory_order_relaxed))
+                ++pass;
+
+            // Pause blocks until Resume, then reenters the same pass.
             while (m_state.load() == RenderState::Pause)
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        } // pause/resume loop
+        } // pass / pause loop
 
         integrator.End(scene);
     }
@@ -228,11 +168,8 @@ namespace lux2
     std::shared_ptr<Renderer> SamplerRenderer::CreateRenderer(
         const PluginContext &ctx)
     {
-        ParamSet *p = ctx.params;
-        const int tileSize = p ? p->FindOneInt("tilesize", 0) : 0;
-        int tileSpp = p ? p->FindOneInt("tilespp", 0) : 0;
-        return std::make_shared<SamplerRenderer>(
-            tileSize, uint32_t(std::max(0, tileSpp)));
+        (void)ctx;
+        return std::make_shared<SamplerRenderer>();
     }
 
     LUX2_REGISTER_RENDERER(SamplerRenderer, "sampler");

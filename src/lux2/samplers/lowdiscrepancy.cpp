@@ -34,26 +34,19 @@ namespace lux2
     namespace
     {
 
-        // Round up to the next square power of two.
-        uint32_t RoundSquarePowerOfTwo(uint32_t count)
+        // Round up to the next power of two, at least PACKET_WIDTH.
+        uint32_t RoundPow2(uint32_t count)
         {
-            uint32_t res = 2;
-            while (res * res < count)
-            {
-                // res = round_to_power_of_two(res + 1).
-                uint32_t v = res + 1;
-                uint32_t p = 2;
-                while (p < v)
-                    p <<= 1;
-                res = p;
-            }
-            return res * res;
+            uint32_t p = uint32_t(PACKET_WIDTH);
+            while (p < count)
+                p <<= 1;
+            return p;
         }
 
     } // namespace
 
     LDSampler::LDSampler(uint32_t sampleCount, uint64_t baseSeed)
-        : m_sampleCount(RoundSquarePowerOfTwo(sampleCount)),
+        : m_sampleCount(RoundPow2(sampleCount)),
           m_dimensionIndex(0),
           m_sampleIndex(0),
           m_baseSeed(baseSeed)
@@ -83,7 +76,7 @@ namespace lux2
     FloatP LDSampler::Get1D(const UInt32P &seed, const UInt32P &sidx,
                             const UInt32P &dim, MaskP /*active*/) const
     {
-        // Shuffle the sample order per dimension, then bit-reverse.
+        // Shuffle the sample order per dimension, then bit reverse.
         const UInt32P permSeed = seed + dim;
         const UInt32P i = permute(sidx, m_sampleCount, permSeed);
         const UInt32P scramble = sample_tea_32(seed, SCRAMBLE_1D);
@@ -124,10 +117,8 @@ namespace lux2
 
     std::shared_ptr<Sampler> LDSampler::CreateSampler(const PluginContext &ctx)
     {
-        // Accept either "pixelsamples" (lux .lxs) or "spp".
+        // Parameters.
         int count = ctx.params ? ctx.params->FindOneInt("pixelsamples", 0) : 0;
-        if (count <= 0 && ctx.params)
-            count = ctx.params->FindOneInt("spp", 16);
         const int seed = ctx.params ? ctx.params->FindOneInt("seed", 0) : 0;
         return std::make_shared<LDSampler>(
             static_cast<uint32_t>(count), static_cast<uint64_t>(seed));

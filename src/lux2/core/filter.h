@@ -24,6 +24,9 @@
 
 #include "core/math/vecp.h"
 
+#include <cmath>
+#include <vector>
+
 namespace lux2
 {
 
@@ -47,7 +50,7 @@ namespace lux2
             return EvaluateX(dx) * EvaluateY(dy);
         }
 
-        // Weight for each lane at its own offset.
+        // Weight for each lane at its offset.
         virtual FloatP EvaluateXP(const FloatP &dx) const
         {
             float in[PACKET_WIDTH], t[PACKET_WIDTH];
@@ -63,6 +66,59 @@ namespace lux2
             for (size_t i = 0; i < PACKET_WIDTH; ++i)
                 t[i] = EvaluateY(in[i]);
             return enoki::load_unaligned<FloatP>(t);
+        }
+
+        // Pixel integrated 1D kernel g(t) = integral of h over [t-0.5, t+0.5],
+        // sampled at integer offsets t in [-R, R] with R = ceil(width).
+        std::vector<float> PixelIntegratedWeightsX() const
+        {
+            return PixelIntegrated(true);
+        }
+        std::vector<float> PixelIntegratedWeightsY() const
+        {
+            return PixelIntegrated(false);
+        }
+
+    private:
+        // Composite Simpson quadrature of h over the unit box centered at t.
+        std::vector<float> PixelIntegrated(bool xAxis) const
+        {
+            const float w = xAxis ? GetXWidth() : GetYWidth();
+            const int R = int(std::ceil(w));
+            const int taps = 2 * R + 1;
+            std::vector<float> g(size_t(taps), 0.f);
+            // Subsamples per unit box (odd count for Simpson).
+            constexpr int N = 32;
+            const float hstep = 1.f / float(N);
+            for (int t = -R; t <= R; ++t)
+            {
+                // Integrate h(u) for u in [t-0.5, t+0.5].
+                float sum = 0.f;
+                for (int k = 0; k <= N; ++k)
+                {
+                    const float u = float(t) - 0.5f + hstep * float(k);
+                    const float a = std::abs(u);
+                    const float hv = xAxis ? EvaluateX(a) : EvaluateY(a);
+                    // Simpson weights: 1,4,2,4,...,4,1.
+                    float sw;
+                    if (k == 0 || k == N)
+                        sw = 1.f;
+                    else if (k & 1)
+                        sw = 4.f;
+                    else
+                        sw = 2.f;
+                    sum += sw * hv;
+                }
+                g[size_t(t + R)] = sum * hstep / 3.f;
+            }
+            // Normalize to unit sum.
+            float total = 0.f;
+            for (float v : g)
+                total += v;
+            if (total != 0.f)
+                for (float &v : g)
+                    v /= total;
+            return g;
         }
     };
 

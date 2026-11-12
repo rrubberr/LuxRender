@@ -12,7 +12,9 @@
 
 // Verifies PixelSampler patterns are bijections over their tile.
 
+#include "pixelsamplers/hilbert.h"
 #include "pixelsamplers/linear.h"
+#include "pixelsamplers/lowdiscrepancy.h"
 #include "pixelsamplers/tile.h"
 #include "core/tilequeue.h"
 
@@ -93,7 +95,51 @@ int main() {
         Check(x == 1 && y == 1, "tile raster within block");
     }
 
-    // ---- 3. Clone independence -------------------------------------------
+    // ---- 3. hilbert -----------------------------------------------------
+    // The Hilbert curve is a bijection over the tile: every pixel exactly
+    // once, which preserves the per-pixel single-owner guarantee.
+    {
+        HilbertPixelSampler ps;
+        CheckBijection(ps, Tile{0, 0, 8, 8}, "hilbert 8x8 bijection");
+        CheckBijection(ps, Tile{0, 0, 16, 16}, "hilbert 16x16 bijection");
+        CheckBijection(ps, Tile{3, 5, 11, 9}, "hilbert offset tile bijection");
+        CheckBijection(ps, Tile{0, 0, 5, 7}, "hilbert non-square bijection");
+        CheckBijection(ps, Tile{0, 0, 1, 1}, "hilbert single pixel");
+
+        // Clone reproduces the same curve.
+        auto c = ps.Clone();
+        Tile t{2, 3, 10, 14};
+        bool same = true;
+        for (uint32_t p = 0; p < ps.TotalPixels(t); ++p) {
+            int ax, ay, bx, by;
+            ps.GetPixel(p, t, &ax, &ay);
+            c->GetPixel(p, t, &bx, &by);
+            if (ax != bx || ay != by)
+                same = false;
+        }
+        Check(same, "hilbert clone matches");
+    }
+
+    // ---- 4. lowdiscrepancy ----------------------------------------------
+    // A scrambled Van Der Corput / Sobol' scatter: not a bijection (legacy
+    // behavior), but every position must land inside the tile.
+    {
+        LowDiscrepancyPixelSampler ps;
+        const Tile tiles[] = {{0, 0, 8, 8}, {3, 5, 11, 9}, {0, 0, 16, 16}};
+        for (const Tile &t : tiles) {
+            const uint32_t n = ps.TotalPixels(t);
+            bool inside = true;
+            for (uint32_t p = 0; p < n; ++p) {
+                int x = -1, y = -1;
+                ps.GetPixel(p, t, &x, &y);
+                if (x < t.x0 || x >= t.x1 || y < t.y0 || y >= t.y1)
+                    inside = false;
+            }
+            Check(inside, "lowdiscrepancy stays within the tile");
+        }
+    }
+
+    // ---- 5. Clone independence -------------------------------------------
     {
         TilePixelSampler ps(16);
         auto c = ps.Clone();
