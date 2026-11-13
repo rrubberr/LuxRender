@@ -79,6 +79,8 @@ namespace lux2
             g.uv = Point2fP(0.f);
             g.flux = SWCSpectrumP(1.f);
             g.k = FloatP(0.f);
+            g.footprint = FloatP(0.f);
+            g.spare0 = FloatP(0.f);
             g.matID = UInt32P(0u);
             // The camera vertex is a surface (aperture) vertex.
             g.medID = UInt32P(LUX2_MEDIUM_CLEAR);

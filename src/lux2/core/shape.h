@@ -39,7 +39,7 @@ namespace lux2
         Normal3f n0, n1, n2;                     // per-vertex shading normals
         UV uv0, uv1, uv2;                        // per-vertex texture coords
         std::uint32_t matID;                     // resolved material index
-        std::int32_t lightID;                    // area light index, or -1
+        std::uint32_t lightID;                   // area light index, or LUX_NO_LIGHT
         std::uint32_t groupMask = 0xFFFFFFFFu;   // visibility group mask
         // Medium on each side of the surface. Front is the +n side, back is -n.
         // 0 is ambient.

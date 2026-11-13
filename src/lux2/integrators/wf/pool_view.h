@@ -157,6 +157,7 @@ namespace lux2
             v.dg.dp_dv = g.dp_dv;
             v.dg.dp_ds = g.dp_ds;
             v.dg.dp_dt = g.dp_dt;
+            v.dg.footprint = g.footprint;
 
             // Surface if not a medium scatter.
             v.isMed = neq(g.medID, UInt32P(LUX2_MEDIUM_CLEAR)) && act;

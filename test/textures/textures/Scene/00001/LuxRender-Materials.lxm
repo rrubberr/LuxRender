@@ -1,0 +1,55 @@
+# Materials File
+
+Texture "Color_color" "color" "imagemap"
+	"string filename" ["/home/jbrenneman/Documents/GitHub/luxrender/test/textures/Color.tif"]
+	"integer discardmipmaps" [0]
+	"float gain" [1.000000000000000]
+	"float gamma" [2.200000047683716]
+	"float maxanisotropy" [8.000000000000000]
+	"string wrap" ["repeat"]
+	"string mapping" ["uv"]
+	"float uscale" [1.000000000000000]
+	"float vscale" [-1.000000000000000]
+	"float udelta" [0.000000000000000]
+	"float vdelta" [1.000000000000000]
+
+MakeNamedMaterial "Color"
+	"texture Kd" ["Color_color"]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+Texture "Grid_color" "color" "imagemap"
+	"string filename" ["/home/jbrenneman/Documents/GitHub/luxrender/test/textures/Grid.tif"]
+	"integer discardmipmaps" [0]
+	"float gain" [1.000000000000000]
+	"float gamma" [2.200000047683716]
+	"float maxanisotropy" [8.000000000000000]
+	"string wrap" ["repeat"]
+	"string mapping" ["uv"]
+	"float uscale" [1.000000000000000]
+	"float vscale" [-1.000000000000000]
+	"float udelta" [0.000000000000000]
+	"float vdelta" [1.000000000000000]
+
+MakeNamedMaterial "Grid"
+	"texture Kd" ["Grid_color"]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Red"
+	"color Kd" [0.44798833 0.03630545 0.03630545]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Green"
+	"color Kd" [0.07726244 0.44798833 0.03630617]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "White"
+	"color Kd" [0.63999999 0.63999999 0.63999999]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Area"
+	"string type" ["null"]

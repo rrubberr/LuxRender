@@ -94,7 +94,7 @@ TriangleDesc Tri(Point3f v0, Point3f v1, Point3f v2, Normal3f n, uint32_t mat)
     t.v0 = v0; t.v1 = v1; t.v2 = v2;
     t.n0 = n; t.n1 = n; t.n2 = n;
     t.uv0 = UV(0, 0); t.uv1 = UV(1, 0); t.uv2 = UV(1, 1);
-    t.matID = mat; t.lightID = -1; t.groupMask = 0xFFFFFFFFu;
+    t.matID = mat; t.lightID = LUX_NO_LIGHT; t.groupMask = 0xFFFFFFFFu;
     return t;
 }
 

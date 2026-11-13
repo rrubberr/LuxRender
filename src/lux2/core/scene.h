@@ -192,9 +192,10 @@ namespace lux2
         const std::vector<std::shared_ptr<Light>> &GetLights() const { return m_lights; }
 
         // Area lights indexed by lightID.
-        const Light *GetAreaLight(std::int32_t id) const
+        const Light *GetAreaLight(std::uint32_t id) const
         {
-            if (id < 0 || id >= static_cast<std::int32_t>(m_areaLights.size()))
+            if (id == LUX_NO_LIGHT ||
+                id >= static_cast<std::uint32_t>(m_areaLights.size()))
                 return nullptr;
             return m_areaLights[id].get();
         }
@@ -212,10 +213,10 @@ namespace lux2
 
         // Group index of the area light with the given lightID, or -1 if the
         // id is out of range.
-        int AreaLightGroup(std::int32_t lightID) const
+        int AreaLightGroup(std::uint32_t lightID) const
         {
-            if (lightID < 0 ||
-                lightID >= static_cast<std::int32_t>(m_lightGroupOfArea.size()))
+            if (lightID == LUX_NO_LIGHT ||
+                lightID >= static_cast<std::uint32_t>(m_lightGroupOfArea.size()))
                 return -1;
             return m_lightGroupOfArea[lightID];
         }

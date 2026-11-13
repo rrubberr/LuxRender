@@ -19,14 +19,7 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-// Path as a consumer of the shared walker. The transport step lives in
-// Advance(); everything here is path's estimator: MIS-weighted emission and
-// environment escape (OnEvent), next-event estimation at a vertex (OnVertex),
-// Russian roulette (Survival), and the sampler dimension layout (Dims).
-//
-// A Null surface is collapsed inside Advance, so it never reaches OnVertex --
-// no bounce, no NEE, no RNG block. Its emission is accumulated in
-// OnPassThrough instead.
+// Path as a consumer of the shared walker.
 
 #ifndef LUX2_INTEGRATORS_CONSUMERS_PATH_CONSUMER_H
 #define LUX2_INTEGRATORS_CONSUMERS_PATH_CONSUMER_H
@@ -54,7 +47,7 @@
 
 namespace lux2
 {
-    // Estimator switches, set once per tile from the integrator's parameters.
+    // Estimator switches.
     struct PathConfig
     {
         bool FULL_MIS = false, NEE = false, includeEnv = false;
@@ -63,7 +56,7 @@ namespace lux2
         FloatP rrProb = FloatP(0.95f);
     };
 
-    // Persistent path state per SIMD lane: the shared core plus path's tail.
+    // Persistent path state per SIMD lane.
     struct PathLanes
     {
         LaneCore core;
@@ -71,8 +64,8 @@ namespace lux2
         FloatP alpha, prevPdf;
         Point3fP prevP;
         Normal3fP prevN;
-        Int32P depth;  // semantic bounce count (real vertices only)
-        Int32P bounce; // RNG stream counter, advances every real vertex
+        Int32P depth;  // semantic bounce count
+        Int32P bounce; // RNG stream counter
         MaskP specularBounce;
         MaskP prevIsMedium;
         MaskP prevRecvHasN;
@@ -124,19 +117,18 @@ namespace lux2
         PathConsumer(const TileCtx &c, const PathConfig &cfg)
             : m_c(c), m_cfg(cfg) {}
 
-        // --- Advance's accessors: counters live in the lane tail. -----------
+        // Advance's accessors.
         Int32P Bounce(const LaneCore &core) const { return mL.bounce; }
         Int32P DepthBase(const LaneCore &core) const { return mL.depth; }
 
-        // An emissive Null crossing: accumulate its radiance (s = 0) at the
-        // current throughput. No vertex, no bounce, no NEE -- the ray continues.
+        // An emissive Null crossing.
         void OnPassThrough(LaneCore &core, const HitP &h, const MaskP &m)
         {
             if (!any(m))
                 return;
 #ifdef LUX2_COLLAPSE_DEBUG
             {
-                int32_t lid[PACKET_WIDTH];
+                uint32_t lid[PACKET_WIDTH];
                 uint32_t mm[PACKET_WIDTH];
                 enoki::store_unaligned(lid, h.lightID);
                 enoki::store_unaligned(mm, m);
@@ -149,7 +141,7 @@ namespace lux2
             const SpectrumWavelengthsP sw = core.sw;
             const Vector3fP wo = -core.d;
             const DifferentialGeometryP dg = MakeDG(h, core.d, m);
-            MaskP emCount = m && (h.lightID >= Int32P(0));
+            MaskP emCount = m && neq(h.lightID, UInt32P(LUX_NO_LIGHT));
             if (m_c.multiGroup && any(emCount))
             {
                 const Int32P g = enoki::gather<Int32P>(
@@ -164,8 +156,7 @@ namespace lux2
             mL.L = select(emCount, mL.L + core.beta * LeRaw, mL.L);
         }
 
-        // Emission at a real vertex and the environment escape, both with the
-        // MIS weight against the previous vertex's NEE strategy.
+        // Emission at a real vertex and the environment escape.
         void OnEvent(LaneCore &core, const Event &ev)
         {
             m_mediumEvent = ev.scatter;
@@ -177,7 +168,7 @@ namespace lux2
             const SpectrumWavelengthsP &sw = core.sw;
             const Vector3fP rayD = core.d;
 
-            // Medium flight radiance, gathered at preflight beta.
+            // Medium flight radiance.
             L = L + ev.flightEmission;
 
             const MaskP hitMask = ev.surface;
@@ -234,7 +225,8 @@ namespace lux2
             {
                 alpha = select(hitMask && eq(depth, Int32P(0)), FloatP(1.f),
                                alpha);
-                MaskP emCount = hitMask && (hit.lightID >= Int32P(0));
+                MaskP emCount =
+                    hitMask && neq(hit.lightID, UInt32P(LUX_NO_LIGHT));
                 if (!m_cfg.FULL_MIS && m_cfg.NEE)
                     emCount = emCount && mL.specularBounce;
                 if (m_c.multiGroup && any(emCount))
@@ -266,8 +258,7 @@ namespace lux2
             }
         }
 
-        // NEE at a real vertex (power heuristic), then sample the continuation
-        // direction. Survival and PostVertex finish the bounce.
+        // NEE at a real vertex then sample the continuation direction.
         void OnVertex(const SamplerSource &src, LaneCore &core, const Event &ev)
         {
             SWCSpectrumP &L = mL.L;
@@ -358,8 +349,7 @@ namespace lux2
             alive &= !(vtxAlive && (m_sample.pdf <= FloatP(0.f)));
         }
 
-        // Russian roulette per vertex. Surface lanes use the lobe value
-        // sample.f; medium lanes use throughput (sample.f is 1 by construction).
+        // Russian roulette per vertex.
         void Survival(LaneCore &core)
         {
             const MaskP rrActive = core.alive && (mL.depth > Int32P(RR_START));
@@ -379,8 +369,7 @@ namespace lux2
             core.alive &= !kill;
         }
 
-        // Shared post-Survival bookkeeping: throughput, spawn ray, medium swap,
-        // counters and the previous-vertex MIS state.
+        // Throughput, spawn ray, medium swap, counters and MIS state.
         void PostVertex(LaneCore &core, const Event &ev)
         {
             SWCSpectrumP &throughput = core.beta;
@@ -421,9 +410,7 @@ namespace lux2
             core.medium = select(mediumEvent, core.medium,
                                  select(hitMask, newMedium, core.medium));
 
-            // Counters. Null samples no longer occur here (Advance collapsed
-            // them), so every valid vertex is a real one: bounce and depth both
-            // advance, and the per-segment crossing counter is gone.
+            // Counters.
             bounce = select(valid, bounce + Int32P(1), bounce);
             depth = select(valid, depth + Int32P(1), depth);
 
@@ -435,8 +422,7 @@ namespace lux2
                 select(valid, RecvHasNormal(hitMask, ev.bsdf), mL.prevRecvHasN);
         }
 
-        // Sampler dimensions for this bounce: a stride-6 (geometry) or stride-7
-        // (media) block keyed by the bounce counter.
+        // A stride 6 (geometry) or stride 7 (media) block keyed by the bounce counter.
         struct DimsT
         {
             UInt32P base;
@@ -450,7 +436,7 @@ namespace lux2
                          base + UInt32P(5u)};
         }
 
-        // The persistent lane tail, for the driver to read/blend on refill.
+        // The persistent lane tail.
         PathLanes &Tail() { return mL; }
         void SetTail(const PathLanes &t) { mL = t; }
 
@@ -458,7 +444,7 @@ namespace lux2
         const TileCtx &m_c;
         const PathConfig &m_cfg;
         PathLanes mL;
-        // Per-bounce transport state, set by OnEvent and read downstream.
+        // Transport state.
         MaskP m_mediumEvent = MaskP(false);
         BSDFSampleP m_sample;
         FloatP m_urr = FloatP(0.f);

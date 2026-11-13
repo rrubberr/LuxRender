@@ -71,6 +71,9 @@ namespace lux2
             g.uv = h.uv;
             g.flux = flux;
             g.k = ev.k;
+            // Footprint comes from the resolved dg.
+            g.footprint = select(surf, ev.dg.footprint, FloatP(0.f));
+            g.spare0 = FloatP(0.f);
             g.matID = select(ev.surface, h.matID, UInt32P(0u));
             // Scatter lanes sit in the ray medium; surface lanes store both
             // sides from the hit.
@@ -102,7 +105,7 @@ namespace lux2
             // throughput.
             void OnPassThrough(LaneCore &core, const HitP &h, const MaskP &m)
             {
-                MaskP emit = m && (h.lightID >= Int32P(0));
+                MaskP emit = m && neq(h.lightID, UInt32P(LUX_NO_LIGHT));
                 if (!any(emit))
                     return;
                 if (m_c.multiGroup)
@@ -435,6 +438,8 @@ namespace lux2
                 g.uv = Point2fP(edg.uv_u, edg.uv_v);
                 g.flux = select(ok, Le * divp(FloatP(1.f), aF0), SWCSpectrumP(0.f));
                 g.k = FloatP(0.f);
+                g.footprint = FloatP(0.f);
+                g.spare0 = FloatP(0.f);
                 g.matID = UInt32P(0u); // origin BSDF is the emitter
                 // Origin medium.
                 const UInt32P med = enoki::gather<UInt32P>(

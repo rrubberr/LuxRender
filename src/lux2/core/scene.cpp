@@ -46,6 +46,19 @@ namespace lux2
 
     namespace
     {
+        // matID and the medium IDs are packed into 16-bit halves of a word.
+        std::uint32_t ClampPackedID(std::uint32_t id, const char *what)
+        {
+            if (id > 0xFFFFu)
+            {
+                LOG(LUX_SEVERE, LUX_LIMIT)
+                    << what << " id " << id
+                    << " exceeds the 16-bit packed-record limit (65535); "
+                    << "clamped -- materials/media may alias";
+                return 0xFFFFu;
+            }
+            return id;
+        }
 
         // Resolve a named texture from desc.textures.
         template <typename TexPtr, typename Registry>
@@ -340,7 +353,7 @@ namespace lux2
         m_summary.mediaCount = static_cast<int>(m_media.size());
 
         auto &shapeRegistry = DynamicLoader::registeredShapes();
-        std::int32_t nextAreaLightID = 0;
+        std::uint32_t nextAreaLightID = 0;
 
         // Area light sources collected during tessellation.
         struct AreaLightRecord
@@ -355,7 +368,7 @@ namespace lux2
         {
             m_summary.shapeCount++;
 
-            std::int32_t lightID = -1;
+            std::uint32_t lightID = LUX_NO_LIGHT;
             if (shape.isAreaLight)
             {
                 m_summary.areaLightShapeCount++;
@@ -412,11 +425,12 @@ namespace lux2
 
             for (auto &td : md.tris)
             {
-                td.matID = matID;
+                // matID/medFront/medBack are packed 16-bit.
+                td.matID = ClampPackedID(matID, "material");
                 td.lightID = lightID;
                 // Lux half space convention.
-                td.mediumFrontID = medOut;
-                td.mediumBackID = medIn;
+                td.mediumFrontID = ClampPackedID(medOut, "medium");
+                td.mediumBackID = ClampPackedID(medIn, "medium");
             }
             md.bound = s->WorldBound();
             m_summary.triangleCount += static_cast<int>(md.tris.size());
@@ -502,7 +516,7 @@ namespace lux2
             std::vector<TriangleDesc> tris;
             for (const auto &md : desc.meshes)
                 for (const auto &td : md.tris)
-                    if (td.lightID == static_cast<std::int32_t>(i))
+                    if (td.lightID == static_cast<std::uint32_t>(i))
                         tris.push_back(td);
 
             auto area = std::dynamic_pointer_cast<AreaLight>(l);

@@ -216,17 +216,11 @@ namespace lux2
 
 #if defined(__AVX2__)
     // 8 records x 8 words -> out[w] holds word w of all 8 records.
-    inline void Transpose8x8(const std::uint32_t in[8][8],
-                             std::uint32_t out[8][8])
+    // Register form.
+    inline void Transpose8x8(const __m256 in[8], __m256 out[8])
     {
-        __m256 r0 = _mm256_castsi256_ps(_mm256_loadu_si256((const __m256i *)&in[0][0]));
-        __m256 r1 = _mm256_castsi256_ps(_mm256_loadu_si256((const __m256i *)&in[1][0]));
-        __m256 r2 = _mm256_castsi256_ps(_mm256_loadu_si256((const __m256i *)&in[2][0]));
-        __m256 r3 = _mm256_castsi256_ps(_mm256_loadu_si256((const __m256i *)&in[3][0]));
-        __m256 r4 = _mm256_castsi256_ps(_mm256_loadu_si256((const __m256i *)&in[4][0]));
-        __m256 r5 = _mm256_castsi256_ps(_mm256_loadu_si256((const __m256i *)&in[5][0]));
-        __m256 r6 = _mm256_castsi256_ps(_mm256_loadu_si256((const __m256i *)&in[6][0]));
-        __m256 r7 = _mm256_castsi256_ps(_mm256_loadu_si256((const __m256i *)&in[7][0]));
+        __m256 r0 = in[0], r1 = in[1], r2 = in[2], r3 = in[3];
+        __m256 r4 = in[4], r5 = in[5], r6 = in[6], r7 = in[7];
 
         __m256 t0 = _mm256_unpacklo_ps(r0, r1);
         __m256 t1 = _mm256_unpackhi_ps(r0, r1);
@@ -255,14 +249,14 @@ namespace lux2
         r6 = _mm256_permute2f128_ps(ta, te, _MM_SHUFFLE(0, 3, 0, 1));
         r7 = _mm256_permute2f128_ps(tb, tf, _MM_SHUFFLE(0, 3, 0, 1));
 
-        _mm256_storeu_si256((__m256i *)&out[0][0], _mm256_castps_si256(r0));
-        _mm256_storeu_si256((__m256i *)&out[1][0], _mm256_castps_si256(r1));
-        _mm256_storeu_si256((__m256i *)&out[2][0], _mm256_castps_si256(r2));
-        _mm256_storeu_si256((__m256i *)&out[3][0], _mm256_castps_si256(r3));
-        _mm256_storeu_si256((__m256i *)&out[4][0], _mm256_castps_si256(r4));
-        _mm256_storeu_si256((__m256i *)&out[5][0], _mm256_castps_si256(r5));
-        _mm256_storeu_si256((__m256i *)&out[6][0], _mm256_castps_si256(r6));
-        _mm256_storeu_si256((__m256i *)&out[7][0], _mm256_castps_si256(r7));
+        out[0] = r0;
+        out[1] = r1;
+        out[2] = r2;
+        out[3] = r3;
+        out[4] = r4;
+        out[5] = r5;
+        out[6] = r6;
+        out[7] = r7;
     }
 #endif // __AVX2__
 
@@ -276,10 +270,11 @@ namespace lux2
 
 #if defined(__AVX512F__) || defined(__AVX2__)
     // Load one record per lane and transpose to field-major where f[w] holds
-    // word w of every lane. recA[i] is lane i's record index.
+    // word w of every lane. recA[i] is lane i's record index; laneBits has
+    // bit i set for active lanes.
     template <int RECORD_WORDS>
     inline void LoadRecords(SimdVec f[RECORD_WORDS], const std::uint32_t *base,
-                            const std::uint32_t *recA, SimdVec zeroMask)
+                            const std::uint32_t *recA, unsigned laneBits)
     {
         static_assert(RECORD_WORDS % SimdLanes == 0,
                       "record must tile the vector width exactly");
@@ -290,29 +285,62 @@ namespace lux2
             SimdVec rows[SimdLanes];
             const std::size_t off = std::size_t(SimdLanes) * t;
             for (int i = 0; i < SimdLanes; ++i)
-                rows[i] = _mm512_loadu_ps(reinterpret_cast<const float *>(
-                    base + std::size_t(recA[i]) * RECORD_WORDS + off));
+                rows[i] = _mm512_maskz_loadu_ps(
+                    (laneBits & (1u << i)) ? __mmask16(0xFFFFu) : __mmask16(0u),
+                    reinterpret_cast<const float *>(
+                        base + std::size_t(recA[i]) * RECORD_WORDS + off));
             Transpose16x16Shuffle(rows, f + off);
-            for (int w = 0; w < SimdLanes; ++w)
-                f[off + w] = _mm512_and_ps(f[off + w], zeroMask);
         }
 #else
-        alignas(32) std::uint32_t in[SimdLanes][SimdLanes];
-        alignas(32) std::uint32_t out[SimdLanes][SimdLanes];
         for (int t = 0; t < TILES; ++t)
         {
+            SimdVec rows[SimdLanes];
             const std::size_t off = std::size_t(SimdLanes) * t;
             for (int i = 0; i < SimdLanes; ++i)
-                _mm256_storeu_si256(
-                    (__m256i *)in[i],
-                    _mm256_loadu_si256(reinterpret_cast<const __m256i *>(
-                        base + std::size_t(recA[i]) * RECORD_WORDS + off)));
-            Transpose8x8(in, out);
-            for (int w = 0; w < SimdLanes; ++w)
-                f[off + w] = _mm256_and_ps(
-                    _mm256_loadu_si256((const __m256i *)out[w]), zeroMask);
+                rows[i] = (laneBits & (1u << i))
+                              ? _mm256_castsi256_ps(_mm256_loadu_si256(
+                                    reinterpret_cast<const __m256i *>(
+                                        base + std::size_t(recA[i]) * RECORD_WORDS + off)))
+                              : _mm256_setzero_ps();
+            Transpose8x8(rows, f + off);
         }
 #endif
+    }
+
+    // Inverse of LoadRecords.
+    template <int RECORD_WORDS>
+    inline void StoreRecords(std::uint32_t *base, const SimdVec f[RECORD_WORDS],
+                             const std::uint32_t *recA, unsigned laneBits)
+    {
+        static_assert(RECORD_WORDS % SimdLanes == 0,
+                      "record must tile the vector width exactly");
+        constexpr int TILES = RECORD_WORDS / SimdLanes;
+        for (int t = 0; t < TILES; ++t)
+        {
+            SimdVec rows[SimdLanes];
+            const std::size_t off = std::size_t(SimdLanes) * t;
+#if defined(__AVX512F__)
+            Transpose16x16Shuffle(f + off, rows);
+            for (int i = 0; i < SimdLanes; ++i)
+                _mm512_mask_storeu_ps(
+                    reinterpret_cast<float *>(base +
+                                              std::size_t(recA[i]) * RECORD_WORDS +
+                                              off),
+                    (laneBits & (1u << i)) ? __mmask16(0xFFFFu) : __mmask16(0u),
+                    rows[i]);
+#else
+            Transpose8x8(f + off, rows);
+            for (int i = 0; i < SimdLanes; ++i)
+            {
+                if (!(laneBits & (1u << i)))
+                    continue;
+                _mm256_storeu_si256(
+                    reinterpret_cast<__m256i *>(
+                        base + std::size_t(recA[i]) * RECORD_WORDS + off),
+                    _mm256_castps_si256(rows[i]));
+            }
+#endif
+        }
     }
 
     // Field word -> packet. U() reinterprets the bits as integers.
@@ -325,10 +353,18 @@ namespace lux2
     {
         return _mm512_castps_si512(v);
     }
+    inline SimdVec RecFromBits(__m512i v)
+    {
+        return _mm512_castsi512_ps(v);
+    }
 #else
     inline __m256i RecBits(SimdVec v)
     {
         return _mm256_castps_si256(v);
+    }
+    inline SimdVec RecFromBits(__m256i v)
+    {
+        return _mm256_castsi256_ps(v);
     }
 #endif
 #endif // transposed record support

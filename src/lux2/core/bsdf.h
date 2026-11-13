@@ -100,9 +100,10 @@ namespace lux2
         Vector3fP dp_dv; // d(position)/d(v)
         Vector3fP dp_ds; // shading tangent for anisotropy
         Vector3fP dp_dt; // shading bitangent (unit, orthogonal to dp_ds and n)
-    };
 
-    // TODO: There is currently no Medium type on the hit or in RayP.
+        // Texture filter footprint width for mip selection.
+        FloatP footprint = FloatP(0.f);
+    };
 
     // ---------------------------------------------------------------------------
     // BSDF abstract interface

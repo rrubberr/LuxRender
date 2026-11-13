@@ -485,7 +485,7 @@ namespace lux2
             hit.dp_dt = enoki::cross(nvec, sn);
 
             hit.matID = U(kTri_matID);
-            hit.lightID = enoki::reinterpret_array<Int32P>(U(kTri_lightID));
+            hit.lightID = U(kTri_lightID);
             hit.mediumFrontID = U(kTri_medFront);
             hit.mediumBackID = U(kTri_medBack);
         }
@@ -511,13 +511,13 @@ namespace lux2
             recA, enoki::select(active, enoki::reinterpret_array<UInt32P>(gidx),
                                 UInt32P(0u)));
 #if defined(__AVX512F__)
-        const SimdVec zm = _mm512_castsi512_ps(
-            _mm512_maskz_set1_epi32(active.k, ~0u));
+        const unsigned laneBits = unsigned(active.k);
 #else
-        const SimdVec zm = _mm256_castsi256_ps(active.m);
+        const unsigned laneBits =
+            unsigned(_mm256_movemask_ps(_mm256_castsi256_ps(active.m)));
 #endif
         alignas(64) SimdVec f[TRI_WORDS];
-        LoadRecords<TRI_WORDS>(f, triRecords.data(), recA, zm);
+        LoadRecords<TRI_WORDS>(f, triRecords.data(), recA, laneBits);
         ShadeFromFields(
             hit, [&](std::uint32_t w) { return FloatP(f[w]); },
             [&](std::uint32_t w)

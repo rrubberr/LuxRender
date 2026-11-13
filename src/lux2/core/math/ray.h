@@ -34,6 +34,9 @@ namespace lux2
     // Medium registry ids. 0 is the ambient medium.
     constexpr std::uint32_t LUX2_MEDIUM_CLEAR = 0u;
 
+    // All IDs are unsigned!
+    constexpr std::uint32_t LUX_NO_LIGHT = 0xFFFFFFFFu;
+
     // ---------------------------------------------------------------------------
     // RayP
     // ---------------------------------------------------------------------------
@@ -89,8 +92,8 @@ namespace lux2
         Normal3fP ngeo; // face forward geometric normal
         Normal3fP sh_n; // normalized interpolated vertex normal
         Point2fP uv;    // interpolated texture coords
-        UInt32P matID;  // per-triangle material index
-        Int32P lightID; // per-triangle area-light index, or -1
+        UInt32P matID;   // per-triangle material index
+        UInt32P lightID; // per-triangle area-light index, or LUX_NO_LIGHT
 
         // Triangle medium binding. Front is +ngeo, back is -ngeo.
         UInt32P mediumFrontID = UInt32P(LUX2_MEDIUM_CLEAR);
