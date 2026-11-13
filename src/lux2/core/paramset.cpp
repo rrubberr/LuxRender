@@ -855,6 +855,11 @@ namespace lux2
                 const std::string v(params[i]);
                 AddString(s, &v, 1);
             }
+            if (s == "channel")
+            {
+                const std::string v(params[i]);
+                AddString(s, &v, 1);
+            }
             if (s == "configfile")
             {
                 const std::string v(params[i]);
