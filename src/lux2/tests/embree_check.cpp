@@ -450,6 +450,131 @@ void CheckTailLanes() {
     Check(dead_ok, "dead lanes untouched");
 }
 
+// Transposed ShadeHit must match the gather reference on identical inputs.
+// A grid of quads with per-triangle attributes and per-lane ray origins makes
+// lanes land on different triangles, exercising the record addressing.
+void CheckShadeEquivalence() {
+    std::cout << "[shade transposed vs gather]" << std::endl;
+    EmbreeScene es;
+    std::vector<MeshDesc> meshes;
+    // 4x4 grid of quads (2 tris each) in z=0, cell [-1,1] -> covers
+    // [-4,4]. Distinct matID/lightID/UVs per triangle.
+    for (int gy = 0; gy < 4; ++gy) {
+        for (int gx = 0; gx < 4; ++gx) {
+            float x0 = gx * 2.f - 4.f, y0 = gy * 2.f - 4.f;
+            Normal3f up(0, 0, 1);
+            std::uint32_t base = (std::uint32_t)(gy * 4 + gx) * 2u;
+            MeshDesc m;
+            m.tris.push_back(MakeTri(
+                Point3f(x0, y0, 0), Point3f(x0 + 2, y0, 0),
+                Point3f(x0 + 2, y0 + 2, 0), up, up, up,
+                UV(0, 0), UV(1, 0), UV(1, 1),
+                base + 1, (std::int32_t)(base % 5) - 1));
+            m.tris.push_back(MakeTri(
+                Point3f(x0, y0, 0), Point3f(x0 + 2, y0 + 2, 0),
+                Point3f(x0, y0 + 2, 0), up, up, up,
+                UV(0, 0), UV(1, 1), UV(0, 1),
+                base + 101, (std::int32_t)(base % 7) - 1));
+            m.bound = BBox(Point3f(x0, y0, 0), Point3f(x0 + 2, y0 + 2, 0));
+            meshes.push_back(m);
+        }
+    }
+    es.BuildFromMeshes(meshes);
+
+    // Lane i aims straight down at a distinct point in the grid.
+    float ox[PACKET_WIDTH], oy[PACKET_WIDTH];
+    for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+        ox[i] = -3.5f + 7.f * (float(i) + 0.37f) / float(PACKET_WIDTH);
+        oy[i] = -3.5f + 7.f * (float(i) + 0.61f) / float(PACKET_WIDTH);
+    }
+    RayP ray;
+    ray.o = Point3fP(enoki::load_unaligned<FloatP>(ox),
+                     enoki::load_unaligned<FloatP>(oy), FloatP(1.f));
+    ray.d = Vector3fP(FloatP(0.f), FloatP(0.f), FloatP(-1.f));
+    ray.mint = FloatP(0.f);
+    ray.maxt = FloatP(100.f);
+    ray.time = FloatP(0.f);
+    ray.InitPayload();
+
+    HitP hit;
+    es.Intersect(ray, hit, Coherent::No);
+    bool anyHit = enoki::any(hit.hit);
+    Check(anyHit, "grid rays hit");
+
+    HitP g = hit; // copy: ShadeHit mutates only the derived fields
+    es.ShadeHit(hit);
+    es.ShadeHit_gather(g);
+
+    bool eq = true;
+    auto cmpF = [&](const FloatP &a, const FloatP &b, const char *nm) {
+        for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+            if (!hit.hit[i]) continue;
+            if (!Close(float(a[i]), float(b[i]), 1e-5f)) {
+                std::cerr << "    shade diff " << nm << " lane " << i
+                          << ": " << float(a[i]) << " vs " << float(b[i])
+                          << std::endl;
+                eq = false;
+            }
+        }
+    };
+    cmpF(hit.p.x(), g.p.x(), "p.x");
+    cmpF(hit.p.y(), g.p.y(), "p.y");
+    cmpF(hit.p.z(), g.p.z(), "p.z");
+    cmpF(hit.sh_n.x(), g.sh_n.x(), "sh_n.x");
+    cmpF(hit.sh_n.y(), g.sh_n.y(), "sh_n.y");
+    cmpF(hit.sh_n.z(), g.sh_n.z(), "sh_n.z");
+    cmpF(hit.uv.x(), g.uv.x(), "uv.x");
+    cmpF(hit.uv.y(), g.uv.y(), "uv.y");
+    cmpF(hit.dp_du.x(), g.dp_du.x(), "dp_du.x");
+    cmpF(hit.dp_du.y(), g.dp_du.y(), "dp_du.y");
+    cmpF(hit.dp_du.z(), g.dp_du.z(), "dp_du.z");
+    cmpF(hit.dp_dv.x(), g.dp_dv.x(), "dp_dv.x");
+    cmpF(hit.dp_dv.z(), g.dp_dv.z(), "dp_dv.z");
+    cmpF(hit.dp_ds.x(), g.dp_ds.x(), "dp_ds.x");
+    cmpF(hit.dp_dt.y(), g.dp_dt.y(), "dp_dt.y");
+    Check(eq, "transposed ShadeHit matches gather reference");
+
+    bool idsEq = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+        if (!hit.hit[i]) continue;
+        if (hit.matID[i] != g.matID[i] || hit.lightID[i] != g.lightID[i] ||
+            hit.mediumFrontID[i] != g.mediumFrontID[i] ||
+            hit.mediumBackID[i] != g.mediumBackID[i]) {
+            std::cerr << "    id diff lane " << i << ": mat "
+                      << uint32_t(hit.matID[i]) << " vs " << uint32_t(g.matID[i])
+                      << std::endl;
+            idsEq = false;
+        }
+    }
+    Check(idsEq, "record IDs match gather reference");
+
+    // Partial active mask: force some lanes inactive; both paths must agree
+    // (inactive lanes zero-filled, records untouched).
+    HitP h2 = hit, g2 = hit;
+    MaskP part(false);
+    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        part[i] = (i % 3u) != 1u;
+    h2.hit = part && hit.hit;
+    g2.hit = part && hit.hit;
+    es.ShadeHit(h2);
+    es.ShadeHit_gather(g2);
+    bool peq = true;
+    const FloatP hpx = h2.p.x(), gpx = g2.p.x();
+    const FloatP hsz = h2.sh_n.z(), gsz = g2.sh_n.z();
+    for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+        if (!h2.hit[i]) {
+            // Inactive: transposed path must leave fields zeroed like gather.
+            if (float(hpx[i]) != float(gpx[i])) peq = false;
+            continue;
+        }
+        if (!Close(float(hpx[i]), float(gpx[i]), 1e-5f) ||
+            !Close(float(hsz[i]), float(gsz[i]), 1e-5f) ||
+            h2.matID[i] != g2.matID[i])
+            peq = false;
+    }
+    Check(peq, "partial-mask ShadeHit matches gather reference");
+}
+
 } // namespace
 
 int main() {
@@ -461,6 +586,7 @@ int main() {
     CheckOcclusion();
     CheckMultiMesh();
     CheckShading();
+    CheckShadeEquivalence();
     CheckDegenerate();
     CheckCoherencyParity();
     CheckTailLanes();

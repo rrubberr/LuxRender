@@ -182,6 +182,12 @@ add_lux2_check(
 )
 
 add_lux2_check(
+	NAME lux2wftransposecheck
+	SOURCES wf/transpose_check.cpp
+	LINKS lux2
+)
+
+add_lux2_check(
 	NAME lux2wfstorecompile
 	SOURCES wf/store_compile.cpp
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads

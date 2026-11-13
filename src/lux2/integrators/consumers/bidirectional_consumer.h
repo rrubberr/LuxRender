@@ -652,9 +652,9 @@ namespace lux2
                                  const MaskP &v1)
             {
                 // Origin position/normal and the selected light index.
-                const UInt32P rec0 = RecIdx(*m_ps, mL.path, Int32P(0), v1);
-                const VertexGeomP g0 =
-                    LoadGeom(m_ps->arena->geomWords.data(), rec0, v1);
+                // Only p/n/ng of the emitter vertex are used.
+                const EmitVertexData o =
+                    LoadEmitVertex(*m_ps, mL.path, Int32P(0), v1);
                 const uint32_t *lid = m_ps->lightIdx.data();
                 UInt32P selIdx(PACKET_WIDTH, 0u);
                 {
@@ -672,9 +672,9 @@ namespace lux2
                 // Vertex 1 may be a scatter so its normal is ev.dg.n
                 const MaskP recvHasN = RecvHasNormal(ev.surface, ev.bsdf);
                 const FloatP pdfSolid =
-                    selLight->Pdf_L(ev.hit.p, ev.dg.n, g0.p, g0.n, v1, recvHasN) * pD;
+                    selLight->Pdf_L(ev.hit.p, ev.dg.n, o.p, o.dg.n, v1, recvHasN) * pD;
                 const FloatP directPdf1 =
-                    ConvertDensity(ev.hit.p, pdfSolid, g0.p, g0.ng);
+                    ConvertDensity(ev.hit.p, pdfSolid, o.p, o.dg.ng);
                 {
                     float dA[PACKET_WIDTH];
                     uint32_t mkA[PACKET_WIDTH], pathA[PACKET_WIDTH];

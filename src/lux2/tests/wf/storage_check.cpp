@@ -13,6 +13,7 @@
 // v1 degenerate arena. Store a full packet of vertices across several paths and
 // blocks, then load them back and require bit-exact equality per lane.
 
+#include "integrators/wf/pool_view.h"
 #include "integrators/wf/storage.h"
 
 #include <cmath>
@@ -111,7 +112,7 @@ int main()
         for (size_t i = 0; i < PACKET_WIDTH; ++i)
         {
             pathArr[i] = uint32_t(i % nPaths);
-            vArr[i] = uint32_t((i * 5 + 1) % MAX_DEPTH);
+            vArr[i] = uint32_t((i * 5 + 1) % wf::MAX_DEPTH);
         }
         path = enoki::load_unaligned<UInt32P>(pathArr.data());
         v = enoki::load_unaligned<Int32P>(reinterpret_cast<const int32_t *>(vArr.data()));
@@ -483,6 +484,198 @@ int main()
             }
         }
         Check(okPatch, "word patches hit only their target word");
+    }
+
+    // LoadEmitVertex must agree bit-exactly with the p/n/ng words of a full
+    // LoadGeom, and zero inactive lanes. Connectors read nothing else from the
+    // emitter vertex, so this is the whole equivalence contract.
+    {
+        for (auto &w : arena.geomWords)
+            w = 0u;
+        std::vector<uint32_t> pathArr(PACKET_WIDTH), vArr(PACKET_WIDTH);
+        std::vector<float> mA(PACKET_WIDTH);
+        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        {
+            pathArr[i] = uint32_t(i % nPaths);
+            vArr[i] = uint32_t((i / nPaths) * 4u + 1u);
+            mA[i] = (i % 4u) != 3u ? 1.f : 0.f;
+        }
+        const UInt32P path = enoki::load_unaligned<UInt32P>(pathArr.data());
+        const Int32P v = enoki::load_unaligned<Int32P>(
+            reinterpret_cast<const int32_t *>(vArr.data()));
+        const MaskP part =
+            enoki::load_unaligned<FloatP>(mA.data()) > FloatP(0.f);
+        const UInt32P rec = RecIdx(ps, path, v, MaskP(true));
+
+        auto fillF = [&](uint32_t word)
+        {
+            std::vector<float> f(PACKET_WIDTH);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                f[i] = BitsToFloat(Mix(uint32_t(i), word));
+            return enoki::load_unaligned<FloatP>(f.data());
+        };
+        VertexGeomP g;
+        g.p = Point3fP(fillF(0), fillF(1), fillF(2));
+        g.n = Point3fP(fillF(3), fillF(4), fillF(5));
+        g.ng = Point3fP(fillF(6), fillF(7), fillF(8));
+        g.wb = Point3fP(fillF(9), fillF(10), fillF(11));
+        g.dp_du = Point3fP(fillF(12), fillF(13), fillF(14));
+        g.dp_dv = Point3fP(fillF(15), fillF(16), fillF(17));
+        g.dp_ds = Point3fP(fillF(18), fillF(19), fillF(20));
+        g.dp_dt = Point3fP(fillF(21), fillF(22), fillF(23));
+        g.uv = Point2fP(fillF(24), fillF(25));
+        g.flux = fillF(26);
+        g.k = fillF(27);
+        g.matID = UInt32P(0u);
+        g.medID = UInt32P(0u);
+        g.medFront = UInt32P(0u);
+        g.medBack = UInt32P(0u);
+        StoreGeom(arena.geomWords.data(), g, rec, MaskP(true));
+
+        const EmitVertexData e = LoadEmitVertex(ps, path, v, part);
+        bool okEmit = true;
+        auto cmpMasked = [&](const FloatP &got, const FloatP &full,
+                             const char *nm)
+        {
+            std::vector<uint32_t> ug(PACKET_WIDTH), uf(PACKET_WIDTH);
+            enoki::store_unaligned(ug.data(), reinterpret_array<UInt32P>(got));
+            enoki::store_unaligned(uf.data(), reinterpret_array<UInt32P>(full));
+            std::vector<float> mk(PACKET_WIDTH);
+            enoki::store_unaligned(mk.data(),
+                                   select(part, FloatP(1.f), FloatP(0.f)));
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+            {
+                const uint32_t exp = mk[i] > 0.f ? uf[i] : 0u;
+                if (ug[i] != exp)
+                {
+                    std::cerr << "    emit mismatch " << nm << " lane " << i
+                              << "\n";
+                    okEmit = false;
+                }
+            }
+        };
+        cmpMasked(e.p.x(), g.p.x(), "p.x");
+        cmpMasked(e.p.y(), g.p.y(), "p.y");
+        cmpMasked(e.p.z(), g.p.z(), "p.z");
+        cmpMasked(e.dg.n.x(), g.n.x(), "n.x");
+        cmpMasked(e.dg.n.y(), g.n.y(), "n.y");
+        cmpMasked(e.dg.n.z(), g.n.z(), "n.z");
+        cmpMasked(e.dg.ng.x(), g.ng.x(), "ng.x");
+        cmpMasked(e.dg.ng.y(), g.ng.y(), "ng.y");
+        cmpMasked(e.dg.ng.z(), g.ng.z(), "ng.z");
+        Check(okEmit, "LoadEmitVertex matches LoadGeom p/n/ng, zeroes inactive");
+
+        // dg.p must alias p so call sites reading either get the same value.
+        std::vector<uint32_t> u1(PACKET_WIDTH), u2(PACKET_WIDTH);
+        enoki::store_unaligned(u1.data(), reinterpret_array<UInt32P>(e.p.x()));
+        enoki::store_unaligned(u2.data(),
+                               reinterpret_array<UInt32P>(e.dg.p.x()));
+        Check(u1 == u2, "LoadEmitVertex dg.p matches p");
+    }
+
+    // Transposed geom access must be byte-identical to the gather reference.
+    // On AVX-512 LoadGeom/StoreGeom dispatch to the transposed kernels and
+    // *_gather is the reference; on other hosts both are gather, so this is a
+    // trivially-true no-op there but still compiles and runs.
+    {
+        for (auto &w : arena.geomWords)
+            w = 0u;
+        std::vector<uint32_t> pathArr(PACKET_WIDTH), vArr(PACKET_WIDTH);
+        std::vector<float> mA(PACKET_WIDTH);
+        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        {
+            pathArr[i] = uint32_t(i % nPaths);
+            vArr[i] = uint32_t((i / nPaths) * 4u + 3u);
+            mA[i] = (i % 3u) != 1u ? 1.f : 0.f;
+        }
+        const UInt32P path = enoki::load_unaligned<UInt32P>(pathArr.data());
+        const Int32P v = enoki::load_unaligned<Int32P>(
+            reinterpret_cast<const int32_t *>(vArr.data()));
+        const MaskP part =
+            enoki::load_unaligned<FloatP>(mA.data()) > FloatP(0.f);
+        const UInt32P rec = RecIdx(ps, path, v, MaskP(true));
+        std::vector<uint32_t> recA(PACKET_WIDTH);
+        enoki::store_unaligned(recA.data(), rec);
+
+        auto fillF = [&](uint32_t word)
+        {
+            std::vector<float> f(PACKET_WIDTH);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                f[i] = BitsToFloat(Mix(uint32_t(i), word));
+            return enoki::load_unaligned<FloatP>(f.data());
+        };
+        auto fillU = [&](uint32_t word)
+        {
+            std::vector<uint32_t> u(PACKET_WIDTH);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                u[i] = Mix(uint32_t(i), word);
+            return enoki::load_unaligned<UInt32P>(u.data());
+        };
+        VertexGeomP g;
+        g.p = Point3fP(fillF(0), fillF(1), fillF(2));
+        g.n = Point3fP(fillF(3), fillF(4), fillF(5));
+        g.ng = Point3fP(fillF(6), fillF(7), fillF(8));
+        g.wb = Point3fP(fillF(9), fillF(10), fillF(11));
+        g.dp_du = Point3fP(fillF(12), fillF(13), fillF(14));
+        g.dp_dv = Point3fP(fillF(15), fillF(16), fillF(17));
+        g.dp_ds = Point3fP(fillF(18), fillF(19), fillF(20));
+        g.dp_dt = Point3fP(fillF(21), fillF(22), fillF(23));
+        g.uv = Point2fP(fillF(24), fillF(25));
+        g.flux = fillF(26);
+        g.k = fillF(27);
+        g.matID = fillU(28);
+        g.medID = fillU(29);
+        g.medFront = fillU(30);
+        g.medBack = fillU(31);
+
+        // Store via transposed, load via gather -> must match the input words.
+        StoreGeom(arena.geomWords.data(), g, rec, part);
+        const VertexGeomP viaGather = LoadGeom_gather(arena.geomWords.data(), rec, part);
+        // And store via gather into a second arena, compare raw bytes.
+        std::vector<uint32_t> refArena(arena.geomWords.size(), 0u);
+        StoreGeom_gather(refArena.data(), g, rec, part);
+
+        bool okStore = true;
+        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        {
+            const size_t gb = size_t(recA[i]) * GEOM_WORDS;
+            for (uint32_t w = 0; w < GEOM_WORDS; ++w)
+                if (arena.geomWords[gb + w] != refArena[gb + w])
+                {
+                    std::cerr << "    store diff word " << w << " lane " << i
+                              << " transposed=0x" << std::hex
+                              << arena.geomWords[gb + w] << " gather=0x"
+                              << refArena[gb + w] << std::dec << "\n";
+                    okStore = false;
+                }
+        }
+        Check(okStore, "transposed StoreGeom bytes match gather reference");
+
+        // Load via transposed vs gather on the same arena.
+        const VertexGeomP viaTransposed = LoadGeom(arena.geomWords.data(), rec, part);
+        bool okLoad = true;
+        auto cmpF2 = [&](const FloatP &a, const FloatP &b, const char *nm)
+        {
+            std::vector<uint32_t> ua(PACKET_WIDTH), ub(PACKET_WIDTH);
+            enoki::store_unaligned(ua.data(), reinterpret_array<UInt32P>(a));
+            enoki::store_unaligned(ub.data(), reinterpret_array<UInt32P>(b));
+            if (ua != ub)
+            {
+                std::cerr << "    load diff " << nm << "\n";
+                okLoad = false;
+            }
+        };
+        cmpF2(viaTransposed.p.x(), viaGather.p.x(), "p.x");
+        cmpF2(viaTransposed.p.z(), viaGather.p.z(), "p.z");
+        cmpF2(viaTransposed.n.y(), viaGather.n.y(), "n.y");
+        cmpF2(viaTransposed.ng.z(), viaGather.ng.z(), "ng.z");
+        cmpF2(viaTransposed.wb.x(), viaGather.wb.x(), "wb.x");
+        cmpF2(viaTransposed.dp_dv.y(), viaGather.dp_dv.y(), "dp_dv.y");
+        cmpF2(viaTransposed.dp_dt.z(), viaGather.dp_dt.z(), "dp_dt.z");
+        cmpF2(viaTransposed.uv.x(), viaGather.uv.x(), "uv.x");
+        cmpF2(viaTransposed.flux, viaGather.flux, "flux");
+        cmpF2(viaTransposed.k, viaGather.k, "k");
+        Check(okLoad, "transposed LoadGeom fields match gather reference");
     }
 
     if (g_failures)

@@ -148,9 +148,9 @@ namespace lux2
                 const VertexData L0 =
                     LoadVertex(c, lightPs, lPath, li, base, WF_LOAD_GEN);
                 // Origin reads the emitter vertex 0 for one sided
-                // emission and direct pdf.
-                const VertexData Lz = LoadVertex(c, lightPs, lPath, Int32P(0),
-                                                 base && isOrigin, WF_LOAD_GEN);
+                // emission and direct pdf, position and normals only.
+                const EmitVertexData Lz =
+                    LoadEmitVertex(lightPs, lPath, Int32P(0), base && isOrigin);
 
                 const Vector3fP dRaw = L0.p - E.p;
                 const FloatP d2 = dot(dRaw, dRaw);
@@ -626,8 +626,8 @@ namespace lux2
                 const Point3fP E0 = LoadPosition(eyePs, ePath, Int32P(0), base);
                 const VertexData L0 =
                     LoadVertex(c, lightPs, lPath, li, base, WF_LOAD_CAM);
-                const VertexData Lz = LoadVertex(c, lightPs, lPath, Int32P(0),
-                                                 base && isOrigin, WF_LOAD_CAM);
+                const EmitVertexData Lz =
+                    LoadEmitVertex(lightPs, lPath, Int32P(0), base && isOrigin);
 
                 const Vector3fP dRaw = L0.p - E0;
                 const FloatP d2 = dot(dRaw, dRaw);

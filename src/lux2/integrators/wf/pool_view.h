@@ -73,6 +73,46 @@ namespace lux2
             return r;
         }
 
+        // Emitter vertex 0 needs position and normals only.
+        struct EmitVertexData
+        {
+            Point3fP p;
+            DifferentialGeometryP dg;
+        };
+
+        inline EmitVertexData LoadEmitVertex(const PathStore &ps,
+                                             const UInt32P &path,
+                                             const Int32P &idx,
+                                             const MaskP &act)
+        {
+            const uint32_t *base = ps.arena->geomWords.data();
+            const UInt32P rec = RecIdx(ps, path, idx, act);
+            EmitVertexData v;
+            v.p = Point3fP(
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p), act)),
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p + 1), act)),
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p + 2), act)));
+            v.dg.p = v.p;
+            v.dg.n = Normal3fP(
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_n), act)),
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_n + 1), act)),
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_n + 2), act)));
+            v.dg.ng = Normal3fP(
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_ng), act)),
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_ng + 1), act)),
+                reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_ng + 2), act)));
+            return v;
+        }
+
         // Position of vertex `idx` of `path` only.
         inline Point3fP LoadPosition(const PathStore &ps, const UInt32P &path,
                                      const Int32P &idx, const MaskP &act)
