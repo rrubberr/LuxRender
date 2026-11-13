@@ -27,7 +27,7 @@
 #include "core/math/geometry.h"
 #include "core/math/vecp.h"
 #include "core/memory/huge_alloc.h"
-#include "integrators/wf/transpose.h"
+#include "core/math/simd_transpose.h"
 
 #include <enoki/array.h>
 

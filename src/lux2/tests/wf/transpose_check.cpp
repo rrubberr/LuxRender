@@ -13,14 +13,14 @@
 // inputs. These kernels replace per-word gathers in the vertex load/store
 // paths, so a wrong shuffle silently corrupts renders instead of failing.
 
-#include "integrators/wf/transpose.h"
+#include "core/math/simd_transpose.h"
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <vector>
 
-using namespace lux2::wf;
+using namespace lux2;
 
 namespace
 {

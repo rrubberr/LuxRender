@@ -20,12 +20,13 @@
  ***************************************************************************/
 
 #include "wf_common.h"
-#include "integrators/wf/transpose.h"
+#include "core/math/simd_transpose.h"
 
 #include <cstdint>
 #include <cstdio>
 #include <vector>
 
+using namespace lux2;
 using namespace lux2::wf;
 
 namespace

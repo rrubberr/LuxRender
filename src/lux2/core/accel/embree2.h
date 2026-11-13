@@ -25,6 +25,7 @@
 #include "core/math/ray.h"
 #include "core/math/geometry.h"
 #include "core/math/bbox.h"
+#include "core/memory/huge_alloc.h"
 
 #include <embree4/rtcore.h>
 
@@ -37,7 +38,24 @@ namespace lux2
     struct SceneDescription;
     struct MeshDesc;
 
-    // Traversal hint. Coherent = camera primaries and env-light
+    // Packed triangle shading record.
+    constexpr std::uint32_t TRI_WORDS = 32;
+    constexpr std::uint32_t kTri_v0 = 0;  // +0..2  x,y,z
+    constexpr std::uint32_t kTri_v1 = 3;  // +0..2
+    constexpr std::uint32_t kTri_v2 = 6;  // +0..2
+    constexpr std::uint32_t kTri_n0 = 9;  // +0..2
+    constexpr std::uint32_t kTri_n1 = 12; // +0..2
+    constexpr std::uint32_t kTri_n2 = 15; // +0..2
+    constexpr std::uint32_t kTri_uv0 = 18; // +0..1 u,v
+    constexpr std::uint32_t kTri_uv1 = 20; // +0..1
+    constexpr std::uint32_t kTri_uv2 = 22; // +0..1
+    constexpr std::uint32_t kTri_matID = 24;
+    constexpr std::uint32_t kTri_lightID = 25;
+    constexpr std::uint32_t kTri_medFront = 26;
+    constexpr std::uint32_t kTri_medBack = 27;
+    // Words 28..31 reserved.
+
+    // Traversal hint. Coherent = camera primaries and environment light
     // importance samples. Incoherent = diffuse secondaries, shadow rays.
     enum class Coherent : bool
     {
@@ -69,8 +87,9 @@ namespace lux2
         MaskP Occluded(const RayP &ray, MaskP active,
                        Coherent hint = Coherent::No) const;
 
-        // Fill from the tables.
+        // Fill from the tables. ShadeHit uses the transposed record load.
         void ShadeHit(HitP &hit) const;
+        void ShadeHit_gather(HitP &hit) const;
 
         // Medium id containing the world point.
         std::uint32_t MediumIDAt(const Point3f &p) const;
@@ -87,19 +106,8 @@ namespace lux2
         size_t m_triCount = 0;
         BBox m_bound;
 
-        // Global triangle index.
-        std::vector<float> v0x, v0y, v0z;
-        std::vector<float> v1x, v1y, v1z;
-        std::vector<float> v2x, v2y, v2z;
-        std::vector<float> n0x, n0y, n0z;
-        std::vector<float> n1x, n1y, n1z;
-        std::vector<float> n2x, n2y, n2z;
-        std::vector<float> uv0u, uv0v, uv1u, uv1v, uv2u, uv2v;
-        std::vector<std::uint32_t> matID;
-        std::vector<std::int32_t> lightID;
-        // Per triangle volume binding (front = +n, back = -n).
-        std::vector<std::uint32_t> mediumFrontID;
-        std::vector<std::uint32_t> mediumBackID;
+        // Global triangle index -> triRecords[g * TRI_WORDS + word].
+        HugeVector<std::uint32_t> triRecords;
         std::vector<std::uint32_t> geomToBase; // geomID -> base index
     };
 

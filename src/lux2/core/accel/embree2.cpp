@@ -23,12 +23,25 @@
 #include "core/scene.h"
 #include "core/shape.h"
 #include "core/math/math.h"
+#include "core/math/simd_transpose.h"
 #include "core/error.h"
 
 #include <cstring>
 
 namespace lux2
 {
+
+    // The transposed ShadeHit kernel addresses record fields by word index.
+    static_assert(TRI_WORDS == 32u, "triangle record is 32 words");
+    static_assert(kTri_v0 == 0u && kTri_v1 == 3u && kTri_v2 == 6u,
+                  "record order: v0,v1,v2");
+    static_assert(kTri_n0 == 9u && kTri_n1 == 12u && kTri_n2 == 15u,
+                  "record order: n0,n1,n2");
+    static_assert(kTri_uv0 == 18u && kTri_uv1 == 20u && kTri_uv2 == 22u,
+                  "record order: uv0,uv1,uv2");
+    static_assert(kTri_matID == 24u && kTri_lightID == 25u &&
+                      kTri_medFront == 26u && kTri_medBack == 27u,
+                  "record order: ids");
 
     // ---------------------------------------------------------------------------
     // RTCDevice
@@ -61,8 +74,7 @@ namespace lux2
     {
         if (m_scene)
             rtcReleaseScene(m_scene);
-        // Device intentionally not released. Avoids
-        // destruction order bugs.
+        // Device intentionally not released.
     }
 
     // ---------------------------------------------------------------------------
@@ -76,7 +88,7 @@ namespace lux2
 
     void EmbreeScene::BuildFromMeshes(const std::vector<MeshDesc> &meshes)
     {
-        // Release any prior scene so rebuilds don't leak.
+        // Release any prior scene so rebuilds do not leak.
         if (m_scene)
         {
             rtcReleaseScene(m_scene);
@@ -93,34 +105,7 @@ namespace lux2
         for (const MeshDesc &m : meshes)
             m_triCount += m.tris.size();
 
-        v0x.resize(m_triCount);
-        v0y.resize(m_triCount);
-        v0z.resize(m_triCount);
-        v1x.resize(m_triCount);
-        v1y.resize(m_triCount);
-        v1z.resize(m_triCount);
-        v2x.resize(m_triCount);
-        v2y.resize(m_triCount);
-        v2z.resize(m_triCount);
-        n0x.resize(m_triCount);
-        n0y.resize(m_triCount);
-        n0z.resize(m_triCount);
-        n1x.resize(m_triCount);
-        n1y.resize(m_triCount);
-        n1z.resize(m_triCount);
-        n2x.resize(m_triCount);
-        n2y.resize(m_triCount);
-        n2z.resize(m_triCount);
-        uv0u.resize(m_triCount);
-        uv0v.resize(m_triCount);
-        uv1u.resize(m_triCount);
-        uv1v.resize(m_triCount);
-        uv2u.resize(m_triCount);
-        uv2v.resize(m_triCount);
-        matID.resize(m_triCount);
-        lightID.resize(m_triCount);
-        mediumFrontID.resize(m_triCount);
-        mediumBackID.resize(m_triCount);
+        triRecords.assign(size_t(m_triCount) * TRI_WORDS, 0u);
 
         geomToBase.assign(meshes.size(), 0u);
         std::uint32_t base = 0;
@@ -138,34 +123,39 @@ namespace lux2
             {
                 const TriangleDesc &td = m.tris[i];
                 const size_t g = base + i;
-                v0x[g] = td.v0.x();
-                v0y[g] = td.v0.y();
-                v0z[g] = td.v0.z();
-                v1x[g] = td.v1.x();
-                v1y[g] = td.v1.y();
-                v1z[g] = td.v1.z();
-                v2x[g] = td.v2.x();
-                v2y[g] = td.v2.y();
-                v2z[g] = td.v2.z();
-                n0x[g] = td.n0.x();
-                n0y[g] = td.n0.y();
-                n0z[g] = td.n0.z();
-                n1x[g] = td.n1.x();
-                n1y[g] = td.n1.y();
-                n1z[g] = td.n1.z();
-                n2x[g] = td.n2.x();
-                n2y[g] = td.n2.y();
-                n2z[g] = td.n2.z();
-                uv0u[g] = td.uv0.u;
-                uv0v[g] = td.uv0.v;
-                uv1u[g] = td.uv1.u;
-                uv1v[g] = td.uv1.v;
-                uv2u[g] = td.uv2.u;
-                uv2v[g] = td.uv2.v;
-                matID[g] = td.matID;
-                lightID[g] = td.lightID;
-                mediumFrontID[g] = td.mediumFrontID;
-                mediumBackID[g] = td.mediumBackID;
+                uint32_t *rec = triRecords.data() + g * TRI_WORDS;
+                auto putF = [&](uint32_t w, float v)
+                { std::memcpy(rec + w, &v, sizeof(v)); };
+                auto putU = [&](uint32_t w, uint32_t v)
+                { rec[w] = v; };
+                putF(kTri_v0 + 0, td.v0.x());
+                putF(kTri_v0 + 1, td.v0.y());
+                putF(kTri_v0 + 2, td.v0.z());
+                putF(kTri_v1 + 0, td.v1.x());
+                putF(kTri_v1 + 1, td.v1.y());
+                putF(kTri_v1 + 2, td.v1.z());
+                putF(kTri_v2 + 0, td.v2.x());
+                putF(kTri_v2 + 1, td.v2.y());
+                putF(kTri_v2 + 2, td.v2.z());
+                putF(kTri_n0 + 0, td.n0.x());
+                putF(kTri_n0 + 1, td.n0.y());
+                putF(kTri_n0 + 2, td.n0.z());
+                putF(kTri_n1 + 0, td.n1.x());
+                putF(kTri_n1 + 1, td.n1.y());
+                putF(kTri_n1 + 2, td.n1.z());
+                putF(kTri_n2 + 0, td.n2.x());
+                putF(kTri_n2 + 1, td.n2.y());
+                putF(kTri_n2 + 2, td.n2.z());
+                putF(kTri_uv0 + 0, td.uv0.u);
+                putF(kTri_uv0 + 1, td.uv0.v);
+                putF(kTri_uv1 + 0, td.uv1.u);
+                putF(kTri_uv1 + 1, td.uv1.v);
+                putF(kTri_uv2 + 0, td.uv2.u);
+                putF(kTri_uv2 + 1, td.uv2.v);
+                putU(kTri_matID, td.matID);
+                putU(kTri_lightID, uint32_t(td.lightID));
+                putU(kTri_medFront, td.mediumFrontID);
+                putU(kTri_medBack, td.mediumBackID);
             }
             m_bound = Union(m_bound, m.bound);
 
@@ -423,99 +413,145 @@ namespace lux2
     // ShadeHit
     // ---------------------------------------------------------------------------
 
+    namespace
+    {
+        // Shading math shared by the transposed and gather load path.
+        template <typename GetF, typename GetU>
+        void ShadeFromFields(HitP &hit, GetF F, GetU U)
+        {
+            const FloatP b0 = FloatP(1.f) - hit.b1 - hit.b2;
+
+            // Position: p = b0*v0 + b1*v1 + b2*v2.
+            const FloatP v0x_ = F(kTri_v0 + 0), v0y_ = F(kTri_v0 + 1),
+                         v0z_ = F(kTri_v0 + 2);
+            const FloatP v1x_ = F(kTri_v1 + 0), v1y_ = F(kTri_v1 + 1),
+                         v1z_ = F(kTri_v1 + 2);
+            const FloatP v2x_ = F(kTri_v2 + 0), v2y_ = F(kTri_v2 + 1),
+                         v2z_ = F(kTri_v2 + 2);
+            hit.p = Point3fP(fmadd(b0, v0x_, fmadd(hit.b1, v1x_, hit.b2 * v2x_)),
+                             fmadd(b0, v0y_, fmadd(hit.b1, v1y_, hit.b2 * v2y_)),
+                             fmadd(b0, v0z_, fmadd(hit.b1, v1z_, hit.b2 * v2z_)));
+
+            // Fall back to the geometric normal on degenerate interpolation to stay NaN free.
+            const FloatP n0x_ = F(kTri_n0 + 0), n0y_ = F(kTri_n0 + 1),
+                         n0z_ = F(kTri_n0 + 2);
+            const FloatP n1x_ = F(kTri_n1 + 0), n1y_ = F(kTri_n1 + 1),
+                         n1z_ = F(kTri_n1 + 2);
+            const FloatP n2x_ = F(kTri_n2 + 0), n2y_ = F(kTri_n2 + 1),
+                         n2z_ = F(kTri_n2 + 2);
+            const Normal3fP n(fmadd(b0, n0x_, fmadd(hit.b1, n1x_, hit.b2 * n2x_)),
+                              fmadd(b0, n0y_, fmadd(hit.b1, n1y_, hit.b2 * n2y_)),
+                              fmadd(b0, n0z_, fmadd(hit.b1, n1z_, hit.b2 * n2z_)));
+            const FloatP sn2 = squared_norm(n);
+            const Normal3fP nhat(n * rsqrt(sn2));
+            hit.sh_n = select(sn2 > FloatP(0.f), nhat, hit.ngeo);
+
+            // UV interpolation.
+            const FloatP u0_ = F(kTri_uv0 + 0), v0_ = F(kTri_uv0 + 1);
+            const FloatP u1_ = F(kTri_uv1 + 0), v1_ = F(kTri_uv1 + 1);
+            const FloatP u2_ = F(kTri_uv2 + 0), v2_ = F(kTri_uv2 + 1);
+            hit.uv = Point2fP(fmadd(b0, u0_, fmadd(hit.b1, u1_, hit.b2 * u2_)),
+                              fmadd(b0, v0_, fmadd(hit.b1, v1_, hit.b2 * v2_)));
+
+            // UV gradient solve for the shading frame.
+            const Vector3fP dp1(v0x_ - v2x_, v0y_ - v2y_, v0z_ - v2z_);
+            const Vector3fP dp2(v1x_ - v2x_, v1y_ - v2y_, v1z_ - v2z_);
+            const FloatP du1 = u0_ - u2_, du2 = u1_ - u2_;
+            const FloatP dv1 = v0_ - v2_, dv2 = v1_ - v2_;
+            const FloatP det = du1 * dv2 - dv1 * du2;
+            const MaskP nonDet = neq(det, FloatP(0.f));
+            const FloatP invdet = select(nonDet, FloatP(1.f) / det, FloatP(0.f));
+            Vector3fP dpdu = (dp1 * dv2 - dp2 * dv1) * invdet;
+            Vector3fP dpdv = (dp2 * du1 - dp1 * du2) * invdet;
+            // Make sure degenerate UVs stay finite.
+            const auto fallback = coordinate_system(Vector3fP(hit.ngeo.x(),
+                                                              hit.ngeo.y(),
+                                                              hit.ngeo.z()));
+            enoki::masked(dpdu, !nonDet) = fallback.first;
+            enoki::masked(dpdv, !nonDet) = fallback.second;
+            hit.dp_du = dpdu;
+            hit.dp_dv = dpdv;
+
+            // BSDF anisotropy frame on the interpolated shading normal where
+            // sn = normalize(dpdu projected off n), tn = cross(n, sn).
+            const Vector3fP nvec(hit.sh_n.x(), hit.sh_n.y(), hit.sh_n.z());
+            const Vector3fP proj = dpdu - nvec * dot(dpdu, nvec);
+            const FloatP proj2 = dot(proj, proj);
+            const auto nBasis = coordinate_system(nvec);
+            Vector3fP sn = select(proj2 > EPS_RAY * EPS_RAY,
+                                  proj * rsqrt(max(proj2, FloatP(EPS_DENOM))),
+                                  nBasis.first);
+            hit.dp_ds = sn;
+            hit.dp_dt = enoki::cross(nvec, sn);
+
+            hit.matID = U(kTri_matID);
+            hit.lightID = enoki::reinterpret_array<Int32P>(U(kTri_lightID));
+            hit.mediumFrontID = U(kTri_medFront);
+            hit.mediumBackID = U(kTri_medBack);
+        }
+    } // namespace
+
     void EmbreeScene::ShadeHit(HitP &hit) const
     {
         const MaskP active = hit.hit;
         if (none(active))
             return;
 
-        // Global triangle index per lane. Enoki gather requires a signed index.
+        // Global triangle index per lane.
         const Int32P gidx =
             enoki::gather<Int32P>(geomToBase.data(),
                                   enoki::reinterpret_array<Int32P>(hit.geomID),
                                   active) +
             enoki::reinterpret_array<Int32P>(hit.primID);
 
-        const FloatP b0 = FloatP(1.f) - hit.b1 - hit.b2;
+#if defined(__AVX512F__) || defined(__AVX2__)
+        // Lane record indices.
+        alignas(64) std::uint32_t recA[SimdLanes];
+        enoki::store_unaligned(
+            recA, enoki::select(active, enoki::reinterpret_array<UInt32P>(gidx),
+                                UInt32P(0u)));
+#if defined(__AVX512F__)
+        const SimdVec zm = _mm512_castsi512_ps(
+            _mm512_maskz_set1_epi32(active.k, ~0u));
+#else
+        const SimdVec zm = _mm256_castsi256_ps(active.m);
+#endif
+        alignas(64) SimdVec f[TRI_WORDS];
+        LoadRecords<TRI_WORDS>(f, triRecords.data(), recA, zm);
+        ShadeFromFields(
+            hit, [&](std::uint32_t w) { return FloatP(f[w]); },
+            [&](std::uint32_t w)
+            { return UInt32P(RecBits(f[w])); });
+#else
+        ShadeHit_gather(hit);
+#endif
+    }
 
-        // Position: p = b0*v0 + b1*v1 + b2*v2.
-        const FloatP v0x_ = enoki::gather<FloatP>(v0x.data(), gidx, active);
-        const FloatP v0y_ = enoki::gather<FloatP>(v0y.data(), gidx, active);
-        const FloatP v0z_ = enoki::gather<FloatP>(v0z.data(), gidx, active);
-        const FloatP v1x_ = enoki::gather<FloatP>(v1x.data(), gidx, active);
-        const FloatP v1y_ = enoki::gather<FloatP>(v1y.data(), gidx, active);
-        const FloatP v1z_ = enoki::gather<FloatP>(v1z.data(), gidx, active);
-        const FloatP v2x_ = enoki::gather<FloatP>(v2x.data(), gidx, active);
-        const FloatP v2y_ = enoki::gather<FloatP>(v2y.data(), gidx, active);
-        const FloatP v2z_ = enoki::gather<FloatP>(v2z.data(), gidx, active);
-        hit.p = Point3fP(fmadd(b0, v0x_, fmadd(hit.b1, v1x_, hit.b2 * v2x_)),
-                         fmadd(b0, v0y_, fmadd(hit.b1, v1y_, hit.b2 * v2y_)),
-                         fmadd(b0, v0z_, fmadd(hit.b1, v1z_, hit.b2 * v2z_)));
+    // The expensive scatter/gather version for reference.
+    void EmbreeScene::ShadeHit_gather(HitP &hit) const
+    {
+        const MaskP active = hit.hit;
+        if (none(active))
+            return;
 
-        // Fall back to the geometric normal on degenerate interpolation to stay NaN-free.
-        const FloatP n0x_ = enoki::gather<FloatP>(n0x.data(), gidx, active);
-        const FloatP n0y_ = enoki::gather<FloatP>(n0y.data(), gidx, active);
-        const FloatP n0z_ = enoki::gather<FloatP>(n0z.data(), gidx, active);
-        const FloatP n1x_ = enoki::gather<FloatP>(n1x.data(), gidx, active);
-        const FloatP n1y_ = enoki::gather<FloatP>(n1y.data(), gidx, active);
-        const FloatP n1z_ = enoki::gather<FloatP>(n1z.data(), gidx, active);
-        const FloatP n2x_ = enoki::gather<FloatP>(n2x.data(), gidx, active);
-        const FloatP n2y_ = enoki::gather<FloatP>(n2y.data(), gidx, active);
-        const FloatP n2z_ = enoki::gather<FloatP>(n2z.data(), gidx, active);
-        const Normal3fP n(fmadd(b0, n0x_, fmadd(hit.b1, n1x_, hit.b2 * n2x_)),
-                          fmadd(b0, n0y_, fmadd(hit.b1, n1y_, hit.b2 * n2y_)),
-                          fmadd(b0, n0z_, fmadd(hit.b1, n1z_, hit.b2 * n2z_)));
-        const FloatP sn2 = squared_norm(n);
-        const Normal3fP nhat(n * rsqrt(sn2));
-        hit.sh_n = select(sn2 > FloatP(0.f), nhat, hit.ngeo);
+        const Int32P gidx =
+            enoki::gather<Int32P>(geomToBase.data(),
+                                  enoki::reinterpret_array<Int32P>(hit.geomID),
+                                  active) +
+            enoki::reinterpret_array<Int32P>(hit.primID);
+        const Int32P base = gidx * Int32P(TRI_WORDS);
 
-        // UV interpolation.
-        const FloatP u0_ = enoki::gather<FloatP>(uv0u.data(), gidx, active);
-        const FloatP v0_ = enoki::gather<FloatP>(uv0v.data(), gidx, active);
-        const FloatP u1_ = enoki::gather<FloatP>(uv1u.data(), gidx, active);
-        const FloatP v1_ = enoki::gather<FloatP>(uv1v.data(), gidx, active);
-        const FloatP u2_ = enoki::gather<FloatP>(uv2u.data(), gidx, active);
-        const FloatP v2_ = enoki::gather<FloatP>(uv2v.data(), gidx, active);
-        hit.uv = Point2fP(fmadd(b0, u0_, fmadd(hit.b1, u1_, hit.b2 * u2_)),
-                          fmadd(b0, v0_, fmadd(hit.b1, v1_, hit.b2 * v2_)));
-
-        // UV gradient solve for the shading frame.
-        const Vector3fP dp1(v0x_ - v2x_, v0y_ - v2y_, v0z_ - v2z_);
-        const Vector3fP dp2(v1x_ - v2x_, v1y_ - v2y_, v1z_ - v2z_);
-        const FloatP du1 = u0_ - u2_, du2 = u1_ - u2_;
-        const FloatP dv1 = v0_ - v2_, dv2 = v1_ - v2_;
-        const FloatP det = du1 * dv2 - dv1 * du2;
-        const MaskP nonDet = neq(det, FloatP(0.f));
-        const FloatP invdet = select(nonDet, FloatP(1.f) / det, FloatP(0.f));
-        Vector3fP dpdu = (dp1 * dv2 - dp2 * dv1) * invdet;
-        Vector3fP dpdv = (dp2 * du1 - dp1 * du2) * invdet;
-        // Make sure degenerate UVs stay finite.
-        const auto fallback = coordinate_system(Vector3fP(hit.ngeo.x(),
-                                                          hit.ngeo.y(),
-                                                          hit.ngeo.z()));
-        enoki::masked(dpdu, !nonDet) = fallback.first;
-        enoki::masked(dpdv, !nonDet) = fallback.second;
-        hit.dp_du = dpdu;
-        hit.dp_dv = dpdv;
-
-        // BSDF anisotropy frame on the interpolated shading normal where
-        // sn = normalize(dpdu projected off n), tn = cross(n, sn).
-        const Vector3fP nvec(hit.sh_n.x(), hit.sh_n.y(), hit.sh_n.z());
-        const Vector3fP proj = dpdu - nvec * dot(dpdu, nvec);
-        const FloatP proj2 = dot(proj, proj);
-        const auto nBasis = coordinate_system(nvec);
-        Vector3fP sn = select(proj2 > EPS_RAY * EPS_RAY,
-                              proj * rsqrt(max(proj2, FloatP(EPS_DENOM))),
-                              nBasis.first);
-        hit.dp_ds = sn;
-        hit.dp_dt = enoki::cross(nvec, sn);
-
-        hit.matID = enoki::gather<UInt32P>(matID.data(), gidx, active);
-        hit.lightID = enoki::gather<Int32P>(lightID.data(), gidx, active);
-        hit.mediumFrontID =
-            enoki::gather<UInt32P>(mediumFrontID.data(), gidx, active);
-        hit.mediumBackID =
-            enoki::gather<UInt32P>(mediumBackID.data(), gidx, active);
+        ShadeFromFields(
+            hit,
+            [&](std::uint32_t w)
+            {
+                return enoki::gather<FloatP>(
+                    reinterpret_cast<const float *>(triRecords.data()),
+                    base + Int32P(w), active);
+            },
+            [&](std::uint32_t w)
+            { return enoki::gather<UInt32P>(triRecords.data(), base + Int32P(w),
+                                            active); });
     }
 
     namespace
@@ -525,8 +561,7 @@ namespace lux2
         bool CastMedium(const RTCScene scene, const Point3f &p,
                         const Vector3f &dir,
                         const std::vector<std::uint32_t> &base,
-                        const std::vector<std::uint32_t> &front,
-                        const std::vector<std::uint32_t> &back,
+                        const std::uint32_t *recs,
                         std::uint32_t *out)
         {
             float tcur = 0.f;
@@ -556,7 +591,9 @@ namespace lux2
 
                 const std::size_t g =
                     base[rh.hit.geomID] + rh.hit.primID;
-                const std::uint32_t f = front[g], b = back[g];
+                const std::uint32_t *rec = recs + g * TRI_WORDS;
+                const std::uint32_t f = rec[kTri_medFront],
+                    b = rec[kTri_medBack];
                 if (f == b)
                 {
                     // Non-boundary triangle (emitter, wall).
@@ -592,8 +629,8 @@ namespace lux2
         for (int i = 0; i < 6; ++i)
         {
             std::uint32_t med = LUX2_MEDIUM_CLEAR;
-            if (!CastMedium(m_scene, p, dirs[i], geomToBase, mediumFrontID,
-                            mediumBackID, &med))
+            if (!CastMedium(m_scene, p, dirs[i], geomToBase,
+                            triRecords.data(), &med))
                 med = LUX2_MEDIUM_CLEAR;
 
             if (votes[0] == 0 || med == vote[0])
