@@ -69,6 +69,36 @@ int main()
     Check(MIS_WORDS == 8u, "MIS_WORDS == 8");
     Check(kWord_matID == 28u, "matID word offset == 28 (after 8*V3+V2+2F)");
 
+    // Field order is load-bearing: a transposed record kernel addresses rows by
+    // raw word index, so reordering LUX2_GEOM_FIELDS/LUX2_MIS_FIELDS would
+    // corrupt renders with no compile error. Pin every offset.
+    static_assert(kWord_p == 0u, "geom field order: p");
+    static_assert(kWord_n == 3u, "geom field order: n");
+    static_assert(kWord_ng == 6u, "geom field order: ng");
+    static_assert(kWord_wb == 9u, "geom field order: wb");
+    static_assert(kWord_dp_du == 12u, "geom field order: dp_du");
+    static_assert(kWord_dp_dv == 15u, "geom field order: dp_dv");
+    static_assert(kWord_dp_ds == 18u, "geom field order: dp_ds");
+    static_assert(kWord_dp_dt == 21u, "geom field order: dp_dt");
+    static_assert(kWord_uv == 24u, "geom field order: uv");
+    static_assert(kWord_flux == 26u, "geom field order: flux");
+    static_assert(kWord_k == 27u, "geom field order: k");
+    static_assert(kWord_matID == 28u, "geom field order: matID");
+    static_assert(kWord_medID == 29u, "geom field order: medID");
+    static_assert(kWord_medFront == 30u, "geom field order: medFront");
+    static_assert(kWord_medBack == 31u, "geom field order: medBack");
+    static_assert(GEOM_WORDS == 32u, "geom record is 32 words");
+    static_assert(kWord_dAW == 0u, "mis field order: dAW");
+    static_assert(kWord_dARW == 1u, "mis field order: dARW");
+    static_assert(kWord_rr == 2u, "mis field order: rr");
+    static_assert(kWord_rrR == 3u, "mis field order: rrR");
+    static_assert(kWord_cosi == 4u, "mis field order: cosi");
+    static_assert(kWord_coso == 5u, "mis field order: coso");
+    static_assert(kWord_d2 == 6u, "mis field order: d2");
+    static_assert(kWord_bits == 7u, "mis field order: bits");
+    static_assert(MIS_WORDS_TOTAL == 8u, "mis record is 8 words");
+    std::cout << "  ok:   geom/mis field order pinned (compile-time)" << std::endl;
+
     const uint32_t nPaths = 4;
     BlockArena arena;
     PathStore ps;
@@ -229,6 +259,230 @@ int main()
         cmpF(mi.d2, mi2.d2, "d2");
         cmpU(mi.bits, mi2.bits, "bits");
         Check(before2 == g_failures, "mis round-trip bit-exact (all 8 words)");
+    }
+
+    // Masked round-trip. A partial-mask store must leave inactive lanes'
+    // records untouched, and a partial-mask load must return zero for inactive
+    // lanes (enoki merges every gather from setzero). A transposed record
+    // kernel replaces both paths, so pin the contract before that lands.
+    {
+        const uint32_t sentinelG = 0xDEADBEEFu, sentinelM = 0x5A5A5A5Au;
+        for (auto &w : arena.geomWords)
+            w = sentinelG;
+        for (auto &w : arena.misWords)
+            w = sentinelM;
+
+        // Distinct records with stride 4 so rec +/- 1 is never written.
+        std::vector<uint32_t> pathArr(PACKET_WIDTH), vArr(PACKET_WIDTH);
+        std::vector<float> mA(PACKET_WIDTH);
+        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        {
+            pathArr[i] = uint32_t(i % nPaths);
+            vArr[i] = uint32_t((i / nPaths) * 4u + 2u);
+            mA[i] = (i % 3u) != 0u ? 1.f : 0.f; // mixed fill, not alternating
+        }
+        const UInt32P path = enoki::load_unaligned<UInt32P>(pathArr.data());
+        const Int32P v = enoki::load_unaligned<Int32P>(
+            reinterpret_cast<const int32_t *>(vArr.data()));
+        const MaskP part =
+            enoki::load_unaligned<FloatP>(mA.data()) > FloatP(0.f);
+        const UInt32P rec = RecIdx(ps, path, v, MaskP(true));
+        std::vector<uint32_t> recArr(PACKET_WIDTH), act(PACKET_WIDTH);
+        enoki::store_unaligned(recArr.data(), rec);
+        enoki::store_unaligned(act.data(),
+                               select(part, UInt32P(1u), UInt32P(0u)));
+
+        // Expected raw word per (lane, word): float fields keep the finite
+        // masking BitsToFloat applies, U fields are stored verbatim.
+        auto fword = [](uint32_t u)
+        {
+            const float f = BitsToFloat(u);
+            uint32_t r;
+            std::memcpy(&r, &f, sizeof(r));
+            return r;
+        };
+        auto expG = [&](size_t i, uint32_t w)
+        {
+            const uint32_t m = Mix(uint32_t(i), w);
+            return w >= 28u ? m : fword(m);
+        };
+        auto expM = [&](size_t i, uint32_t w)
+        {
+            const uint32_t m = Mix(uint32_t(i), 100u + w);
+            return w == 7u ? m : fword(m);
+        };
+
+        VertexGeomP g;
+        auto fillF = [&](uint32_t word)
+        {
+            std::vector<float> f(PACKET_WIDTH);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                f[i] = BitsToFloat(Mix(uint32_t(i), word));
+            return enoki::load_unaligned<FloatP>(f.data());
+        };
+        auto fillU = [&](uint32_t word)
+        {
+            std::vector<uint32_t> u(PACKET_WIDTH);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                u[i] = Mix(uint32_t(i), word);
+            return enoki::load_unaligned<UInt32P>(u.data());
+        };
+        g.p = Point3fP(fillF(0), fillF(1), fillF(2));
+        g.n = Point3fP(fillF(3), fillF(4), fillF(5));
+        g.ng = Point3fP(fillF(6), fillF(7), fillF(8));
+        g.wb = Point3fP(fillF(9), fillF(10), fillF(11));
+        g.dp_du = Point3fP(fillF(12), fillF(13), fillF(14));
+        g.dp_dv = Point3fP(fillF(15), fillF(16), fillF(17));
+        g.dp_ds = Point3fP(fillF(18), fillF(19), fillF(20));
+        g.dp_dt = Point3fP(fillF(21), fillF(22), fillF(23));
+        g.uv = Point2fP(fillF(24), fillF(25));
+        g.flux = fillF(26);
+        g.k = fillF(27);
+        g.matID = fillU(28);
+        g.medID = fillU(29);
+        g.medFront = fillU(30);
+        g.medBack = fillU(31);
+
+        VertexMisP mi;
+        mi.dAW = fillF(100);
+        mi.dARW = fillF(101);
+        mi.rr = fillF(102);
+        mi.rrR = fillF(103);
+        mi.cosi = fillF(104);
+        mi.coso = fillF(105);
+        mi.d2 = fillF(106);
+        mi.bits = fillU(107);
+
+        StoreGeom(arena.geomWords.data(), g, rec, part);
+        StoreMis(arena.misWords.data(), mi, rec, part);
+
+        bool okActive = true, okUntouched = true;
+        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        {
+            const size_t gb = size_t(recArr[i]) * GEOM_WORDS;
+            const size_t mb = size_t(recArr[i]) * MIS_WORDS;
+            for (uint32_t w = 0; w < GEOM_WORDS; ++w)
+            {
+                const uint32_t got = arena.geomWords[gb + w];
+                if (act[i])
+                    okActive &= got == expG(i, w);
+                else
+                    okUntouched &= got == sentinelG;
+            }
+            for (uint32_t w = 0; w < MIS_WORDS; ++w)
+            {
+                const uint32_t got = arena.misWords[mb + w];
+                if (act[i])
+                    okActive &= got == expM(i, w);
+                else
+                    okUntouched &= got == sentinelM;
+            }
+        }
+        Check(okActive, "partial-mask store writes active lanes exactly");
+        Check(okUntouched, "partial-mask store leaves inactive records intact");
+
+        // Neighbouring records must survive a partial store.
+        bool okNeigh = true;
+        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        {
+            for (int32_t d = -1; d <= 1; d += 2)
+            {
+                const size_t nb = size_t(int64_t(recArr[i]) + d);
+                for (uint32_t w = 0; w < GEOM_WORDS; ++w)
+                    okNeigh &= arena.geomWords[nb * GEOM_WORDS + w] == sentinelG;
+                for (uint32_t w = 0; w < MIS_WORDS; ++w)
+                    okNeigh &= arena.misWords[nb * MIS_WORDS + w] == sentinelM;
+            }
+        }
+        Check(okNeigh, "partial-mask store leaves rec +/- 1 intact");
+
+        // Partial-mask load: active lanes read back, inactive lanes are zero.
+        const VertexGeomP g3 = LoadGeom(arena.geomWords.data(), rec, part);
+        const VertexMisP mi3 = LoadMis(arena.misWords.data(), rec, part);
+        bool okLoad = true;
+        auto chk = [&](const UInt32P &raw, uint32_t w, bool geomWord)
+        {
+            std::vector<uint32_t> ua(PACKET_WIDTH);
+            enoki::store_unaligned(ua.data(), raw);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+            {
+                const uint32_t exp =
+                    act[i] ? (geomWord ? expG(i, w) : expM(i, w)) : 0u;
+                if (ua[i] != exp)
+                {
+                    std::cerr << "    load mismatch word " << w << " lane " << i
+                              << " got 0x" << std::hex << ua[i] << " want 0x"
+                              << exp << std::dec << "\n";
+                    okLoad = false;
+                }
+            }
+        };
+        auto chkG = [&](const FloatP &a, uint32_t w)
+        { chk(reinterpret_array<UInt32P>(a), w, true); };
+        auto chkM = [&](const FloatP &a, uint32_t w)
+        { chk(reinterpret_array<UInt32P>(a), w, false); };
+        chkG(g3.p.x(), 0);
+        chkG(g3.p.y(), 1);
+        chkG(g3.p.z(), 2);
+        chkG(g3.n.x(), 3);
+        chkG(g3.n.z(), 5);
+        chkG(g3.ng.z(), 8);
+        chkG(g3.wb.x(), 9);
+        chkG(g3.dp_du.y(), 13);
+        chkG(g3.dp_dt.z(), 23);
+        chkG(g3.uv.x(), 24);
+        chkG(g3.uv.y(), 25);
+        chkG(g3.flux, 26);
+        chkG(g3.k, 27);
+        chk(g3.matID, 28, true);
+        chk(g3.medID, 29, true);
+        chk(g3.medFront, 30, true);
+        chk(g3.medBack, 31, true);
+        chkM(mi3.dAW, 0);
+        chkM(mi3.dARW, 1);
+        chkM(mi3.rr, 2);
+        chkM(mi3.rrR, 3);
+        chkM(mi3.cosi, 4);
+        chkM(mi3.coso, 5);
+        chkM(mi3.d2, 6);
+        chk(mi3.bits, 7, false);
+        Check(okLoad, "partial-mask load zeroes inactive lanes");
+
+        // Empty mask must be a no-op store.
+        std::vector<uint32_t> snapG(arena.geomWords.begin(), arena.geomWords.end());
+        StoreGeom(arena.geomWords.data(), g, rec, MaskP(false));
+        Check(snapG == std::vector<uint32_t>(arena.geomWords.begin(),
+                                             arena.geomWords.end()),
+              "store with empty mask writes nothing");
+
+        // Single-word patch into a full record and into rec-1: the production
+        // MIS pattern (dAW/d2 written on a later step). Only the target word
+        // may change. This is why MIS cannot use a whole-line store.
+        StoreGeom(arena.geomWords.data(), g, rec, MaskP(true));
+        StoreMis(arena.misWords.data(), mi, rec, MaskP(true));
+        const uint32_t patch = 0x12345678u;
+        StoreWord(arena.misWords.data(), UInt32P(patch),
+                  RecWord<MIS_WORDS>(rec, kWord_dAW), part);
+        StoreWord(arena.misWords.data(), UInt32P(patch),
+                  RecWord<MIS_WORDS>(rec - Int32P(1), kWord_d2), part);
+        bool okPatch = true;
+        for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        {
+            const size_t mb = size_t(recArr[i]) * MIS_WORDS;
+            const size_t pb = size_t(recArr[i] - 1u) * MIS_WORDS;
+            for (uint32_t w = 0; w < MIS_WORDS; ++w)
+            {
+                const uint32_t got = arena.misWords[mb + w];
+                const uint32_t exp =
+                    (act[i] && w == kWord_dAW) ? patch : expM(i, w);
+                okPatch &= got == exp;
+                const uint32_t gotP = arena.misWords[pb + w];
+                const uint32_t expP =
+                    (act[i] && w == kWord_d2) ? patch : sentinelM;
+                okPatch &= gotP == expP;
+            }
+        }
+        Check(okPatch, "word patches hit only their target word");
     }
 
     if (g_failures)
