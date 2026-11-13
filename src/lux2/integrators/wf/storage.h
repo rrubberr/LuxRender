@@ -27,6 +27,7 @@
 #include "core/math/geometry.h"
 #include "core/math/vecp.h"
 #include "core/memory/huge_alloc.h"
+#include "integrators/wf/transpose.h"
 
 #include <enoki/array.h>
 
@@ -72,24 +73,26 @@ namespace lux2
         }
 
 // Field lists.
-#define LUX2_GEOM_FIELDS(X)                                                        \
-    X(V3, p, 0u)                                                                   \
-    X(V3, n, kNext_p)                                                              \
-    X(V3, ng, kNext_n)                                                             \
-    X(V3, wb, kNext_ng)                                                            \
-        X(V3, dp_du, kNext_wb) X(V3, dp_dv, kNext_dp_du) X(V3, dp_ds, kNext_dp_dv) \
-            X(V3, dp_dt, kNext_dp_ds) X(V2, uv, kNext_dp_dt) X(F, flux, kNext_uv)  \
-                X(F, k, kNext_flux) X(U, matID, kNext_k) X(U, medID, kNext_matID)  \
-                    X(U, medFront, kNext_medID) X(U, medBack, kNext_medFront)
+#define LUX2_GEOM_FIELDS(X)                                                   \
+    X(V3, p, 0u)                                                              \
+    X(V3, n, kNext_p)                                                         \
+    X(V3, ng, kNext_n)                                                        \
+    X(V3, wb, kNext_ng)                                                       \
+    X(V3, dp_du, kNext_wb)                                                    \
+    X(V3, dp_dv, kNext_dp_du) X(V3, dp_ds, kNext_dp_dv)                       \
+        X(V3, dp_dt, kNext_dp_ds) X(V2, uv, kNext_dp_dt) X(F, flux, kNext_uv) \
+            X(F, k, kNext_flux) X(U, matID, kNext_k) X(U, medID, kNext_matID) \
+                X(U, medFront, kNext_medID) X(U, medBack, kNext_medFront)
 
 // 8 words = 32 B.
-#define LUX2_MIS_FIELDS(X)                                                \
-    X(F, dAW, 0u)                                                         \
-    X(F, dARW, kNext_dAW)                                                 \
-    X(F, rr, kNext_dARW)                                                  \
-    X(F, rrR, kNext_rr)                                                   \
-        X(F, cosi, kNext_rrR) X(F, coso, kNext_cosi) X(F, d2, kNext_coso) \
-            X(U, bits, kNext_d2)
+#define LUX2_MIS_FIELDS(X)                      \
+    X(F, dAW, 0u)                               \
+    X(F, dARW, kNext_dAW)                       \
+    X(F, rr, kNext_dARW)                        \
+    X(F, rrR, kNext_rr)                         \
+    X(F, cosi, kNext_rrR)                       \
+    X(F, coso, kNext_cosi) X(F, d2, kNext_coso) \
+        X(U, bits, kNext_d2)
 
 // Code generation.
 #define LUX2_CAT_(a, b) a##b
@@ -179,16 +182,17 @@ namespace lux2
     };                                                                        \
     FIELDS(LUX2_WORD)                                                         \
     constexpr uint32_t Prefix##_WORDS = LUX2_CAT(kNext_, LUX2_LAST_##Prefix); \
-    inline Vertex##Prefix##P Load##Prefix(const uint32_t *base,               \
-                                          const UInt32P &rec, const MaskP &m) \
+    inline Vertex##Prefix##P Load##Prefix##_gather(                           \
+        const uint32_t *base, const UInt32P &rec, const MaskP &m)             \
     {                                                                         \
         constexpr uint32_t WORDS = Prefix##_WORDS;                            \
         Vertex##Prefix##P r;                                                  \
         FIELDS(LUX2_LOAD)                                                     \
         return r;                                                             \
     }                                                                         \
-    inline void Store##Prefix(uint32_t *base, const Vertex##Prefix##P &v,     \
-                              const UInt32P &rec, const MaskP &m)             \
+    inline void Store##Prefix##_gather(uint32_t *base,                        \
+                                       const Vertex##Prefix##P &v,            \
+                                       const UInt32P &rec, const MaskP &m)    \
     {                                                                         \
         constexpr uint32_t WORDS = Prefix##_WORDS;                            \
         FIELDS(LUX2_STORE)                                                    \
@@ -203,6 +207,291 @@ namespace lux2
 
         constexpr uint32_t GEOM_WORDS = Geom_WORDS;
         constexpr uint32_t MIS_WORDS_TOTAL = Mis_WORDS;
+
+        // MIS always uses the gather form.
+        inline VertexMisP LoadMis(const uint32_t *base, const UInt32P &rec,
+                                  const MaskP &m)
+        {
+            return LoadMis_gather(base, rec, m);
+        }
+        inline void StoreMis(uint32_t *base, const VertexMisP &v,
+                             const UInt32P &rec, const MaskP &m)
+        {
+            StoreMis_gather(base, v, rec, m);
+        }
+
+#if defined(__AVX512F__)
+        // Transposed geom record access.
+        namespace geomx
+        {
+            constexpr int W = 16;
+            using VecT = __m512;
+            inline VecT FromU(const UInt32P &x)
+            {
+                return _mm512_castsi512_ps(x.m);
+            }
+
+            inline void LaneAddrs(const UInt32P &rec, const __mmask16 k,
+                                  uint32_t *out)
+            {
+                alignas(64) uint32_t ra[W];
+                enoki::store_unaligned(ra, rec);
+                for (int i = 0; i < W; ++i)
+                    out[i] = (k & (__mmask16(1u) << i)) ? ra[i] : 0u;
+            }
+
+            // Load lane rows for word range [16*half, 16*half+16) and
+            // transpose so out[w] holds word 16*half+w of every lane.
+            inline void LoadHalf(__m512 out[16], const uint32_t *base,
+                                 const __mmask16 k, const uint32_t *recA,
+                                 int half)
+            {
+                __m512 rows[W];
+                const size_t off = size_t(16u) * half;
+                for (int i = 0; i < W; ++i)
+                    rows[i] = _mm512_loadu_ps(reinterpret_cast<const float *>(
+                        base + size_t(recA[i]) * GEOM_WORDS + off));
+                Transpose16x16Shuffle(rows, out);
+                for (int w = 0; w < 16; ++w)
+                    out[w] = _mm512_maskz_mov_ps(k, out[w]);
+            }
+
+            // Inverse of LoadHalf field registers -> lane rows to masked store.
+            inline void StoreHalf(const uint32_t *base, const __m512 fld[16],
+                                  const __mmask16 k, const uint32_t *recA,
+                                  int half)
+            {
+                __m512 rows[W];
+                Transpose16x16Shuffle(fld, rows);
+                const size_t off = size_t(16u) * half;
+                for (int i = 0; i < W; ++i)
+                    _mm512_mask_storeu_ps(
+                        reinterpret_cast<float *>(
+                            const_cast<uint32_t *>(base) +
+                            size_t(recA[i]) * GEOM_WORDS + off),
+                        (k & (__mmask16(1u) << i)) ? __mmask16(0xFFFFu)
+                                                   : __mmask16(0u),
+                        rows[i]);
+            }
+
+            // Both lines transposed into 32 field registers.
+            inline void LoadFields(__m512 f[32], const uint32_t *base,
+                                   const UInt32P &rec, const MaskP &m)
+            {
+                const __mmask16 k = m.k;
+                alignas(64) uint32_t recA[W];
+                LaneAddrs(rec, k, recA);
+                LoadHalf(f, base, k, recA, 0);
+                LoadHalf(f + 16, base, k, recA, 1);
+            }
+
+            inline void StoreFields(uint32_t *base, const __m512 f[32],
+                                    const UInt32P &rec, const MaskP &m)
+            {
+                const __mmask16 k = m.k;
+                alignas(64) uint32_t recA[W];
+                LaneAddrs(rec, k, recA);
+                StoreHalf(base, f, k, recA, 0);
+                StoreHalf(base, f + 16, k, recA, 1);
+            }
+
+            // Field word index -> register slot.
+            inline FloatP F(const __m512 f[32], uint32_t w)
+            {
+                return FloatP(f[w]);
+            }
+            inline UInt32P U(const __m512 f[32], uint32_t w)
+            {
+                return UInt32P(_mm512_castps_si512(f[w]));
+            }
+            inline Point3fP V3(const __m512 f[32], uint32_t w)
+            {
+                return Point3fP(F(f, w), F(f, w + 1), F(f, w + 2));
+            }
+            inline Point2fP V2(const __m512 f[32], uint32_t w)
+            {
+                return Point2fP(F(f, w), F(f, w + 1));
+            }
+        } // namespace geomx
+
+        static_assert(PACKET_WIDTH == 16,
+                      "transposed geom access assumes a 16-lane packet");
+#elif defined(__AVX2__)
+        // Transposed geom record access for AVX2 over 8 lanes.
+        namespace geomx
+        {
+            constexpr int W = 8;
+            using VecT = __m256;
+            inline VecT FromU(const UInt32P &x)
+            {
+                return _mm256_castsi256_ps(x.m);
+            }
+
+            inline void LaneAddrs(const UInt32P &rec, const MaskP &m,
+                                  uint32_t *out)
+            {
+                alignas(32) uint32_t ra[W];
+                enoki::store_unaligned(ra, rec);
+                for (int i = 0; i < W; ++i)
+                    out[i] = bool(m[i]) ? ra[i] : 0u;
+            }
+
+            // Load four 8-word tiles and transpose each so f[8*t+w] holds word
+            // 8*t+w. Inactive lanes are zeroed.
+            inline void LoadFields(__m256 f[32], const uint32_t *base,
+                                   const UInt32P &rec, const MaskP &m)
+            {
+                alignas(32) uint32_t recA[W];
+                LaneAddrs(rec, m, recA);
+                const __m256 km = _mm256_castsi256_ps(m.m);
+                alignas(32) uint32_t in[W][W], out[W][W];
+                for (int t = 0; t < 4; ++t)
+                {
+                    const size_t off = size_t(8u * t);
+                    for (int i = 0; i < W; ++i)
+                        _mm256_storeu_si256(
+                            (__m256i *)in[i],
+                            _mm256_loadu_si256(reinterpret_cast<const __m256i *>(
+                                base + size_t(recA[i]) * GEOM_WORDS + off)));
+                    Transpose8x8(in, out);
+                    for (int w = 0; w < W; ++w)
+                        f[off + w] = _mm256_and_ps(
+                            _mm256_loadu_si256((const __m256i *)out[w]), km);
+                }
+            }
+
+            // Inverse transpose each tile back to lane rows, then store whole
+            // rows for active lanes.
+            inline void StoreFields(uint32_t *base, const __m256 f[32],
+                                    const UInt32P &rec, const MaskP &m)
+            {
+                alignas(32) uint32_t recA[W];
+                LaneAddrs(rec, m, recA);
+                const int bits = _mm256_movemask_ps(_mm256_castsi256_ps(m.m));
+                alignas(32) uint32_t in[W][W], out[W][W];
+                for (int t = 0; t < 4; ++t)
+                {
+                    const size_t off = size_t(8u * t);
+                    for (int w = 0; w < W; ++w)
+                        _mm256_storeu_si256((__m256i *)in[w],
+                                            _mm256_castps_si256(f[off + w]));
+                    Transpose8x8(in, out);
+                    for (int i = 0; i < W; ++i)
+                    {
+                        if (!(bits & (1 << i)))
+                            continue;
+                        _mm256_storeu_si256(
+                            reinterpret_cast<__m256i *>(
+                                base + size_t(recA[i]) * GEOM_WORDS + off),
+                            _mm256_loadu_si256((const __m256i *)out[i]));
+                    }
+                }
+            }
+
+            inline FloatP F(const __m256 f[32], uint32_t w)
+            {
+                return FloatP(f[w]);
+            }
+            inline UInt32P U(const __m256 f[32], uint32_t w)
+            {
+                return UInt32P(_mm256_castps_si256(f[w]));
+            }
+            inline Point3fP V3(const __m256 f[32], uint32_t w)
+            {
+                return Point3fP(F(f, w), F(f, w + 1), F(f, w + 2));
+            }
+            inline Point2fP V2(const __m256 f[32], uint32_t w)
+            {
+                return Point2fP(F(f, w), F(f, w + 1));
+            }
+        } // namespace geomx
+
+        static_assert(PACKET_WIDTH == 8,
+                      "transposed geom access assumes an 8-lane packet");
+#endif
+
+#if defined(__AVX512F__) || defined(__AVX2__)
+        // Shared record assembly.
+        inline VertexGeomP LoadGeom(const uint32_t *base, const UInt32P &rec,
+                                    const MaskP &m)
+        {
+            // One register per record word.
+            alignas(64) geomx::VecT f[GEOM_WORDS];
+            geomx::LoadFields(f, base, rec, m);
+            VertexGeomP r;
+            r.p = geomx::V3(f, kWord_p);
+            r.n = geomx::V3(f, kWord_n);
+            r.ng = geomx::V3(f, kWord_ng);
+            r.wb = geomx::V3(f, kWord_wb);
+            r.dp_du = geomx::V3(f, kWord_dp_du);
+            r.dp_dv = geomx::V3(f, kWord_dp_dv);
+            r.dp_ds = geomx::V3(f, kWord_dp_ds);
+            r.dp_dt = geomx::V3(f, kWord_dp_dt);
+            r.uv = geomx::V2(f, kWord_uv);
+            r.flux = geomx::F(f, kWord_flux);
+            r.k = geomx::F(f, kWord_k);
+            r.matID = geomx::U(f, kWord_matID);
+            r.medID = geomx::U(f, kWord_medID);
+            r.medFront = geomx::U(f, kWord_medFront);
+            r.medBack = geomx::U(f, kWord_medBack);
+            return r;
+        }
+
+        inline void StoreGeom(uint32_t *base, const VertexGeomP &v,
+                              const UInt32P &rec, const MaskP &m)
+        {
+            alignas(64) geomx::VecT f[GEOM_WORDS];
+            auto put = [&](uint32_t w, const FloatP &x)
+            { f[w] = x.m; };
+            auto putU = [&](uint32_t w, const UInt32P &x)
+            { f[w] = geomx::FromU(x); };
+            put(kWord_p + 0, v.p.x());
+            put(kWord_p + 1, v.p.y());
+            put(kWord_p + 2, v.p.z());
+            put(kWord_n + 0, v.n.x());
+            put(kWord_n + 1, v.n.y());
+            put(kWord_n + 2, v.n.z());
+            put(kWord_ng + 0, v.ng.x());
+            put(kWord_ng + 1, v.ng.y());
+            put(kWord_ng + 2, v.ng.z());
+            put(kWord_wb + 0, v.wb.x());
+            put(kWord_wb + 1, v.wb.y());
+            put(kWord_wb + 2, v.wb.z());
+            put(kWord_dp_du + 0, v.dp_du.x());
+            put(kWord_dp_du + 1, v.dp_du.y());
+            put(kWord_dp_du + 2, v.dp_du.z());
+            put(kWord_dp_dv + 0, v.dp_dv.x());
+            put(kWord_dp_dv + 1, v.dp_dv.y());
+            put(kWord_dp_dv + 2, v.dp_dv.z());
+            put(kWord_dp_ds + 0, v.dp_ds.x());
+            put(kWord_dp_ds + 1, v.dp_ds.y());
+            put(kWord_dp_ds + 2, v.dp_ds.z());
+            put(kWord_dp_dt + 0, v.dp_dt.x());
+            put(kWord_dp_dt + 1, v.dp_dt.y());
+            put(kWord_dp_dt + 2, v.dp_dt.z());
+            put(kWord_uv + 0, v.uv.x());
+            put(kWord_uv + 1, v.uv.y());
+            put(kWord_flux, v.flux);
+            put(kWord_k, v.k);
+            putU(kWord_matID, v.matID);
+            putU(kWord_medID, v.medID);
+            putU(kWord_medFront, v.medFront);
+            putU(kWord_medBack, v.medBack);
+            geomx::StoreFields(base, f, rec, m);
+        }
+#else
+        // Only gather/scatter here.
+        inline VertexGeomP LoadGeom(const uint32_t *base, const UInt32P &rec,
+                                    const MaskP &m)
+        {
+            return LoadGeom_gather(base, rec, m);
+        }
+        inline void StoreGeom(uint32_t *base, const VertexGeomP &v,
+                              const UInt32P &rec, const MaskP &m)
+        {
+            StoreGeom_gather(base, v, rec, m);
+        }
+#endif
 
         static_assert(GEOM_WORDS * 4 % 64 == 0,
                       "geom record must be cache-line aligned");

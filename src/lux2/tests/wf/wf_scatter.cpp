@@ -20,7 +20,7 @@
  ***************************************************************************/
 
 #include "wf_common.h"
-#include "wf_transpose.h"
+#include "integrators/wf/transpose.h"
 
 #include <cstdint>
 #include <cstdio>
