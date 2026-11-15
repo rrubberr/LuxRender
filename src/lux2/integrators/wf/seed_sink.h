@@ -1,26 +1,25 @@
+/***************************************************************************
+ *   Copyright (C) 1998-2026 by authors (see AUTHORS.txt)                  *
+ *                                                                         *
+ *   This file is part of LuxRender.                                       *
+ *                                                                         *
+ *   LuxRender is free software; you can redistribute it and/or modify     *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 3 of the License, or     *
+ *   any later version.                                                    *
+ *                                                                         *
+ *   LuxRender is distributed in the hope that it will be useful,          *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the          *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program. If not, see <http://www.gnu.org/licenses/>   *
+ *                                                                         *
+ *   This project is based on PBRT; see <http://www.pbrt.org>              *
+ ***************************************************************************/
 
 // Seed capture hook for the wavefront connectors.
-//
-// A connector that finishes a connection calls Emit() with the *MIS-weighted*
-// contribution e = Lc * w and enough information to reconstruct the connected
-// path geometrically. The pointer is null in bidirectional, so bidir
-// behaviour is unchanged; ERPT installs a sink that turns each contribution
-// into either a chain seed or a direct deposit.
-//
-// All five strategy families are reported, because ER sampling is only
-// unbiased if the seeds' expected energy density is exactly f. If any
-// strategy were skipped the seeded density would be f * W(x) with
-// W = (sum of seeded MIS weights) < 1, and the chains (stationary for f) would
-// redistribute a distribution they are not stationary for.
-//
-//   Gen       eye prefix [0,nE)  +  light prefix [0,nL)          (real vertices)
-//   Nee       eye prefix [0,nE)  +  virtual emitter point
-//   CamNee    camera vertex      +  virtual emitter point        (n == 2)
-//   Cam       camera vertex      +  light prefix [0,nL)
-//   HitLight  eye vertices [0,nE) (stored so far) + the emitter hit point
-//
-// `nE` always counts only vertices that exist in the eye PathStore; the
-// virtual / hit emitter point is described separately.
 
 #ifndef LUX2_INTEGRATORS_WF_SEED_SINK_H
 #define LUX2_INTEGRATORS_WF_SEED_SINK_H
@@ -49,7 +48,7 @@ namespace lux2
             SeedKind kind = SeedKind::Gen;
             MaskP cont;        // lanes that produced a contribution
             FloatP e;          // Lc * w, MIS weighted
-            UInt32P sample;    // sample-table slot (identity: seed, sidx, w, x, y)
+            UInt32P sample;    // sample table slot
 
             const PathStore *eyePs = nullptr;
             UInt32P ePath;

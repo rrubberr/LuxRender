@@ -25,7 +25,8 @@
 #define LUX2_INTEGRATORS_ERPT_CANON_PATH_H
 
 #include "integrators/lane/math.h"
-#include "integrators/erpt/path_eval.h" // EvalVertexTerm, EvalEdgeTerm
+#include "integrators/erpt/path_eval.h"
+#include "integrators/erpt/chainable.h"
 #include "integrators/wf/pool_view.h"
 #include "integrators/wf/seed_sink.h"
 #include "integrators/wf/storage.h"
@@ -33,6 +34,7 @@
 #include "core/camera.h"
 #include "core/light.h"
 
+#include <cassert>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -227,6 +229,20 @@ namespace lux2
                     return false;
             }
 
+            // Mutable vertices must be chainable surface scatters!
+            assert(1u != n - 1u && n - 2u != n - 1u); // emitter is never mutable
+            auto mutableOk = [&](uint32_t v) -> bool
+            {
+                const uint32_t *r = rec(v);
+                const uint32_t matID = r[kWord_matID] & 0xFFFFu;
+                const uint32_t medID = r[kWord_matID] >> 16u;
+                if (medID != uint32_t(LUX2_MEDIUM_CLEAR))
+                    return false; // TODO: medium scatter not yet supported.
+                return ChainableMat(c, matID);
+            };
+            if (!mutableOk(1u) || !mutableOk(n - 2u))
+                return false;
+
             info->n = n;
             info->lightIdx = lightIdx;
             return true;
@@ -301,8 +317,7 @@ namespace lux2
                                      (vi <= n - Int32P(2));
                 if (any(isSurf))
                 {
-                    const VertexTerm vt = EvalVertexTerm(
-                        Vc, sw, wi, TransportMode::Radiance, isSurf);
+                    const VertexTerm vt = EvalVertexTerm(Vc, sw, wi, isSurf);
                     f = select(isSurf, f * vt.f, f);
                     live = live && (!isSurf || vt.ok);
                 }
@@ -366,30 +381,6 @@ namespace lux2
         {
             return EvalCanonWindow(c, ps, path, n, Int32P(0), n - Int32P(1), sw,
                                    traceVisibility, active, ok);
-        }
-
-        // Debug |wb_i - normalize(p_{i-1} - p_i)| for every i >= 1. Returns
-        // the largest deviation over the active lanes.
-        inline float CheckWbInvariant(const wf::PathStore &ps, uint32_t path,
-                                      uint32_t n)
-        {
-            float worst = 0.f;
-            for (uint32_t v = 1; v < n; ++v)
-            {
-                const uint32_t *a = GeomRec(ps, path, v - 1u);
-                const uint32_t *b = GeomRec(ps, path, v);
-                float d[3], l2 = 0.f;
-                for (int k = 0; k < 3; ++k)
-                {
-                    d[k] = WordF(a, wf::kWord_p + k) - WordF(b, wf::kWord_p + k);
-                    l2 += d[k] * d[k];
-                }
-                const float inv = l2 > 0.f ? 1.f / std::sqrt(l2) : 0.f;
-                for (int k = 0; k < 3; ++k)
-                    worst = std::fmax(
-                        worst, std::fabs(WordF(b, wf::kWord_wb + k) - d[k] * inv));
-            }
-            return worst;
         }
 
     } // namespace erpt

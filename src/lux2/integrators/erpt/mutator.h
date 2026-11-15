@@ -27,6 +27,7 @@
 #define LUX2_INTEGRATORS_ERPT_MUTATOR_H
 
 #include "integrators/erpt/canon_path.h"
+#include "integrators/erpt/chainable.h"
 
 #include "core/accel/embree2.h"
 #include "core/bsdf.h"
@@ -38,17 +39,10 @@ namespace lux2
 {
     namespace erpt
     {
-        enum MutKind : int
-        {
-            kMutLens = 0,
-            kMutCaustic = 1,
-            kMutKinds = 2
-        };
-
         // Random numbers handed to a mutator in [0,1).
         struct MutRands
         {
-            FloatP u[6];
+            FloatP u[2];
         };
 
         struct MutationResult
@@ -67,10 +61,6 @@ namespace lux2
         {
         public:
             virtual ~Mutator() = default;
-            virtual int Kind() const = 0;
-            // Class level applicability.
-            virtual MaskP Suitable(const WalkCtx &c, const Int32P &n,
-                                   const MaskP &active) const = 0;
             // ps holds both slots; cur == scratch contents on entry.
             virtual MutationResult Propose(const WalkCtx &c, wf::PathStore &ps,
                                            const UInt32P &cur, const UInt32P &scr,
@@ -140,22 +130,6 @@ namespace lux2
             r.mask = UInt32P(0xFFFFFFFFu);
             r.alive = m;
             return r;
-        }
-
-        // A hit usable as a chain scatter vertex
-
-        // TODO: diffuse only - need specular chains.
-        inline MaskP ChainableHit(const WalkCtx &c, const HitP &h, const MaskP &act)
-        {
-            MaskP ok = act && h.hit &&
-                       eq(h.lightID, UInt32P(LUX_NO_LIGHT));
-            if (!any(ok))
-                return ok;
-            const BSDFPtr b = c.table->Gather(h.matID, ok);
-            const auto fl = b->flags(ok);
-            ok = ok && !has_flag(fl, BSDFType::Null) &&
-                 !has_flag(fl, BSDFType::Specular);
-            return ok;
         }
 
         // Build the geom record of a surface hit as a scatter vertex whose

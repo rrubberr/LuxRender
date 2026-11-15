@@ -45,6 +45,22 @@ namespace lux2
             enoki::store_unaligned(Y, y);
             enoki::store_unaligned(Z, z);
         }
+
+        // Scalar single value convert.
+        inline void XYZOf1(float wl, float amt, float *X, float *Y, float *Z)
+        {
+            alignas(64) float w[PACKET_WIDTH], a[PACKET_WIDTH];
+            for (uint32_t i = 0; i < PACKET_WIDTH; ++i)
+            {
+                w[i] = wl;
+                a[i] = i == 0 ? amt : 0.f;
+            }
+            float xo[PACKET_WIDTH], yo[PACKET_WIDTH], zo[PACKET_WIDTH];
+            XYZOfBatch(w, a, xo, yo, zo);
+            *X = xo[0];
+            *Y = yo[0];
+            *Z = zo[0];
+        }
     } // namespace erpt
 } // namespace lux2
 

@@ -40,13 +40,6 @@ namespace lux2
                 : m_tmin(thetaMin), m_tmax(thetaMax)
             {
             }
-            int Kind() const override { return kMutCaustic; }
-
-            MaskP Suitable(const WalkCtx &, const Int32P &n,
-                           const MaskP &active) const override
-            {
-                return active && (n >= Int32P(3));
-            }
 
             MutationResult Propose(const WalkCtx &c, wf::PathStore &ps,
                                    const UInt32P &cur, const UInt32P &scr,

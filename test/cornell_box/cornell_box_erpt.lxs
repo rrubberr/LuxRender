@@ -11,10 +11,7 @@ Accelerator "embree"
 SurfaceIntegrator "erpt"
 	"integer eyedepth" [8]
 	"integer lightdepth" [4]
-	"bool smoothing" ["true"]
-	"integer smoothradius" [7]
-	"integer maxconsecutive" [1]
-	"integer mutationsperseed" [500]
+	"integer mutationsperseed" [250]
 
 VolumeIntegrator "none"
 

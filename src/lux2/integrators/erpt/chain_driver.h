@@ -96,8 +96,20 @@ namespace lux2
                         {
                             size_t si;
                             uint32_t cj;
-                            if (nextChain(&si, &cj))
-                                Load(L[i], pool, si, cj);
+                            while (nextChain(&si, &cj))
+                            {
+                                // A seed whose full-path f
+                                // is <= 0 cannot start a chain.
+                                if (Load(c, L[i], pool, si, cj))
+                                    break;
+                                const SeedHeader &h = pool.Header(si);
+                                float X, Y, Z;
+                                XYZOf1(h.wavelength, h.e, &X, &Y, &Z);
+                                acc.Add(int32_t(std::floor(h.px)),
+                                        int32_t(std::floor(h.py)), X, Y, Z, 0.f);
+                                st.energyOut += h.e;
+                                ++st.fxZero;
+                            }
                         }
                         any = any || L[i].active;
                     }
@@ -138,7 +150,9 @@ namespace lux2
                 m_init = true;
             }
 
-            void Load(Lane &l, const SeedPool &pool, size_t si, uint32_t cj)
+            // Load a seed into a lane.
+            bool Load(const WalkCtx &c, Lane &l, const SeedPool &pool, size_t si,
+                      uint32_t cj)
             {
                 const SeedHeader &h = pool.Header(si);
                 l.active = true;
@@ -160,6 +174,21 @@ namespace lux2
                     m_ps.n[id] = h.n;
                     m_ps.lightIdx[id] = h.lightIdx;
                 }
+
+                // Chain start fx gate.
+                SpectrumWavelengthsP sw;
+                sw.FromWavelength(FloatP(h.wavelength));
+                MaskP ok(false);
+                const SWCSpectrumP fx =
+                    EvalCanonF(c, m_ps, UInt32P(l.cur), Int32P(int(h.n)), sw,
+                               /*traceVisibility=*/false, MaskP(true), &ok);
+                if (!enoki::any(enoki::hmax(fx) > FloatP(0.f)))
+                {
+                    l.active = false;
+                    --m_chains;
+                    return false;
+                }
+                return true;
             }
 
             void Step(const WalkCtx &c, const ChainParams &P, const Mutator &lens,
@@ -169,7 +198,7 @@ namespace lux2
                 alignas(64) uint32_t curA[kW], scrA[kW], nA[kW];
                 alignas(64) float wlA[kW], act[kW], pickLens[kW];
                 MutRands R;
-                alignas(64) float ru[6][kW];
+                alignas(64) float ru[2][kW];
                 for (uint32_t i = 0; i < kW; ++i)
                 {
                     Lane &l = L[i];
@@ -178,11 +207,11 @@ namespace lux2
                     nA[i] = l.active ? l.n : 3u;
                     wlA[i] = l.wl;
                     act[i] = l.active ? 1.f : 0.f;
-                    for (int k = 0; k < 6; ++k)
+                    for (int k = 0; k < 2; ++k)
                         ru[k][i] = l.active ? l.rng.NextFloat() : 0.f;
                     pickLens[i] = (l.active && l.rng.NextFloat() < 0.5f) ? 1.f : 0.f;
                 }
-                for (int k = 0; k < 6; ++k)
+                for (int k = 0; k < 2; ++k)
                     R.u[k] = enoki::load_unaligned<FloatP>(ru[k]);
                 const UInt32P cur = enoki::load_unaligned<UInt32P>(curA);
                 const UInt32P scr = enoki::load_unaligned<UInt32P>(scrA);
@@ -231,8 +260,9 @@ namespace lux2
                     int32_t x, y;
                     float amt, wl;
                 };
-                std::vector<Dep> deps;
-                deps.reserve(2u * kW);
+                // Max 2 deposits per active lane per step.
+                Dep depsStack[2 * kW];
+                size_t ndep = 0;
 
                 for (uint32_t i = 0; i < kW; ++i)
                 {
@@ -248,10 +278,13 @@ namespace lux2
                     in.u = l.rng.NextFloat();
                     ++st.proposed;
                     st.valid += in.valid ? 1u : 0u;
+                    if (in.valid && !(fxA[i] > 0.f))
+                        ++st.fxZero;
                     const StepOut so = StepChain(P, l.cf, in);
                     for (int k = 0; k < so.nDep; ++k)
                     {
-                        deps.push_back({so.depPx[k].x, so.depPx[k].y, so.depAmount[k], l.wl});
+                        depsStack[ndep++] = {so.depPx[k].x, so.depPx[k].y,
+                                             so.depAmount[k], l.wl};
                         st.energyOut += so.depAmount[k];
                     }
                     if (so.proposedInto)
@@ -270,18 +303,19 @@ namespace lux2
                         l.active = false;
                 }
 
-                for (size_t base = 0; base < deps.size(); base += kW)
+                for (size_t base = 0; base < ndep; base += kW)
                 {
                     alignas(64) float wl[kW], amt[kW], X[kW], Y[kW], Z[kW];
-                    const size_t cnt = std::min<size_t>(kW, deps.size() - base);
+                    const size_t cnt = std::min<size_t>(kW, ndep - base);
                     for (uint32_t i = 0; i < kW; ++i)
                     {
-                        wl[i] = i < cnt ? deps[base + i].wl : 650.f;
-                        amt[i] = i < cnt ? deps[base + i].amt : 0.f;
+                        wl[i] = i < cnt ? depsStack[base + i].wl : 650.f;
+                        amt[i] = i < cnt ? depsStack[base + i].amt : 0.f;
                     }
                     XYZOfBatch(wl, amt, X, Y, Z);
                     for (size_t i = 0; i < cnt; ++i)
-                        acc.Add(deps[base + i].x, deps[base + i].y, X[i], Y[i], Z[i], 0.f);
+                        acc.Add(depsStack[base + i].x, depsStack[base + i].y,
+                                X[i], Y[i], Z[i], 0.f);
                 }
             }
         };

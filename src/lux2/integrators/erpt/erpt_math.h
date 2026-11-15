@@ -20,10 +20,6 @@
  ***************************************************************************/
 
 // Scalar helpers for the ERPT chain logic.
-//
-// The chain RNG (Pcg32), stream salts and 64-bit mixer live in core/rng.h
-// alongside FLIGHT_SALT / BDPT_*_SALT; this header only holds the ERPT-specific
-// acceptance/redistribution math on top of them.
 
 #ifndef LUX2_INTEGRATORS_ERPT_ERPT_MATH_H
 #define LUX2_INTEGRATORS_ERPT_ERPT_MATH_H
@@ -40,7 +36,7 @@ namespace lux2
     {
         // numChains = floor(u + e / (m * e_d))
 
-        // E[numChains] * m * e_d == e for any e_d > 0, which is what makes the
+        // E[numChains] * m * e_d == e for any e_d > 0, which makes the
         // redistribution unbiased.
         inline uint32_t NumChains(float e, uint32_t m, float ed, float u,
                                   uint32_t maxChains, bool *clamped)

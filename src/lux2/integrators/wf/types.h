@@ -62,7 +62,8 @@ namespace lux2
         // Diagnostic accumulator.
         BidirDiagLocal *diag = nullptr;
         DiagConfig cfg;
-        // ERPT needs every finished connection.
+        // Null in bidirectional. ERPT installs a sink that captures every
+        // finished connection as a chain seed or a direct deposit.
         wf::SeedSink *seedSink = nullptr;
     };
 

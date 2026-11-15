@@ -63,29 +63,6 @@ namespace lux2
                 CopyVertex(dstPs, dstPath, srcPs, srcPath, v);
         }
 
-        // Copy the first `n` vertices of srcPath into dstPath, plus the
-        // lightIdx / directPdf1 / n.
-        inline void ClonePath(PathStore &dstPs, uint32_t dstPath,
-                              const PathStore &srcPs, uint32_t srcPath)
-        {
-            const uint32_t n = srcPs.n[srcPath];
-            for (uint32_t v = 0; v < n; ++v)
-                CopyVertex(dstPs, dstPath, srcPs, srcPath, v);
-            dstPs.n[dstPath] = n;
-            dstPs.lightIdx[dstPath] = srcPs.lightIdx[srcPath];
-            dstPs.directPdf1[dstPath] = srcPs.directPdf1[srcPath];
-            dstPs.selPdf[dstPath] = srcPs.selPdf[srcPath];
-            dstPs.owner[dstPath] = srcPs.owner[srcPath];
-            dstPs.lightSlot[dstPath] = srcPs.lightSlot[srcPath];
-        }
-
-        // Drop vertices [k, n) from a path by shortening its count.
-        inline void TruncatePath(PathStore &ps, uint32_t path, uint32_t k)
-        {
-            if (k < ps.n[path])
-                ps.n[path] = k;
-        }
-
     } // namespace erpt
 } // namespace lux2
 

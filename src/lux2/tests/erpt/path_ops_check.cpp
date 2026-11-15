@@ -13,10 +13,9 @@
 //
 // Validates the arena bookkeeping that a Metropolis chain relies on:
 //   - CopyVertex moves both the geom and MIS records of one vertex.
-//   - ClonePath deep-copies [0,n) plus the per-path metadata a connector
-//     reads (lightIdx / directPdf1 / selPdf / owner / lightSlot / n).
-//   - TruncatePath shortens n without disturbing records below the cut, so a
-//     later re-walk from the cut point overwrites cleanly.
+//   - CopySpan moves [lo,hi] (clamped to n) without disturbing records
+//     outside the range, so a later re-walk from the cut point overwrites
+//     cleanly.
 //
 // The evaluator's numeric parity against the connector (f*rrProd == Lc*p_s)
 // needs real BSDFs and occlusion, so per this repo's convention it lands in
@@ -122,7 +121,7 @@ bool MarkerMatches(const PathStore &ps, uint32_t path, uint32_t v)
 
 int main()
 {
-    std::cout << "lux2 mut path_ops_check (clone / truncate / copy)" << std::endl;
+    std::cout << "lux2 mut path_ops_check (copy vertex / span)" << std::endl;
 
     BlockArena arena;
     PathStore ps;
@@ -140,55 +139,7 @@ int main()
               "CopyVertex moves geom.p and mis.dAW together");
     }
 
-    // ---- 2. ClonePath copies [0,n) + metadata --------------------------
-    {
-        const uint32_t src = 2u, dst = 6u;
-        for (uint32_t v = 0; v < 3; ++v)
-            StoreMarker(ps, src, v);
-        ps.n[src] = 3u;
-        ps.lightIdx[src] = 7u;
-        ps.directPdf1[src] = 0.25f;
-        ps.selPdf[src] = 0.5f;
-        ps.owner[src] = 42u;
-        ps.lightSlot[src] = 9u;
-
-        ClonePath(ps, dst, ps, src);
-
-        Check(ps.n[dst] == 3u, "ClonePath copies vertex count n");
-        Check(ps.lightIdx[dst] == 7u && ps.directPdf1[dst] == 0.25f &&
-                  ps.selPdf[dst] == 0.5f && ps.owner[dst] == 42u &&
-                  ps.lightSlot[dst] == 9u,
-              "ClonePath copies connector metadata");
-        bool vertsOk = true;
-        for (uint32_t v = 0; v < 3; ++v)
-        {
-            float px = 0.f, dAW = 0.f;
-            LoadMarker(ps, dst, v, &px, &dAW);
-            const float tag = float(src * 100u + v); // src tag, not dst
-            if (px != tag || dAW != tag + 3.f)
-                vertsOk = false;
-        }
-        Check(vertsOk, "ClonePath deep-copies each vertex record (src tags)");
-    }
-
-    // ---- 3. TruncatePath shortens n, leaves lower records intact -------
-    {
-        const uint32_t p = 3u;
-        for (uint32_t v = 0; v < 4; ++v)
-            StoreMarker(ps, p, v);
-        ps.n[p] = 4u;
-
-        TruncatePath(ps, p, /*k*/ 2u);
-        Check(ps.n[p] == 2u, "TruncatePath sets n to k");
-        // Records below the cut must be untouched (re-walk overwrites >= k).
-        Check(MarkerMatches(ps, p, 0u) && MarkerMatches(ps, p, 1u),
-              "TruncatePath leaves [0,k) records intact");
-        // Truncating to a larger k is a no-op (never grows).
-        TruncatePath(ps, p, /*k*/ 5u);
-        Check(ps.n[p] == 2u, "TruncatePath never grows n");
-    }
-
-    // ---- 4. CopySpan copies [lo,hi] only, clamped to n -----------------
+    // ---- 2. CopySpan copies [lo,hi] only, clamped to n -----------------
     {
         const uint32_t src = 4u, dst = 7u;
         for (uint32_t v = 0; v < 5; ++v)
@@ -215,7 +166,7 @@ int main()
         Check(p4 == 404.f, "CopySpan clamps hi to n-1 (copies vertex 4)");
     }
 
-    // ---- 5. Self-copy (identical src/dst) is safe (memmove) ------------
+    // ---- 3. Self-copy (identical src/dst) is safe (memmove) ------------
     {
         const uint32_t p = 5u;
         StoreMarker(ps, p, 0u);

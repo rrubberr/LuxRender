@@ -36,13 +36,6 @@ namespace lux2
         {
         public:
             explicit LensMutator(float radiusPx = 4.5f) : m_r(radiusPx) {}
-            int Kind() const override { return kMutLens; }
-
-            MaskP Suitable(const WalkCtx &, const Int32P &n,
-                           const MaskP &active) const override
-            {
-                return active && (n >= Int32P(3));
-            }
 
             MutationResult Propose(const WalkCtx &c, wf::PathStore &ps,
                                    const UInt32P &cur, const UInt32P &scr,

@@ -48,7 +48,7 @@ namespace lux2
             m_sh.autoEd = false;
             m_sh.Freeze(m_opt.edeposit);
         }
-        // Film access for the optional convolution kernel.
+        // TODO: Scene::GetFilm() constness / XRes() accessor.
         if (m_opt.smoothing)
             m_sh.proposals.Init(scene.GetFilm().XRes(), scene.GetFilm().YRes());
         std::lock_guard<std::mutex> lk(m_regMu);
@@ -65,8 +65,7 @@ namespace lux2
         return p;
     }
 
-    // Push the worker's sparse accumulator into the film
-    // and fold proposal counts into the smoothing grid.
+    // Push the worker's sparse accumulator into the film.
     void ERPTIntegrator::Flush(Core &core)
     {
         erpt::SparseAccum &acc = core.sink.acc;
@@ -118,7 +117,7 @@ namespace lux2
                                    IntegratorWorkerState *ws, Film &, uint32_t spp)
     {
         const std::shared_ptr<Core> core = CoreFor(ws);
-        // Tile extent field names.
+        // TODO: Tile extent field names.
         const double nSamples =
             double(tile.x1 - tile.x0) * double(tile.y1 - tile.y0) * double(spp);
         m_sh.AddCalibration(core->sink.calEnergy, nSamples);
@@ -133,7 +132,8 @@ namespace lux2
     void ERPTIntegrator::End(const Scene &scene)
     {
         // Seeds still pooled when the last tile finished must be run now, or
-        // their energy is lost (biased).
+        // their energy is lost (bias). Uses each worker's last ctx.
+        // TODO: confirm worker state lifetime vs End().
         {
             std::lock_guard<std::mutex> lk(m_regMu);
             for (auto &kv : m_cores)
@@ -152,6 +152,7 @@ namespace lux2
             << " steps=" << m_sh.stats.steps << " accepted=" << m_sh.stats.accepted
             << " valid=" << m_sh.stats.valid << " ed=" << m_sh.ed.load()
             << " clamped=" << m_sh.stats.chainClamped
+            << " fxZero=" << m_sh.stats.fxZero
             << " Ein=" << m_sh.stats.energyIn << " Eout=" << m_sh.stats.energyOut;
         BidirIntegrator::End(scene);
     }
@@ -160,12 +161,9 @@ namespace lux2
         const PluginContext &ctx)
     {
         ParamSet *p = ctx.params;
-        auto I = [&](const char *n, int d)
-        { return p ? p->FindOneInt(n, d) : d; };
-        auto F = [&](const char *n, float d)
-        { return p ? p->FindOneFloat(n, d) : d; };
-        auto B = [&](const char *n, bool d)
-        { return p ? p->FindOneBool(n, d) : d; };
+        auto I = [&](const char *n, int d) { return p ? p->FindOneInt(n, d) : d; };
+        auto F = [&](const char *n, float d) { return p ? p->FindOneFloat(n, d) : d; };
+        auto B = [&](const char *n, bool d) { return p ? p->FindOneBool(n, d) : d; };
 
         int eyeDepth = std::min(I("eyedepth", 8), MAX_DEPTH);
         int lightDepth = std::min(I("lightdepth", 8), MAX_DEPTH);
@@ -179,27 +177,23 @@ namespace lux2
         cfg.wfSortByPath = B("wf_sortpath", false);
 
         Options o;
-        // Raise for more redistribution/smoothing per path.
+        // Mutations per chain; raise for more redistribution/smoothing.
         o.chain.m = uint32_t(std::max(1, I("mutationsperseed", 100)));
-        // Caps how many steps in a chain may deposit on the same pixel. Lower
-        // reduces splotching from stuck chains at the cost of unbiasedness.
+        // Consecutive-sample filter; reduces splotching from stuck chains.
         o.chain.maxConsec = uint32_t(std::max(0, I("maxconsecutive", 0)));
-        // Split deposits to put ed*a on the proposal and ed*(1-a) on the current
-        // state instead of all ed on one. Unbiased and lower variance; leave on.
+        // Put ed*a on the proposal and ed*(1-a) on the current
+        // state instead of all ed on one.
         o.chain.splitDeposit = B("splitdeposit", true);
-        // Samples accumulated before calibrating ed (mean energy/sample
-        // divided by m). Raise for a steadier estimate. Maybe = film pixels?
+        // Samples accumulated before acalibrating (mean energy/sample
+        // divided by m).
         o.calSamples = double(I("calsamples", 200000));
-        // Manual deposition energy 0 = auto calibrate from calSamples. Set a
-        // fixed value to override calibration (e.g. to debug lumpy deposits).
+        // Manual deposition energy; 0 = calibrate from calSamples.
         o.edeposit = F("edeposit", 0.f);
-        // Seed pool size per worker before it drains into chains. Raise
-        // for better packet occupancy, lower to reduce memory and latency.
+        // Seed pool size per worker before it drains into chains.
         o.poolMB = std::max(1, I("seedpoolmb", 8));
-        // Optional smoothing filter over the proposal grid. Off by default.
+        // Optional smoothing filter over the proposal grid.
         o.smoothing = B("smoothing", false);
-        // Smoothing kernel radius (pixels) when smoothing is on. Larger spreads
-        // energy over a wider neighborhood. Biased!
+        // Smoothing kernel radius.
         o.smoothRadius = I("smoothradius", 4);
 
         if (p)

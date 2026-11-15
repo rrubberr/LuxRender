@@ -37,7 +37,7 @@ namespace lux2
         struct Options
         {
             erpt::ChainParams chain;
-            double calSamples = 20000.0;
+            double calSamples = 200000.0;
             float edeposit = 0.f; // 0 = auto calibrate
             int poolMB = 8;
             bool smoothing = false;
