@@ -200,6 +200,30 @@ add_lux2_check(
 )
 
 add_lux2_check(
+	NAME lux2erptchaincheck
+	SOURCES erpt_chain_check.cpp
+	LINKS
+)
+
+add_lux2_check(
+	NAME lux2erptpathopscheck
+	SOURCES erpt/path_ops_check.cpp
+	LINKS lux2
+)
+
+add_lux2_check(
+	NAME lux2erptscalarcheck
+	SOURCES erpt/scalar_check.cpp
+	LINKS lux2
+)
+
+add_lux2_check(
+	NAME lux2erpt1dcheck
+	SOURCES erpt/erpt_1d.cpp
+	LINKS lux2
+)
+
+add_lux2_check(
 	NAME lux2wfmisweightcheck
 	SOURCES wf/mis_weight_check.cpp
 	LINKS lux2

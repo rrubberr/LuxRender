@@ -26,4 +26,4 @@ MakeNamedMaterial "Green"
 	"string type" ["matte"]
 
 MakeNamedMaterial "Area"
-	"string type" ["null"]
+	"string type" ["matte"]

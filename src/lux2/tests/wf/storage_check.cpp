@@ -27,39 +27,39 @@ using namespace lux2::wf;
 
 namespace
 {
-int g_failures = 0;
+    int g_failures = 0;
 
-void Check(bool cond, const char *what)
-{
-    if (!cond)
+    void Check(bool cond, const char *what)
     {
-        std::cerr << "  FAIL: " << what << std::endl;
-        ++g_failures;
+        if (!cond)
+        {
+            std::cerr << "  FAIL: " << what << std::endl;
+            ++g_failures;
+        }
+        else
+        {
+            std::cout << "  ok:   " << what << std::endl;
+        }
     }
-    else
+
+    // Deterministic pseudo-random uint32 per (lane, word).
+    uint32_t Mix(uint32_t a, uint32_t b)
     {
-        std::cout << "  ok:   " << what << std::endl;
+        uint64_t x = uint64_t(a) * 0x9E3779B97F4A7C15ull + uint64_t(b) * 0xBF58476D1CE4E5B9ull;
+        x ^= x >> 30;
+        x *= 0x94D049BB133111EBull;
+        x ^= x >> 31;
+        return uint32_t(x);
     }
-}
 
-// Deterministic pseudo-random uint32 per (lane, word).
-uint32_t Mix(uint32_t a, uint32_t b)
-{
-    uint64_t x = uint64_t(a) * 0x9E3779B97F4A7C15ull + uint64_t(b) * 0xBF58476D1CE4E5B9ull;
-    x ^= x >> 30;
-    x *= 0x94D049BB133111EBull;
-    x ^= x >> 31;
-    return uint32_t(x);
-}
-
-float BitsToFloat(uint32_t u)
-{
-    // Keep it finite and non-NaN for the float fields.
-    u &= 0x7F7FFFFFu; // clear sign+exp-max -> finite positive normal-ish
-    float f;
-    std::memcpy(&f, &u, sizeof(f));
-    return f;
-}
+    float BitsToFloat(uint32_t u)
+    {
+        // Keep it finite and non-NaN for the float fields.
+        u &= 0x7F7FFFFFu; // clear sign+exp-max -> finite positive normal-ish
+        float f;
+        std::memcpy(&f, &u, sizeof(f));
+        return f;
+    }
 } // namespace
 
 int main()
@@ -68,11 +68,12 @@ int main()
 
     Check(GEOM_WORDS == 32u, "GEOM_WORDS == 32");
     Check(MIS_WORDS == 8u, "MIS_WORDS == 8");
-    Check(kWord_matID == 28u, "matID word offset == 28 (after 8*V3+V2+2F)");
+    Check(kWord_matID == 30u, "matID word offset == 30 (packed with medID)");
 
     // Field order is load-bearing: a transposed record kernel addresses rows by
     // raw word index, so reordering LUX2_GEOM_FIELDS/LUX2_MIS_FIELDS would
-    // corrupt renders with no compile error. Pin every offset.
+    // corrupt renders with no compile error. Pin every offset. matID/medID share
+    // word 30 and medFront/medBack share word 31 (16-bit halves).
     static_assert(kWord_p == 0u, "geom field order: p");
     static_assert(kWord_n == 3u, "geom field order: n");
     static_assert(kWord_ng == 6u, "geom field order: ng");
@@ -84,10 +85,12 @@ int main()
     static_assert(kWord_uv == 24u, "geom field order: uv");
     static_assert(kWord_flux == 26u, "geom field order: flux");
     static_assert(kWord_k == 27u, "geom field order: k");
-    static_assert(kWord_matID == 28u, "geom field order: matID");
-    static_assert(kWord_medID == 29u, "geom field order: medID");
-    static_assert(kWord_medFront == 30u, "geom field order: medFront");
-    static_assert(kWord_medBack == 31u, "geom field order: medBack");
+    static_assert(kWord_footprint == 28u, "geom field order: footprint");
+    static_assert(kWord_spare0 == 29u, "geom field order: spare0");
+    static_assert(kWord_matID == 30u && kWord_medID == 30u,
+                  "geom field order: matID|medID packed word 30");
+    static_assert(kWord_medFront == 31u && kWord_medBack == 31u,
+                  "geom field order: medFront|medBack packed word 31");
     static_assert(GEOM_WORDS == 32u, "geom record is 32 words");
     static_assert(kWord_dAW == 0u, "mis field order: dAW");
     static_assert(kWord_dARW == 1u, "mis field order: dARW");
@@ -162,6 +165,14 @@ int main()
                 u[i] = Mix(uint32_t(i), uint32_t(word));
             return enoki::load_unaligned<UInt32P>(u.data());
         };
+        // Packed IDs only survive the low 16 bits, so fill within that range.
+        auto fillU16 = [&](int word)
+        {
+            std::vector<uint32_t> u(PACKET_WIDTH);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                u[i] = Mix(uint32_t(i), uint32_t(word)) & 0xFFFFu;
+            return enoki::load_unaligned<UInt32P>(u.data());
+        };
         g.p = Point3fP(fillF(1), fillF(2), fillF(3));
         g.n = Point3fP(fillF(4), fillF(5), fillF(6));
         g.ng = Point3fP(fillF(7), fillF(8), fillF(9));
@@ -173,10 +184,12 @@ int main()
         g.uv = Point2fP(fillF(25), fillF(26));
         g.flux = fillF(27);
         g.k = fillF(28);
-        g.matID = fillU(29);
-        g.medID = fillU(30);
-        g.medFront = fillU(31);
-        g.medBack = fillU(32);
+        g.footprint = fillF(29);
+        g.spare0 = fillF(30);
+        g.matID = fillU16(31);
+        g.medID = fillU16(32);
+        g.medFront = fillU16(33);
+        g.medBack = fillU16(34);
 
         mi.dAW = fillF(40);
         mi.dARW = fillF(41);
@@ -244,6 +257,8 @@ int main()
         cmpF(g.uv.y(), g2.uv.y(), "uv.y");
         cmpF(g.flux, g2.flux, "flux");
         cmpF(g.k, g2.k, "k");
+        cmpF(g.footprint, g2.footprint, "footprint");
+        cmpF(g.spare0, g2.spare0, "spare0");
         cmpU(g.matID, g2.matID, "matID");
         cmpU(g.medID, g2.medID, "medID");
         cmpU(g.medFront, g2.medFront, "medFront");
@@ -262,10 +277,7 @@ int main()
         Check(before2 == g_failures, "mis round-trip bit-exact (all 8 words)");
     }
 
-    // Masked round-trip. A partial-mask store must leave inactive lanes'
-    // records untouched, and a partial-mask load must return zero for inactive
-    // lanes (enoki merges every gather from setzero). A transposed record
-    // kernel replaces both paths, so pin the contract before that lands.
+    // Masked round-trip.
     {
         const uint32_t sentinelG = 0xDEADBEEFu, sentinelM = 0x5A5A5A5Au;
         for (auto &w : arena.geomWords)
@@ -302,10 +314,17 @@ int main()
             std::memcpy(&r, &f, sizeof(r));
             return r;
         };
+        // Words 0-29 are float fields (footprint=28, spare0=29). Words 30/31
+        // hold packed 16-bit ID pairs: matID|medID and medFront|medBack.
         auto expG = [&](size_t i, uint32_t w)
         {
-            const uint32_t m = Mix(uint32_t(i), w);
-            return w >= 28u ? m : fword(m);
+            if (w == 30u)
+                return (Mix(uint32_t(i), 30u) & 0xFFFFu) |
+                       ((Mix(uint32_t(i), 31u) & 0xFFFFu) << 16);
+            if (w == 31u)
+                return (Mix(uint32_t(i), 32u) & 0xFFFFu) |
+                       ((Mix(uint32_t(i), 33u) & 0xFFFFu) << 16);
+            return fword(Mix(uint32_t(i), w));
         };
         auto expM = [&](size_t i, uint32_t w)
         {
@@ -325,6 +344,14 @@ int main()
         {
             std::vector<uint32_t> u(PACKET_WIDTH);
             for (size_t i = 0; i < PACKET_WIDTH; ++i)
+                u[i] = Mix(uint32_t(i), word) & 0xFFFFu;
+            return enoki::load_unaligned<UInt32P>(u.data());
+        };
+        // Full-width fill for fields that are not 16-bit packed (MIS bits).
+        auto fillU32 = [&](uint32_t word)
+        {
+            std::vector<uint32_t> u(PACKET_WIDTH);
+            for (size_t i = 0; i < PACKET_WIDTH; ++i)
                 u[i] = Mix(uint32_t(i), word);
             return enoki::load_unaligned<UInt32P>(u.data());
         };
@@ -339,10 +366,12 @@ int main()
         g.uv = Point2fP(fillF(24), fillF(25));
         g.flux = fillF(26);
         g.k = fillF(27);
-        g.matID = fillU(28);
-        g.medID = fillU(29);
-        g.medFront = fillU(30);
-        g.medBack = fillU(31);
+        g.footprint = fillF(28);
+        g.spare0 = fillF(29);
+        g.matID = fillU(30);
+        g.medID = fillU(31);
+        g.medFront = fillU(32);
+        g.medBack = fillU(33);
 
         VertexMisP mi;
         mi.dAW = fillF(100);
@@ -352,7 +381,7 @@ int main()
         mi.cosi = fillF(104);
         mi.coso = fillF(105);
         mi.d2 = fillF(106);
-        mi.bits = fillU(107);
+        mi.bits = fillU32(107);
 
         StoreGeom(arena.geomWords.data(), g, rec, part);
         StoreMis(arena.misWords.data(), mi, rec, part);
@@ -435,10 +464,10 @@ int main()
         chkG(g3.uv.y(), 25);
         chkG(g3.flux, 26);
         chkG(g3.k, 27);
-        chk(g3.matID, 28, true);
-        chk(g3.medID, 29, true);
-        chk(g3.medFront, 30, true);
-        chk(g3.medBack, 31, true);
+        chkG(g3.footprint, 28);
+        chkG(g3.spare0, 29);
+        // Words 30/31 hold the packed ID pairs; their bit-exact layout is
+        // verified by the expG byte comparison in the store loop above.
         chkM(mi3.dAW, 0);
         chkM(mi3.dARW, 1);
         chkM(mi3.rr, 2);
@@ -526,6 +555,8 @@ int main()
         g.uv = Point2fP(fillF(24), fillF(25));
         g.flux = fillF(26);
         g.k = fillF(27);
+        g.footprint = fillF(28);
+        g.spare0 = fillF(29);
         g.matID = UInt32P(0u);
         g.medID = UInt32P(0u);
         g.medFront = UInt32P(0u);
@@ -608,7 +639,7 @@ int main()
         {
             std::vector<uint32_t> u(PACKET_WIDTH);
             for (size_t i = 0; i < PACKET_WIDTH; ++i)
-                u[i] = Mix(uint32_t(i), word);
+                u[i] = Mix(uint32_t(i), word) & 0xFFFFu;
             return enoki::load_unaligned<UInt32P>(u.data());
         };
         VertexGeomP g;
@@ -623,10 +654,12 @@ int main()
         g.uv = Point2fP(fillF(24), fillF(25));
         g.flux = fillF(26);
         g.k = fillF(27);
-        g.matID = fillU(28);
-        g.medID = fillU(29);
-        g.medFront = fillU(30);
-        g.medBack = fillU(31);
+        g.footprint = fillF(28);
+        g.spare0 = fillF(29);
+        g.matID = fillU(30);
+        g.medID = fillU(31);
+        g.medFront = fillU(32);
+        g.medBack = fillU(33);
 
         // Store via transposed, load via gather -> must match the input words.
         StoreGeom(arena.geomWords.data(), g, rec, part);

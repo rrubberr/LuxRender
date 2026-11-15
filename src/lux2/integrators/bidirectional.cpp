@@ -213,6 +213,8 @@ namespace lux2
         }
 #endif
 
+        OnTileBegin(scene, tile, ctx, ws, dest, spp);
+
         // Lightpath task count is one under `one`/`auto`, per task under `all`.
         const uint32_t nT =
             (ctx.lsP->kind == LightsSamplingStrategy::StrategyKind::All)
@@ -601,6 +603,7 @@ namespace lux2
         }
 #endif
         OccupancyTileEnd("bidir", tile.x0, tile.y0, unsigned(PACKET_WIDTH));
+        OnTileEnd(scene, tile, ctx, ws, dest, spp);
 
 #ifdef LUX2_INTEGRATOR_DEBUG
         // Merge this tile's diagnostics into the shared store.

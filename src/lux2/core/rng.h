@@ -80,6 +80,8 @@ namespace lux2
     constexpr UInt64 BDPT_EYE_SALT = 0x5A82799949075BULL;
     constexpr UInt64 BDPT_LIGHT_SALT = 0x3C374B077C86EA69ULL;
     constexpr UInt64 BDPT_CONN_SALT = 0x7F4A7C159E3779B9ULL;
+    // ERPT chain stream salt.
+    constexpr UInt64 ERPT_CHAIN_SALT = 0xA24BAED4963EE407ULL;
 
     // Fibonacci hashing multipliers.
     constexpr UInt64 MIX_GOLDEN = 0x9E3779B97F4A7C15ULL;  // splitmix64 additive step
@@ -149,6 +151,54 @@ namespace lux2
         x = (x ^ (x >> 30)) * MIX_MUL1;
         x = (x ^ (x >> 27)) * MIX_MUL2;
         return x ^ (x >> 31);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Scalar PCG32 (O'Neill)
+    // ---------------------------------------------------------------------------
+
+    // Scalar RNG for per-chain streams. Unlike RNGP this is not lane-based: a
+    // chain owns one instance keyed by (seedKey, sidx, chainIdx) so its random
+    // stream does not depend on how lanes happen to be scheduled, keeping
+    // results reproducible regardless of packet layout or drain order.
+    struct Pcg32
+    {
+        uint64_t state = 0x853c49e6748fea9bULL;
+        uint64_t inc = MIX_SEQ_XOR;
+
+        uint32_t NextU32()
+        {
+            const uint64_t old = state;
+            state = old * 6364136223846793005ULL + inc;
+            const uint32_t xs = uint32_t(((old >> 18u) ^ old) >> 27u);
+            const uint32_t rot = uint32_t(old >> 59u);
+            return (xs >> rot) | (xs << ((~rot + 1u) & 31u));
+        }
+        // [0,1), 24 bits.
+        float NextFloat()
+        {
+            return float(NextU32() >> 8) * (1.0f / 16777216.0f);
+        }
+        void Seed(uint64_t initstate, uint64_t initseq)
+        {
+            state = 0u;
+            inc = (initseq << 1u) | 1u;
+            NextU32();
+            state += initstate;
+            NextU32();
+        }
+    };
+
+    // Scalar PCG32 keyed to an independent (seedKey, sidx, chainIdx) stream.
+    inline Pcg32 KeyedPcg(uint32_t seedKey, uint32_t sidx, uint32_t chainIdx,
+                          uint64_t salt = ERPT_CHAIN_SALT)
+    {
+        const uint64_t a = SplitMix64((uint64_t(seedKey) << 32) | sidx);
+        const uint64_t b =
+            SplitMix64(a ^ salt ^ (uint64_t(chainIdx) * 0x9E3779B1ULL));
+        Pcg32 r;
+        r.Seed(a, b);
+        return r;
     }
 
     // Correlated mode additive salt per render round.

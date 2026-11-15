@@ -111,7 +111,19 @@ namespace lux2
         static std::shared_ptr<SurfaceIntegrator> CreateSurfaceIntegrator(
             const PluginContext &ctx);
 
-    private:
+    protected:
+        // Tile hooks for ERPT.
+        virtual void OnTileBegin(const Scene &, const Tile &, WalkCtx &,
+                                 IntegratorWorkerState *, Film &, uint32_t /*spp*/)
+        {
+        }
+        virtual void OnTileEnd(const Scene &, const Tile &, WalkCtx &,
+                               IntegratorWorkerState *, Film &, uint32_t /*spp*/)
+        {
+        }
+        // Worker state with derived data.
+        const std::vector<LightsSamplingStrategy> &LsD() const { return m_lsD; }
+
         int m_eyeDepth;
         int m_lightDepth;
         int m_maxDepth; // total s+t-2 clamp (derived if <0)

@@ -3,7 +3,7 @@
 Renderer "sampler"
 
 Sampler "lowdiscrepancy"
-	"integer pixelsamples" [128]
+	"integer pixelsamples" [32]
 	"string pixelsampler" ["hilbert"]
 
 Accelerator "embree"

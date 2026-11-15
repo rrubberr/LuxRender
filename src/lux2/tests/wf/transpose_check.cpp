@@ -160,9 +160,20 @@ int main()
 #endif
 
 #if defined(__AVX2__)
-    Report("Transpose8x8 vs scalar, 64 random seeds",
+    // The kernel is register-form; adapt the memory-based harness around it.
+    Report("Transpose8x8 (register) vs scalar, 64 random seeds",
            CheckSquare([](const std::uint32_t (&in)[8][8],
-                          std::uint32_t (&out)[8][8]) { Transpose8x8(in, out); }));
+                          std::uint32_t (&out)[8][8])
+                       {
+                           __m256 r[8], o[8];
+                           for (int i = 0; i < 8; ++i)
+                               r[i] = _mm256_castsi256_ps(_mm256_loadu_si256(
+                                   (const __m256i *)&in[i][0]));
+                           Transpose8x8(r, o);
+                           for (int i = 0; i < 8; ++i)
+                               _mm256_storeu_si256((__m256i *)&out[i][0],
+                                                   _mm256_castps_si256(o[i]));
+                       }));
 #else
     std::printf("  skip: Transpose8x8 (no AVX2)\n");
 #endif

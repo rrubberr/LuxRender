@@ -31,6 +31,7 @@
 #include "integrators/lane/lane_core.h"
 #include "integrators/lane/math.h"
 #include "integrators/lane/sampler_source.h"
+#include "integrators/wf/seed_sink.h"
 #include "integrators/wf/lanes.h"
 #include "integrators/wf/mis.h"
 #include "integrators/wf/sample_table.h"
@@ -71,7 +72,7 @@ namespace lux2
             g.uv = h.uv;
             g.flux = flux;
             g.k = ev.k;
-            // Footprint comes from the resolved dg.
+            // Footprint comes from the resolved dg (0 until cone plumbing).
             g.footprint = select(surf, ev.dg.footprint, FloatP(0.f));
             g.spare0 = FloatP(0.f);
             g.matID = select(ev.surface, h.matID, UInt32P(0u));
@@ -164,7 +165,24 @@ namespace lux2
                 const FloatP w =
                     divp(FloatP(1.f),
                          WeightPathV(m_c, eye, nE, light, Int32P(0), tr, cont));
-                AddToSample(m_tbl->L.data(), mL.slot, Lc * w, cont);
+                if (m_c.seedSink)
+                {
+                    SeedRec sr;
+                    sr.kind = SeedKind::HitLight;
+                    sr.cont = cont;
+                    sr.e = Lc * w;
+                    sr.sample = mL.slot;
+                    sr.eyePs = m_ps;
+                    sr.ePath = mL.path;
+                    sr.nE = mL.v; // eye vertices [0, v) are stored
+                    sr.vP = h.p;
+                    sr.vN = dg.n;
+                    sr.vNg = h.ngeo;
+                    sr.vAreaId = h.lightID;
+                    m_c.seedSink->Emit(m_c, *m_tbl, sr);
+                }
+                else
+                    AddToSample(m_tbl->L.data(), mL.slot, Lc * w, cont);
             }
 
             // Environment escape.
