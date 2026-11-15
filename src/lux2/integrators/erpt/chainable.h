@@ -19,7 +19,7 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-// Chail eligibility.
+// Chain eligibility.
 
 #ifndef LUX2_INTEGRATORS_ERPT_CHAINABLE_H
 #define LUX2_INTEGRATORS_ERPT_CHAINABLE_H

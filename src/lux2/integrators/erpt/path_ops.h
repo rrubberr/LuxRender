@@ -39,8 +39,8 @@ namespace lux2
                                const PathStore &srcPs, uint32_t srcPath,
                                uint32_t v)
         {
-            const uint32_t srec = srcPath * uint32_t(wf::PATH_STRIDE) + v;
-            const uint32_t drec = dstPath * uint32_t(wf::PATH_STRIDE) + v;
+            const uint32_t srec = srcPath * srcPs.arena->stride + v;
+            const uint32_t drec = dstPath * dstPs.arena->stride + v;
             std::memmove(&dstPs.arena->geomWords[size_t(drec) * wf::GEOM_WORDS],
                          &srcPs.arena->geomWords[size_t(srec) * wf::GEOM_WORDS],
                          sizeof(uint32_t) * wf::GEOM_WORDS);

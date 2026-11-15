@@ -45,9 +45,20 @@ namespace lux2
         // to 16 (alignas(64)) for VCM recurrences?
         constexpr int MIS_WORDS = 8;
 
-        // Vertex records per path slot.
+        // Vertex records per path slot. The stride is sized per render from the
+        // configured bounce count.
         constexpr int PATH_PAD = 8;
-        constexpr int PATH_STRIDE = MAX_DEPTH + PATH_PAD;
+        inline constexpr uint32_t PathStrideFor(int maxDepth)
+        {
+            uint32_t s = uint32_t(maxDepth < 1 ? 1 : maxDepth);
+            if (s & 1u)
+                ++s;             // even: mis record starts stay 16B aligned
+            if (s % 32u == 0u)
+                s += uint32_t(PATH_PAD); // L1 set anti-aliasing
+            return s;
+        }
+        // Default / maximum stride.
+        constexpr uint32_t PATH_STRIDE = PathStrideFor(MAX_DEPTH);
         static_assert(PATH_STRIDE % 32 != 0,
                       "geom path stride must not alias L1 sets");
 
@@ -408,22 +419,23 @@ namespace lux2
         static_assert(MIS_WORDS_TOTAL * 4 == 32, "mis record must be 32 B");
 
         // Vertex arena.
-        static_assert(PATH_STRIDE * GEOM_WORDS % 16 == 0);
-        static_assert(PATH_STRIDE * MIS_WORDS % 16 == 0,
-                      "mis record starts must stay 64B aligned");
         struct BlockArena
         {
-            HugeVector<uint32_t> geomWords; // [nPaths * PATH_STRIDE * GEOM_WORDS]
-            HugeVector<uint32_t> misWords;  // [nPaths * PATH_STRIDE * MIS_WORDS]
+            HugeVector<uint32_t> geomWords; // [nPaths * stride * GEOM_WORDS]
+            HugeVector<uint32_t> misWords;  // [nPaths * stride * MIS_WORDS]
+            // Vertex records per path slot.
+            uint32_t stride = PATH_STRIDE;
 
-            // Size the arena once per capacity change.
-            void Init(uint32_t nPaths)
+            // Size the arena once per capacity or depth change.
+            void Init(uint32_t nPaths, int maxDepth = MAX_DEPTH)
             {
-                const size_t recs = size_t(nPaths) * PATH_STRIDE;
-                if (geomWords.size() != recs * GEOM_WORDS)
+                const uint32_t s = PathStrideFor(maxDepth);
+                const size_t recs = size_t(nPaths) * s;
+                if (geomWords.size() != recs * GEOM_WORDS || stride != s)
                     geomWords.resize(recs * GEOM_WORDS);
-                if (misWords.size() != recs * MIS_WORDS)
+                if (misWords.size() != recs * MIS_WORDS || stride != s)
                     misWords.resize(recs * MIS_WORDS);
+                stride = s;
             }
         };
 
@@ -439,10 +451,10 @@ namespace lux2
             // Light path -> its index j in the owning sample's light list.
             std::vector<uint32_t> lightSlot;
 
-            void Init(BlockArena *a, uint32_t nPaths)
+            void Init(BlockArena *a, uint32_t nPaths, int maxDepth = MAX_DEPTH)
             {
                 arena = a;
-                a->Init(nPaths);
+                a->Init(nPaths, maxDepth);
                 n.assign(nPaths, 0u);
                 owner.assign(nPaths, 0u);
                 lightIdx.assign(nPaths, 0u);
@@ -456,10 +468,10 @@ namespace lux2
         };
 
         // Record index for (path, vertex).
-        inline UInt32P RecIdx(const PathStore &, const UInt32P &path,
+        inline UInt32P RecIdx(const PathStore &ps, const UInt32P &path,
                               const Int32P &v, const MaskP &)
         {
-            return path * UInt32P(uint32_t(PATH_STRIDE)) + UInt32P(v);
+            return path * UInt32P(ps.arena->stride) + UInt32P(v);
         }
 
     } // namespace wf

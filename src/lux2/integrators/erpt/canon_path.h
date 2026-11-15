@@ -45,7 +45,6 @@ namespace lux2
     namespace erpt
     {
         using wf::GEOM_WORDS;
-        using wf::PATH_STRIDE;
 
         // Evaluator window span (vertex terms in [lo,hi], edges i->i+1 for
         // lo <= i < hi).
@@ -53,17 +52,17 @@ namespace lux2
                                        uint32_t v)
         {
             return ps.arena->geomWords.data() +
-                   (size_t(path) * PATH_STRIDE + v) * GEOM_WORDS;
+                   (size_t(path) * ps.arena->stride + v) * GEOM_WORDS;
         }
         inline uint32_t *GeomRecMut(wf::PathStore &ps, uint32_t path, uint32_t v)
         {
             return ps.arena->geomWords.data() +
-                   (size_t(path) * PATH_STRIDE + v) * GEOM_WORDS;
+                   (size_t(path) * ps.arena->stride + v) * GEOM_WORDS;
         }
         inline uint32_t MisBits(const wf::PathStore &ps, uint32_t path, uint32_t v)
         {
             return ps.arena->misWords
-                .data()[(size_t(path) * PATH_STRIDE + v) * wf::MIS_WORDS +
+                .data()[(size_t(path) * ps.arena->stride + v) * wf::MIS_WORDS +
                         wf::kWord_bits];
         }
         inline float WordF(const uint32_t *rec, uint32_t w)

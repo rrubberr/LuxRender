@@ -234,8 +234,9 @@ namespace lux2
         wf::BlockArena &arenaLight = state.arenaLight;
         wf::PathStore &psEye = state.psEye;
         wf::PathStore &psLight = state.psLight;
-        psEye.Init(&arenaEye, kNs);
-        psLight.Init(&arenaLight, kLightPool);
+        // Size each arena by the bounce count.
+        psEye.Init(&arenaEye, kNs, m_eyeDepth);
+        psLight.Init(&arenaLight, kLightPool, m_lightDepth);
         wf::SampleTable tbl;
         tbl.Init(kNs, nT);
 
