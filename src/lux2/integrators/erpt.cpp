@@ -153,6 +153,7 @@ namespace lux2
             << " valid=" << m_sh.stats.valid << " ed=" << m_sh.ed.load()
             << " clamped=" << m_sh.stats.chainClamped
             << " fxZero=" << m_sh.stats.fxZero
+            << " seedGateFail=" << m_sh.stats.seedGateFail
             << " Ein=" << m_sh.stats.energyIn << " Eout=" << m_sh.stats.energyOut;
         BidirIntegrator::End(scene);
     }

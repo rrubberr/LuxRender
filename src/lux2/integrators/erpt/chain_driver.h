@@ -108,7 +108,9 @@ namespace lux2
                                 acc.Add(int32_t(std::floor(h.px)),
                                         int32_t(std::floor(h.py)), X, Y, Z, 0.f);
                                 st.energyOut += h.e;
-                                ++st.fxZero;
+                                ++st.seedGateFail;
+                                // Every remaining chain of this seed fails too.
+                                chainsLeft = 0u;
                             }
                         }
                         any = any || L[i].active;

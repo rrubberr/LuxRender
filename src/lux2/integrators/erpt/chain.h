@@ -143,6 +143,7 @@ namespace lux2
             uint64_t proposed = 0, valid = 0, accepted = 0;
             uint64_t chainClamped = 0; // NumChains hit maxChainsPerSeed (biased!)
             uint64_t fxZero = 0;       // valid step with f(x) <= 0
+            uint64_t seedGateFail = 0; // seed whose chain-start f(x) <= 0
             double energyIn = 0.0;     // sum of seed energies drained
             double energyOut = 0.0;    // sum of amounts deposited
             void Add(const ChainStats &o)
@@ -155,6 +156,7 @@ namespace lux2
                 accepted += o.accepted;
                 chainClamped += o.chainClamped;
                 fxZero += o.fxZero;
+                seedGateFail += o.seedGateFail;
                 energyIn += o.energyIn;
                 energyOut += o.energyOut;
             }

@@ -3,7 +3,7 @@
 Renderer "sampler"
 
 Sampler "lowdiscrepancy"
-	"integer pixelsamples" [32]
+	"integer pixelsamples" [128]
 	"string pixelsampler" ["hilbert"]
 
 Accelerator "embree"
@@ -60,9 +60,9 @@ Film "fleximage"
 	"string write_tga_channels" ["RGB"]
 	"string ldr_clamp_method" ["cut"]
 	"integer displayinterval" [10]
-	"integer writeinterval" [180]
+	"integer writeinterval" [90]
 	"integer flmwriteinterval" [900]
-	"integer haltspp" [128]
+	"integer haltspp" [512]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]
 

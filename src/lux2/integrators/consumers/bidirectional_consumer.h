@@ -102,9 +102,20 @@ namespace lux2
             Int32P Bounce(const LaneCore &) const { return mL.v; }
             Int32P DepthBase(const LaneCore &) const { return Int32P(0); }
 
-            // An emissive surface (or Null) hit at the current
-            // throughput.
+            // An emissive Null hit at the current throughput. dg is not
+            // resolved by Advance for Null events, so build it.
             void OnPassThrough(LaneCore &core, const HitP &h, const MaskP &m)
+            {
+                const MaskP emit0 = m && neq(h.lightID, UInt32P(LUX_NO_LIGHT));
+                if (!any(emit0))
+                    return;
+                const DifferentialGeometryP dg = MakeDG(h, core.d, emit0);
+                AddEmission(core, h, dg, emit0);
+            }
+
+            // Shared emission for Null and real surface hits.
+            void AddEmission(LaneCore &core, const HitP &h,
+                             const DifferentialGeometryP &dg, const MaskP &m)
             {
                 MaskP emit = m && neq(h.lightID, UInt32P(LUX_NO_LIGHT));
                 if (!any(emit))
@@ -118,7 +129,6 @@ namespace lux2
                 if (!any(emit))
                     return;
 
-                const DifferentialGeometryP dg = MakeDG(h, core.d, emit);
                 const Vector3fP wo = -core.d;
                 const LightPtr al = enoki::gather<LightPtr>(m_c.areaPtrs.data(),
                                                             h.lightID, emit);
@@ -205,6 +215,10 @@ namespace lux2
                 const MaskP validVtx = (hitMask | mediumEvent) && alive;
                 if (!any(validVtx))
                     return;
+
+                // A real emissive surface hit contributes Le directly.
+                if (any(validVtx && hitMask))
+                    AddEmission(core, ev.hit, ev.dg, validVtx && hitMask);
 
                 // Depth limit!
                 alive &= !(validVtx && mL.v >= Int32P(m_c.eyeDepth));

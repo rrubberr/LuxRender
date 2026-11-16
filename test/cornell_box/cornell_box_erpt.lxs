@@ -11,7 +11,7 @@ Accelerator "embree"
 SurfaceIntegrator "erpt"
 	"integer eyedepth" [8]
 	"integer lightdepth" [4]
-	"integer mutationsperseed" [250]
+	"integer mutationsperseed" [100]
 
 VolumeIntegrator "none"
 
@@ -54,9 +54,9 @@ Film "fleximage"
 	"string write_tga_channels" ["RGB"]
 	"string ldr_clamp_method" ["cut"]
 	"integer displayinterval" [10]
-	"integer writeinterval" [180]
+	"integer writeinterval" [90]
 	"integer flmwriteinterval" [900]
-	"integer haltspp" [64]
+	"integer haltspp" [512]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]
 
