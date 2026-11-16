@@ -87,7 +87,8 @@ namespace lux2
                 const Point3fP o = OffsetRay(E.p, E.dg.ng, om2, FloatP(EPS_RAY));
                 RayP ray = MutRay(o, om2, sw, live);
                 HitP h;
-                c.embree->Intersect(ray, h, Coherent::No);
+                // Collapse Null crossings.
+                live = live && TraceSolid(c, ray, h);
                 live = live && ChainableHit(c, h, live);
                 if (none(live))
                     return out;

@@ -33,6 +33,7 @@
 #include "core/bsdf.h"
 #include "core/bsdf_type.h"
 #include "core/bsdfptr_table.h"
+#include "integrators/lane/advance.h"
 #include "integrators/lane/geom.h"
 
 namespace lux2
@@ -130,6 +131,46 @@ namespace lux2
             r.mask = UInt32P(0xFFFFFFFFu);
             r.alive = m;
             return r;
+        }
+
+        // Trace from `ray` to the first non-Null surface, collapsing Null
+        // crossings.
+        inline MaskP TraceSolid(const WalkCtx &c, RayP &ray, HitP &hit)
+        {
+            MaskP tracing = ray.alive;
+            MaskP landed(false);
+            HitP best;
+            best.hit = MaskP(false);
+            for (int k = 0; k <= MAX_NULL_CROSSINGS && any(tracing); ++k)
+            {
+                ray.alive = tracing;
+                HitP h;
+                c.embree->Intersect(ray, h, Coherent::No);
+                const MaskP seen = tracing && h.hit;
+
+                MaskP isNull(false);
+                if (k < MAX_NULL_CROSSINGS && any(seen))
+                {
+                    const BSDFPtr b = c.table->Gather(h.matID, seen);
+                    isNull = seen && has_flag(b->flags(seen), BSDFType::Null);
+                }
+
+                // A lane that is not Null this iteration terminates on `h`.
+                const MaskP done = tracing && !isNull;
+                landed = landed || done;
+                best = SelectHit(done, h, best);
+
+                // Offset through a Null boundary and swap to its exit medium.
+                ray.o = select(isNull,
+                               OffsetRay(h.p, h.ngeo, ray.d, FloatP(EPS_RAY)),
+                               ray.o);
+                ray.maxt = select(isNull, FloatP(INF_F), ray.maxt);
+                if (c.hasMedia && any(isNull))
+                    ray.medium = select(isNull, SwapMedium(h, ray.d), ray.medium);
+                tracing = isNull;
+            }
+            hit = best;
+            return landed && best.hit;
         }
 
         // Build the geom record of a surface hit as a scatter vertex whose

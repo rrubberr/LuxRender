@@ -124,7 +124,8 @@ namespace lux2
                                        std::vector<uint32_t> &out, CanonInfo *info)
         {
             using namespace wf;
-            if (c.hasMedia || c.shadow.hasNull)
+            // Null is allowed!
+            if (c.hasMedia)
                 return false;
 
             const bool realLight =

@@ -69,7 +69,8 @@ namespace lux2
                 ray.alive = live;
 
                 HitP h;
-                c.embree->Intersect(ray, h, Coherent::No);
+                // Collapse Null crossings.
+                live = live && TraceSolid(c, ray, h);
                 live = live && ChainableHit(c, h, live);
                 if (none(live))
                     return out;
