@@ -119,7 +119,8 @@ namespace lux2
 
             const FloatP dist = enoki::sqrt(d2);
             const FloatP tmax =
-                dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
+                dist - enoki::max(FloatP(EPS_SHADOW_GAP),
+                                  FloatP(EPS_SHADOW_GAP) * dist);
             const Point3fP so = OffsetRay(p0, ng0, dir01, FloatP(EPS_RAY));
             const Occlusion oc =
                 Occlude(sc, so, dir01, startMed, tmax, sw, rng, pre);

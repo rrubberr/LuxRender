@@ -39,8 +39,12 @@ namespace lux2
 
     // Guard against division by near zero.
     constexpr float EPS_DENOM = 1e-8f;
+    // LuxRender's MachineEpsilon::E(1.f).
+    constexpr float EPS_ONE = 128.f * std::numeric_limits<float>::epsilon();
     // Ray offset / geometric degeneracy thresholds.
     constexpr float EPS_RAY = 1e-4f;
+    // Stop this close to a finite emitter to prevent double counting.
+    constexpr float EPS_SHADOW_GAP = 1e-3f;
 
     // Positive infinity.
     constexpr float INF_F = std::numeric_limits<float>::infinity();

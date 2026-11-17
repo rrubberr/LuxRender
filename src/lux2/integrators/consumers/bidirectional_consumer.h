@@ -175,6 +175,16 @@ namespace lux2
                 const FloatP w =
                     divp(FloatP(1.f),
                          WeightPathV(m_c, eye, nE, light, Int32P(0), tr, cont));
+#ifdef LUX2_INTEGRATOR_DEBUG
+                {
+                    TransientSnap snap = MakeTransientSnap(tr);
+                    BidirRecordFirefly(
+                        m_c.diag, m_c.cfg.threshold,
+                        enoki::gather<FloatP>(m_tbl->x.data(), mL.slot, cont),
+                        enoki::gather<FloatP>(m_tbl->y.data(), mL.slot, cont),
+                        cont, Lc, w, d2, Int32P(0), nE, nullptr, &snap);
+                }
+#endif
                 if (m_c.seedSink)
                 {
                     SeedRec sr;
@@ -639,6 +649,32 @@ namespace lux2
                 StoreWord(m_ps->arena->misWords.data(),
                           select(specular, UInt32P(1u), UInt32P(0u)),
                           RecWord<MIS_WORDS>(rec, kWord_bits), sampleV);
+
+#ifdef LUX2_INTEGRATOR_DEBUG
+                // Glass diagnostic.
+                {
+                    const FloatP cosiS = dot(wi, ev.dg.n);
+                    const FloatP costS = dot(m_sample.wi, ev.dg.n);
+                    const FloatP nng = dot(ev.dg.n, ev.dg.ng);
+                    const FloatP gIn = dot(wi, ev.dg.ng);
+                    const FloatP stv =
+                        divp(dot(m_sample.wi, ev.dg.ng), gIn);
+                    uint32_t *db = m_ps->arena->diagWords.data();
+                    const MaskP dw = sampleV && hitMask;
+                    StoreWord(db, reinterpret_array<UInt32P>(cosiS),
+                              RecWord<DIAG_WORDS>(rec, 0u), dw);
+                    StoreWord(db, reinterpret_array<UInt32P>(costS),
+                              RecWord<DIAG_WORDS>(rec, 1u), dw);
+                    StoreWord(db, reinterpret_array<UInt32P>(nng),
+                              RecWord<DIAG_WORDS>(rec, 2u), dw);
+                    StoreWord(db, reinterpret_array<UInt32P>(stv),
+                              RecWord<DIAG_WORDS>(rec, 3u), dw);
+                    StoreWord(db, reinterpret_array<UInt32P>(m_sample.pdf),
+                              RecWord<DIAG_WORDS>(rec, 4u), dw);
+                    StoreWord(db, reinterpret_array<UInt32P>(m_sample.f),
+                              RecWord<DIAG_WORDS>(rec, 5u), dw);
+                }
+#endif
 
                 // Russian roulette uses light.rr (forward).
                 const MaskP rrActive = sampleV && ((mL.v + Int32P(1)) > Int32P(RR_START));

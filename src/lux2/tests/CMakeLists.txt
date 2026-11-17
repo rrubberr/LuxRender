@@ -230,6 +230,12 @@ add_lux2_check(
 )
 
 add_lux2_check(
+	NAME lux2wfmisbreakdowncheck
+	SOURCES wf/mis_breakdown_check.cpp
+	LINKS lux2
+)
+
+add_lux2_check(
 	NAME lux2shapecheck
 	SOURCES shape_check.cpp
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads

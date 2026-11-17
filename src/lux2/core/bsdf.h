@@ -51,21 +51,12 @@ namespace lux2
     // ---------------------------------------------------------------------------
 
     // Result of sampling a BSDF lobe for one packet of lanes.
-    // 1. f is the folded multiplier the integrator applies directly ( T *= f ).
-    //    It matches lux MultiBSDF::SampleF under the given TransportMode:
-    //    Radiance == legacy reverse=true (eye path) folds no ng Jacobian;
-    //    Importance == reverse=false additionally multiplies by
-    //    |Dot(ng, wi) / Dot(ng, wo)| (!= 1 under bump crossover).
-    // 2. pdf is the mixture selection density, not always the solid angle pdf.
-    //    For multi component BSDF a  specular bounce reports the component
-    //    selection probability w, and f carries the importance sampling gain F̄*R/w.
-    //    Used with integrator's FULL_MIS prevPdf, so must be sampling density.
     struct BSDFSampleP
     {
-        Vector3fP wi;   // Sampled direction for the next ray (world, normalized).
-        SWCSpectrumP f; // Folded multiplier; see (1) above.
+        Vector3fP wi;   // Sampled direction for the next ray.
+        SWCSpectrumP f; // Folded multiplier.
 
-        FloatP pdf;          // Mixture selection density; see (2) above.
+        FloatP pdf;          // Mixture selection density.
         FloatP eta;          // IOR ratio.
         UInt32P sampledType; // BSDFType of the lobe chosen.
         MaskP specular;      // True where sampledType is delta/specular.
@@ -75,7 +66,7 @@ namespace lux2
     // BSDFEvalP evaluation record
     // ---------------------------------------------------------------------------
 
-    // Result of evaluating a BSDF at a (wi, wo) pair.
+    // Result of evaluating a BSDF at (wi, wo).
     struct BSDFEvalP
     {
         SWCSpectrumP f; // f(wi,wo) * |cos(0ᵢ)|; NEE divides by light pdf
@@ -90,7 +81,7 @@ namespace lux2
     // The integrator fills this from the tracer's HitP.
     struct DifferentialGeometryP
     {
-        Point3fP p;      // world-space hit position
+        Point3fP p;      // worldspace hit position
         Normal3fP n;     // shading normal (cosine terms only)
         Normal3fP ng;    // geometric normal (ray offset / side tests)
         MaskP entering;  // true where the ray crosses into the surface
@@ -120,13 +111,6 @@ namespace lux2
         virtual uint32_t flags() const = 0;
 
         // Sample an outgoing direction wi given wo (wo = -incidentDir).
-        // 1. A lane fails when no component matches or side test is degenerate;
-        //    the integrator kills those paths. On success sample->f is the folded
-        //    multiplier and sample->pdf is the mixture selection density.
-        //    for a specular lobe in a multi-component BSDF this is the
-        //    selection probability w.
-        // 2. Side rejection follows lux: use ng with an epsilon to avoid grazing NaN,
-        //    then select reflection vs transmission from sign(Dot(ng,wi)/Dot(ng,wo)).
         virtual void SampleF(const SpectrumWavelengthsP &sw,
                              const Vector3fP &wo,
                              const DifferentialGeometryP &dg,
@@ -144,21 +128,31 @@ namespace lux2
                            MaskP active) const = 0;
 
         // Evaluate f(wi,wo)*|cos(0ᵢ)| and both directional pdfs writing into
-        // *out masked by active. Naming is relative to the eye walk:
-        // 1. wi is the sampled/outgoing direction.
-        // 2. wo the incoming.
-        // 3. pdf = pdf(wi|wo) is the forward eye-walk pdf.
-        // 4. pdfRev = pdf(wo|wi) is the reverse.
-        // 5. Delta/specular have no finite solid angle pdf, so write
-        //    pdf = pdfRev = 0 but f MUST be evaluated. lux relies on
-        //    PowerHeuristic(lightPdf, 0) == 1 to flow the term. Eval.f under
-        //    Radiance uses the lux reverse=true convention (no ng
-        //    Jacobian); Importance applies |sideTest|.
+        // *out masked by active.
         virtual void Eval(const SpectrumWavelengthsP &sw,
                           const Vector3fP &wi, const Vector3fP &wo,
                           const DifferentialGeometryP &dg,
                           TransportMode mode, BSDFEvalP *out,
                           MaskP active) const = 0;
+
+        // Deterministic specular step for a known delta lobe.
+        virtual void SpecularStep(const SpectrumWavelengthsP &sw,
+                                  const Vector3fP &wo,
+                                  const DifferentialGeometryP &dg,
+                                  const UInt32P &lobeType, TransportMode mode,
+                                  Vector3fP *wi, SWCSpectrumP *R,
+                                  MaskP active) const
+        {
+            // Default, so no delta specular lobe, and not a specular vertex.
+            (void)sw;
+            (void)wo;
+            (void)dg;
+            (void)lobeType;
+            (void)mode;
+            (void)active;
+            *wi = Vector3fP(0.f);
+            *R = SWCSpectrumP(0.f);
+        }
 
         ENOKI_CALL_SUPPORT_FRIEND()
     };

@@ -118,13 +118,17 @@ namespace lux2
         inline FloatP WeightPathV(const WalkCtx &ctx, const EyeV &eye,
                                   const Int32P &nE, const LightV &light,
                                   const Int32P &nL, const Transient &tr,
-                                  const MaskP &act)
+                                  const MaskP &act, Breakdown *bd = nullptr)
         {
             if (ctx.cfg.noMis)
                 return FloatP(1.f); // scalar early out
 
             const float k = ctx.cfg.misPower;
             const Int32P one(1), zero(0);
+
+            // Optional denominator split: buckets sum to the returned weight.
+            // Skipped entirely when bd is null (production).
+            Breakdown b;
 
             // Transient overrides apply at idx == nE-1 / nL-1 (and nE-2 / nL-2).
             auto eAF = [&](const Int32P &i, const MaskP &m)
@@ -181,16 +185,28 @@ namespace lux2
             const FloatP pBase =
                 select(nl1 && isLD, divp(aF0, tr.pdfLightDirect), FloatP(1.f));
             FloatP weight(1.f), p = pBase;
+            if (bd)
+                b.base = FloatP(1.f);
 
             // nL == 1 direct origin term.
             {
                 const MaskP m = aF0 > FloatP(0.f);
                 if (ctx.lightDepth > 0)
-                    weight = select(nl1 && isLD && m, weight + pw(pBase, k),
-                                    weight);
+                {
+                    const MaskP add = nl1 && isLD && m;
+                    const FloatP term = pw(pBase, k);
+                    weight = select(add, weight + term, weight);
+                    if (bd)
+                        b.directOrigin = select(add, b.directOrigin + term, b.directOrigin);
+                }
                 const FloatP pDirect = divp(tr.pdfLightDirect, aF0);
-                weight = select(nl1 && (!isLD) && m, weight + pw(pDirect, k),
-                                weight);
+                {
+                    const MaskP add = nl1 && (!isLD) && m;
+                    const FloatP term = pw(pDirect, k);
+                    weight = select(add, weight + term, weight);
+                    if (bd)
+                        b.directOrigin = select(add, b.directOrigin + term, b.directOrigin);
+                }
             }
 
             // nL == 0 when eye path hit a light (OnPassThrough always has nE >= 2).
@@ -202,7 +218,11 @@ namespace lux2
                 pDirect = select(rrOn, divp(pDirect, eye.rrR(nE - (one + one), rrOn)),
                                  pDirect);
                 const MaskP m = !eSpec(nE - (one + one), wide);
-                weight = select(cond && m, weight + pw(pDirect, k), weight);
+                const MaskP add = cond && m;
+                const FloatP term = pw(pDirect, k);
+                weight = select(add, weight + term, weight);
+                if (bd)
+                    b.hitLightAlt = select(add, b.hitLightAlt + term, b.hitLightAlt);
             }
 
             // Extend the light path toward the eye path. The eye path's first
@@ -234,7 +254,11 @@ namespace lux2
                 const MaskP specPrev =
                     select(prevValid, !eSpec(idx - one, prevValid), MaskP(true));
                 const MaskP specOk = !eSpec(idx, live) && specPrev;
-                weight = select(live && ok && specOk, weight + pw(p, k), weight);
+                const MaskP add = live && ok && specOk;
+                const FloatP term = pw(p, k);
+                weight = select(add, weight + term, weight);
+                if (bd)
+                    b.lightExt = select(add, b.lightExt + term, b.lightExt);
             }
 
             // Extend the eye path toward the light path.
@@ -265,12 +289,27 @@ namespace lux2
                 const MaskP specPrev =
                     select(prevValid, !lSpec(idx - one, prevValid), MaskP(true));
                 const MaskP specOk = !lSpec(idx, live) && specPrev;
-                weight = select(live && ok && specOk, weight + pw(p, k), weight);
+                const MaskP add = live && ok && specOk;
+                const FloatP term = pw(p, k);
+                weight = select(add, weight + term, weight);
+                if (bd)
+                    b.eyeExt = select(add, b.eyeExt + term, b.eyeExt);
                 // Direct path's second vertex must be non-specular (i == nL - 1).
                 const MaskP dm = ok && live && eq(Int32P(i), nL - one) &&
                                  !lSpec(one, live) && (aF0 > FloatP(0.f));
                 const FloatP pDirect = p * divp(tr.pdfLightDirect, aF0);
-                weight = select(dm, weight + pw(pDirect, k), weight);
+                {
+                    const FloatP dterm = pw(pDirect, k);
+                    weight = select(dm, weight + dterm, weight);
+                    if (bd)
+                        b.directPath = select(dm, b.directPath + dterm, b.directPath);
+                }
+            }
+            if (bd)
+            {
+                b.okLight = act && (nL >= one);
+                b.okEye = act && (nE >= one);
+                *bd = b;
             }
             WfStatMis(iMax, jMax,
                       enoki::hsum(select(act, nLightExt, zero)),

@@ -78,8 +78,8 @@ AreaLightSource "area"
 	"float importance" [1.000000000000000]
 	"color L" [1.00000000 1.00000000 1.00000000]
 	"bool flipz" ["true"]
-	"float power" [0.000000000000000]
-	"float efficacy" [0.000000000000000]
+	"float power" [100.000000000000000]
+	"float efficacy" [17.000000000000000]
 	"float gain" [1.000000000000000]
 	"integer nsamples" [1]
 

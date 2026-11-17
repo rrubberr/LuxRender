@@ -1,0 +1,110 @@
+[lux2 WARNING] BDPT firefly probe: calls=220595507 maxLcw=193.952 threshold=0.5 recorded=64
+[lux2 WARNING] BDPT diag: TOTAL ghost delta=0 mixed=0
+[lux2 WARNING] BDPT firefly #0 (t=1,s=2) px=(256,114) lcw=193.952 lc=412.65 w=0.470015 d2=16.7978 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=1.12759 directPath=0 okL=1 okE=1 | eAF_last=33888.9 eAR_last=0 eAR_prev=0 lAR_last=1545.69 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #1 (t=1,s=2) px=(256,77) lcw=52.8057 lc=1363.26 w=0.038735 d2=16.6737 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=24.8165 directPath=0 okL=1 okE=1 | eAF_last=41177.1 eAR_last=0 eAR_prev=0 lAR_last=3633.83 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #2 (t=1,s=2) px=(262,112) lcw=37.1719 lc=941.773 w=0.0394701 d2=16.662 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=24.3356 directPath=0 okL=1 okE=1 | eAF_last=31271.2 eAR_last=0 eAR_prev=0 lAR_last=5326.52 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #3 (t=1,s=2) px=(264,79) lcw=30.6368 lc=50.4153 w=0.607689 d2=16.7896 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.645578 directPath=0 okL=1 okE=1 | eAF_last=35429 eAR_last=0 eAR_prev=0 lAR_last=446.32 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #4 (t=1,s=2) px=(258,102) lcw=29.0373 lc=9021.94 w=0.00321852 d2=16.0582 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=309.702 directPath=0 okL=1 okE=1 | eAF_last=42292.8 eAR_last=0 eAR_prev=0 lAR_last=30908.4 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #5 (t=1,s=2) px=(250,113) lcw=26.7504 lc=2635.74 w=0.0101491 d2=16.7117 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=97.531 directPath=0 okL=1 okE=1 | eAF_last=30190.9 eAR_last=0 eAR_prev=0 lAR_last=3734.48 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #6 (t=1,s=2) px=(247,109) lcw=21.769 lc=3718.44 w=0.00585435 d2=16.3985 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=169.813 directPath=0 okL=1 okE=1 | eAF_last=32699.8 eAR_last=0eAR_prev=0 lAR_last=15052.3 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #7 (t=3,s=1) px=(252,77) lcw=19.1104 lc=19.1104 w=1 d2=1.43807e-07 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=3.26031e-07 eyeExt=0 directPath=0 okL=1 okE=1 | eAF_last=7244.49 eAR_last=4.13654 eAR_prev=0 lAR_last=0 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #8 (t=1,s=2) px=(243,84) lcw=15.2508 lc=9711.27 w=0.00157042 d2=16.5666 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=635.77 directPath=0 okL=1 okE=1 | eAF_last=38900.5 eAR_last=0 eAR_prev=0 lAR_last=10099.8 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #9 (t=1,s=2) px=(248,109) lcw=13.0644 lc=8846.19 w=0.00147683 d2=16.3458 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=676.124 directPath=0 okL=1 okE=1 | eAF_last=35026.3 eAR_last=0 eAR_prev=0 lAR_last=19276.7 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #10 (t=1,s=2) px=(244,82) lcw=11.3748 lc=5994.4 w=0.00189758 d2=16.6787 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=525.987 directPath=0 okL=1 okE=1 | eAF_last=31577.2 eAR_last=0eAR_prev=0 lAR_last=6209.9 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #11 (t=1,s=2) px=(261,108) lcw=10.2695 lc=7331.72 w=0.0014007 d2=16.2906 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=712.929 directPath=0 okL=1 okE=1 | eAF_last=31651.1 eAR_last=0 eAR_prev=0 lAR_last=19519.4 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #12 (t=1,s=2) px=(270,104) lcw=9.68029 lc=5747.46 w=0.00168427 d2=16.5682 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=592.728 directPath=0 okL=1 okE=1 | eAF_last=38822.4 eAR_last=0 eAR_prev=0 lAR_last=9817.08 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #13 (t=2,s=1) px=(264,100) lcw=8.87929 lc=8.87929 w=1 d2=1.29761e-07 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=9.11992e-09 eyeExt=0 directPath=0 okL=1 okE=1 | eAF_last=28820.7 eAR_last=2.75232 eAR_prev=0 lAR_last=0 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #14 (t=1,s=2) px=(240,105) lcw=8.72647 lc=3792.06 w=0.00230125 d2=16.7063 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=433.547 directPath=0 okL=1 okE=1 | eAF_last=32479.3 eAR_last=0 eAR_prev=0 lAR_last=2664.72 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #15 (t=1,s=2) px=(270,104) lcw=7.68326 lc=10948.3 w=0.000701777 d2=16.5765 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=1423.96 directPath=0 okL=1 okE=1 | eAF_last=32880.5 eAR_last=0 eAR_prev=0 lAR_last=9808.04 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #16 (t=1,s=3) px=(259,77) lcw=7.65262 lc=7.75494 w=0.986805 d2=16.8014 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0133717 directPath=0 okL=1 okE=1 | eAF_last=29263.1 eAR_last=0 eAR_prev=0 lAR_last=1491.96 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #17 (t=1,s=3) px=(259,78) lcw=7.62517 lc=7.75252 w=0.983574 d2=16.8004 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0167007 directPath=0 okL=1 okE=1 | eAF_last=32731.7 eAR_last=0 eAR_prev=0 lAR_last=1492.06 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #18 (t=1,s=3) px=(259,78) lcw=7.61956 lc=7.72611 w=0.986209 d2=16.8005 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0139839 directPath=0 okL=1 okE=1 | eAF_last=35475.7 eAR_last=0 eAR_prev=0 lAR_last=1492.05 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #19 (t=1,s=3) px=(259,77) lcw=7.60226 lc=7.69911 w=0.98742 d2=16.802 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0127399 directPath=0 okL=1 okE=1 | eAF_last=37337.3 eAR_last=0 eAR_prev=0 lAR_last=1491.87 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #20 (t=1,s=3) px=(259,77) lcw=7.60022 lc=7.82303 w=0.971519 d2=16.8011 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0293163 directPath=0 okL=1 okE=1 | eAF_last=31844.6 eAR_last=0 eAR_prev=0 lAR_last=1492 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #21 (t=1,s=3) px=(259,77) lcw=7.5979 lc=7.85003 w=0.967883 d2=16.8009 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0331832 directPath=0 okL=1 okE=1 | eAF_last=33337.3 eAR_last=0eAR_prev=0 lAR_last=1492.02 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #22 (t=1,s=3) px=(259,78) lcw=7.59713 lc=7.76315 w=0.978614 d2=16.8015 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.021853 directPath=0 okL=1 okE=1 | eAF_last=33817 eAR_last=0 eAR_prev=0 lAR_last=1491.92 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #23 (t=1,s=3) px=(259,78) lcw=7.56504 lc=7.69908 w=0.98259 d2=16.8016 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0177185 directPath=0 okL=1 okE=1 | eAF_last=29603.9 eAR_last=0eAR_prev=0 lAR_last=1491.91 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #24 (t=1,s=3) px=(259,78) lcw=7.55589 lc=7.65459 w=0.987107 d2=16.8002 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0130617 directPath=0 okL=1 okE=1 | eAF_last=35501.7 eAR_last=0 eAR_prev=0 lAR_last=1492.09 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #25 (t=1,s=3) px=(259,78) lcw=7.55147 lc=7.73461 w=0.976323 d2=16.8004 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0242516 directPath=0 okL=1 okE=1 | eAF_last=30171.9 eAR_last=0 eAR_prev=0 lAR_last=1492.05 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #26 (t=1,s=3) px=(259,77) lcw=7.5458 lc=7.69543 w=0.980557 d2=16.8006 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0198288 directPath=0 okL=1 okE=1 | eAF_last=29264.2 eAR_last=0eAR_prev=0 lAR_last=1492.06 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #27 (t=1,s=3) px=(259,77) lcw=7.50311 lc=7.60479 w=0.986629 d2=16.8017 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0135527 directPath=0 okL=1 okE=1 | eAF_last=30831.1 eAR_last=0 eAR_prev=0 lAR_last=1491.91 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #28 (t=1,s=3) px=(259,77) lcw=7.49286 lc=7.58525 w=0.987819 d2=16.8021 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0123315 directPath=0 okL=1 okE=1 | eAF_last=35707.8 eAR_last=0 eAR_prev=0 lAR_last=1491.87 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #29 (t=1,s=3) px=(259,78) lcw=7.47741 lc=7.58562 w=0.985735 d2=16.8001 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0144718 directPath=0 okL=1 okE=1 | eAF_last=30079.8 eAR_last=0 eAR_prev=0 lAR_last=1492.11 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #30 (t=1,s=3) px=(259,77) lcw=7.47481 lc=7.59337 w=0.984385 d2=16.8028 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0158623 directPath=0 okL=1 okE=1 | eAF_last=30633.3 eAR_last=0 eAR_prev=0 lAR_last=1491.75 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #31 (t=1,s=3) px=(259,77) lcw=7.47297 lc=7.57863 w=0.986058 d2=16.8006 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0141395 directPath=0 okL=1 okE=1 | eAF_last=33185.8 eAR_last=0 eAR_prev=0 lAR_last=1492.05 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #32 (t=1,s=2) px=(249,101) lcw=7.46587 lc=15411.3 w=0.00048444 d2=16.0933 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=2063.24 directPath=0 okL=1 okE=1 | eAF_last=30953.5 eAR_last=0 eAR_prev=0 lAR_last=30167.1 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #33 (t=1,s=3) px=(259,78) lcw=7.45366 lc=7.56261 w=0.985594 d2=16.8024 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0146169 directPath=0 okL=1 okE=1 | eAF_last=33008.4 eAR_last=0 eAR_prev=0 lAR_last=1491.79 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #34 (t=1,s=3) px=(259,77) lcw=7.44249 lc=7.734 w=0.962309 d2=16.8019 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0391674 directPath=0 okL=1 okE=1 | eAF_last=32398.9 eAR_last=0 eAR_prev=0 lAR_last=1491.87 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #35 (t=1,s=3) px=(259,77) lcw=7.43535 lc=7.60627 w=0.977529 d2=16.8017 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.022988 directPath=0 okL=1 okE=1 | eAF_last=30887.3 eAR_last=0eAR_prev=0 lAR_last=1491.92 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #36 (t=1,s=3) px=(259,77) lcw=7.42974 lc=7.53573 w=0.985936 d2=16.8028 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0142651 directPath=0 okL=1 okE=1 | eAF_last=31952.7 eAR_last=0 eAR_prev=0 lAR_last=1491.76 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #37 (t=1,s=3) px=(259,77) lcw=7.42708 lc=7.54063 w=0.984941 d2=16.8027 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.015289 directPath=0 okL=1 okE=1 | eAF_last=32053.5 eAR_last=0eAR_prev=0 lAR_last=1491.78 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #38 (t=1,s=3) px=(259,77) lcw=7.41402 lc=7.6193 w=0.973058 d2=16.8033 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0276877 directPath=0 okL=1 okE=1 | eAF_last=34152.3 eAR_last=0eAR_prev=0 lAR_last=1491.68 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #39 (t=1,s=3) px=(259,77) lcw=7.40859 lc=8.09377 w=0.915344 d2=16.8028 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.092485 directPath=0 okL=1 okE=1 | eAF_last=30803 eAR_last=0 eAR_prev=0 lAR_last=1491.76 lAR_prev=0 pdfLD=7.97456
+[lux2 WARNING] BDPT firefly #40 (t=1,s=3) px=(259,77) lcw=7.3987 lc=7.66634 w=0.96509 d2=16.8001 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0361732 directPath=0 okL=1 okE=1 | eAF_last=33439.2 eAR_last=0 eAR_prev=0 lAR_last=1492.15 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #41 (t=1,s=3) px=(259,78) lcw=7.39142 lc=7.51482 w=0.983579 d2=16.8018 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0166953 directPath=0 okL=1 okE=1 | eAF_last=38380.5 eAR_last=0 eAR_prev=0 lAR_last=1491.88 lAR_prev=0 pdfLD=7.97456
+[lux2 WARNING] BDPT firefly #42 (t=1,s=3) px=(259,77) lcw=7.37745 lc=7.51584 w=0.981587 d2=16.8036 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0187581 directPath=0 okL=1 okE=1 | eAF_last=35739 eAR_last=0 eAR_prev=0 lAR_last=1491.65 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #43 (t=1,s=3) px=(259,78) lcw=7.37728 lc=7.53564 w=0.978986 d2=16.801 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0214654 directPath=0 okL=1 okE=1 | eAF_last=31049.5 eAR_last=0eAR_prev=0 lAR_last=1491.98 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #44 (t=1,s=3) px=(259,77) lcw=7.37298 lc=7.68373 w=0.959557 d2=16.8008 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.042147 directPath=0 okL=1 okE=1 | eAF_last=29573.5 eAR_last=0eAR_prev=0 lAR_last=1492.04 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #45 (t=1,s=3) px=(259,78) lcw=7.3689 lc=7.51248 w=0.980888 d2=16.8029 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0194846 directPath=0 okL=1 okE=1 | eAF_last=33484.1 eAR_last=0eAR_prev=0 lAR_last=1491.74 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #46 (t=1,s=3) px=(259,77) lcw=7.35885 lc=7.49097 w=0.982362 d2=16.8022 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0179542 directPath=0 okL=1 okE=1 | eAF_last=33500.3 eAR_last=0 eAR_prev=0 lAR_last=1491.83 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #47 (t=1,s=3) px=(259,77) lcw=7.35818 lc=7.50883 w=0.979937 d2=16.8019 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0204739 directPath=0 okL=1 okE=1 | eAF_last=36823.1 eAR_last=0 eAR_prev=0 lAR_last=1491.88 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #48 (t=1,s=3) px=(259,77) lcw=7.3446 lc=7.50894 w=0.978115 d2=16.8006 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0223749 directPath=0 okL=1 okE=1 | eAF_last=30438.1 eAR_last=0eAR_prev=0 lAR_last=1492.06 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #49 (t=1,s=3) px=(259,77) lcw=7.32747 lc=7.43542 w=0.985483 d2=16.8019 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0147313 directPath=0 okL=1 okE=1 | eAF_last=38001.2 eAR_last=0 eAR_prev=0 lAR_last=1491.89 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #50 (t=1,s=3) px=(259,77) lcw=7.32596 lc=7.55234 w=0.970026 d2=16.8021 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0309005 directPath=0 okL=1 okE=1 | eAF_last=31099.2 eAR_last=0 eAR_prev=0 lAR_last=1491.85 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #51 (t=1,s=3) px=(259,78) lcw=7.32028 lc=7.7402 w=0.945749 d2=16.8012 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0573632 directPath=0 okL=1 okE=1 | eAF_last=31209.8 eAR_last=0eAR_prev=0 lAR_last=1491.97 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #52 (t=1,s=3) px=(259,78) lcw=7.31902 lc=7.4666 w=0.980234 d2=16.8012 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0201642 directPath=0 okL=1 okE=1 | eAF_last=33252.9 eAR_last=0eAR_prev=0 lAR_last=1491.96 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #53 (t=1,s=3) px=(259,77) lcw=7.3078 lc=7.50444 w=0.973796 d2=16.8011 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.026909 directPath=0 okL=1 okE=1 | eAF_last=32187.7 eAR_last=0 eAR_prev=0 lAR_last=1492 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #54 (t=1,s=3) px=(259,77) lcw=7.30676 lc=7.63977 w=0.956412 d2=16.8022 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0455748 directPath=0 okL=1 okE=1 | eAF_last=32450.3 eAR_last=0 eAR_prev=0 lAR_last=1491.84 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #55 (t=1,s=2) px=(273,91) lcw=7.29533 lc=9.28681 w=0.785558 d2=16.7906 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.27298 directPath=0 okL=1 okE=1 | eAF_last=33326.4 eAR_last=0 eAR_prev=0 lAR_last=1421.26 lAR_prev=0 pdfLD=0
+[lux2 WARNING] BDPT firefly #56 (t=1,s=3) px=(259,77) lcw=7.29342 lc=7.4503 w=0.978943 d2=16.8003 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0215102 directPath=0 okL=1 okE=1 | eAF_last=36355.4 eAR_last=0eAR_prev=0 lAR_last=1492.12 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #57 (t=1,s=3) px=(259,77) lcw=7.29085 lc=7.52229 w=0.969233 d2=16.8002 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0317434 directPath=0 okL=1 okE=1 | eAF_last=34991.8 eAR_last=0 eAR_prev=0 lAR_last=1492.1 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #58 (t=1,s=3) px=(259,78) lcw=7.28944 lc=7.58748 w=0.96072 d2=16.8 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0408864 directPath=0 okL=1 okE=1 | eAF_last=31525.5 eAR_last=0 eAR_prev=0 lAR_last=1492.11 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #59 (t=1,s=3) px=(259,77) lcw=7.2782 lc=7.66159 w=0.949959 d2=16.8003 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0526771 directPath=0 okL=1 okE=1 | eAF_last=33044.9 eAR_last=0eAR_prev=0 lAR_last=1492.1 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #60 (t=1,s=3) px=(259,77) lcw=7.27504 lc=7.93148 w=0.917236 d2=16.8013 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0902315 directPath=0 okL=1 okE=1 | eAF_last=35738.1 eAR_last=0 eAR_prev=0 lAR_last=1491.98 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #61 (t=1,s=3) px=(259,77) lcw=7.26557 lc=7.36108 w=0.987025 d2=16.8019 | base=1dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0131458 directPath=0 okL=1 okE=1 | eAF_last=38846 eAR_last=0 eAR_prev=0 lAR_last=1491.89 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #62 (t=1,s=3) px=(259,77) lcw=7.25421 lc=7.47376 w=0.970624 d2=16.8 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0302647 directPath=0 okL=1 okE=1 | eAF_last=33936.9 eAR_last=0 eAR_prev=0 lAR_last=1492.16 lAR_prev=0 pdfLD=7.97455
+[lux2 WARNING] BDPT firefly #63 (t=1,s=3) px=(259,77) lcw=7.24098 lc=7.77968 w=0.930756 d2=16.801 | base=1 dirOrigin=0 hitLightAlt=0 lightExt=0 eyeExt=0.0743949 directPath=0 okL=1 okE=1 | eAF_last=38992.5 eAR_last=0eAR_prev=0 lAR_last=1491.99 lAR_prev=0 pdfLD=7.97456
+lux2: 100% rendering done [8 threads] 00:03:08
+[WFSTAT] ===== wavefront connection stats =====
+[WFSTAT] genPairs=134217721 misCalls=220595507 misIters/call=3.13
+[WFSTAT] MIS live-lane mean i=0.94 j=2.04 (max-vs-mean waste ~5%)
+[WFSTAT] nE hist: 1:19147628 2:24704048 3:14856350 4:41575343 5:19904270 6:7944905 7:3366169 8:2719008
+[WFSTAT] nL hist: 1:15945243 2:19257955 3:14603232 4:84411291
+[WFSTAT] nE*nL hist (log2 buckets): 1:2273296 2:5684626 3:24375371 4:30372994 5:48527635 6:22983799
+[WFSTAT] WeightPathV iMax hist: 0:77743357 1:67194446 2:44063398 3:31316474 4:277832
+[WFSTAT] WeightPathV jMax hist: 0:2206847 1:97016615 2:50625949 3:40326892 4:30419204
+[WFSTAT] LoadVertex[Gen] calls=275102372 lanes=2194474684 meanLanes=7.98
+[WFSTAT] LoadVertex[NEE] calls=42610634 lanes=337714473 meanLanes=7.93
+[WFSTAT] LoadVertex[Cam] calls=54948221 lanes=435916013 meanLanes=7.93
+[WFSTAT] LoadVertex[CamNee] calls=0 lanes=0 meanLanes=0.00
+[WFSTAT] LoadVertex[Other] calls=0 lanes=0 meanLanes=0.00
+[WFSTAT] genSteps=137551186 genPackets=137551186 steps/packet=1.00 meanLiveLanes=7.98
+[WFSTAT] gen steps/packet hist: 1:137551186
+[WFSTAT] dispatch[NEE] packets=42610634 meanFill=7.93 partial=1.9%
+[WFSTAT]   fill hist: 1:113200 2:113338 3:113477 4:112797 5:113165 6:113360 7:113383 8:41817914
+[WFSTAT] dispatch[CamNee] packets=16777216 meanFill=8.00 partial=0.0%
+[WFSTAT]   fill hist: 8:16777216
+[WFSTAT] dispatch[Gen] packets=137551186 meanFill=7.98 partial=0.6%
+[WFSTAT]   fill hist: 1:113296 2:113282 3:113152 4:113673 5:113236 6:113008 7:113206 8:136758333
+[WFSTAT] dispatch[Cam] packets=54948221 meanFill=7.93 partial=1.7%
+[WFSTAT]   fill hist: 1:131236 2:130853 3:131334 4:130754 5:131073 6:131118 7:130844 8:54031009
+[WFSTAT] walker[Eye] steps=53379282 meanAlive=7.68 meanFreeSlots=98.1 noFreeSlot=0.0%
+[WFSTAT]   alive hist: 1:1090811 2:582414 3:447087 4:398039 5:386482 6:383333 7:385017 8:49706099
+[WFSTAT] walker[Light] steps=61182092 meanAlive=7.12 meanFreeSlots=95.8 noFreeSlot=0.0%
+[WFSTAT]   alive hist: 1:1253979 2:959906 3:1009208 4:1600823 5:3112186 6:5399845 7:7434222 8:40411923
+[WFSTAT] loop iterations=382126069: retire=4.1% dispatch=63.6% walker=30.0% stall-flush=2.3% starve-walk=0.0%
+[WFSTAT] census n=1048576 free=128.0 eyeWalk=0.0 waitLight=0.0 lightWalk=0.0 pendOnly=0.0 retireQ=0.0 | qNee=0.0 qCamNee=0.0 qGen=0.0 qCam=0.0
+[WFSTAT] lightKilledLanes=0 leakedSlots=0 (both must be 0) splatted=134217728
+[WFSTAT] lightRefills=71036225 meanDeadLanes=1.89
+[WFSTAT]   refill dead-lane hist: 1:12526818 2:18661982 3:14718196 4:6630389 5:1897474 6:401562 7:76124 8:157649
+[WFSTAT] joint nE x nL (steps=(nE-1)*nL):
+[WFSTAT]   nE= 1: 1:2273296 2:2747567 3:2083196 4:12043569
+[WFSTAT]   nE= 2: 1:2937059 2:3545394 3:2694365 4:15527230
+[WFSTAT]   nE= 3: 1:1763684 2:2297031 3:1579146 4:9216489
+[WFSTAT]   nE= 4: 1:4939528 2:5822692 3:4616296 4:26196827
+[WFSTAT]   nE= 5: 1:2364058 2:2842295 3:2073606 4:12624311
+[WFSTAT]   nE= 6: 1:944489 2:1132568 3:888042 4:4979806
+[WFSTAT]   nE= 7: 1:399637 2:481563 3:369332 4:2115637
+[WFSTAT]   nE= 8: 1:323492 2:388845 3:299249 4:1707422
+[WFSTAT] phase time (sum=1234.15s): eyeRefill=4.1% eyeAdvance=11.8% lightRefill=7.9% lightAdvance=16.3% doneRoute=4.2% retire=0.9% Gen=26.0% NEE=9.0% CamNee=0.8% Cam=10.4% SCHED=8.6%
+[WFSTAT] loop wall=1477.65s (unaccounted=16.5% of loop)

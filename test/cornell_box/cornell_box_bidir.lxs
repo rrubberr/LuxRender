@@ -9,15 +9,14 @@ Sampler "lowdiscrepancy"
 Accelerator "embree"
 
 SurfaceIntegrator "bidirectional"
-	"integer eyedepth" [8]
-	"integer lightdepth" [4]
+	"integer eyedepth" [32]
+	"integer lightdepth" [16]
 	"integer lightraycount" [1]
 	"float eyerrthreshold" [0.000000000000000]
 	"float lightrrthreshold" [0.000000000000000]
 	"string lightpathstrategy" ["auto"]
 	"integer shadowraycount" [1]
-	"string lightstrategy" ["auto"]
-	"bool uset1" ["true"]
+	"string lightstrategy" ["one"]
 
 VolumeIntegrator "none"
 
@@ -84,8 +83,8 @@ AreaLightSource "area"
 	"float importance" [1.000000000000000]
 	"color L" [1.00000000 1.00000000 1.00000000]
 	"bool flipz" ["true"]
-	"float power" [0.000000000000000]
-	"float efficacy" [0.000000000000000]
+	"float power" [100.000000000000000]
+	"float efficacy" [17.000000000000000]
 	"float gain" [1.000000000000000]
 	"integer nsamples" [1]
 

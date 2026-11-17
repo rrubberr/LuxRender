@@ -51,9 +51,14 @@ namespace lux2
             MaskP ok;              // geometrically valid proposal was written
             Int32P spanLo, spanHi; // vertex records written (resync span), incl. wb patches
             Int32P winLo, winHi;   // evaluator window (vertex terms)
+            Int32P firstEdge;      // edges with index < firstEdge drop their
+                                   // geometric g (Jacobian cancelled by the
+                                   // mutation); Tr and the degenerate guard
+                                   // stay. 0 = drop nothing.
             FloatP tRatio;         // T(y->x) / T(x->y), area measure
             MutationResult()
-                : ok(false), spanLo(0), spanHi(0), winLo(0), winHi(0), tRatio(1.f)
+                : ok(false), spanLo(0), spanHi(0), winLo(0), winHi(0),
+                  firstEdge(0), tRatio(1.f)
             {
             }
         };

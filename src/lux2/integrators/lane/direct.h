@@ -112,8 +112,8 @@ namespace lux2
         r.pdfL = r.pdfPos * pSel;
         // Stop short of a finite emitter to prevent double counting.
         r.tmax = enoki::select(infF > FloatP(0.5f), FloatP(INF_F),
-                               r.dist - enoki::max(FloatP(1e-3f),
-                                                   FloatP(1e-3f) * r.dist));
+                               r.dist - enoki::max(FloatP(EPS_SHADOW_GAP),
+                                                   FloatP(EPS_SHADOW_GAP) * r.dist));
         return r;
     }
 

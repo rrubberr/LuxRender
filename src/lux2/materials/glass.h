@@ -88,6 +88,13 @@ namespace lux2
                   TransportMode mode, BSDFEvalP *out,
                   MaskP active) const override;
 
+        // Delta step for ERPT specularreplay.
+        void SpecularStep(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
+                          const DifferentialGeometryP &dg,
+                          const UInt32P &lobeType, TransportMode mode,
+                          Vector3fP *wi, SWCSpectrumP *R,
+                          MaskP active) const override;
+
         static std::shared_ptr<Material> CreateMaterial(const PluginContext &ctx);
 
     private:

@@ -633,8 +633,6 @@ namespace lux2
         const float lightRR = p ? p->FindOneFloat("lightrrthreshold", 0.f) : 0.f;
         const bool debug = p ? p->FindOneBool("debug", false) : false;
         DiagConfig cfg;
-        cfg.onlyS = p ? p->FindOneInt("onlys", -1) : -1;
-        cfg.onlyT = p ? p->FindOneInt("onlyt", -1) : -1;
         cfg.noMis = p ? p->FindOneBool("nomis", false) : false;
         cfg.misPower = p ? p->FindOneFloat("mispower", 2.f) : 2.f;
         cfg.diag = p ? p->FindOneBool("diag", false) : false;
@@ -650,8 +648,6 @@ namespace lux2
         const int wfHighWater = p ? p->FindOneInt("wf_highwater", 0) : 0;
         // -1 = dispatch full packets only.
         const int wfMinFill = p ? p->FindOneInt("wf_minfill", -1) : -1;
-        if (p)
-            p->EraseString("mismode");
         return std::make_shared<BidirIntegrator>(
             eyeDepth, lightDepth, maxDepth, eyeRR, lightRR, debug, cfg,
             lightStrategy, lightPathStrategy, wfSamples, wfLightPool,

@@ -1,0 +1,29 @@
+# Materials File
+
+MakeNamedMaterial "Glass"
+	"bool architectural" ["false"]
+	"float cauchyb" [0.000000000000000]
+	"float film" [0.000000000000000]
+	"float filmindex" [1.333299994468689]
+	"float index" [1.460000038146973]
+	"color Kr" [0.69999999 0.69999999 0.69999999]
+	"color Kt" [1.00000000 1.00000000 1.00000000]
+	"string type" ["glass"]
+
+MakeNamedMaterial "White"
+	"color Kd" [0.44798833 0.44798833 0.44798833]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Red"
+	"color Kd" [0.44798833 0.03630545 0.03630545]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Green"
+	"color Kd" [0.07726244 0.44798833 0.03630617]
+	"float sigma" [0.000000000000000]
+	"string type" ["matte"]
+
+MakeNamedMaterial "Area"
+	"string type" ["null"]

@@ -204,14 +204,16 @@ namespace lux2
                 const Point3fP shadowO = OffsetRay(E.p, E.dg.ng, ewi, FloatP(EPS_RAY));
                 const FloatP dist = enoki::sqrt(d2);
                 const FloatP tmax =
-                    dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
+                    dist - enoki::max(FloatP(EPS_SHADOW_GAP),
+                                      FloatP(EPS_SHADOW_GAP) * dist);
                 const UInt32P startMed = StartMedium(E, ewi);
                 const ShadowRng rng{seed, sampleIdx, t, Int32P(0),
                                     ConnKey(slot, t, s), BDPT_CONN_SALT};
                 const Occlusion oc =
                     Occlude(c.shadow, shadowO, ewi, startMed, tmax, sw, rng, preCont);
                 const SWCSpectrumP Tr = oc.Tr;
-                const MaskP cont = oc.ok;
+                // Degenerate connection!
+                const MaskP cont = oc.ok && (tmax > FloatP(0.f));
                 if (!any(cont))
                     return;
                 const SWCSpectrumP Lc = Lc0 * divp(FloatP(1.f), d2) * Tr;
@@ -284,9 +286,24 @@ namespace lux2
                 Breakdown bd;
                 const PoolView eyeV{&eyePs, ePath};
                 const PoolView lightV{&lightPs, lPath};
+#ifdef LUX2_INTEGRATOR_DEBUG
                 const FloatP w = divp(
                     FloatP(1.f),
-                    WeightPathV(c, eyeV, t, lightV, s, tr, cont));
+                    WeightPathV(c, eyeV, t, lightV, s, tr, cont, &bd));
+#else
+                const FloatP w = divp(
+                    FloatP(1.f), WeightPathV(c, eyeV, t, lightV, s, tr, cont));
+#endif
+#ifdef LUX2_INTEGRATOR_DEBUG
+                {
+                    TransientSnap snap = MakeTransientSnap(tr);
+                    BidirRecordFirefly(
+                        c.diag, c.cfg.threshold,
+                        enoki::gather<FloatP>(tbl.x.data(), sample, cont),
+                        enoki::gather<FloatP>(tbl.y.data(), sample, cont), cont,
+                        Lc, w, d2, s, t, &bd, &snap);
+                }
+#endif
                 if (c.seedSink)
                 {
                     SeedRec sr;
@@ -448,9 +465,26 @@ namespace lux2
                 Breakdown bd;
                 const PoolView eyeV{&eyePs, ePath};
                 const Virtual1 lightV{pLP * divp(FloatP(1.f), area)};
+#ifdef LUX2_INTEGRATOR_DEBUG
+                const FloatP w =
+                    divp(FloatP(1.f),
+                         WeightPathV(c, eyeV, t, lightV, Int32P(1), tr, cont,
+                                     &bd));
+#else
                 const FloatP w =
                     divp(FloatP(1.f),
                          WeightPathV(c, eyeV, t, lightV, Int32P(1), tr, cont));
+#endif
+#ifdef LUX2_INTEGRATOR_DEBUG
+                {
+                    TransientSnap snap = MakeTransientSnap(tr);
+                    BidirRecordFirefly(
+                        c.diag, c.cfg.threshold,
+                        enoki::gather<FloatP>(tbl.x.data(), sample, cont),
+                        enoki::gather<FloatP>(tbl.y.data(), sample, cont), cont,
+                        Lc, w, d2, Int32P(1), t, &bd, &snap);
+                }
+#endif
                 if (c.seedSink)
                 {
                     SeedRec sr;
@@ -611,10 +645,24 @@ namespace lux2
                 Breakdown bd;
                 const NullView eyeV;
                 const Virtual1 lightV{pLP * divp(FloatP(1.f), area)};
+#ifdef LUX2_INTEGRATOR_DEBUG
+                const FloatP w =
+                    divp(FloatP(1.f),
+                         WeightPathV(c, eyeV, Int32P(1), lightV, Int32P(1), tr,
+                                     cont, &bd));
+#else
                 const FloatP w =
                     divp(FloatP(1.f),
                          WeightPathV(c, eyeV, Int32P(1), lightV, Int32P(1), tr,
                                      cont));
+#endif
+#ifdef LUX2_INTEGRATOR_DEBUG
+                {
+                    TransientSnap snap = MakeTransientSnap(tr);
+                    BidirRecordFirefly(c.diag, c.cfg.threshold, px, py, cont, Lc,
+                                       w, d2, Int32P(1), Int32P(1), &bd, &snap);
+                }
+#endif
                 if (c.seedSink)
                 {
                     SeedRec sr;
@@ -724,14 +772,16 @@ namespace lux2
 
                 const FloatP dist = enoki::sqrt(d2);
                 const FloatP tmax =
-                    dist - enoki::max(FloatP(1e-3f), FloatP(1e-3f) * dist);
+                    dist - enoki::max(FloatP(EPS_SHADOW_GAP),
+                                      FloatP(EPS_SHADOW_GAP) * dist);
                 const ShadowRng rng{seed, sampleIdx, Int32P(0), Int32P(0),
                                     ConnKey(slot, Int32P(1), s),
                                     BDPT_CONN_SALT};
                 const Occlusion oc = Occlude(c.shadow, E0, ewi, c.cameraMediumID,
                                              tmax, sw, rng, preCont);
                 const SWCSpectrumP Tr = oc.Tr;
-                const MaskP cont = oc.ok;
+                // Degenerate connection!
+                const MaskP cont = oc.ok && (tmax > FloatP(0.f));
                 if (!any(cont))
                     return;
                 const SWCSpectrumP Lc = Lc0 * divp(FloatP(1.f), d2) * Tr;
@@ -785,9 +835,26 @@ namespace lux2
                 Breakdown bd;
                 const NullView eyeV;
                 const PoolView lightV{&lightPs, lPath};
+#ifdef LUX2_INTEGRATOR_DEBUG
+                const FloatP w =
+                    divp(FloatP(1.f),
+                         WeightPathV(c, eyeV, Int32P(1), lightV, s, tr, cont,
+                                     &bd));
+#else
                 const FloatP w =
                     divp(FloatP(1.f),
                          WeightPathV(c, eyeV, Int32P(1), lightV, s, tr, cont));
+#endif
+#ifdef LUX2_INTEGRATOR_DEBUG
+                {
+                    TransientSnap snap = MakeTransientSnap(tr);
+                    const LightChainSnap chain =
+                        LoadDiagLightChain(lightPs, lPath, s, cont);
+                    BidirRecordFirefly(c.diag, c.cfg.threshold, px, py, cont, Lc,
+                                       w, d2, s, Int32P(1), &bd, &snap, lfv, We,
+                                       &chain);
+                }
+#endif
                 if (c.seedSink)
                 {
                     SeedRec sr;

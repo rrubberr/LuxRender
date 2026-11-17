@@ -46,6 +46,27 @@ namespace lux2
               lightExt(0.f), eyeExt(0.f), directPath(0.f) {}
     };
 
+    // Join vertex density snapshot for firefly diagnosis.
+    struct TransientSnap
+    {
+        FloatP eAF_last, eAR_last, eAR_prev;
+        FloatP lAR_last, lAR_prev;
+        FloatP pdfLightDirect;
+    };
+
+    // Vertex chain snapshot for firefly diagnosis.
+    struct LightChainSnap
+    {
+        static constexpr int kMax = 16;
+        FloatP flux[kMax];   // per vertex throughput luma (beta.Y())
+        UInt32P matID[kMax]; // material id at each vertex
+        UInt32P spec[kMax];  // sampled lobe specular/delta bit
+        // Glass diagnostic terms captured at specular samples.
+        FloatP cosi[kMax], cost[kMax], nng[kMax], st[kMax], wsel[kMax],
+            fval[kMax];
+        Int32P len; // per-lane chain length (== s)
+    };
+
 #ifdef LUX2_INTEGRATOR_DEBUG
 
     // One (nE,nL) ghost connection cell.
@@ -71,6 +92,22 @@ namespace lux2
             float base = 0.f, directOrigin = 0.f, hitLightAlt = 0.f;
             float lightExt = 0.f, eyeExt = 0.f, directPath = 0.f;
             bool okLight = false, okEye = false;
+            // Join-vertex densities forward/reverse area pdfs at
+            // the vertices adjacent to the join.
+            float eAF_last = 0.f, eAR_last = 0.f, eAR_prev = 0.f;
+            float lAR_last = 0.f, lAR_prev = 0.f, pdfLightDirect = 0.f;
+            // Per light vertex chain the join factors split out and
+            // the lightpath flux/matID/specular sequence that produced Lc.
+            static constexpr int kMaxChain = 16;
+            float lfv = 0.f, we = 0.f;
+            float fluxSeq[kMaxChain] = {};
+            uint16_t matSeq[kMaxChain] = {};
+            uint8_t specSeq[kMaxChain] = {};
+            // Per vertex glass terms at specular samples (0 elsewhere).
+            float cosiSeq[kMaxChain] = {}, costSeq[kMaxChain] = {};
+            float nngSeq[kMaxChain] = {}, stSeq[kMaxChain] = {};
+            float wSeq[kMaxChain] = {}, fSeq[kMaxChain] = {};
+            int chainLen = 0;
         };
         // Min heap on lcw.
         std::vector<Firefly> top;
@@ -107,12 +144,16 @@ namespace lux2
                          const FloatP &w, const UInt32P &flags, int nE,
                          int nL);
 
-    // Record contributions above the firefly threshold.
+    // Record contributions above the firefly threshold. s/t are per-lane
+    // connection counts (a wavefront packet mixes (s,t) across lanes).
     void BidirRecordFirefly(BidirDiagLocal *dl, float threshold,
                             const FloatP &x, const FloatP &y, MaskP cont,
                             const SWCSpectrumP &Lc, const FloatP &w,
-                            const FloatP &d2, int s, int t,
-                            const Breakdown *bd);
+                            const FloatP &d2, const Int32P &s, const Int32P &t,
+                            const Breakdown *bd, const TransientSnap *ts,
+                            const FloatP &lfv = FloatP(0.f),
+                            const FloatP &we = FloatP(0.f),
+                            const LightChainSnap *chain = nullptr);
 
     // Flush the store's tallies and firefly heap to the log.
     void BidirEndDump(const BidirDiagStore &store, float threshold);
@@ -253,8 +294,11 @@ namespace lux2
     }
     inline void BidirRecordFirefly(BidirDiagLocal *, float, const FloatP &,
                                    const FloatP &, MaskP, const SWCSpectrumP &,
-                                   const FloatP &, const FloatP &, int, int,
-                                   const Breakdown *)
+                                   const FloatP &, const FloatP &, const Int32P &,
+                                   const Int32P &, const Breakdown *,
+                                   const TransientSnap *, const FloatP & = FloatP(0.f),
+                                   const FloatP & = FloatP(0.f),
+                                   const LightChainSnap * = nullptr)
     {
     }
     inline void BidirEndDump(const BidirDiagStore &, float) {}

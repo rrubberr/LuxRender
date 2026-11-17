@@ -184,6 +184,58 @@ namespace lux2
             return v;
         }
 
+ #ifdef LUX2_INTEGRATOR_DEBUG
+        // Gather the per light vertex flux-luma / matID / specular-bit chain
+        // for firefly diagnosis.
+        inline LightChainSnap LoadDiagLightChain(const PathStore &ps,
+                                                 const UInt32P &path,
+                                                 const Int32P &len,
+                                                 const MaskP &act)
+        {
+            LightChainSnap snap;
+            snap.len = len;
+            const uint32_t *gb = ps.arena->geomWords.data();
+            const uint32_t *mb = ps.arena->misWords.data();
+            const uint32_t *db = ps.arena->diagWords.data();
+            for (int v = 0; v < LightChainSnap::kMax; ++v)
+            {
+                const MaskP vm = act && (Int32P(v) < len);
+                const UInt32P rec = RecIdx(ps, path, Int32P(v), vm);
+                snap.cosi[v] = reinterpret_array<FloatP>(
+                    LoadWord(db, RecWord<DIAG_WORDS>(rec, 0u), vm));
+                snap.cost[v] = reinterpret_array<FloatP>(
+                    LoadWord(db, RecWord<DIAG_WORDS>(rec, 1u), vm));
+                snap.nng[v] = reinterpret_array<FloatP>(
+                    LoadWord(db, RecWord<DIAG_WORDS>(rec, 2u), vm));
+                snap.st[v] = reinterpret_array<FloatP>(
+                    LoadWord(db, RecWord<DIAG_WORDS>(rec, 3u), vm));
+                snap.wsel[v] = reinterpret_array<FloatP>(
+                    LoadWord(db, RecWord<DIAG_WORDS>(rec, 4u), vm));
+                snap.fval[v] = reinterpret_array<FloatP>(
+                    LoadWord(db, RecWord<DIAG_WORDS>(rec, 5u), vm));
+                const FloatP fx = reinterpret_array<FloatP>(
+                    LoadWord(gb, RecWord<GEOM_WORDS>(rec, kWord_flux), vm));
+                const FloatP fy = reinterpret_array<FloatP>(
+                    LoadWord(gb, RecWord<GEOM_WORDS>(rec, kWord_flux + 1), vm));
+                const FloatP fz = reinterpret_array<FloatP>(
+                    LoadWord(gb, RecWord<GEOM_WORDS>(rec, kWord_flux + 2), vm));
+                // Rec.709 luma of the stored flux.
+                snap.flux[v] = select(
+                    vm, fmadd(FloatP(0.212671f), fx,
+                              fmadd(FloatP(0.715160f), fy,
+                                    FloatP(0.072169f) * fz)),
+                    FloatP(0.f));
+                snap.matID[v] =
+                    LoadWord(gb, RecWord<GEOM_WORDS>(rec, kWord_matID), vm) &
+                    UInt32P(0xFFFFu);
+                snap.spec[v] =
+                    LoadWord(mb, RecWord<MIS_WORDS>(rec, kWord_bits), vm) &
+                    UInt32P(1u);
+            }
+            return snap;
+        }
+#endif
+
         // Medium a ray leaves vertex v into, given the leaving direction.
         inline UInt32P StartMedium(const VertexData &v, const Vector3fP &dir)
         {

@@ -169,8 +169,6 @@ namespace lux2
         int eyeDepth = std::min(I("eyedepth", 8), MAX_DEPTH);
         int lightDepth = std::min(I("lightdepth", 8), MAX_DEPTH);
         DiagConfig cfg;
-        cfg.onlyS = I("onlys", -1);
-        cfg.onlyT = I("onlyt", -1);
         cfg.noMis = B("nomis", false);
         cfg.misPower = F("mispower", 2.f);
         cfg.diag = B("diag", false);
@@ -197,8 +195,6 @@ namespace lux2
         // Smoothing kernel radius.
         o.smoothRadius = I("smoothradius", 4);
 
-        if (p)
-            p->EraseString("mismode");
         return std::make_shared<ERPTIntegrator>(
             o, eyeDepth, lightDepth, I("maxdepth", -1), F("eyerrthreshold", 0.f),
             F("lightrrthreshold", 0.f), B("debug", false), cfg,

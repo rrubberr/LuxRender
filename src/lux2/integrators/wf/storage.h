@@ -418,11 +418,19 @@ namespace lux2
                       "geom record must be cache-line aligned");
         static_assert(MIS_WORDS_TOTAL * 4 == 32, "mis record must be 32 B");
 
+#ifdef LUX2_INTEGRATOR_DEBUG
+        // Glass diagnostic words.
+        constexpr uint32_t DIAG_WORDS = 8;
+#endif
+
         // Vertex arena.
         struct BlockArena
         {
             HugeVector<uint32_t> geomWords; // [nPaths * stride * GEOM_WORDS]
             HugeVector<uint32_t> misWords;  // [nPaths * stride * MIS_WORDS]
+#ifdef LUX2_INTEGRATOR_DEBUG
+            HugeVector<uint32_t> diagWords; // [nPaths * stride * DIAG_WORDS]
+#endif
             // Vertex records per path slot.
             uint32_t stride = PATH_STRIDE;
 
@@ -435,6 +443,10 @@ namespace lux2
                     geomWords.resize(recs * GEOM_WORDS);
                 if (misWords.size() != recs * MIS_WORDS || stride != s)
                     misWords.resize(recs * MIS_WORDS);
+#ifdef LUX2_INTEGRATOR_DEBUG
+                if (diagWords.size() != recs * DIAG_WORDS || stride != s)
+                    diagWords.resize(recs * DIAG_WORDS);
+#endif
                 stride = s;
             }
         };

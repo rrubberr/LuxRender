@@ -34,8 +34,6 @@ namespace lux2
     // Diagnostic configuration.
     struct DiagConfig
     {
-        int onlyS = -1;        // -1 = all; else keep only this light vertex count
-        int onlyT = -1;        // -1 = all; else keep only this eye vertex count (nE)
         bool noMis = false;    // w = 1 (isolates each strategy's Lc)
         float misPower = 2.f;  // exponent p in the power heuristic (0,1,2)
         bool diag = false;     // enable DiagStore tallies and firefly recorder
@@ -84,6 +82,19 @@ namespace lux2
               eRRR_last(1.f), lAR_last(0.f), lAR_prev(0.f), lRR_last(1.f),
               lRRR_last(1.f), pdfLightDirect(0.f) {}
     };
+
+    // Copy the join-vertex densities out of a Transient for firefly logging.
+    inline TransientSnap MakeTransientSnap(const Transient &tr)
+    {
+        TransientSnap s;
+        s.eAF_last = tr.eAF_last;
+        s.eAR_last = tr.eAR_last;
+        s.eAR_prev = tr.eAR_prev;
+        s.lAR_last = tr.lAR_last;
+        s.lAR_prev = tr.lAR_prev;
+        s.pdfLightDirect = tr.pdfLightDirect;
+        return s;
+    }
 
 } // namespace lux2
 

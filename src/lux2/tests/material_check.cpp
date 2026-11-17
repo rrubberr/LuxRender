@@ -398,6 +398,59 @@ void CheckGlassTIR() {
     Check(pdfOk, "glass TIR pdf == 1 (F == 1)");
 }
 
+// SpecularStep replays a known lobe deterministically for ERPT. The
+// direction must match the mirror/Snell law and R the Radiance lobe weight.
+void CheckGlassSpecularStep() {
+    auto m = MakeGlass(1.5f);
+    const DifferentialGeometryP dg = MakeDG();
+    const SpectrumWavelengthsP sw = MakeSW();
+    // Entering, mild angle so neither TIR nor grazing.
+    const Vector3fP wo =
+        enoki::normalize(Vector3fP(FloatP(0.1f), FloatP(0.f), FloatP(1.f)));
+
+    // Reflection: wi == 2(n.wo)n - wo (mirror about +z), R == F*Kr ~= 0.04*0.8.
+    Vector3fP wiR;
+    SWCSpectrumP RR;
+    m->SpecularStep(sw, wo, dg, UInt32P(uint32_t(BSDFType::SpecularReflection)),
+                    TransportMode::Radiance, &wiR, &RR, MaskP(true));
+    bool dirOk = true, rOk = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+        // Mirror about n=(0,0,1): x,y flip sign, z preserved.
+        if (std::fabs(lane(wiR.x(), i) + lane(wo.x(), i)) > 1e-4f) dirOk = false;
+        if (std::fabs(lane(wiR.z(), i) - lane(wo.z(), i)) > 1e-4f) dirOk = false;
+        if (std::fabs(lane(RR, i) - 0.032f) > 2e-3f) rOk = false;
+    }
+    Check(dirOk, "glass SpecularStep reflect wi == mirror(wo)");
+    Check(rOk, "glass SpecularStep reflect R == F*Kr ~= 0.032");
+
+    // Transmission: refracts toward +z inside (wi.z < 0), R > 0.
+    Vector3fP wiT;
+    SWCSpectrumP RT;
+    m->SpecularStep(sw, wo, dg,
+                    UInt32P(uint32_t(BSDFType::SpecularTransmission)),
+                    TransportMode::Radiance, &wiT, &RT, MaskP(true));
+    bool tDirOk = true, tROk = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+        if (!(lane(wiT.z(), i) < 0.f)) tDirOk = false; // crosses to -n
+        if (!(lane(RT, i) > 0.f)) tROk = false;
+    }
+    Check(tDirOk, "glass SpecularStep transmit refracts across the surface");
+    Check(tROk, "glass SpecularStep transmit R > 0");
+
+    // TIR: inside beyond critical angle, transmission lobe is inactive.
+    const Vector3fP woTir =
+        enoki::normalize(Vector3fP(FloatP(0.9f), FloatP(0.f), FloatP(-0.4f)));
+    Vector3fP wiX;
+    SWCSpectrumP RX;
+    m->SpecularStep(sw, woTir, dg,
+                    UInt32P(uint32_t(BSDFType::SpecularTransmission)),
+                    TransportMode::Radiance, &wiX, &RX, MaskP(true));
+    bool tirOk = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        if (!(lane(RX, i) <= 0.f)) tirOk = false;
+    Check(tirOk, "glass SpecularStep TIR -> transmission inactive");
+}
+
 } // namespace
 
 int main() {
@@ -415,6 +468,7 @@ int main() {
     CheckGlassNormal();
     CheckGlassGrazing();
     CheckGlassTIR();
+    CheckGlassSpecularStep();
 
     if (g_failures == 0) {
         std::cout << "ALL MATERIAL CHECKS PASSED\n";

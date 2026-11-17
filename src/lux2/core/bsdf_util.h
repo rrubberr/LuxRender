@@ -34,7 +34,8 @@ namespace lux2
                            const DifferentialGeometryP &dg)
     {
         const FloatP cosWo = dot(wo, dg.ng);
-        return select(abs(cosWo) < EPS_DENOM, FloatP(0.f),
+        // Lux MultiBSDF/SingleBSDF sideTest rejects with MachineEpsilon::E(1.f).
+        return select(abs(cosWo) < EPS_ONE, FloatP(0.f),
                       dot(wi, dg.ng) / cosWo);
     }
 

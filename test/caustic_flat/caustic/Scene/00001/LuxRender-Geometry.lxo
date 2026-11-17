@@ -1,0 +1,57 @@
+# Geometry File
+
+AttributeBegin #  "Icosphere"
+
+Transform [0.399999976158142 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.399999976158142 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.399999976158142 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 1.000000000000000]
+
+NamedMaterial "Glass"
+
+Shape "plymesh"
+	"string filename" ["caustic/Scene/00001/Icosphere_0000_m000.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Icosphere"]
+
+AttributeEnd # ""
+
+AttributeBegin #  "Cube"
+
+Transform [1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 0.000000000000000 0.000000000000000 0.000000000000000 1.000000000000000 1.000000000000000]
+
+AttributeBegin #  ""
+
+NamedMaterial "White"
+
+Shape "plymesh"
+	"string filename" ["caustic/Scene/00001/Cube_0000_m000.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Cube"]
+
+AttributeEnd # ""
+
+AttributeBegin #  ""
+
+NamedMaterial "Red"
+
+Shape "plymesh"
+	"string filename" ["caustic/Scene/00001/Cube_0000_m001.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Cube"]
+
+AttributeEnd # ""
+
+AttributeBegin #  ""
+
+NamedMaterial "Green"
+
+Shape "plymesh"
+	"string filename" ["caustic/Scene/00001/Cube_0000_m002.ply"]
+	"bool generatetangents" ["false"]
+	"bool generatequadrilaterals" ["false"]
+	"string name" ["Cube"]
+
+AttributeEnd # ""
+
+AttributeEnd # ""

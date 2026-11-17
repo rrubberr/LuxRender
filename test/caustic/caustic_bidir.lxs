@@ -66,7 +66,7 @@ Film "fleximage"
 	"integer writeinterval" [180]
 	"integer flmwriteinterval" [900]
 	"integer haltspp" [512]
-	"integer variancerejection_k" [10]
+	"integer variancerejection_k" [0]
 	"integer variancerejectionwarmup" [0]
 	"integer tilecount" [0]
 	"string tonemapkernel" ["autolinear"]

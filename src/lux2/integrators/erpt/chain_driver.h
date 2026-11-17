@@ -233,13 +233,15 @@ namespace lux2
                 const Int32P spanHi = select(isLens, a.spanHi, b.spanHi);
                 const Int32P winLo = select(isLens, a.winLo, b.winLo);
                 const Int32P winHi = select(isLens, a.winHi, b.winHi);
+                const Int32P firstEdge =
+                    select(isLens, a.firstEdge, b.firstEdge);
                 const FloatP tRatio = select(isLens, a.tRatio, b.tRatio);
 
                 MaskP okY(false), okX(false), pxOk(false);
                 const SWCSpectrumP Fy = EvalCanonWindow(
-                    c, m_ps, scr, n, winLo, winHi, sw, true, ok, &okY);
+                    c, m_ps, scr, n, winLo, winHi, firstEdge, sw, true, ok, &okY);
                 const SWCSpectrumP Fx = EvalCanonWindow(
-                    c, m_ps, cur, n, winLo, winHi, sw, false, ok, &okX);
+                    c, m_ps, cur, n, winLo, winHi, firstEdge, sw, false, ok, &okX);
                 FloatP qx, qy, qWe;
                 pxOk = PathPixel(c, m_ps, scr, &qx, &qy, &qWe, ok && okY);
 

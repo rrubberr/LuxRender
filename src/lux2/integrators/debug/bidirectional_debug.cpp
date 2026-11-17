@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <limits>
 #include <mutex>
+#include <string>
 #include <vector>
 
 namespace lux2
@@ -135,8 +136,10 @@ namespace lux2
     void BidirRecordFirefly(BidirDiagLocal *dl, float threshold,
                             const FloatP &x, const FloatP &y, MaskP cont,
                             const SWCSpectrumP &Lc, const FloatP &w,
-                            const FloatP &d2, int s, int t,
-                            const Breakdown *bd)
+                            const FloatP &d2, const Int32P &s, const Int32P &t,
+                            const Breakdown *bd, const TransientSnap *ts,
+                            const FloatP &lfv, const FloatP &we,
+                            const LightChainSnap *chain)
     {
         if (!dl)
             return;
@@ -154,6 +157,7 @@ namespace lux2
         alignas(64) float mags[PACKET_WIDTH], lcs[PACKET_WIDTH];
         alignas(64) float ws[PACKET_WIDTH], d2s[PACKET_WIDTH];
         alignas(64) float xs[PACKET_WIDTH], ys[PACKET_WIDTH];
+        alignas(64) int ss[PACKET_WIDTH], tsArr[PACKET_WIDTH];
         // compress() binds its destination as Mem&.
         auto cmp = [&](float *dst, const FloatP &v)
         { enoki::compress(dst, v, hit); };
@@ -164,6 +168,17 @@ namespace lux2
         cmp(d2s, d2);
         cmp(xs, x);
         cmp(ys, y);
+        {
+            alignas(64) float sBuf[PACKET_WIDTH], tBuf[PACKET_WIDTH];
+            float *psF = sBuf, *ptF = tBuf;
+            enoki::compress(psF, FloatP(s), hit);
+            enoki::compress(ptF, FloatP(t), hit);
+            for (size_t i = 0; i < c; ++i)
+            {
+                ss[i] = int(sBuf[i]);
+                tsArr[i] = int(tBuf[i]);
+            }
+        }
         // Breakdown fields are packets too.
         alignas(64) float bBase[PACKET_WIDTH], bDOrg[PACKET_WIDTH];
         alignas(64) float bHLit[PACKET_WIDTH], bLExt[PACKET_WIDTH];
@@ -180,6 +195,53 @@ namespace lux2
             cmp(bOkL, select(bd->okLight, FloatP(1.f), FloatP(0.f)));
             cmp(bOkE, select(bd->okEye, FloatP(1.f), FloatP(0.f)));
         }
+        // Join vertex densities.
+        alignas(64) float tEAF[PACKET_WIDTH], tEAR[PACKET_WIDTH],
+            tEARp[PACKET_WIDTH], tLAR[PACKET_WIDTH], tLARp[PACKET_WIDTH],
+            tPdfD[PACKET_WIDTH];
+        if (ts)
+        {
+            cmp(tEAF, ts->eAF_last);
+            cmp(tEAR, ts->eAR_last);
+            cmp(tEARp, ts->eAR_prev);
+            cmp(tLAR, ts->lAR_last);
+            cmp(tLARp, ts->lAR_prev);
+            cmp(tPdfD, ts->pdfLightDirect);
+        }
+        // Per light vertex chain matID/spec/len are integer words;
+        // compress through float like s/t above.
+        alignas(64) float cLfv[PACKET_WIDTH], cWe[PACKET_WIDTH];
+        cmp(cLfv, lfv);
+        cmp(cWe, we);
+        alignas(64) float chLenF[PACKET_WIDTH];
+        alignas(64) float chFlux[LightChainSnap::kMax][PACKET_WIDTH];
+        alignas(64) float chMat[LightChainSnap::kMax][PACKET_WIDTH];
+        alignas(64) float chSpec[LightChainSnap::kMax][PACKET_WIDTH];
+        alignas(64) float chCosi[LightChainSnap::kMax][PACKET_WIDTH];
+        alignas(64) float chCost[LightChainSnap::kMax][PACKET_WIDTH];
+        alignas(64) float chNng[LightChainSnap::kMax][PACKET_WIDTH];
+        alignas(64) float chSt[LightChainSnap::kMax][PACKET_WIDTH];
+        alignas(64) float chW[LightChainSnap::kMax][PACKET_WIDTH];
+        alignas(64) float chF[LightChainSnap::kMax][PACKET_WIDTH];
+        if (chain)
+        {
+            cmp(chLenF, FloatP(chain->len));
+            for (int v = 0; v < LightChainSnap::kMax; ++v)
+            {
+                float *pf = chFlux[v], *pm = chMat[v], *ps = chSpec[v];
+                cmp(pf, chain->flux[v]);
+                cmp(pm, FloatP(chain->matID[v]));
+                cmp(ps, FloatP(chain->spec[v]));
+                float *pc = chCosi[v], *pt = chCost[v], *pn = chNng[v];
+                float *pSt = chSt[v], *pw = chW[v], *pF = chF[v];
+                cmp(pc, chain->cosi[v]);
+                cmp(pt, chain->cost[v]);
+                cmp(pn, chain->nng[v]);
+                cmp(pSt, chain->st[v]);
+                cmp(pw, chain->wsel[v]);
+                cmp(pF, chain->fval[v]);
+            }
+        }
         for (size_t i = 0; i < c; ++i)
         {
             BidirDiagStore::Firefly f;
@@ -187,8 +249,8 @@ namespace lux2
             f.lc = lcs[i];
             f.w = ws[i];
             f.d2 = d2s[i];
-            f.s = s;
-            f.t = t;
+            f.s = ss[i];
+            f.t = tsArr[i];
             f.px = int(xs[i]);
             f.py = int(ys[i]);
             if (bd)
@@ -201,6 +263,36 @@ namespace lux2
                 f.directPath = bDPath[i];
                 f.okLight = bOkL[i] > 0.5f;
                 f.okEye = bOkE[i] > 0.5f;
+            }
+            if (ts)
+            {
+                f.eAF_last = tEAF[i];
+                f.eAR_last = tEAR[i];
+                f.eAR_prev = tEARp[i];
+                f.lAR_last = tLAR[i];
+                f.lAR_prev = tLARp[i];
+                f.pdfLightDirect = tPdfD[i];
+            }
+            f.lfv = cLfv[i];
+            f.we = cWe[i];
+            if (chain)
+            {
+                int cl = int(chLenF[i]);
+                if (cl > BidirDiagStore::Firefly::kMaxChain)
+                    cl = BidirDiagStore::Firefly::kMaxChain;
+                f.chainLen = cl;
+                for (int v = 0; v < cl; ++v)
+                {
+                    f.fluxSeq[v] = chFlux[v][i];
+                    f.matSeq[v] = uint16_t(chMat[v][i]);
+                    f.specSeq[v] = uint8_t(chSpec[v][i]);
+                    f.cosiSeq[v] = chCosi[v][i];
+                    f.costSeq[v] = chCost[v][i];
+                    f.nngSeq[v] = chNng[v][i];
+                    f.stSeq[v] = chSt[v][i];
+                    f.wSeq[v] = chW[v][i];
+                    f.fSeq[v] = chF[v][i];
+                }
             }
             dl->fireflies.push_back(f);
         }
@@ -256,7 +348,48 @@ namespace lux2
                 << " hitLightAlt=" << f.hitLightAlt
                 << " lightExt=" << f.lightExt << " eyeExt=" << f.eyeExt
                 << " directPath=" << f.directPath
-                << " okL=" << int(f.okLight) << " okE=" << int(f.okEye);
+                << " okL=" << int(f.okLight) << " okE=" << int(f.okEye)
+                << " | eAF_last=" << f.eAF_last
+                << " eAR_last=" << f.eAR_last
+                << " eAR_prev=" << f.eAR_prev
+                << " lAR_last=" << f.lAR_last
+                << " lAR_prev=" << f.lAR_prev
+                << " pdfLD=" << f.pdfLightDirect
+                << " | lfv=" << f.lfv << " We=" << f.we;
+            if (f.chainLen > 0)
+            {
+                // flux/matID:lobe per light vertex; :S specular, :d diffuse.
+                std::string cs;
+                for (int v = 0; v < f.chainLen; ++v)
+                {
+                    cs += " ";
+                    cs += std::to_string(f.fluxSeq[v]);
+                    cs += "/m" + std::to_string(int(f.matSeq[v]));
+                    cs += f.specSeq[v] ? ":S" : ":d";
+                }
+                LOG(LUX_WARNING, LUX_SYSTEM)
+                    << "BDPT firefly #" << i << " chain[" << f.chainLen
+                    << "]:" << cs;
+                // Glass terms at specular vertices.
+                std::string gs;
+                bool anyG = false;
+                for (int v = 0; v < f.chainLen; ++v)
+                {
+                    if (!f.specSeq[v])
+                        continue;
+                    anyG = true;
+                    gs += " v" + std::to_string(v);
+                    gs += " cosi=" + std::to_string(f.cosiSeq[v]);
+                    gs += " cost=" + std::to_string(f.costSeq[v]);
+                    gs += " nng=" + std::to_string(f.nngSeq[v]);
+                    gs += " st=" + std::to_string(f.stSeq[v]);
+                    gs += " w=" + std::to_string(f.wSeq[v]);
+                    gs += " f=" + std::to_string(f.fSeq[v]);
+                }
+                if (anyG)
+                    LOG(LUX_WARNING, LUX_SYSTEM)
+                        << "BDPT firefly #" << i << " glass:" << gs;
+            }
         }
     }
 

@@ -64,7 +64,7 @@ namespace lux2
             // so a near-tangent hit terminates.
             const FloatP cosWo = dot(wo, dg.ng);
             enoki::masked(s->pdf, active) =
-                select(abs(cosWo) < EPS_DENOM, FloatP(0.f), FloatP(1.f));
+                select(abs(cosWo) < EPS_ONE, FloatP(0.f), FloatP(1.f));
         }
 
         FloatP Pdf(const SpectrumWavelengthsP &, const Vector3fP &wo, const Vector3fP &wi,
@@ -72,7 +72,7 @@ namespace lux2
                    MaskP) const override
         {
             // Lux NullTransmission::Pdf is 1 for the straight through pair.
-            return select(dot(wo, wi) <= FloatP(-1.f) + EPS_DENOM, FloatP(1.f),
+            return select(dot(wo, wi) <= FloatP(-1.f) + EPS_ONE, FloatP(1.f),
                           FloatP(0.f));
         }
 
@@ -82,7 +82,7 @@ namespace lux2
         {
             // Lux NullTransmission::F is 1 only for the straight through pair
             // but zero in NEE.
-            const MaskP straight = dot(wo, wi) <= FloatP(-1.f) + EPS_DENOM;
+            const MaskP straight = dot(wo, wi) <= FloatP(-1.f) + EPS_ONE;
             enoki::masked(out->f, active) =
                 select(straight, SWCSpectrumP(1.f), SWCSpectrumP(0.f));
             enoki::masked(out->pdf, active) =
