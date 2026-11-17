@@ -74,24 +74,31 @@ namespace lux2
     // Stream keying
     // ---------------------------------------------------------------------------
 
-    constexpr UInt64 FLIGHT_SALT = 0x9E3779B97F4A7C15ULL;
-    constexpr UInt64 SHADOW_SALT = 0x2C9277B5D6B0A3E1ULL;
-    // BDPT stream salts.
-    constexpr UInt64 BDPT_EYE_SALT = 0x5A82799949075BULL;
-    constexpr UInt64 BDPT_LIGHT_SALT = 0x3C374B077C86EA69ULL;
-    constexpr UInt64 BDPT_CONN_SALT = 0x7F4A7C159E3779B9ULL;
-    // ERPT chain stream salt.
-    constexpr UInt64 ERPT_CHAIN_SALT = 0xA24BAED4963EE407ULL;
+    consteval UInt64 SaltHash(const char *s)
+    {
+        UInt64 h = 14695981039346656037ULL;
+        while (*s)
+        {
+            h ^= UInt64(uint8_t(*s++));
+            h *= 1099511628211ULL;
+        }
+        return h;
+    }
 
-    // Fibonacci hashing multipliers.
-    constexpr UInt64 MIX_GOLDEN = 0x9E3779B97F4A7C15ULL;  // splitmix64 additive step
-    constexpr UInt64 MIX_MUL1 = 0xBF58476D1CE4E5B9ULL;    // splitmix64 multiplier 1
-    constexpr UInt64 MIX_MUL2 = 0x94D049BB133111EBULL;    // splitmix64 multiplier 2
-    constexpr UInt64 MIX_MUL3 = 0xD6E8FEB86659FD93ULL;    // splitmix64 multiplier 3
-    constexpr UInt64 MIX_SEQ_XOR = 0xDA3E39CB94B95BDBULL; // sequence stream offset
-    constexpr UInt64 MIX_SEQ_MUL = 0x2545F4914F6CDD1DULL; // sequence mix multiplier
+    constexpr UInt64 FLIGHT_SALT = SaltHash("flight");
+    constexpr UInt64 SHADOW_SALT = SaltHash("shadow");
+    constexpr UInt64 BDPT_EYE_SALT = SaltHash("bdpt/eye");
+    constexpr UInt64 BDPT_LIGHT_SALT = SaltHash("bdpt/light");
+    constexpr UInt64 BDPT_CONN_SALT = SaltHash("bdpt/conn");
+    constexpr UInt64 ERPT_CHAIN_SALT = SaltHash("erpt/chain");
+    constexpr UInt64 MIX_GOLDEN = SaltHash("additivestep");
+    constexpr UInt64 MIX_MUL1 = SaltHash("multiplierone");
+    constexpr UInt64 MIX_MUL2 = SaltHash("multipliertwo");
+    constexpr UInt64 MIX_MUL3 = SaltHash("multiplierthree");
+    constexpr UInt64 MIX_SEQ_XOR = SaltHash("sequenceoffset");
+    constexpr UInt64 MIX_SEQ_MUL = SaltHash("sequencemulti");
 
-    // (state, seq) pair handed to PCG32 to key a stream.
+    // (state, seq) pair to key a stream.
     struct StreamKeyResult
     {
         UInt64P state;
@@ -154,13 +161,10 @@ namespace lux2
     }
 
     // ---------------------------------------------------------------------------
-    // Scalar PCG32 (O'Neill)
+    // Scalar PCG32
     // ---------------------------------------------------------------------------
 
-    // Scalar RNG for per-chain streams. Unlike RNGP this is not lane-based: a
-    // chain owns one instance keyed by (seedKey, sidx, chainIdx) so its random
-    // stream does not depend on how lanes happen to be scheduled, keeping
-    // results reproducible regardless of packet layout or drain order.
+    // Scalar RNG for per-chain streams.
     struct Pcg32
     {
         uint64_t state = 0x853c49e6748fea9bULL;

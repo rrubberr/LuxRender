@@ -210,11 +210,10 @@ namespace lux2
     namespace
     {
 
-        template <int W>
         void IntersectPacket(const RTCScene scene, RayP &ray, HitP &hit,
                              Coherent hint)
         {
-            alignas(64) int valid[W];
+            alignas(64) int valid[PACKET_WIDTH];
             enoki::store(valid, enoki::select(ray.alive, Int32P(-1), Int32P(0)));
 
             RTCRayQueryContext ctx;
@@ -225,75 +224,45 @@ namespace lux2
             args.flags = (hint == Coherent::Yes) ? RTC_RAY_QUERY_FLAG_COHERENT
                                                  : RTC_RAY_QUERY_FLAG_INCOHERENT;
 
+#if defined(__AVX512F__)
+            using RH = RTCRayHit16;
+#else
+            using RH = RTCRayHit8;
+#endif
+            RH rh{}; // miss lanes get well-defined Ng/u/v
+            enoki::store(rh.ray.org_x, ray.o.x());
+            enoki::store(rh.ray.org_y, ray.o.y());
+            enoki::store(rh.ray.org_z, ray.o.z());
+            enoki::store(rh.ray.tnear, ray.mint);
+            enoki::store(rh.ray.dir_x, ray.d.x());
+            enoki::store(rh.ray.dir_y, ray.d.y());
+            enoki::store(rh.ray.dir_z, ray.d.z());
+            enoki::store(rh.ray.time, ray.time);
+            enoki::store(rh.ray.tfar, ray.maxt);
+            enoki::store(rh.ray.mask, ray.mask);
+            enoki::store(rh.ray.id, UInt32P(0));
+            enoki::store(rh.ray.flags, UInt32P(0));
+            for (size_t l = 0; l < PACKET_WIDTH; ++l)
+                rh.hit.geomID[l] = RTC_INVALID_GEOMETRY_ID;
+
+#if defined(__AVX512F__)
+            rtcIntersect16(valid, scene, &rh, &args);
+#else
+            rtcIntersect8(valid, scene, &rh, &args);
+#endif
+
             FloatP t;
             UInt32P geomID, primID;
             FloatP b1, b2;
             Normal3fP ngeo;
-
-            if constexpr (W == 1)
-            {
-                RTCRayHit rh{}; // miss lanes get well defined Ng/u/v
-                enoki::store(&rh.ray.org_x, ray.o.x());
-                enoki::store(&rh.ray.org_y, ray.o.y());
-                enoki::store(&rh.ray.org_z, ray.o.z());
-                enoki::store(&rh.ray.tnear, ray.mint);
-                enoki::store(&rh.ray.dir_x, ray.d.x());
-                enoki::store(&rh.ray.dir_y, ray.d.y());
-                enoki::store(&rh.ray.dir_z, ray.d.z());
-                enoki::store(&rh.ray.time, ray.time);
-                enoki::store(&rh.ray.tfar, ray.maxt);
-                enoki::store(&rh.ray.mask, ray.mask);
-                rh.ray.id = 0;
-                rh.ray.flags = 0;
-                rh.hit.geomID = RTC_INVALID_GEOMETRY_ID;
-
-                rtcIntersect1(scene, &rh, &args);
-
-                t = enoki::load<FloatP>(&rh.ray.tfar);
-                geomID = enoki::load<UInt32P>(&rh.hit.geomID);
-                primID = enoki::load<UInt32P>(&rh.hit.primID);
-                b1 = enoki::load<FloatP>(&rh.hit.u);
-                b2 = enoki::load<FloatP>(&rh.hit.v);
-                ngeo = Normal3fP(enoki::load<FloatP>(&rh.hit.Ng_x),
-                                 enoki::load<FloatP>(&rh.hit.Ng_y),
-                                 enoki::load<FloatP>(&rh.hit.Ng_z));
-            }
-            else
-            {
-                using RH = std::conditional_t<W == 4, RTCRayHit4,
-                                              std::conditional_t<W == 8, RTCRayHit8, RTCRayHit16>>;
-                RH rh{}; // miss lanes get well-defined Ng/u/v
-                enoki::store(rh.ray.org_x, ray.o.x());
-                enoki::store(rh.ray.org_y, ray.o.y());
-                enoki::store(rh.ray.org_z, ray.o.z());
-                enoki::store(rh.ray.tnear, ray.mint);
-                enoki::store(rh.ray.dir_x, ray.d.x());
-                enoki::store(rh.ray.dir_y, ray.d.y());
-                enoki::store(rh.ray.dir_z, ray.d.z());
-                enoki::store(rh.ray.time, ray.time);
-                enoki::store(rh.ray.tfar, ray.maxt);
-                enoki::store(rh.ray.mask, ray.mask);
-                enoki::store(rh.ray.id, UInt32P(0));
-                enoki::store(rh.ray.flags, UInt32P(0));
-                for (size_t l = 0; l < W; ++l)
-                    rh.hit.geomID[l] = RTC_INVALID_GEOMETRY_ID;
-
-                if constexpr (W == 4)
-                    rtcIntersect4(valid, scene, &rh, &args);
-                else if constexpr (W == 8)
-                    rtcIntersect8(valid, scene, &rh, &args);
-                else
-                    rtcIntersect16(valid, scene, &rh, &args);
-
-                t = enoki::load<FloatP>(rh.ray.tfar);
-                geomID = enoki::load<UInt32P>(rh.hit.geomID);
-                primID = enoki::load<UInt32P>(rh.hit.primID);
-                b1 = enoki::load<FloatP>(rh.hit.u);
-                b2 = enoki::load<FloatP>(rh.hit.v);
-                ngeo = Normal3fP(enoki::load<FloatP>(rh.hit.Ng_x),
-                                 enoki::load<FloatP>(rh.hit.Ng_y),
-                                 enoki::load<FloatP>(rh.hit.Ng_z));
-            }
+            t = enoki::load<FloatP>(rh.ray.tfar);
+            geomID = enoki::load<UInt32P>(rh.hit.geomID);
+            primID = enoki::load<UInt32P>(rh.hit.primID);
+            b1 = enoki::load<FloatP>(rh.hit.u);
+            b2 = enoki::load<FloatP>(rh.hit.v);
+            ngeo = Normal3fP(enoki::load<FloatP>(rh.hit.Ng_x),
+                             enoki::load<FloatP>(rh.hit.Ng_y),
+                             enoki::load<FloatP>(rh.hit.Ng_z));
 
             // Miss lanes have Ng==0.
             const FloatP ng2 = fmadd(ngeo.x(), ngeo.x(),
@@ -315,11 +284,10 @@ namespace lux2
             ray.maxt = select(ray.alive, newT, ray.maxt);
         }
 
-        template <int W>
         MaskP OccludedPacket(const RTCScene scene, const RayP &ray, MaskP active,
                              Coherent hint)
         {
-            alignas(64) int valid[W];
+            alignas(64) int valid[PACKET_WIDTH];
             enoki::store(valid, enoki::select(active, Int32P(-1), Int32P(0)));
 
             RTCRayQueryContext ctx;
@@ -330,55 +298,33 @@ namespace lux2
             args.flags = (hint == Coherent::Yes) ? RTC_RAY_QUERY_FLAG_COHERENT
                                                  : RTC_RAY_QUERY_FLAG_INCOHERENT;
 
-            FloatP t;
-            if constexpr (W == 1)
-            {
-                RTCRay r;
-                enoki::store(&r.org_x, ray.o.x());
-                enoki::store(&r.org_y, ray.o.y());
-                enoki::store(&r.org_z, ray.o.z());
-                enoki::store(&r.tnear, ray.mint);
-                enoki::store(&r.dir_x, ray.d.x());
-                enoki::store(&r.dir_y, ray.d.y());
-                enoki::store(&r.dir_z, ray.d.z());
-                enoki::store(&r.time, ray.time);
-                enoki::store(&r.tfar, ray.maxt);
-                enoki::store(&r.mask, ray.mask);
-                r.id = 0;
-                r.flags = 0;
-                rtcOccluded1(scene, &r, &args);
-                t = enoki::load<FloatP>(&r.tfar);
-            }
-            else
-            {
-                using R = std::conditional_t<W == 4, RTCRay4,
-                                             std::conditional_t<W == 8, RTCRay8, RTCRay16>>;
-                R r;
-                enoki::store(r.org_x, ray.o.x());
-                enoki::store(r.org_y, ray.o.y());
-                enoki::store(r.org_z, ray.o.z());
-                enoki::store(r.tnear, ray.mint);
-                enoki::store(r.dir_x, ray.d.x());
-                enoki::store(r.dir_y, ray.d.y());
-                enoki::store(r.dir_z, ray.d.z());
-                enoki::store(r.time, ray.time);
-                enoki::store(r.tfar, ray.maxt);
-                enoki::store(r.mask, ray.mask);
-                enoki::store(r.id, UInt32P(0));
-                enoki::store(r.flags, UInt32P(0));
+#if defined(__AVX512F__)
+            using R = RTCRay16;
+#else
+            using R = RTCRay8;
+#endif
+            R r;
+            enoki::store(r.org_x, ray.o.x());
+            enoki::store(r.org_y, ray.o.y());
+            enoki::store(r.org_z, ray.o.z());
+            enoki::store(r.tnear, ray.mint);
+            enoki::store(r.dir_x, ray.d.x());
+            enoki::store(r.dir_y, ray.d.y());
+            enoki::store(r.dir_z, ray.d.z());
+            enoki::store(r.time, ray.time);
+            enoki::store(r.tfar, ray.maxt);
+            enoki::store(r.mask, ray.mask);
+            enoki::store(r.id, UInt32P(0));
+            enoki::store(r.flags, UInt32P(0));
 
-                if constexpr (W == 4)
-                    rtcOccluded4(valid, scene, &r, &args);
-                else if constexpr (W == 8)
-                    rtcOccluded8(valid, scene, &r, &args);
-                else
-                    rtcOccluded16(valid, scene, &r, &args);
-
-                t = enoki::load<FloatP>(r.tfar);
-            }
+#if defined(__AVX512F__)
+            rtcOccluded16(valid, scene, &r, &args);
+#else
+            rtcOccluded8(valid, scene, &r, &args);
+#endif
 
             // Occluded where tfar changed from maxt.
-            return active && neq(t, ray.maxt);
+            return active && neq(enoki::load<FloatP>(r.tfar), ray.maxt);
         }
 
     } // namespace
@@ -392,7 +338,7 @@ namespace lux2
         if (!m_scene || none(ray.alive))
             return;
 
-        IntersectPacket<PACKET_WIDTH>(m_scene, ray, hit, hint);
+        IntersectPacket(m_scene, ray, hit, hint);
         ShadeHit(hit);
     }
 
@@ -406,7 +352,7 @@ namespace lux2
         if (!m_scene || none(active))
             return MaskP(false);
 
-        return OccludedPacket<PACKET_WIDTH>(m_scene, ray, active, hint);
+        return OccludedPacket(m_scene, ray, active, hint);
     }
 
     // ---------------------------------------------------------------------------
@@ -519,7 +465,8 @@ namespace lux2
         alignas(64) SimdVec f[TRI_WORDS];
         LoadRecords<TRI_WORDS>(f, triRecords.data(), recA, laneBits);
         ShadeFromFields(
-            hit, [&](std::uint32_t w) { return FloatP(f[w]); },
+            hit, [&](std::uint32_t w)
+            { return FloatP(f[w]); },
             [&](std::uint32_t w)
             { return UInt32P(RecBits(f[w])); });
 #else
@@ -593,7 +540,7 @@ namespace lux2
                     base[rh.hit.geomID] + rh.hit.primID;
                 const std::uint32_t *rec = recs + g * TRI_WORDS;
                 const std::uint32_t f = rec[kTri_medFront],
-                    b = rec[kTri_medBack];
+                                    b = rec[kTri_medBack];
                 if (f == b)
                 {
                     // Non-boundary triangle (emitter, wall).

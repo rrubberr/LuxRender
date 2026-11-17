@@ -4,3 +4,6 @@
 **/.DS_Store
 /test/*.png
 /.github
+/Debug
+/Release
+compile_commands.json

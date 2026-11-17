@@ -28,6 +28,9 @@ function(add_lux2_check)
 	target_include_directories(${CHECK_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 	target_link_libraries(${CHECK_NAME} PRIVATE ${CHECK_LINKS})
 
+	# liblux2.so installs one level up (DESTINATION .); find it from tests/.
+	set_target_properties(${CHECK_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN/..")
+
 	if(CHECK_ARG)
 		add_test(NAME ${CHECK_NAME} COMMAND ${CHECK_NAME} ${CHECK_ARG})
 	else()
@@ -236,6 +239,7 @@ add_lux2_check(
 
 # Colorcheck includes a reference implementation.
 add_executable(lux2colorcheck color_check.cpp color_ref/color_ref.cpp)
+set_target_properties(lux2colorcheck PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_include_directories(lux2colorcheck PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(lux2colorcheck PRIVATE lux2)
 add_test(NAME lux2colorcheck COMMAND lux2colorcheck)
@@ -243,6 +247,7 @@ install(TARGETS lux2colorcheck RUNTIME DESTINATION tests)
 
 # Photometriccheck uses the colorref illuminant SPD.
 add_executable(lux2photometriccheck photometric_check.cpp color_ref/color_ref.cpp)
+set_target_properties(lux2photometriccheck PROPERTIES INSTALL_RPATH "$ORIGIN/..")
 target_include_directories(lux2photometriccheck PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(lux2photometriccheck PRIVATE lux2)
 add_test(NAME lux2photometriccheck COMMAND lux2photometriccheck)

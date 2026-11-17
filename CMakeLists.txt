@@ -62,6 +62,9 @@ set(INC_DIR ${BUILD_DIR}/include)
 
 PROJECT(lux)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # Host ISA probe needs an enabled C++ language.
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/HostISA.cmake)
 
@@ -171,4 +174,14 @@ ExternalProject_Add(
             -DLIB_DIR=${LIB_DIR}
             -DRELEASE_DIR=${RELEASE_DIR}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallSharedLibs.cmake
+)
+
+# Copy the inner project's compile database to the repo root.
+ExternalProject_Add_Step(LuxRender2 export_compile_commands
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        <BINARY_DIR>/compile_commands.json
+        ${CMAKE_SOURCE_DIR}/compile_commands.json
+	DEPENDEES configure
+	ALWAYS TRUE
+	COMMENT "Exporting compile_commands.json to the source root"
 )

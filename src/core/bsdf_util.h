@@ -43,7 +43,7 @@ namespace lux2
     // because this would double count the shading normal correction.
     inline FloatP modeJacobian(TransportMode mode, const FloatP &st)
     {
-        // mode is scalar, so a plain branch is lane-legal.
+        // Mode is scalar, so a plain branch is ok.
         return mode == TransportMode::Importance ? abs(st) : FloatP(1.f);
     }
 

@@ -35,10 +35,6 @@ namespace lux2
     constexpr size_t PACKET_WIDTH = 16;
 #elif defined(__AVX2__)
     constexpr size_t PACKET_WIDTH = 8;
-#elif defined(__SSE4_2__)
-    constexpr size_t PACKET_WIDTH = 4;
-#else
-    constexpr size_t PACKET_WIDTH = 1;
 #endif
 
     // Scalar element types.

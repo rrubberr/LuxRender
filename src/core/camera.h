@@ -59,8 +59,7 @@ namespace lux2
             return FloatP(0.f);
         }
 
-        // Inverse of GenerateRay. Cameras that cannot implement it return
-        // false, so T=1 connections contribute nothing.
+        // Inverse of GenerateRay.
         virtual MaskP Project(const Vector3fP & /*dirWorld*/, FloatP * /*x*/,
                               FloatP * /*y*/, FloatP * /*We*/,
                               FloatP * /*cosCam*/, MaskP /*active*/) const
