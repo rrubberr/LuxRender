@@ -25,8 +25,8 @@
 #include "core/integrator.h"
 #include "core/renderinghints.h"
 #include "integrators/debug/integrator_debug.h"
-#include "integrators/wf/scheduler.h"
-#include "integrators/wf/types.h"
+#include "integrators/wavefront/scheduler.h"
+#include "integrators/wavefront/types.h"
 
 #include <atomic>
 #include <memory>

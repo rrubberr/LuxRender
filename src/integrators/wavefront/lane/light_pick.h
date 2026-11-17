@@ -24,7 +24,7 @@
 #ifndef LUX2_INTEGRATORS_LANE_LIGHT_PICK_H
 #define LUX2_INTEGRATORS_LANE_LIGHT_PICK_H
 
-#include "integrators/lane/tile_ctx.h"
+#include "integrators/wavefront/lane/tile_ctx.h"
 
 #include "core/light_call.h"
 #include "core/renderinghints.h"

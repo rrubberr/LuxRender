@@ -31,8 +31,8 @@
 #include "integrators/erpt/seed_pool.h"
 #include "integrators/erpt/smooth.h"
 #include "integrators/erpt/sparse_accum.h"
-#include "integrators/wf/connectors.h"
-#include "integrators/wf/seed_sink.h"
+#include "integrators/wavefront/connectors.h"
+#include "integrators/wavefront/seed_sink.h"
 
 #include <atomic>
 #include <mutex>

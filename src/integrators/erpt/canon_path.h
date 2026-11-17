@@ -24,12 +24,12 @@
 #ifndef LUX2_INTEGRATORS_ERPT_CANON_PATH_H
 #define LUX2_INTEGRATORS_ERPT_CANON_PATH_H
 
-#include "integrators/lane/math.h"
+#include "integrators/wavefront/lane/math.h"
 #include "integrators/erpt/path_eval.h"
 #include "integrators/erpt/chainable.h"
-#include "integrators/wf/pool_view.h"
-#include "integrators/wf/seed_sink.h"
-#include "integrators/wf/storage.h"
+#include "integrators/wavefront/pool_view.h"
+#include "integrators/wavefront/seed_sink.h"
+#include "integrators/wavefront/storage.h"
 
 #include "core/camera.h"
 #include "core/light.h"

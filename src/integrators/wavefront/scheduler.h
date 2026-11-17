@@ -25,8 +25,8 @@
 #define LUX2_INTEGRATORS_WF_SCHEDULER_H
 
 #include "integrators/debug/integrator_debug.h"
-#include "integrators/wf/sample_table.h"
-#include "integrators/wf/storage.h"
+#include "integrators/wavefront/sample_table.h"
+#include "integrators/wavefront/storage.h"
 
 #include "core/math/vecp.h"
 

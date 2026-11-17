@@ -24,7 +24,7 @@
 #ifndef LUX2_INTEGRATORS_WF_SAMPLE_TABLE_H
 #define LUX2_INTEGRATORS_WF_SAMPLE_TABLE_H
 
-#include "integrators/wf/storage.h" // LUX_INVALID_PATH
+#include "integrators/wavefront/storage.h" // LUX_INVALID_PATH
 
 #include "core/math/vecp.h"
 

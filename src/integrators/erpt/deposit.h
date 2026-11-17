@@ -24,7 +24,7 @@
 #ifndef LUX2_INTEGRATORS_ERPT_DEPOSIT_H
 #define LUX2_INTEGRATORS_ERPT_DEPOSIT_H
 
-#include "integrators/lane/math.h"
+#include "integrators/wavefront/lane/math.h"
 #include "core/color/color.h"
 
 namespace lux2

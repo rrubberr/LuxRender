@@ -24,7 +24,7 @@
 #ifndef LUX2_INTEGRATORS_ERPT_CHAINABLE_H
 #define LUX2_INTEGRATORS_ERPT_CHAINABLE_H
 
-#include "integrators/wf/types.h"
+#include "integrators/wavefront/types.h"
 
 #include "core/bsdf.h"
 #include "core/bsdf_type.h"

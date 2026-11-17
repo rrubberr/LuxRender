@@ -38,8 +38,8 @@
 #define LUX2_TESTS_ERPT_PATH_EVAL_ORACLE_H
 
 #include "integrators/erpt/path_eval.h"
-#include "integrators/wf/pool_view.h"
-#include "integrators/wf/storage.h"
+#include "integrators/wavefront/pool_view.h"
+#include "integrators/wavefront/storage.h"
 
 namespace lux2
 {

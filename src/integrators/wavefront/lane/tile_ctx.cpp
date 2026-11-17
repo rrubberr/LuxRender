@@ -19,7 +19,7 @@
  *   This project is based on PBRT; see <http://www.pbrt.org>              *
  ***************************************************************************/
 
-#include "integrators/lane/tile_ctx.h"
+#include "integrators/wavefront/lane/tile_ctx.h"
 
 #include "core/accel/embree2.h"
 #include "core/bsdfptr_table.h"

@@ -25,10 +25,10 @@
 #define LUX2_INTEGRATORS_LANE_DIRECT_H
 
 #include "integrators/core/vertex.h"
-#include "integrators/lane/geom.h"
-#include "integrators/lane/occlusion.h"
-#include "integrators/lane/sampler_source.h"
-#include "integrators/lane/tile_ctx.h"
+#include "integrators/wavefront/lane/geom.h"
+#include "integrators/wavefront/lane/occlusion.h"
+#include "integrators/wavefront/lane/sampler_source.h"
+#include "integrators/wavefront/lane/tile_ctx.h"
 
 #include "core/light.h"
 #include "core/light_call.h"

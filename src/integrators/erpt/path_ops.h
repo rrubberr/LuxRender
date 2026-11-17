@@ -24,7 +24,7 @@
 #ifndef LUX2_INTEGRATORS_ERPT_PATH_OPS_H
 #define LUX2_INTEGRATORS_ERPT_PATH_OPS_H
 
-#include "integrators/wf/storage.h"
+#include "integrators/wavefront/storage.h"
 
 #include <cstring>
 

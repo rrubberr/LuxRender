@@ -33,8 +33,8 @@
 #include "core/bsdf.h"
 #include "core/bsdf_type.h"
 #include "core/bsdfptr_table.h"
-#include "integrators/lane/advance.h"
-#include "integrators/lane/geom.h"
+#include "integrators/wavefront/lane/advance.h"
+#include "integrators/wavefront/lane/geom.h"
 
 namespace lux2
 {

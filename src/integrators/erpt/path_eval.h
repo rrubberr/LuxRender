@@ -25,17 +25,17 @@
 #define LUX2_INTEGRATORS_ERPT_PATH_EVAL_H
 
 #include "integrators/core/vertex.h"
-#include "integrators/lane/direct.h"
-#include "integrators/lane/math.h"
-#include "integrators/wf/pool_view.h"
-#include "integrators/wf/storage.h"
-#include "integrators/wf/types.h"
+#include "integrators/wavefront/lane/direct.h"
+#include "integrators/wavefront/lane/math.h"
+#include "integrators/wavefront/pool_view.h"
+#include "integrators/wavefront/storage.h"
+#include "integrators/wavefront/types.h"
 
 #include "core/camera.h"
 #include "core/film.h"
 #include "core/light.h"
 
-#include "integrators/wf/connectors.h"
+#include "integrators/wavefront/connectors.h"
 
 #include <enoki/array.h>
 

@@ -24,7 +24,7 @@
 #ifndef LUX2_INTEGRATORS_LANE_OCCLUSION_H
 #define LUX2_INTEGRATORS_LANE_OCCLUSION_H
 
-#include "integrators/lane/geom.h"
+#include "integrators/wavefront/lane/geom.h"
 
 #include "core/bsdf_type.h"
 #include "core/bsdfptr_table.h"

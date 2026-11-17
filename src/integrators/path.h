@@ -25,7 +25,7 @@
 #include "core/color/color.h"
 #include "core/integrator.h"
 #include "core/renderinghints.h"
-#include "integrators/lane/tile_ctx.h"
+#include "integrators/wavefront/lane/tile_ctx.h"
 
 #include <memory>
 #include <string>

@@ -24,8 +24,8 @@
 #ifndef LUX2_INTEGRATORS_LANE_LANE_CORE_H
 #define LUX2_INTEGRATORS_LANE_LANE_CORE_H
 
-#include "integrators/lane/blend.h"
-#include "integrators/lane/jobs.h"
+#include "integrators/wavefront/lane/blend.h"
+#include "integrators/wavefront/lane/jobs.h"
 
 #include "core/color/color.h"
 #include "core/math/geometry.h"

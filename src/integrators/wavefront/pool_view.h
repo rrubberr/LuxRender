@@ -26,8 +26,8 @@
 
 #include "integrators/core/vertex.h"
 #include "integrators/debug/integrator_debug.h"
-#include "integrators/wf/storage.h"
-#include "integrators/wf/types.h"
+#include "integrators/wavefront/storage.h"
+#include "integrators/wavefront/types.h"
 
 #include "core/bsdfptr_table.h"
 #include "core/mediumptr_table.h"

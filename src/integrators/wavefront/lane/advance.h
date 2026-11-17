@@ -24,9 +24,9 @@
 #ifndef LUX2_INTEGRATORS_LANE_ADVANCE_H
 #define LUX2_INTEGRATORS_LANE_ADVANCE_H
 
-#include "integrators/lane/geom.h"
-#include "integrators/lane/lane_core.h"
-#include "integrators/lane/tile_ctx.h"
+#include "integrators/wavefront/lane/geom.h"
+#include "integrators/wavefront/lane/lane_core.h"
+#include "integrators/wavefront/lane/tile_ctx.h"
 
 #include "core/bsdf.h"
 #include "core/medium.h"

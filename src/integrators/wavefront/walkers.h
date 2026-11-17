@@ -14,11 +14,11 @@
 #ifndef LUX2_INTEGRATORS_WF_WALKERS_H
 #define LUX2_INTEGRATORS_WF_WALKERS_H
 
-#include "integrators/lane/advance.h"
-#include "integrators/lane/jobs.h"
-#include "integrators/lane/keys.h"
-#include "integrators/lane/light_pick.h"
-#include "integrators/wf/scheduler.h"
+#include "integrators/wavefront/lane/advance.h"
+#include "integrators/wavefront/lane/jobs.h"
+#include "integrators/wavefront/lane/keys.h"
+#include "integrators/wavefront/lane/light_pick.h"
+#include "integrators/wavefront/scheduler.h"
 #include "integrators/consumers/bidirectional_consumer.h"
 
 #include "core/camera.h"

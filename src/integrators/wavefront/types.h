@@ -25,7 +25,7 @@
 #define LUX2_INTEGRATORS_WF_TYPES_H
 
 #include "integrators/debug/integrator_debug.h"
-#include "integrators/lane/tile_ctx.h"
+#include "integrators/wavefront/lane/tile_ctx.h"
 
 #include <cstdint>
 

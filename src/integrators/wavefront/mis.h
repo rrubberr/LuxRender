@@ -25,9 +25,9 @@
 #define LUX2_INTEGRATORS_WF_MIS_H
 
 #include "integrators/debug/integrator_debug.h"
-#include "integrators/wf/storage.h"
-#include "integrators/wf/types.h"
-#include "integrators/lane/math.h"
+#include "integrators/wavefront/storage.h"
+#include "integrators/wavefront/types.h"
+#include "integrators/wavefront/lane/math.h"
 
 #include "core/math/math.h" // RR_START
 

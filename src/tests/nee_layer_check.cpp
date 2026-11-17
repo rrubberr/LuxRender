@@ -34,7 +34,7 @@
 #include "core/math/math.h"
 #include "core/math/vecp.h"
 #include "integrators/core/vertex.h"
-#include "integrators/lane/direct.h"
+#include "integrators/wavefront/lane/direct.h"
 
 #include <cstdint>
 #include <iostream>

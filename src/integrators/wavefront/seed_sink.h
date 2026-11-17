@@ -24,9 +24,9 @@
 #ifndef LUX2_INTEGRATORS_WF_SEED_SINK_H
 #define LUX2_INTEGRATORS_WF_SEED_SINK_H
 
-#include "integrators/wf/sample_table.h"
-#include "integrators/wf/storage.h"
-#include "integrators/wf/types.h"
+#include "integrators/wavefront/sample_table.h"
+#include "integrators/wavefront/storage.h"
+#include "integrators/wavefront/types.h"
 
 #include "core/math/vecp.h"
 

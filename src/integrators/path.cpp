@@ -23,12 +23,12 @@
 #include "integrators/consumers/path_consumer.h"
 #include "integrators/path.h"
 
-#include "integrators/lane/jobs.h"
-#include "integrators/lane/keys.h"
-#include "integrators/lane/lane_core.h"
-#include "integrators/lane/retire.h"
-#include "integrators/lane/sampler_source.h"
-#include "integrators/lane/tile_ctx.h"
+#include "integrators/wavefront/lane/jobs.h"
+#include "integrators/wavefront/lane/keys.h"
+#include "integrators/wavefront/lane/lane_core.h"
+#include "integrators/wavefront/lane/retire.h"
+#include "integrators/wavefront/lane/sampler_source.h"
+#include "integrators/wavefront/lane/tile_ctx.h"
 
 #include "core/dynload.h"
 #include "core/register.h"

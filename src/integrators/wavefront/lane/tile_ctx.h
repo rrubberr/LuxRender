@@ -24,8 +24,8 @@
 #ifndef LUX2_INTEGRATORS_LANE_TILE_CTX_H
 #define LUX2_INTEGRATORS_LANE_TILE_CTX_H
 
-#include "integrators/lane/keys.h"
-#include "integrators/lane/occlusion.h"
+#include "integrators/wavefront/lane/keys.h"
+#include "integrators/wavefront/lane/occlusion.h"
 
 #include "core/math/vecp.h"
 #include "core/renderinghints.h"

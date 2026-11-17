@@ -23,7 +23,7 @@
 // synthetic records, mirroring wf/mis_weight_check.cpp.
 
 #include "integrators/erpt/path_ops.h"
-#include "integrators/wf/storage.h"
+#include "integrators/wavefront/storage.h"
 
 #include "core/math/ray.h"
 

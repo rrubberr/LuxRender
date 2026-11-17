@@ -18,7 +18,7 @@
 // through it (OnPassThrough fires, no bounce) and lands on the first real
 // surface behind it.
 
-#include "integrators/lane/advance.h"
+#include "integrators/wavefront/lane/advance.h"
 
 #include "core/accel/embree2.h"
 #include "core/bsdf.h"
