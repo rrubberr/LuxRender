@@ -64,12 +64,9 @@ namespace lux2
             const uint32_t *base = ps.arena->misWords.data();
             const UInt32P rec = RecIdx(ps, path, idx, act);
             MisPair r;
-            r.cosi = reinterpret_array<FloatP>(
-                LoadWord(base, RecWord<MIS_WORDS>(rec, kWord_cosi), act));
-            r.coso = reinterpret_array<FloatP>(
-                LoadWord(base, RecWord<MIS_WORDS>(rec, kWord_coso), act));
-            r.d2 = reinterpret_array<FloatP>(
-                LoadWord(base, RecWord<MIS_WORDS>(rec, kWord_d2), act));
+            r.cosi = LoadField<MisTag::cosi>(base, rec, act);
+            r.coso = LoadField<MisTag::coso>(base, rec, act);
+            r.d2 = LoadField<MisTag::d2>(base, rec, act);
             return r;
         }
 
@@ -88,28 +85,10 @@ namespace lux2
             const uint32_t *base = ps.arena->geomWords.data();
             const UInt32P rec = RecIdx(ps, path, idx, act);
             EmitVertexData v;
-            v.p = Point3fP(
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p), act)),
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p + 1), act)),
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p + 2), act)));
+            v.p = LoadField<GeomTag::p>(base, rec, act);
             v.dg.p = v.p;
-            v.dg.n = Normal3fP(
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_n), act)),
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_n + 1), act)),
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_n + 2), act)));
-            v.dg.ng = Normal3fP(
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_ng), act)),
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_ng + 1), act)),
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_ng + 2), act)));
+            v.dg.n = LoadField<GeomTag::n>(base, rec, act);
+            v.dg.ng = LoadField<GeomTag::ng>(base, rec, act);
             return v;
         }
 
@@ -119,13 +98,7 @@ namespace lux2
         {
             const UInt32P rec = RecIdx(ps, path, idx, act);
             const uint32_t *base = ps.arena->geomWords.data();
-            return Point3fP(
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p), act)),
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p + 1), act)),
-                reinterpret_array<FloatP>(
-                    LoadWord(base, RecWord<GEOM_WORDS>(rec, kWord_p + 2), act)));
+            return LoadField<GeomTag::p>(base, rec, act);
         }
 
         // Gather vertex `idx` of `path` for the lanes where `act` holds.
@@ -213,23 +186,15 @@ namespace lux2
                     LoadWord(db, RecWord<DIAG_WORDS>(rec, 4u), vm));
                 snap.fval[v] = reinterpret_array<FloatP>(
                     LoadWord(db, RecWord<DIAG_WORDS>(rec, 5u), vm));
-                const FloatP fx = reinterpret_array<FloatP>(
-                    LoadWord(gb, RecWord<GEOM_WORDS>(rec, kWord_flux), vm));
-                const FloatP fy = reinterpret_array<FloatP>(
-                    LoadWord(gb, RecWord<GEOM_WORDS>(rec, kWord_flux + 1), vm));
-                const FloatP fz = reinterpret_array<FloatP>(
-                    LoadWord(gb, RecWord<GEOM_WORDS>(rec, kWord_flux + 2), vm));
-                // Rec.709 luma of the stored flux.
-                snap.flux[v] = select(
-                    vm, fmadd(FloatP(0.212671f), fx,
-                              fmadd(FloatP(0.715160f), fy,
-                                    FloatP(0.072169f) * fz)),
-                    FloatP(0.f));
+                // flux is a single scalar throughput word; read it directly.
+                snap.flux[v] =
+                    select(vm, LoadField<GeomTag::flux>(gb, rec, vm),
+                           FloatP(0.f));
                 snap.matID[v] =
-                    LoadWord(gb, RecWord<GEOM_WORDS>(rec, kWord_matID), vm) &
+                    LoadWord(gb, RecWord<GEOM_WORDS>(rec, GeomTag::matID::Word), vm) &
                     UInt32P(0xFFFFu);
                 snap.spec[v] =
-                    LoadWord(mb, RecWord<MIS_WORDS>(rec, kWord_bits), vm) &
+                    LoadWord(mb, RecWord<MIS_WORDS>(rec, MisTag::bits::Word), vm) &
                     UInt32P(1u);
             }
             return snap;

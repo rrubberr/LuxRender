@@ -459,7 +459,7 @@ namespace lux2
                 if (!any(seg))
                     continue;
                 const UInt32P rec = wf::RecIdx(ps, path, vi, seg);
-                const uint32_t word = eyeSide ? wf::kWord_rrR : wf::kWord_rr;
+                const uint32_t word = eyeSide ? wf::MisTag::rrR::Word : wf::MisTag::rr::Word;
                 const FloatP r = reinterpret_array<FloatP>(
                     wf::LoadWord(base, wf::RecWord<wf::MIS_WORDS>(rec, word),
                                  seg));

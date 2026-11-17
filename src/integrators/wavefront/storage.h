@@ -31,8 +31,10 @@
 
 #include <enoki/array.h>
 
+#include <array>
 #include <cstdint>
 #include <new>
+#include <type_traits>
 #include <vector>
 
 namespace lux2
@@ -41,9 +43,10 @@ namespace lux2
     {
         // Layout constants.
         constexpr int MAX_DEPTH = 128;
-        // MIS indexing uses this constant. TODO: widen
-        // to 16 (alignas(64)) for VCM recurrences?
-        constexpr int MIS_WORDS = 8;
+
+        // Record tiles.
+        constexpr uint32_t GEOM_TILE_WORDS = 32;
+        constexpr uint32_t MIS_TILE_WORDS = 16;
 
         // Vertex records per path slot. The stride is sized per render from the
         // configured bounce count.
@@ -52,9 +55,9 @@ namespace lux2
         {
             uint32_t s = uint32_t(maxDepth < 1 ? 1 : maxDepth);
             if (s & 1u)
-                ++s;             // even: mis record starts stay 16B aligned
+                ++s; // records are 64B each
             if (s % 32u == 0u)
-                s += uint32_t(PATH_PAD); // L1 set anti-aliasing
+                s += uint32_t(PATH_PAD); // L1 set antialiasing
             return s;
         }
         // Default / maximum stride.
@@ -83,192 +86,273 @@ namespace lux2
             enoki::scatter(base, val, addr, m);
         }
 
-// Field lists.
-#define LUX2_GEOM_FIELDS(X)                                                   \
-    X(V3, p, 0u)                                                              \
-    X(V3, n, kNext_p)                                                         \
-    X(V3, ng, kNext_n)                                                        \
-    X(V3, wb, kNext_ng)                                                       \
-    X(V3, dp_du, kNext_wb)                                                    \
-    X(V3, dp_dv, kNext_dp_du)                                                 \
-    X(V3, dp_ds, kNext_dp_dv)                                                 \
-        X(V3, dp_dt, kNext_dp_ds) X(V2, uv, kNext_dp_dt) X(F, flux, kNext_uv) \
-            X(F, k, kNext_flux) X(F, footprint, kNext_k)                      \
-                X(F, spare0, kNext_footprint)
+        // Field kinds and per-kind traits: value type and word width live here once.
+        struct K_V3
+        {
+        };
+        struct K_V2
+        {
+        };
+        struct K_F
+        {
+        };
+        struct K_U
+        {
+        };
+        struct K_Pair
+        {
+        }; // two u16 halves packed into one word
+
+        template <class K>
+        struct FieldInfo;
+        template <>
+        struct FieldInfo<K_V3>
+        {
+            using Value = Point3fP;
+            static constexpr uint32_t Width = 3u;
+        };
+        template <>
+        struct FieldInfo<K_V2>
+        {
+            using Value = Point2fP;
+            static constexpr uint32_t Width = 2u;
+        };
+        template <>
+        struct FieldInfo<K_F>
+        {
+            using Value = FloatP;
+            static constexpr uint32_t Width = 1u;
+        };
+        template <>
+        struct FieldInfo<K_U>
+        {
+            using Value = UInt32P;
+            static constexpr uint32_t Width = 1u;
+        };
+        template <>
+        struct FieldInfo<K_Pair>
+        {
+            using Value = UInt32P;
+            static constexpr uint32_t Width = 1u;
+        };
+
+        // A packed u16 pair, loaded/stored as one word. Both halves always
+        // travel together: a single-half scatter would clobber the other half.
+        struct PairU16
+        {
+            UInt32P lo, hi;
+        };
+
+        // Field tag: kind + word offset + record word count + member pointer(s).
+        template <class K, uint32_t W, uint32_t REC_W, auto M>
+        struct FieldTag
+        {
+            using Kind = K;
+            static constexpr uint32_t Word = W;
+            static constexpr uint32_t RecWords = REC_W;
+            static constexpr auto Member = M;
+        };
+        template <uint32_t W, uint32_t REC_W, auto LoP, auto HiP>
+        struct PairTag
+        {
+            using Kind = K_Pair;
+            static constexpr uint32_t Word = W;
+            static constexpr uint32_t RecWords = REC_W;
+            static constexpr auto LoM = LoP;
+            static constexpr auto HiM = HiP;
+        };
+
+        struct TagEnd
+        {
+        }; // list terminator, skipped by ForEachTag
+        template <class... Ts>
+        struct TagList
+        {
+        };
+        template <class T, class F>
+        ENOKI_INLINE constexpr void ApplyOne(F &f)
+        {
+            if constexpr (!std::is_same_v<T, TagEnd>)
+                f(T{});
+        }
+        template <class... Ts, class F>
+        ENOKI_INLINE constexpr void ForEachTag(TagList<Ts...>, F &&f)
+        {
+            (ApplyOne<Ts>(f), ...);
+        }
+
+        // Prefix sum of record word widths; Off[i] is field i's word offset,
+        // Off[N] the total. N is size_t to match std::array's bound type.
+        template <size_t N>
+        inline constexpr std::array<uint32_t, N + 1>
+        PrefixSum(const std::array<uint32_t, N> &w)
+        {
+            std::array<uint32_t, N + 1> o{};
+            for (size_t i = 0; i < N; ++i)
+                o[i + 1] = o[i] + w[i];
+            return o;
+        }
+
+// Field lists: (kind, name). One row generates the member, its word offset
+// and its tag. Insert a field by adding one row.
+#define LUX2_GEOM_FIELDS(X)                                    \
+    X(V3, p)                                                   \
+    X(V3, n)                                                   \
+    X(V3, ng) X(V3, wb) X(V3, dp_du) X(V3, dp_dv)              \
+        X(V3, dp_ds) X(V3, dp_dt) X(V2, uv) X(F, flux) X(F, k) \
+            X(F, footprint) X(F, spare0)
 
 // Packed pairs.
-#define LUX2_GEOM_PAIRS(X)        \
-    X(matID, medID, kNext_spare0) \
-    X(medFront, medBack, kNext_medID)
+#define LUX2_GEOM_PAIRS(X) X(matID, medID) X(medFront, medBack)
 
 // Empty pair list for records with no packed fields.
 #define LUX2_NO_PAIRS(X)
 
 // 8 words = 32 B.
-#define LUX2_MIS_FIELDS(X) \
-    X(F, dAW, 0u)          \
-    X(F, dARW, kNext_dAW)  \
-    X(F, rr, kNext_dARW)   \
-    X(F, rrR, kNext_rr)    \
-    X(F, cosi, kNext_rrR)  \
-    X(F, coso, kNext_cosi) \
-    X(F, d2, kNext_coso)   \
-        X(U, bits, kNext_d2)
+#define LUX2_MIS_FIELDS(X)                   \
+    X(F, dAW)                                \
+    X(F, dARW)                               \
+    X(F, rr) X(F, rrR) X(F, cosi) X(F, coso) \
+        X(F, d2) X(U, bits)
 
 // Code generation.
 #define LUX2_CAT_(a, b) a##b
 #define LUX2_CAT(a, b) LUX2_CAT_(a, b)
 
-// Register form field declaration.
-#define LUX2_DECL_V3(name) Point3fP name;
-#define LUX2_DECL_V2(name) Point2fP name;
-#define LUX2_DECL_F(name) FloatP name;
-#define LUX2_DECL_U(name) UInt32P name;
-#define LUX2_DECL(kind, name, prev) LUX2_CAT(LUX2_DECL_, kind)(name)
+#define LUX2_KIND_V3 K_V3
+#define LUX2_KIND_V2 K_V2
+#define LUX2_KIND_F K_F
+#define LUX2_KIND_U K_U
 
-// Field width per kind.
-#define LUX2_W_V3 3u
-#define LUX2_W_V2 2u
-#define LUX2_W_F 1u
-#define LUX2_W_U 1u
-
-// Word offset chain.
-#define LUX2_WORD_V3(name, prev)              \
-    constexpr uint32_t kWord_##name = (prev); \
-    constexpr uint32_t LUX2_CAT(kNext_, name) = (prev) + 3u;
-#define LUX2_WORD_V2(name, prev)              \
-    constexpr uint32_t kWord_##name = (prev); \
-    constexpr uint32_t LUX2_CAT(kNext_, name) = (prev) + 2u;
-#define LUX2_WORD_F(name, prev)               \
-    constexpr uint32_t kWord_##name = (prev); \
-    constexpr uint32_t LUX2_CAT(kNext_, name) = (prev) + 1u;
-#define LUX2_WORD_U(name, prev)               \
-    constexpr uint32_t kWord_##name = (prev); \
-    constexpr uint32_t LUX2_CAT(kNext_, name) = (prev) + 1u;
-#define LUX2_WORD(kind, name, prev) LUX2_CAT(LUX2_WORD_, kind)(name, prev)
-
-// Load one field with one gather per word.
-#define LUX2_LOAD_V3(name)                                             \
-    r.name = Point3fP(                                                 \
-        reinterpret_array<FloatP>(                                     \
-            LoadWord(base, RecWord<WORDS>(rec, kWord_##name), m)),     \
-        reinterpret_array<FloatP>(                                     \
-            LoadWord(base, RecWord<WORDS>(rec, kWord_##name + 1), m)), \
-        reinterpret_array<FloatP>(                                     \
-            LoadWord(base, RecWord<WORDS>(rec, kWord_##name + 2), m)));
-#define LUX2_LOAD_V2(name)                                         \
-    r.name = Point2fP(                                             \
-        reinterpret_array<FloatP>(                                 \
-            LoadWord(base, RecWord<WORDS>(rec, kWord_##name), m)), \
-        reinterpret_array<FloatP>(                                 \
-            LoadWord(base, RecWord<WORDS>(rec, kWord_##name + 1), m)));
-#define LUX2_LOAD_F(name)               \
-    r.name = reinterpret_array<FloatP>( \
-        LoadWord(base, RecWord<WORDS>(rec, kWord_##name), m));
-#define LUX2_LOAD_U(name) \
-    r.name = LoadWord(base, RecWord<WORDS>(rec, kWord_##name), m);
-#define LUX2_LOAD(kind, name, prev) LUX2_CAT(LUX2_LOAD_, kind)(name)
-
-// Store one field.
-#define LUX2_STORE_V3(name)                                  \
-    {                                                        \
-        const Point3fP _v = v.name;                          \
-        StoreWord(base, reinterpret_array<UInt32P>(_v.x()),  \
-                  RecWord<WORDS>(rec, kWord_##name), m);     \
-        StoreWord(base, reinterpret_array<UInt32P>(_v.y()),  \
-                  RecWord<WORDS>(rec, kWord_##name + 1), m); \
-        StoreWord(base, reinterpret_array<UInt32P>(_v.z()),  \
-                  RecWord<WORDS>(rec, kWord_##name + 2), m); \
-    }
-#define LUX2_STORE_V2(name)                                  \
-    {                                                        \
-        const Point2fP _v = v.name;                          \
-        StoreWord(base, reinterpret_array<UInt32P>(_v.x()),  \
-                  RecWord<WORDS>(rec, kWord_##name), m);     \
-        StoreWord(base, reinterpret_array<UInt32P>(_v.y()),  \
-                  RecWord<WORDS>(rec, kWord_##name + 1), m); \
-    }
-#define LUX2_STORE_F(name)                              \
-    StoreWord(base, reinterpret_array<UInt32P>(v.name), \
-              RecWord<WORDS>(rec, kWord_##name), m);
-#define LUX2_STORE_U(name) \
-    StoreWord(base, v.name, RecWord<WORDS>(rec, kWord_##name), m);
-#define LUX2_STORE(kind, name, prev) LUX2_CAT(LUX2_STORE_, kind)(name)
-
-// Packed pair field.
-#define LUX2_DECL_PAIR(lo, hi, prev) \
-    UInt32P lo;                      \
+// Member declaration.
+#define LUX2_DECL(kind, name) \
+    typename FieldInfo<LUX2_CAT(LUX2_KIND_, kind)>::Value name;
+#define LUX2_DECL_PAIR(lo, hi) \
+    UInt32P lo;                \
     UInt32P hi;
-#define LUX2_WORD_PAIR(lo, hi, prev)        \
-    constexpr uint32_t kWord_##lo = (prev); \
-    constexpr uint32_t kWord_##hi = (prev); \
-    constexpr uint32_t LUX2_CAT(kNext_, hi) = (prev) + 1u;
-#define LUX2_LOAD_PAIR(lo, hi, prev)                                           \
-    {                                                                          \
-        const UInt32P _w = LoadWord(base, RecWord<WORDS>(rec, kWord_##lo), m); \
-        r.lo = _w & UInt32P(0xFFFFu);                                          \
-        r.hi = _w >> 16u;                                                      \
-    }
-#define LUX2_STORE_PAIR(lo, hi, prev)                                 \
-    {                                                                 \
-        const UInt32P _p = (v.lo & UInt32P(0xFFFFu)) | (v.hi << 16u); \
-        StoreWord(base, _p, RecWord<WORDS>(rec, kWord_##lo), m);      \
-    }
 
-// Generate a record. FIELDS are ordinary per-word fields; PAIRS are packed
-// two ID pairs.
-#define LUX2_RECORD(Prefix, FIELDS, PAIRS)                                    \
+// Index enum + width array (one slot per field; a pair takes one).
+#define LUX2_IDX(kind, name) kIdx_##name,
+#define LUX2_IDX_PAIR(lo, hi) kIdx_##lo,
+#define LUX2_WIDTH(kind, name) FieldInfo<LUX2_CAT(LUX2_KIND_, kind)>::Width,
+#define LUX2_WIDTH_PAIR(lo, hi) FieldInfo<K_Pair>::Width,
+
+// Tags. Off/kIdx are earlier members of the same namespace.
+#define LUX2_TAG(kind, name)                                             \
+    struct name : FieldTag<LUX2_CAT(LUX2_KIND_, kind), Off[kIdx_##name], \
+                           kTile, &Rec::name>                            \
+    {                                                                    \
+    };
+#define LUX2_TAG_PAIR(lo, hi)                                      \
+    struct lo : PairTag<Off[kIdx_##lo], kTile, &Rec::lo, &Rec::hi> \
+    {                                                              \
+    };
+#define LUX2_TAGREF(kind, name) name,
+#define LUX2_TAGREF_PAIR(lo, hi) lo,
+
+// Whole record struct + tag namespace (offsets, tags, tag list).
+#define LUX2_RECORD(Prefix, FIELDS, PAIRS, TILE)                              \
+    static_assert(TILE % 16 == 0,                                             \
+                  #Prefix " tile must be a multiple of 16 words");            \
     struct Vertex##Prefix##P                                                  \
     {                                                                         \
         FIELDS(LUX2_DECL)                                                     \
         PAIRS(LUX2_DECL_PAIR)                                                 \
     };                                                                        \
-    FIELDS(LUX2_WORD)                                                         \
-    PAIRS(LUX2_WORD_PAIR)                                                     \
-    constexpr uint32_t Prefix##_WORDS = LUX2_CAT(kNext_, LUX2_LAST_##Prefix); \
-    inline Vertex##Prefix##P Load##Prefix##_gather(                           \
-        const uint32_t *base, const UInt32P &rec, const MaskP &m)             \
+    namespace Prefix##Tag                                                     \
     {                                                                         \
-        constexpr uint32_t WORDS = Prefix##_WORDS;                            \
-        Vertex##Prefix##P r;                                                  \
-        FIELDS(LUX2_LOAD)                                                     \
-        PAIRS(LUX2_LOAD_PAIR)                                                 \
-        return r;                                                             \
-    }                                                                         \
-    inline void Store##Prefix##_gather(uint32_t *base,                        \
-                                       const Vertex##Prefix##P &v,            \
-                                       const UInt32P &rec, const MaskP &m)    \
-    {                                                                         \
-        constexpr uint32_t WORDS = Prefix##_WORDS;                            \
-        FIELDS(LUX2_STORE)                                                    \
-        PAIRS(LUX2_STORE_PAIR)                                                \
+        using Rec = Vertex##Prefix##P;                                        \
+        inline constexpr uint32_t kTile = TILE;                               \
+        enum Idx : uint32_t                                                   \
+        {                                                                     \
+            FIELDS(LUX2_IDX)                                                  \
+            PAIRS(LUX2_IDX_PAIR) kCount                                       \
+        };                                                                    \
+        inline constexpr auto Off = PrefixSum(                                \
+            std::array<uint32_t, kCount>{                                     \
+                FIELDS(LUX2_WIDTH) PAIRS(LUX2_WIDTH_PAIR)});                  \
+        static_assert(Off[kCount] <= TILE,                                    \
+                      #Prefix " fields exceed the record tile: bump " #TILE); \
+        FIELDS(LUX2_TAG)                                                      \
+        PAIRS(LUX2_TAG_PAIR)                                                  \
+        using All = TagList<FIELDS(LUX2_TAGREF) PAIRS(LUX2_TAGREF_PAIR)       \
+                                TagEnd>;                                      \
     }
 
-// The last field of each record.
-#define LUX2_LAST_Geom medBack
-#define LUX2_LAST_Mis bits
+        LUX2_RECORD(Geom, LUX2_GEOM_FIELDS, LUX2_GEOM_PAIRS, GEOM_TILE_WORDS)
+        LUX2_RECORD(Mis, LUX2_MIS_FIELDS, LUX2_NO_PAIRS, MIS_TILE_WORDS)
 
-        LUX2_RECORD(Geom, LUX2_GEOM_FIELDS, LUX2_GEOM_PAIRS)
-        LUX2_RECORD(Mis, LUX2_MIS_FIELDS, LUX2_NO_PAIRS)
+        constexpr uint32_t GEOM_WORDS = GEOM_TILE_WORDS;
+        constexpr uint32_t MIS_WORDS = MIS_TILE_WORDS;
 
-        constexpr uint32_t GEOM_WORDS = Geom_WORDS;
-        constexpr uint32_t MIS_WORDS_TOTAL = Mis_WORDS;
-
-        // MIS always uses the gather form.
-        inline VertexMisP LoadMis(const uint32_t *base, const UInt32P &rec,
-                                  const MaskP &m)
+        // Gather one field by tag. Returns the field's natural SIMD type
+        // (including packed pairs of uint16)!
+        template <class T>
+        inline auto LoadField(const uint32_t *base, const UInt32P &rec,
+                              const MaskP &m)
         {
-            return LoadMis_gather(base, rec, m);
-        }
-        inline void StoreMis(uint32_t *base, const VertexMisP &v,
-                             const UInt32P &rec, const MaskP &m)
-        {
-            StoreMis_gather(base, v, rec, m);
+            using K = typename T::Kind;
+            if constexpr (std::is_same_v<K, K_V3>)
+                return Point3fP(
+                    reinterpret_array<FloatP>(
+                        LoadWord(base, RecWord<T::RecWords>(rec, T::Word), m)),
+                    reinterpret_array<FloatP>(LoadWord(
+                        base, RecWord<T::RecWords>(rec, T::Word + 1), m)),
+                    reinterpret_array<FloatP>(LoadWord(
+                        base, RecWord<T::RecWords>(rec, T::Word + 2), m)));
+            else if constexpr (std::is_same_v<K, K_V2>)
+                return Point2fP(
+                    reinterpret_array<FloatP>(
+                        LoadWord(base, RecWord<T::RecWords>(rec, T::Word), m)),
+                    reinterpret_array<FloatP>(LoadWord(
+                        base, RecWord<T::RecWords>(rec, T::Word + 1), m)));
+            else if constexpr (std::is_same_v<K, K_F>)
+                return reinterpret_array<FloatP>(
+                    LoadWord(base, RecWord<T::RecWords>(rec, T::Word), m));
+            else if constexpr (std::is_same_v<K, K_U>)
+                return LoadWord(base, RecWord<T::RecWords>(rec, T::Word), m);
+            else // K_Pair
+            {
+                const UInt32P w =
+                    LoadWord(base, RecWord<T::RecWords>(rec, T::Word), m);
+                return PairU16{w & UInt32P(0xFFFFu), w >> 16u};
+            }
         }
 
-#if defined(__AVX512F__) || defined(__AVX2__)
-        // Transposed geom record access.
-        namespace geomx
+        // Masked scatter of one field by tag. Pairs write both halves in a
+        // single word.
+        template <class T, class V>
+        inline void StoreField(uint32_t *base, const V &v, const UInt32P &rec,
+                               const MaskP &m)
+        {
+            using K = typename T::Kind;
+            if constexpr (std::is_same_v<K, K_V3>)
+            {
+                StoreWord(base, reinterpret_array<UInt32P>(v.x()),
+                          RecWord<T::RecWords>(rec, T::Word), m);
+                StoreWord(base, reinterpret_array<UInt32P>(v.y()),
+                          RecWord<T::RecWords>(rec, T::Word + 1), m);
+                StoreWord(base, reinterpret_array<UInt32P>(v.z()),
+                          RecWord<T::RecWords>(rec, T::Word + 2), m);
+            }
+            else if constexpr (std::is_same_v<K, K_V2>)
+            {
+                StoreWord(base, reinterpret_array<UInt32P>(v.x()),
+                          RecWord<T::RecWords>(rec, T::Word), m);
+                StoreWord(base, reinterpret_array<UInt32P>(v.y()),
+                          RecWord<T::RecWords>(rec, T::Word + 1), m);
+            }
+            else if constexpr (std::is_same_v<K, K_F>)
+                StoreWord(base, reinterpret_array<UInt32P>(v),
+                          RecWord<T::RecWords>(rec, T::Word), m);
+            else if constexpr (std::is_same_v<K, K_U>)
+                StoreWord(base, v, RecWord<T::RecWords>(rec, T::Word), m);
+            else // K_Pair value is the packed word
+                StoreWord(base, v, RecWord<T::RecWords>(rec, T::Word), m);
+        }
+
+        // Transposed record access (shared by geom and mis).
+        namespace recx
         {
             using VecT = SimdVec;
 
@@ -287,136 +371,161 @@ namespace lux2
 #endif
             }
 
-            inline void LoadFields(VecT f[GEOM_WORDS], const uint32_t *base,
+            template <uint32_t WORDS>
+            inline void LoadFields(VecT f[WORDS], const uint32_t *base,
                                    const UInt32P &rec, const MaskP &m)
             {
                 alignas(64) uint32_t recA[SimdLanes];
                 enoki::store_unaligned(recA, rec);
-                LoadRecords<int(GEOM_WORDS)>(f, base, recA, LaneBits(m));
+                LoadRecords<int(WORDS)>(f, base, recA, LaneBits(m));
             }
 
-            inline void StoreFields(uint32_t *base, const VecT f[GEOM_WORDS],
+            template <uint32_t WORDS>
+            inline void StoreFields(uint32_t *base, const VecT f[WORDS],
                                     const UInt32P &rec, const MaskP &m)
             {
                 alignas(64) uint32_t recA[SimdLanes];
                 enoki::store_unaligned(recA, rec);
-                StoreRecords<int(GEOM_WORDS)>(base, f, recA, LaneBits(m));
+                StoreRecords<int(WORDS)>(base, f, recA, LaneBits(m));
             }
 
-            // Field word index -> register slot.
-            inline FloatP F(const VecT f[GEOM_WORDS], uint32_t w)
+            // Field word index -> register slot (width-independent).
+            inline FloatP F(const VecT f[], uint32_t w)
             {
                 return FloatP(f[w]);
             }
-            inline UInt32P U(const VecT f[GEOM_WORDS], uint32_t w)
+            inline UInt32P U(const VecT f[], uint32_t w)
             {
                 return UInt32P(RecBits(f[w]));
             }
-            inline Point3fP V3(const VecT f[GEOM_WORDS], uint32_t w)
+            inline Point3fP V3(const VecT f[], uint32_t w)
             {
                 return Point3fP(F(f, w), F(f, w + 1), F(f, w + 2));
             }
-            inline Point2fP V2(const VecT f[GEOM_WORDS], uint32_t w)
+            inline Point2fP V2(const VecT f[], uint32_t w)
             {
                 return Point2fP(F(f, w), F(f, w + 1));
             }
-        } // namespace geomx
+        } // namespace recx
 
         static_assert(PACKET_WIDTH == SimdLanes,
-                      "transposed geom access assumes a full-width packet");
-#endif
+                      "transposed record access assumes a full-width packet");
 
-#if defined(__AVX512F__) || defined(__AVX2__)
+        // Read one field out of the transposed register array into a record.
+        template <class T, class Rec>
+        ENOKI_INLINE void PutReg(Rec &r, const recx::VecT f[], T)
+        {
+            using K = typename T::Kind;
+            if constexpr (std::is_same_v<K, K_V3>)
+                r.*(T::Member) = recx::V3(f, T::Word);
+            else if constexpr (std::is_same_v<K, K_V2>)
+                r.*(T::Member) = recx::V2(f, T::Word);
+            else if constexpr (std::is_same_v<K, K_F>)
+                r.*(T::Member) = recx::F(f, T::Word);
+            else if constexpr (std::is_same_v<K, K_U>)
+                r.*(T::Member) = recx::U(f, T::Word);
+            else // K_Pair: unpack both halves from one word.
+            {
+                const UInt32P w = recx::U(f, T::Word);
+                r.*(T::LoM) = w & UInt32P(0xFFFFu);
+                r.*(T::HiM) = w >> 16u;
+            }
+        }
+
+        // Write one field of a record into the transposed register array.
+        template <class Rec, class T>
+        ENOKI_INLINE void GetReg(const Rec &v, recx::VecT f[], T)
+        {
+            using K = typename T::Kind;
+            if constexpr (std::is_same_v<K, K_V3>)
+            {
+                f[T::Word] = (v.*(T::Member)).x().m;
+                f[T::Word + 1] = (v.*(T::Member)).y().m;
+                f[T::Word + 2] = (v.*(T::Member)).z().m;
+            }
+            else if constexpr (std::is_same_v<K, K_V2>)
+            {
+                f[T::Word] = (v.*(T::Member)).x().m;
+                f[T::Word + 1] = (v.*(T::Member)).y().m;
+            }
+            else if constexpr (std::is_same_v<K, K_F>)
+                f[T::Word] = (v.*(T::Member)).m;
+            else if constexpr (std::is_same_v<K, K_U>)
+                f[T::Word] = recx::FromU(v.*(T::Member));
+            else // K_Pair pack both halves into one word.
+                f[T::Word] = recx::FromU(((v.*(T::LoM)) & UInt32P(0xFFFFu)) |
+                                         ((v.*(T::HiM)) << 16u));
+        }
+
         // Shared record assembly.
         inline VertexGeomP LoadGeom(const uint32_t *base, const UInt32P &rec,
                                     const MaskP &m)
         {
-            // One register per record word.
-            alignas(64) geomx::VecT f[GEOM_WORDS];
-            geomx::LoadFields(f, base, rec, m);
+            alignas(64) recx::VecT f[GEOM_WORDS];
+            recx::LoadFields<GEOM_WORDS>(f, base, rec, m);
             VertexGeomP r;
-            r.p = geomx::V3(f, kWord_p);
-            r.n = geomx::V3(f, kWord_n);
-            r.ng = geomx::V3(f, kWord_ng);
-            r.wb = geomx::V3(f, kWord_wb);
-            r.dp_du = geomx::V3(f, kWord_dp_du);
-            r.dp_dv = geomx::V3(f, kWord_dp_dv);
-            r.dp_ds = geomx::V3(f, kWord_dp_ds);
-            r.dp_dt = geomx::V3(f, kWord_dp_dt);
-            r.uv = geomx::V2(f, kWord_uv);
-            r.flux = geomx::F(f, kWord_flux);
-            r.k = geomx::F(f, kWord_k);
-            r.footprint = geomx::F(f, kWord_footprint);
-            r.spare0 = geomx::F(f, kWord_spare0);
-            const UInt32P idA = geomx::U(f, kWord_matID);
-            r.matID = idA & UInt32P(0xFFFFu);
-            r.medID = idA >> 16u;
-            const UInt32P idB = geomx::U(f, kWord_medFront);
-            r.medFront = idB & UInt32P(0xFFFFu);
-            r.medBack = idB >> 16u;
+            ForEachTag(GeomTag::All{}, [&](auto t)
+                       { PutReg(r, f, t); });
             return r;
         }
 
         inline void StoreGeom(uint32_t *base, const VertexGeomP &v,
                               const UInt32P &rec, const MaskP &m)
         {
-            alignas(64) geomx::VecT f[GEOM_WORDS];
-            auto put = [&](uint32_t w, const FloatP &x)
-            { f[w] = x.m; };
-            auto putU = [&](uint32_t w, const UInt32P &x)
-            { f[w] = geomx::FromU(x); };
-            put(kWord_p + 0, v.p.x());
-            put(kWord_p + 1, v.p.y());
-            put(kWord_p + 2, v.p.z());
-            put(kWord_n + 0, v.n.x());
-            put(kWord_n + 1, v.n.y());
-            put(kWord_n + 2, v.n.z());
-            put(kWord_ng + 0, v.ng.x());
-            put(kWord_ng + 1, v.ng.y());
-            put(kWord_ng + 2, v.ng.z());
-            put(kWord_wb + 0, v.wb.x());
-            put(kWord_wb + 1, v.wb.y());
-            put(kWord_wb + 2, v.wb.z());
-            put(kWord_dp_du + 0, v.dp_du.x());
-            put(kWord_dp_du + 1, v.dp_du.y());
-            put(kWord_dp_du + 2, v.dp_du.z());
-            put(kWord_dp_dv + 0, v.dp_dv.x());
-            put(kWord_dp_dv + 1, v.dp_dv.y());
-            put(kWord_dp_dv + 2, v.dp_dv.z());
-            put(kWord_dp_ds + 0, v.dp_ds.x());
-            put(kWord_dp_ds + 1, v.dp_ds.y());
-            put(kWord_dp_ds + 2, v.dp_ds.z());
-            put(kWord_dp_dt + 0, v.dp_dt.x());
-            put(kWord_dp_dt + 1, v.dp_dt.y());
-            put(kWord_dp_dt + 2, v.dp_dt.z());
-            put(kWord_uv + 0, v.uv.x());
-            put(kWord_uv + 1, v.uv.y());
-            put(kWord_flux, v.flux);
-            put(kWord_k, v.k);
-            put(kWord_footprint, v.footprint);
-            put(kWord_spare0, v.spare0);
-            putU(kWord_matID, (v.matID & UInt32P(0xFFFFu)) | (v.medID << 16u));
-            putU(kWord_medFront,
-                 (v.medFront & UInt32P(0xFFFFu)) | (v.medBack << 16u));
-            geomx::StoreFields(base, f, rec, m);
+            alignas(64) recx::VecT f[GEOM_WORDS];
+            ForEachTag(GeomTag::All{}, [&](auto t)
+                       { GetReg(v, f, t); });
+            recx::StoreFields<GEOM_WORDS>(base, f, rec, m);
         }
-#else
-        // Only gather/scatter here.
-        inline VertexGeomP LoadGeom(const uint32_t *base, const UInt32P &rec,
-                                    const MaskP &m)
+
+        // MIS whole record transposed fold.
+        inline VertexMisP LoadMis(const uint32_t *base, const UInt32P &rec,
+                                  const MaskP &m)
         {
-            return LoadGeom_gather(base, rec, m);
+            alignas(64) recx::VecT f[MIS_WORDS];
+            recx::LoadFields<MIS_WORDS>(f, base, rec, m);
+            VertexMisP r;
+            ForEachTag(MisTag::All{}, [&](auto t)
+                       { PutReg(r, f, t); });
+            return r;
         }
-        inline void StoreGeom(uint32_t *base, const VertexGeomP &v,
-                              const UInt32P &rec, const MaskP &m)
+
+        inline void StoreMis(uint32_t *base, const VertexMisP &v,
+                             const UInt32P &rec, const MaskP &m)
         {
-            StoreGeom_gather(base, v, rec, m);
+            alignas(64) recx::VecT f[MIS_WORDS] = {};
+            ForEachTag(MisTag::All{}, [&](auto t)
+                       { GetReg(v, f, t); });
+            recx::StoreFields<MIS_WORDS>(base, f, rec, m);
         }
-#endif
 
         static_assert(GEOM_WORDS * 4 % 64 == 0,
                       "geom record must be cache-line aligned");
-        static_assert(MIS_WORDS_TOTAL * 4 == 32, "mis record must be 32 B");
+        static_assert(MIS_WORDS * 4 == 64, "mis record must be 64 B");
+
+        // A mid record insertion fires this.
+        static_assert(GeomTag::p::Word == 0 && GeomTag::n::Word == 3 &&
+                          GeomTag::ng::Word == 6 && GeomTag::wb::Word == 9 &&
+                          GeomTag::dp_du::Word == 12 &&
+                          GeomTag::dp_dv::Word == 15 &&
+                          GeomTag::dp_ds::Word == 18 &&
+                          GeomTag::dp_dt::Word == 21 &&
+                          GeomTag::uv::Word == 24,
+                      "geom tile-0 layout moved");
+        static_assert(GeomTag::flux::Word == 26 && GeomTag::k::Word == 27 &&
+                          GeomTag::footprint::Word == 28 &&
+                          GeomTag::spare0::Word == 29 &&
+                          GeomTag::matID::Word == 30 &&
+                          GeomTag::medFront::Word == 31,
+                      "geom tile-1 layout moved");
+        // A mid record insertion fires this.
+        static_assert(MisTag::dAW::Word == 0 && MisTag::dARW::Word == 1 &&
+                          MisTag::rr::Word == 2 && MisTag::rrR::Word == 3 &&
+                          MisTag::cosi::Word == 4 && MisTag::coso::Word == 5 &&
+                          MisTag::d2::Word == 6 && MisTag::bits::Word == 7,
+                      "mis layout moved");
+        static_assert(GEOM_WORDS == 32 && MIS_WORDS == 16,
+                      "record word count changed");
 
 #ifdef LUX2_INTEGRATOR_DEBUG
         // Glass diagnostic words.

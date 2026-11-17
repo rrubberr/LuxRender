@@ -86,12 +86,7 @@ namespace lux2
         {
             const UInt32P rec = wf::RecIdx(ps, path, v, m);
             uint32_t *base = ps.arena->geomWords.data();
-            wf::StoreWord(base, enoki::reinterpret_array<UInt32P>(wb.x()),
-                          wf::RecWord<wf::GEOM_WORDS>(rec, wf::kWord_wb), m);
-            wf::StoreWord(base, enoki::reinterpret_array<UInt32P>(wb.y()),
-                          wf::RecWord<wf::GEOM_WORDS>(rec, wf::kWord_wb + 1), m);
-            wf::StoreWord(base, enoki::reinterpret_array<UInt32P>(wb.z()),
-                          wf::RecWord<wf::GEOM_WORDS>(rec, wf::kWord_wb + 2), m);
+            wf::StoreField<wf::GeomTag::wb>(base, wb, rec, m);
         }
 
         // Overwrite a whole vertex record.

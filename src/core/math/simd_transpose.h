@@ -30,15 +30,6 @@
 
 namespace lux2
 {
-    // Scalar reference transpose of row major src[rows][cols] -> dst[cols][rows].
-    inline void TransposeScalar(const std::uint32_t *src, std::uint32_t *dst,
-                                int rows, int cols)
-    {
-        for (int r = 0; r < rows; ++r)
-            for (int c = 0; c < cols; ++c)
-                dst[c * rows + r] = src[r * cols + c];
-    }
-
 #if defined(__AVX512F__)
     // 16 records x 16 words -> out[w] holds word w of all 16 records.
     inline void Transpose16x16Shuffle(const __m512 in[16], __m512 out[16])
@@ -134,85 +125,7 @@ namespace lux2
         out[15] = rf;
     }
 
-    // Register form of 16 record rows -> 16 field packets.
-    inline void Transpose16x16Reg(const __m512 in[16], __m512 out[16])
-    {
-        Transpose16x16Shuffle(in, out);
-    }
-
-    // Memory form of uint32 in[16][16] row-major -> out[16][16].
-    inline void Transpose16x16(const std::uint32_t in[16][16],
-                               std::uint32_t out[16][16])
-    {
-        __m512 r[16], o[16];
-        for (int i = 0; i < 16; ++i)
-            r[i] = _mm512_castsi512_ps(
-                _mm512_load_si512((const __m512i *)&in[i][0]));
-        Transpose16x16Shuffle(r, o);
-        for (int i = 0; i < 16; ++i)
-            _mm512_store_si512((__m512i *)&out[i][0],
-                               _mm512_castps_si512(o[i]));
-    }
-
-    // 8 word MIS record, 16 lanes of in[w][lane] -> out_flat[lane*8 + w].
-    inline void Transpose16x8(const std::uint32_t in[8][16],
-                              std::uint32_t out[8][16])
-    {
-        __m512 r0 = _mm512_castsi512_ps(_mm512_load_si512((const __m512i *)&in[0][0]));
-        __m512 r1 = _mm512_castsi512_ps(_mm512_load_si512((const __m512i *)&in[1][0]));
-        __m512 r2 = _mm512_castsi512_ps(_mm512_load_si512((const __m512i *)&in[2][0]));
-        __m512 r3 = _mm512_castsi512_ps(_mm512_load_si512((const __m512i *)&in[3][0]));
-        __m512 r4 = _mm512_castsi512_ps(_mm512_load_si512((const __m512i *)&in[4][0]));
-        __m512 r5 = _mm512_castsi512_ps(_mm512_load_si512((const __m512i *)&in[5][0]));
-        __m512 r6 = _mm512_castsi512_ps(_mm512_load_si512((const __m512i *)&in[6][0]));
-        __m512 r7 = _mm512_castsi512_ps(_mm512_load_si512((const __m512i *)&in[7][0]));
-
-        __m512 t0 = _mm512_unpacklo_ps(r0, r1);
-        __m512 t1 = _mm512_unpackhi_ps(r0, r1);
-        __m512 t2 = _mm512_unpacklo_ps(r2, r3);
-        __m512 t3 = _mm512_unpackhi_ps(r2, r3);
-        __m512 t4 = _mm512_unpacklo_ps(r4, r5);
-        __m512 t5 = _mm512_unpackhi_ps(r4, r5);
-        __m512 t6 = _mm512_unpacklo_ps(r6, r7);
-        __m512 t7 = _mm512_unpackhi_ps(r6, r7);
-
-        __m512 t8 = _mm512_shuffle_ps(t0, t2, _MM_SHUFFLE(1, 0, 1, 0));
-        __m512 t9 = _mm512_shuffle_ps(t0, t2, _MM_SHUFFLE(3, 2, 3, 2));
-        __m512 ta = _mm512_shuffle_ps(t1, t3, _MM_SHUFFLE(1, 0, 1, 0));
-        __m512 tb = _mm512_shuffle_ps(t1, t3, _MM_SHUFFLE(3, 2, 3, 2));
-        __m512 tc = _mm512_shuffle_ps(t4, t6, _MM_SHUFFLE(1, 0, 1, 0));
-        __m512 td = _mm512_shuffle_ps(t4, t6, _MM_SHUFFLE(3, 2, 3, 2));
-        __m512 te = _mm512_shuffle_ps(t5, t7, _MM_SHUFFLE(1, 0, 1, 0));
-        __m512 tf = _mm512_shuffle_ps(t5, t7, _MM_SHUFFLE(3, 2, 3, 2));
-
-        t0 = _mm512_shuffle_f32x4(t8, tc, _MM_SHUFFLE(2, 0, 2, 0));
-        t1 = _mm512_shuffle_f32x4(t9, td, _MM_SHUFFLE(2, 0, 2, 0));
-        t2 = _mm512_shuffle_f32x4(ta, te, _MM_SHUFFLE(2, 0, 2, 0));
-        t3 = _mm512_shuffle_f32x4(tb, tf, _MM_SHUFFLE(2, 0, 2, 0));
-        t4 = _mm512_shuffle_f32x4(t8, tc, _MM_SHUFFLE(3, 1, 3, 1));
-        t5 = _mm512_shuffle_f32x4(t9, td, _MM_SHUFFLE(3, 1, 3, 1));
-        t6 = _mm512_shuffle_f32x4(ta, te, _MM_SHUFFLE(3, 1, 3, 1));
-        t7 = _mm512_shuffle_f32x4(tb, tf, _MM_SHUFFLE(3, 1, 3, 1));
-
-        r0 = _mm512_shuffle_f32x4(t0, t1, _MM_SHUFFLE(2, 0, 2, 0));
-        r1 = _mm512_shuffle_f32x4(t2, t3, _MM_SHUFFLE(2, 0, 2, 0));
-        r2 = _mm512_shuffle_f32x4(t4, t5, _MM_SHUFFLE(2, 0, 2, 0));
-        r3 = _mm512_shuffle_f32x4(t6, t7, _MM_SHUFFLE(2, 0, 2, 0));
-        r4 = _mm512_shuffle_f32x4(t0, t1, _MM_SHUFFLE(3, 1, 3, 1));
-        r5 = _mm512_shuffle_f32x4(t2, t3, _MM_SHUFFLE(3, 1, 3, 1));
-        r6 = _mm512_shuffle_f32x4(t4, t5, _MM_SHUFFLE(3, 1, 3, 1));
-        r7 = _mm512_shuffle_f32x4(t6, t7, _MM_SHUFFLE(3, 1, 3, 1));
-
-        _mm512_store_si512((__m512i *)&out[0][0], _mm512_castps_si512(r0));
-        _mm512_store_si512((__m512i *)&out[1][0], _mm512_castps_si512(r1));
-        _mm512_store_si512((__m512i *)&out[2][0], _mm512_castps_si512(r2));
-        _mm512_store_si512((__m512i *)&out[3][0], _mm512_castps_si512(r3));
-        _mm512_store_si512((__m512i *)&out[4][0], _mm512_castps_si512(r4));
-        _mm512_store_si512((__m512i *)&out[5][0], _mm512_castps_si512(r5));
-        _mm512_store_si512((__m512i *)&out[6][0], _mm512_castps_si512(r6));
-        _mm512_store_si512((__m512i *)&out[7][0], _mm512_castps_si512(r7));
-    }
-#endif // __AVX512F__
+ #endif // __AVX512F__
 
 #if defined(__AVX2__)
     // 8 records x 8 words -> out[w] holds word w of all 8 records.
@@ -343,11 +256,7 @@ namespace lux2
         }
     }
 
-    // Field word -> packet. U() reinterprets the bits as integers.
-    inline SimdVec RecV(SimdVec v)
-    {
-        return v;
-    }
+    // Reinterpret between float and integer vector bit patterns.
 #if defined(__AVX512F__)
     inline __m512i RecBits(SimdVec v)
     {

@@ -63,12 +63,12 @@ namespace lux2
         {
             return ps.arena->misWords
                 .data()[(size_t(path) * ps.arena->stride + v) * wf::MIS_WORDS +
-                        wf::kWord_bits];
+                        wf::MisTag::bits::Word];
         }
         // Specular flag for a vertex.
         inline bool VertexIsSpecular(const uint32_t *geomRec)
         {
-            return (geomRec[wf::kWord_spare0] & 1u) != 0u;
+            return (geomRec[wf::GeomTag::spare0::Word] & 1u) != 0u;
         }
 
         // Chain side vertex load.
@@ -81,7 +81,7 @@ namespace lux2
             const UInt32P rec = wf::RecIdx(ps, path, idx, act);
             const UInt32P sp0 = enoki::gather<UInt32P>(
                 ps.arena->geomWords.data(),
-                wf::RecWord<wf::GEOM_WORDS>(rec, wf::kWord_spare0), act);
+                wf::RecWord<wf::GEOM_WORDS>(rec, wf::GeomTag::spare0::Word), act);
             v.spec = neq(sp0 & UInt32P(1u), UInt32P(0u)) && act;
             return v;
         }
@@ -169,7 +169,7 @@ namespace lux2
             {
                 for (uint32_t v = lo; v < hiExcl; ++v)
                 {
-                    const uint32_t medW = GeomRec(ps, path, v)[kWord_matID];
+                    const uint32_t medW = GeomRec(ps, path, v)[GeomTag::matID::Word];
                     if ((medW >> 16u) != uint32_t(LUX2_MEDIUM_CLEAR))
                         return false; // medium scatter
                 }
@@ -211,14 +211,14 @@ namespace lux2
             {
                 const uint32_t *prev = rec(v - 1u);
                 uint32_t *cur = rec(v);
-                const float dx = WordF(prev, kWord_p) - WordF(cur, kWord_p);
-                const float dy = WordF(prev, kWord_p + 1) - WordF(cur, kWord_p + 1);
-                const float dz = WordF(prev, kWord_p + 2) - WordF(cur, kWord_p + 2);
+                const float dx = WordF(prev, GeomTag::p::Word) - WordF(cur, GeomTag::p::Word);
+                const float dy = WordF(prev, GeomTag::p::Word + 1) - WordF(cur, GeomTag::p::Word + 1);
+                const float dz = WordF(prev, GeomTag::p::Word + 2) - WordF(cur, GeomTag::p::Word + 2);
                 const float d2 = dx * dx + dy * dy + dz * dz;
                 if (!(d2 > EPS_DENOM))
                     return false;
                 const float inv = 1.f / std::sqrt(d2);
-                SetV3(cur, kWord_wb, dx * inv, dy * inv, dz * inv);
+                SetV3(cur, GeomTag::wb::Word, dx * inv, dy * inv, dz * inv);
                 return true;
             };
 
@@ -237,14 +237,14 @@ namespace lux2
             else
             {
                 uint32_t *e = rec(nEs);
-                SetV3(e, kWord_p, L.vP[0], L.vP[1], L.vP[2]);
-                SetV3(e, kWord_n, L.vN[0], L.vN[1], L.vN[2]);
-                SetV3(e, kWord_ng, L.vNg[0], L.vNg[1], L.vNg[2]);
-                e[kWord_matID] = PackPair(0u, uint32_t(LUX2_MEDIUM_CLEAR));
+                SetV3(e, GeomTag::p::Word, L.vP[0], L.vP[1], L.vP[2]);
+                SetV3(e, GeomTag::n::Word, L.vN[0], L.vN[1], L.vN[2]);
+                SetV3(e, GeomTag::ng::Word, L.vNg[0], L.vNg[1], L.vNg[2]);
+                e[GeomTag::matID::Word] = PackPair(0u, uint32_t(LUX2_MEDIUM_CLEAR));
                 const uint32_t med = lightIdx < c.lightMedium.size()
                                          ? c.lightMedium[lightIdx]
                                          : uint32_t(LUX2_MEDIUM_CLEAR);
-                e[kWord_medFront] = PackPair(med, med);
+                e[GeomTag::medFront::Word] = PackPair(med, med);
                 if (!setWbToPrev(nEs))
                     return false;
             }
@@ -252,7 +252,7 @@ namespace lux2
             // Stamp the specular bit into each copied vertex's spare0 bit0.
             auto matDelta = [&](uint32_t v) -> bool
             {
-                const uint32_t matID = rec(v)[kWord_matID] & 0xFFFFu;
+                const uint32_t matID = rec(v)[GeomTag::matID::Word] & 0xFFFFu;
                 if (matID >= c.table->ptrs.size())
                     return false;
                 const BSDF *b = c.table->ptrs[matID];
@@ -261,17 +261,17 @@ namespace lux2
             // Eye interior [1, nEs-1) from MIS bits; eye tip nEs-1 by material.
             for (uint32_t v = 1; v + 1u < nEs; ++v)
                 if (MisBits(*L.eyePs, L.ePath, v) & 1u)
-                    rec(v)[wf::kWord_spare0] |= 1u;
+                    rec(v)[wf::GeomTag::spare0::Word] |= 1u;
             if (nEs >= 2u && matDelta(nEs - 1u))
-                rec(nEs - 1u)[wf::kWord_spare0] |= 1u;
+                rec(nEs - 1u)[wf::GeomTag::spare0::Word] |= 1u;
             // Light interior [1, nLs-1) from MIS bits; light tip nLs-1.
             if (realLight)
             {
                 for (uint32_t j = 1; j + 1u < nLs; ++j)
                     if (MisBits(*L.lightPs, L.lPath, j) & 1u)
-                        rec(nEs + (nLs - 1u - j))[wf::kWord_spare0] |= 1u;
+                        rec(nEs + (nLs - 1u - j))[wf::GeomTag::spare0::Word] |= 1u;
                 if (nLs >= 2u && matDelta(nEs))
-                    rec(nEs)[wf::kWord_spare0] |= 1u;
+                    rec(nEs)[wf::GeomTag::spare0::Word] |= 1u;
             }
 
             // Specular run structure.
@@ -296,8 +296,8 @@ namespace lux2
             auto mutableOk = [&](uint32_t v) -> bool
             {
                 const uint32_t *r = rec(v);
-                const uint32_t matID = r[kWord_matID] & 0xFFFFu;
-                const uint32_t medID = r[kWord_matID] >> 16u;
+                const uint32_t matID = r[GeomTag::matID::Word] & 0xFFFFu;
+                const uint32_t medID = r[GeomTag::matID::Word] >> 16u;
                 if (medID != uint32_t(LUX2_MEDIUM_CLEAR))
                     return false; // TODO: medium scatter not yet supported.
                 return ChainableMat(c, matID);

@@ -275,7 +275,7 @@ namespace lux2
                     RecIdx(*m_ps, mL.path, mL.v - Int32P(1), hasPrevIdx);
                 StoreWord(m_ps->arena->misWords.data(),
                           reinterpret_array<UInt32P>(d2),
-                          RecWord<MIS_WORDS>(recPrev, kWord_d2), hasPrevIdx);
+                          RecWord<MIS_WORDS>(recPrev, MisTag::d2::Word), hasPrevIdx);
 
                 // Lanes that continue, only when v+1 < depth.
                 const MaskP sampleV = writeV && ((mL.v + Int32P(1)) < Int32P(m_c.eyeDepth));
@@ -318,7 +318,7 @@ namespace lux2
                           reinterpret_array<UInt32P>(
                               select(sampOk, pdf * mL.prevCosi * divp(FloatP(1.f), d2),
                                      FloatP(0.f))),
-                          RecWord<MIS_WORDS>(recPrev, kWord_dAW),
+                          RecWord<MIS_WORDS>(recPrev, MisTag::dAW::Word),
                           hasPrevIdx && (mL.v >= Int32P(2)));
 
                 // rr/rrR/cosi/spec for vertex v; write into the MIS record stored.
@@ -328,16 +328,16 @@ namespace lux2
                 const FloatP rrR = min(FloatP(1.f), max(m_c.eyeRR, f));
                 StoreWord(m_ps->arena->misWords.data(),
                           reinterpret_array<UInt32P>(rr),
-                          RecWord<MIS_WORDS>(rec, kWord_rr), sampleV);
+                          RecWord<MIS_WORDS>(rec, MisTag::rr::Word), sampleV);
                 StoreWord(m_ps->arena->misWords.data(),
                           reinterpret_array<UInt32P>(rrR),
-                          RecWord<MIS_WORDS>(rec, kWord_rrR), sampleV);
+                          RecWord<MIS_WORDS>(rec, MisTag::rrR::Word), sampleV);
                 StoreWord(m_ps->arena->misWords.data(),
                           reinterpret_array<UInt32P>(cN),
-                          RecWord<MIS_WORDS>(rec, kWord_cosi), sampleV);
+                          RecWord<MIS_WORDS>(rec, MisTag::cosi::Word), sampleV);
                 StoreWord(m_ps->arena->misWords.data(),
                           select(specular, UInt32P(1u), UInt32P(0u)),
-                          RecWord<MIS_WORDS>(rec, kWord_bits), sampleV);
+                          RecWord<MIS_WORDS>(rec, MisTag::bits::Word), sampleV);
 
                 // Russian roulette.
                 const MaskP rrActive = sampleV && ((mL.v + Int32P(1)) > Int32P(RR_START));
@@ -582,7 +582,7 @@ namespace lux2
                     RecIdx(*m_ps, mL.path, mL.v - Int32P(1), hasPrevIdx);
                 StoreWord(m_ps->arena->misWords.data(),
                           reinterpret_array<UInt32P>(d2),
-                          RecWord<MIS_WORDS>(recPrev, kWord_d2), hasPrevIdx);
+                          RecWord<MIS_WORDS>(recPrev, MisTag::d2::Word), hasPrevIdx);
 
                 // directPdf1 at vertex 1: direct sampling of light[0] from vertex 1.
                 const MaskP v1 = writeV && eq(mL.v, Int32P(1));
@@ -631,7 +631,7 @@ namespace lux2
                           reinterpret_array<UInt32P>(
                               select(sampOk, pdfR * mL.prevCoso * divp(FloatP(1.f), d2),
                                      FloatP(0.f))),
-                          RecWord<MIS_WORDS>(recPrev, kWord_dARW), hasPrevIdx);
+                          RecWord<MIS_WORDS>(recPrev, MisTag::dARW::Word), hasPrevIdx);
 
                 const FloatP f = m_sample.f;
                 const FloatP rrR = min(
@@ -639,16 +639,16 @@ namespace lux2
                 const FloatP rr = min(FloatP(1.f), max(m_c.lightRR, f));
                 StoreWord(m_ps->arena->misWords.data(),
                           reinterpret_array<UInt32P>(rr),
-                          RecWord<MIS_WORDS>(rec, kWord_rr), sampleV);
+                          RecWord<MIS_WORDS>(rec, MisTag::rr::Word), sampleV);
                 StoreWord(m_ps->arena->misWords.data(),
                           reinterpret_array<UInt32P>(rrR),
-                          RecWord<MIS_WORDS>(rec, kWord_rrR), sampleV);
+                          RecWord<MIS_WORDS>(rec, MisTag::rrR::Word), sampleV);
                 StoreWord(m_ps->arena->misWords.data(),
                           reinterpret_array<UInt32P>(cN),
-                          RecWord<MIS_WORDS>(rec, kWord_coso), sampleV);
+                          RecWord<MIS_WORDS>(rec, MisTag::coso::Word), sampleV);
                 StoreWord(m_ps->arena->misWords.data(),
                           select(specular, UInt32P(1u), UInt32P(0u)),
-                          RecWord<MIS_WORDS>(rec, kWord_bits), sampleV);
+                          RecWord<MIS_WORDS>(rec, MisTag::bits::Word), sampleV);
 
 #ifdef LUX2_INTEGRATOR_DEBUG
                 // Glass diagnostic.

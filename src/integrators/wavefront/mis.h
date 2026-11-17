@@ -54,25 +54,25 @@ namespace lux2
 
             FloatP dAW(const Int32P &i, const MaskP &m) const
             {
-                return MisF(*ps, RecIdx(*ps, path, i, m), kWord_dAW, m);
+                return MisF(*ps, RecIdx(*ps, path, i, m), MisTag::dAW::Word, m);
             }
             FloatP dARW(const Int32P &i, const MaskP &m) const
             {
-                return MisF(*ps, RecIdx(*ps, path, i, m), kWord_dARW, m);
+                return MisF(*ps, RecIdx(*ps, path, i, m), MisTag::dARW::Word, m);
             }
             FloatP rr(const Int32P &i, const MaskP &m) const
             {
-                return MisF(*ps, RecIdx(*ps, path, i, m), kWord_rr, m);
+                return MisF(*ps, RecIdx(*ps, path, i, m), MisTag::rr::Word, m);
             }
             FloatP rrR(const Int32P &i, const MaskP &m) const
             {
-                return MisF(*ps, RecIdx(*ps, path, i, m), kWord_rrR, m);
+                return MisF(*ps, RecIdx(*ps, path, i, m), MisTag::rrR::Word, m);
             }
             MaskP spec(const Int32P &i, const MaskP &m) const
             {
                 const UInt32P bits = LoadWord(
                     ps->arena->misWords.data(),
-                    RecWord<MIS_WORDS>(RecIdx(*ps, path, i, m), kWord_bits), m);
+                    RecWord<MIS_WORDS>(RecIdx(*ps, path, i, m), MisTag::bits::Word), m);
                 return neq(bits & UInt32P(1u), UInt32P(0u));
             }
         };
