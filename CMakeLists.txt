@@ -41,20 +41,20 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CompilerSetup.cmake)
 # This points to LuxRender/ext.
 set(EXT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ext)
 
-# This points to LuxRender/ext/build.
-set(BUILD_DIR ${EXT_DIR}/build)
+# This points to <build dir>/pfx.
+set(PFX_DIR ${CMAKE_BINARY_DIR}/pfx)
 
-# This points to LuxRender/ext/build/bin.
+# Dependency install tree (bin/lib/include under pfx).
+set(BUILD_DIR ${PFX_DIR})
+
+# This points to <build dir>/pfx/bin.
 set(BIN_DIR ${BUILD_DIR}/bin)
 
-# This points to LuxRender/ext/build/lib.
+# This points to <build dir>/pfx/lib.
 set(LIB_DIR ${BUILD_DIR}/lib)
 
-# This points to LuxRender/ext/build/include.
+# This points to <build dir>/pfx/include.
 set(INC_DIR ${BUILD_DIR}/include)
-
-# This points to LuxRender/ext/pfx.
-set(PFX_DIR ${EXT_DIR}/pfx)
 
 #####################
 # Setup the project #
@@ -83,7 +83,12 @@ if(NOT UPPER_BUILD_TYPE STREQUAL "RELEASE" AND NOT UPPER_BUILD_TYPE STREQUAL "DE
 endif()
 
 # Forwarded to the LuxRender2's build to enable/disable integrator debug.
-option(LUX2_INTEGRATOR_DEBUG "Compile lux2 integrator debug instrumentation" OFF)
+if(UPPER_BUILD_TYPE STREQUAL "DEBUG")
+	set(LUX2_INTEGRATOR_DEBUG_DEFAULT ON)
+else()
+	set(LUX2_INTEGRATOR_DEBUG_DEFAULT OFF)
+endif()
+option(LUX2_INTEGRATOR_DEBUG "Compile lux2 integrator debug instrumentation" ${LUX2_INTEGRATOR_DEBUG_DEFAULT})
 
 # Buffers = vertex arenas, film accumulators, pointer tables.
 option(LUX_USE_HUGEPAGES "Back lux2 render buffers with huge pages" ON)
@@ -101,14 +106,13 @@ set(
 
 SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-#######################
-# Custom Clean Target #
-#######################
+################
+# Clean Target #
+################
 
 add_custom_target(clean-all
-	COMMAND ${CMAKE_COMMAND} -E remove_directory ${BUILD_DIR}
 	COMMAND ${CMAKE_COMMAND} -E remove_directory ${PFX_DIR}
-	COMMENT "Emptying the build and pfx directories"
+	COMMENT "Emptying the pfx directory (external dependencies)"
 )
 
 ##############
@@ -123,9 +127,9 @@ add_subdirectory(ext)
 
 set(LUX_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w -I${INC_DIR}/Imath -I${INC_DIR}/OpenEXR")
 
-# Where the finished binaries are collected.
-set(RELEASE_DIR "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}" CACHE PATH
-    "Directory the LuxRender2 binaries are copied to after the build")
+# Where the finished binaries are collected per build type (e.g. <src>/Debug).
+set(RELEASE_DIR "${CMAKE_SOURCE_DIR}/${CMAKE_BUILD_TYPE}" CACHE PATH
+    "Directory the LuxRender2 binaries are installed to" FORCE)
 
 ExternalProject_Add(
     LuxRender2
@@ -136,14 +140,17 @@ ExternalProject_Add(
         libpng
         libjpeg-turbo
         libtiff
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/src/lux2
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/src
     BINARY_DIR ${PFX_DIR}/LuxRender2/build
     PREFIX ${PFX_DIR}/LuxRender2
     BUILD_ALWAYS 1
-    INSTALL_DIR ${BUILD_DIR}
+    INSTALL_DIR ${RELEASE_DIR}
     CMAKE_ARGS
         ${COMMON_LUX_PROJECT_ARGS}
-        -DLUX2_RELEASE_DIR=${RELEASE_DIR}
+        -DCMAKE_INSTALL_PREFIX=${RELEASE_DIR}
+        -DBUILD_DIR=${BUILD_DIR}
+        -DLIB_DIR=${LIB_DIR}
+        -DINC_DIR=${INC_DIR}
         -DLUX2_INTEGRATOR_DEBUG=${LUX2_INTEGRATOR_DEBUG}
         -DLUX_USE_HUGEPAGES=${LUX_USE_HUGEPAGES}
         -DCMAKE_FIND_ROOT_PATH=${BUILD_DIR}
@@ -158,8 +165,10 @@ ExternalProject_Add(
         -DCMAKE_LINKER_TYPE=${CMAKE_LINKER_TYPE}
     CMAKE_CACHE_ARGS
         "-DCMAKE_CXX_FLAGS:STRING=${LUX_CXX_FLAGS}"
-    INSTALL_COMMAND ${CMAKE_COMMAND}
-        -DLIB_DIR=${LIB_DIR}
-        -DRELEASE_DIR=${RELEASE_DIR}
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallSharedLibs.cmake
+    INSTALL_COMMAND
+        ${CMAKE_COMMAND} --build <BINARY_DIR> --target install &&
+        ${CMAKE_COMMAND}
+            -DLIB_DIR=${LIB_DIR}
+            -DRELEASE_DIR=${RELEASE_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/InstallSharedLibs.cmake
 )

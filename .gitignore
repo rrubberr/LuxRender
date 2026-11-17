@@ -1,8 +1,6 @@
 .vscode
 /release
-/ext/build
 /build
 **/.DS_Store
 /test/*.png
-/ext/pfx
 /.github

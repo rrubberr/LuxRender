@@ -26,22 +26,21 @@ cmake_minimum_required(VERSION 3.25)
 # Set the compiler and build type #
 ###################################
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/CompilerSetup.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CompilerSetup.cmake)
 
 ##################
 # Set up folders #
 ##################
 
-# This points to LuxRender/ext.
-set(EXT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../ext)
+# Fall back to ext/build for standalone config.
+if(NOT DEFINED BUILD_DIR)
+	set(BUILD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../ext/build)
+endif()
 
-# This points to LuxRender/ext/build.
-set(BUILD_DIR ${EXT_DIR}/build)
-
-# This points to LuxRender/ext/build/lib.
+# This points to <build dir>/pfx/lib.
 set(LIB_DIR ${BUILD_DIR}/lib)
 
-# This points to LuxRender/ext/build/include.
+# This points to <build dir>/pfx/include.
 set(INC_DIR ${BUILD_DIR}/include)
 
 #####################
@@ -67,7 +66,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Dependencies.cmake)
 ######################
 
 # LUX_MARCH_FLAGS / LUX_PACKET_WIDTH.
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/HostISA.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/HostISA.cmake)
 
 # GCC miscompiles Enoki raw_coeff_ without -fno-strict-aliasing.
 string(APPEND CMAKE_CXX_FLAGS_RELEASE " ${LUX_MARCH_FLAGS} -O3 -g -ftree-vectorize -funroll-loops -fno-strict-aliasing")
@@ -85,9 +84,10 @@ if(LUX_USE_HUGEPAGES)
 	ADD_DEFINITIONS(-DLUX_USE_HUGEPAGES)
 endif()
 
-# Where the binaries are collected.
-if(NOT DEFINED LUX2_RELEASE_DIR)
-	set(LUX2_RELEASE_DIR ${CMAKE_BINARY_DIR})
+# Bins install to CMAKE_INSTALL_PREFIX.
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+	set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install" CACHE PATH
+		"Where lux2 binaries are installed" FORCE)
 endif()
 
 ####################
@@ -125,6 +125,11 @@ ADD_LIBRARY(lux2 SHARED
 TARGET_INCLUDE_DIRECTORIES(lux2 PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}
 	${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# Installed copy resolves tbb/embree from its own directory.
+SET_TARGET_PROPERTIES(lux2 PROPERTIES
+	INSTALL_RPATH "$ORIGIN"
 )
 
 # Share the libtbb used by Embree.
@@ -184,12 +189,10 @@ set(SANITIZER_FLAGS
 # target_compile_options(lux2console PRIVATE ${SANITIZER_FLAGS})
 # target_link_options(lux2console PRIVATE -fsanitize=address,undefined)
 
-####################
-# Collect binaries #
-####################
+#################
+# Install rules #
+#################
 
-ADD_CUSTOM_COMMAND(TARGET lux2console POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E make_directory "${LUX2_RELEASE_DIR}"
-	COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:lux2console> "${LUX2_RELEASE_DIR}/"
-	COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:lux2> "${LUX2_RELEASE_DIR}/"
-)
+# CMAKE_INSTALL_PREFIX is the release directory.
+INSTALL(TARGETS lux2 LIBRARY DESTINATION .)
+INSTALL(TARGETS lux2console RUNTIME DESTINATION .)

@@ -36,6 +36,9 @@ function(add_lux2_check)
 	if(CHECK_WORKING_DIR)
 		set_tests_properties(${CHECK_NAME} PROPERTIES WORKING_DIRECTORY ${CHECK_WORKING_DIR})
 	endif()
+
+	# Collect the check binary under <release>/tests.
+	install(TARGETS ${CHECK_NAME} RUNTIME DESTINATION tests)
 endfunction()
 
 add_lux2_check(
@@ -51,7 +54,7 @@ add_lux2_check(
 )
 
 # Cornell Box scene data.
-set(LUX2_CORNELL_DATA ${CMAKE_CURRENT_SOURCE_DIR}/../../../test/cornell_box/cornell_box/Scene/00001)
+set(LUX2_CORNELL_DATA ${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/cornell_box/Scene/00001)
 
 add_lux2_check(
 	NAME lux2foundationcheck
@@ -170,36 +173,6 @@ add_lux2_check(
 set_tests_properties(lux2pathcollapsecheck PROPERTIES TIMEOUT 300)
 
 add_lux2_check(
-	NAME lux2wfstoragecheck
-	SOURCES wf/storage_check.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
-	NAME lux2wflanescheck
-	SOURCES wf/lanes_check.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
-	NAME lux2wftransposecheck
-	SOURCES wf/transpose_check.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
-	NAME lux2wfstorecompile
-	SOURCES wf/store_compile.cpp
-	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads
-)
-
-add_lux2_check(
-	NAME lux2wfschedulercheck
-	SOURCES wf/test_scheduler.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
 	NAME lux2erptchaincheck
 	SOURCES erpt_chain_check.cpp
 	LINKS
@@ -220,18 +193,6 @@ add_lux2_check(
 add_lux2_check(
 	NAME lux2erpt1dcheck
 	SOURCES erpt/erpt_1d.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
-	NAME lux2wfmisweightcheck
-	SOURCES wf/mis_weight_check.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
-	NAME lux2wfmisbreakdowncheck
-	SOURCES wf/mis_breakdown_check.cpp
 	LINKS lux2
 )
 
@@ -278,6 +239,7 @@ add_executable(lux2colorcheck color_check.cpp color_ref/color_ref.cpp)
 target_include_directories(lux2colorcheck PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(lux2colorcheck PRIVATE lux2)
 add_test(NAME lux2colorcheck COMMAND lux2colorcheck)
+install(TARGETS lux2colorcheck RUNTIME DESTINATION tests)
 
 # Photometriccheck uses the colorref illuminant SPD.
 add_executable(lux2photometriccheck photometric_check.cpp color_ref/color_ref.cpp)
@@ -285,20 +247,4 @@ target_include_directories(lux2photometriccheck PRIVATE ${CMAKE_CURRENT_SOURCE_D
 target_link_libraries(lux2photometriccheck PRIVATE lux2)
 add_test(NAME lux2photometriccheck COMMAND lux2photometriccheck)
 set_tests_properties(lux2photometriccheck PROPERTIES TIMEOUT 180)
-
-# Wavefront microbenchmarks.
-
-set(WF_SOURCES
-	wf/wf_layout.cpp
-	wf/wf_scatter.cpp
-	wf/wf_add_to_sample.cpp
-)
-
-foreach(_wf ${WF_SOURCES})
-	get_filename_component(_wfname ${_wf} NAME_WE)
-	add_executable(lux2wf_${_wfname} ${_wf})
-	target_include_directories(lux2wf_${_wfname} PRIVATE
-		${CMAKE_CURRENT_SOURCE_DIR}/..
-		${CMAKE_CURRENT_SOURCE_DIR}/wf
-	)
-endforeach()
+install(TARGETS lux2photometriccheck RUNTIME DESTINATION tests)

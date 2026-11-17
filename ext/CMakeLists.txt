@@ -33,11 +33,11 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/CompilerSetup.cmake)
 ##################
 
 set(EXT_DIR ${CMAKE_CURRENT_SOURCE_DIR})      # LuxRender/ext
-set(BUILD_DIR ${EXT_DIR}/build)               # LuxRender/ext/build
+set(PFX_DIR ${CMAKE_BINARY_DIR}/pfx)          # <build dir>/pfx
+set(BUILD_DIR ${PFX_DIR})                     # dependency install tree
 set(BIN_DIR ${BUILD_DIR}/bin)
 set(LIB_DIR ${BUILD_DIR}/lib)
 set(INC_DIR ${BUILD_DIR}/include)
-set(PFX_DIR ${EXT_DIR}/pfx)
 
 ######################
 # Set up the project #
