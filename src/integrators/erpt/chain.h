@@ -39,6 +39,8 @@ namespace lux2
             uint32_t maxConsec = 0;   // 0 = consecutive-sample filter off
             bool splitDeposit = true; // see header
             uint32_t maxChainsPerSeed = 1u << 16;
+            // Share of steps that are wavelength mutations.
+            float pLambda = 0.f;
         };
 
         // Where a deposit lands.

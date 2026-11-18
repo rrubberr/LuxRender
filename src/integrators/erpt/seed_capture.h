@@ -180,6 +180,7 @@ namespace lux2
                                      L.lightPs ? L.lightPs->lightSlot[L.lPath] : 0u);
                     h.n = info.n;
                     h.lightIdx = info.lightIdx;
+                    h.lambdaMutable = info.lambdaMutable ? 1u : 0u;
                     h.px = px;
                     h.py = py;
                     uint32_t *dst = pool.Begin(h);

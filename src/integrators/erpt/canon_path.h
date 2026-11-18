@@ -124,6 +124,8 @@ namespace lux2
             uint32_t lightIdx = 0u; // emitter, index into lightPtrs
             // Specular run boundaries.
             uint32_t kE = 0u, kL = 0u;
+            // No dispersive vertex.
+            bool lambdaMutable = true;
         };
 
         // Resolve an area light id to its lightPtrs index.
@@ -305,10 +307,24 @@ namespace lux2
             if (!mutableOk(kE + 1u) || !mutableOk(kL - 1u))
                 return false;
 
+            // Any specular transmission vertex makes geometry a function of wavelength.
+            bool lambdaMutable = true;
+            // Interior vertices only.
+            for (uint32_t v = 1; v + 1u < n && lambdaMutable; ++v)
+            {
+                const uint32_t matID = rec(v)[GeomTag::matID::Word] & 0xFFFFu;
+                if (matID >= c.table->ptrs.size())
+                    continue;
+                const BSDF *b = c.table->ptrs[matID];
+                if (b && (b->flags() & uint32_t(BSDFType::SpecularTransmission)) != 0u)
+                    lambdaMutable = false;
+            }
+
             info->n = n;
             info->lightIdx = lightIdx;
             info->kE = kE;
             info->kL = kL;
+            info->lambdaMutable = lambdaMutable;
             return true;
         }
 

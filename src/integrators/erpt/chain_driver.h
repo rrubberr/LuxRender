@@ -27,6 +27,7 @@
 #include "integrators/erpt/chain.h"
 #include "integrators/erpt/deposit.h"
 #include "integrators/erpt/caustic.h"
+#include "integrators/erpt/lambda.h"
 #include "integrators/erpt/lens.h"
 #include "integrators/erpt/path_ops.h"
 #include "integrators/erpt/seed_pool.h"
@@ -52,6 +53,7 @@ namespace lux2
                 EnsureStore();
                 const LensMutator lens;
                 const CausticMutator caustic;
+                const LambdaMutator lambda;
 
                 size_t nextSeed = 0;
                 uint32_t chainsLeft = 0, chainIdx = 0;
@@ -117,7 +119,7 @@ namespace lux2
                     }
                     if (!any)
                         break;
-                    Step(c, P, lens, caustic, L, acc, st);
+                    Step(c, P, lens, caustic, lambda, L, acc, st);
                 }
                 st.chains += m_chains;
                 m_chains = 0;
@@ -130,6 +132,7 @@ namespace lux2
                 uint32_t cur = 0, scr = 0;
                 uint32_t n = 0, steps = 0;
                 float e = 0.f, wl = 650.f, px = 0.f, py = 0.f;
+                bool lambdaMutable = false;
                 Pcg32 rng;
                 ConsecFilter cf;
             };
@@ -164,6 +167,9 @@ namespace lux2
                 l.wl = h.wavelength;
                 l.px = h.px;
                 l.py = h.py;
+                // Geometry mutations never add a dispersive vertex, so this is
+                // fixed for the chain's lifetime.
+                l.lambdaMutable = h.lambdaMutable != 0u;
                 l.steps = 0;
                 l.rng = KeyedPcg(h.seedKey, h.sidx, cj);
                 l.cf.Reset(Pixel{int32_t(std::floor(h.px)), int32_t(std::floor(h.py))});
@@ -194,11 +200,11 @@ namespace lux2
             }
 
             void Step(const WalkCtx &c, const ChainParams &P, const Mutator &lens,
-                      const Mutator &caustic, Lane *L, SparseAccum &acc,
-                      ChainStats &st)
+                      const Mutator &caustic, const Mutator &lambda, Lane *L,
+                      SparseAccum &acc, ChainStats &st)
             {
                 alignas(64) uint32_t curA[kW], scrA[kW], nA[kW];
-                alignas(64) float wlA[kW], act[kW], pickLens[kW];
+                alignas(64) float wlA[kW], act[kW], pickArr[kW];
                 MutRands R;
                 alignas(64) float ru[2][kW];
                 for (uint32_t i = 0; i < kW; ++i)
@@ -211,50 +217,86 @@ namespace lux2
                     act[i] = l.active ? 1.f : 0.f;
                     for (int k = 0; k < 2; ++k)
                         ru[k][i] = l.active ? l.rng.NextFloat() : 0.f;
-                    pickLens[i] = (l.active && l.rng.NextFloat() < 0.5f) ? 1.f : 0.f;
+                    // pick: 0 = caustic, 1 = lens, 2 = wavelength. With
+                    // pLambda == 0 the lambda branch short-circuits and the
+                    // RNG sequence matches the two-way split exactly.
+                    float pick = 0.f;
+                    if (l.active)
+                    {
+                        if (P.pLambda > 0.f && l.lambdaMutable &&
+                            l.rng.NextFloat() < P.pLambda)
+                            pick = 2.f;
+                        else
+                            pick = (l.rng.NextFloat() < 0.5f) ? 1.f : 0.f;
+                    }
+                    pickArr[i] = pick;
                 }
                 for (int k = 0; k < 2; ++k)
                     R.u[k] = enoki::load_unaligned<FloatP>(ru[k]);
                 const UInt32P cur = enoki::load_unaligned<UInt32P>(curA);
                 const UInt32P scr = enoki::load_unaligned<UInt32P>(scrA);
                 const Int32P n = Int32P(enoki::load_unaligned<UInt32P>(nA));
+                const FloatP pick = enoki::load_unaligned<FloatP>(pickArr);
                 const MaskP active = enoki::load_unaligned<FloatP>(act) > FloatP(0.f);
+                const MaskP isLam = active && (pick > FloatP(1.5f));
                 const MaskP isLens =
-                    active && (enoki::load_unaligned<FloatP>(pickLens) > FloatP(0.f));
-                const MaskP isCaus = active && !isLens;
+                    active && (pick > FloatP(0.5f)) && (pick < FloatP(1.5f));
+                const MaskP isCaus = active && !isLam && !isLens;
                 SpectrumWavelengthsP sw;
                 sw.FromWavelength(enoki::load_unaligned<FloatP>(wlA));
 
                 MutationResult a = lens.Propose(c, m_ps, cur, scr, n, sw, R, isLens);
                 MutationResult b =
                     caustic.Propose(c, m_ps, cur, scr, n, sw, R, isCaus);
-                const MaskP ok = (isLens && a.ok) || (isCaus && b.ok);
-                const Int32P spanLo = select(isLens, a.spanLo, b.spanLo);
-                const Int32P spanHi = select(isLens, a.spanHi, b.spanHi);
-                const Int32P winLo = select(isLens, a.winLo, b.winLo);
-                const Int32P winHi = select(isLens, a.winHi, b.winHi);
-                const Int32P firstEdge =
-                    select(isLens, a.firstEdge, b.firstEdge);
-                const FloatP tRatio = select(isLens, a.tRatio, b.tRatio);
+                // Wavelength move.
+                MutationResult lm =
+                    lambda.Propose(c, m_ps, cur, scr, n, sw, R, isLam);
+                const MaskP ok =
+                    (isLens && a.ok) || (isCaus && b.ok) || (isLam && lm.ok);
+                const Int32P geoLo = select(isLens, a.spanLo, b.spanLo);
+                const Int32P geoHi = select(isLens, a.spanHi, b.spanHi);
+                const Int32P geoWinLo = select(isLens, a.winLo, b.winLo);
+                const Int32P geoWinHi = select(isLens, a.winHi, b.winHi);
+                const Int32P geoFirst = select(isLens, a.firstEdge, b.firstEdge);
+                const FloatP geoTRatio = select(isLens, a.tRatio, b.tRatio);
+                const Int32P spanLo = select(isLam, lm.spanLo, geoLo);
+                const Int32P spanHi = select(isLam, lm.spanHi, geoHi);
+                const Int32P winLo = select(isLam, lm.winLo, geoWinLo);
+                const Int32P winHi = select(isLam, lm.winHi, geoWinHi);
+                const Int32P firstEdge = select(isLam, lm.firstEdge, geoFirst);
+                const FloatP tRatio = select(isLam, lm.tRatio, geoTRatio);
 
                 MaskP okY(false), okX(false), pxOk(false);
+                // Window eval at the current lambda.
+                const MaskP geoOk = ok && !isLam;
                 const SWCSpectrumP Fy = EvalCanonWindow(
-                    c, m_ps, scr, n, winLo, winHi, firstEdge, sw, true, ok, &okY);
+                    c, m_ps, scr, n, winLo, winHi, firstEdge, sw, true, geoOk, &okY);
                 const SWCSpectrumP Fx = EvalCanonWindow(
-                    c, m_ps, cur, n, winLo, winHi, firstEdge, sw, false, ok, &okX);
+                    c, m_ps, cur, n, winLo, winHi, firstEdge, sw, false, geoOk, &okX);
                 FloatP qx, qy, qWe;
-                pxOk = PathPixel(c, m_ps, scr, &qx, &qy, &qWe, ok && okY);
+                pxOk = PathPixel(c, m_ps, scr, &qx, &qy, &qWe, geoOk && okY);
+
+                // Wavelength lanes.
+                MaskP okLx(false);
+                const SWCSpectrumP FxLam = EvalCanonWindow(
+                    c, m_ps, cur, n, Int32P(0), n - Int32P(1), Int32P(0), sw,
+                    false, isLam, &okLx);
+                const FloatP fxFinal = select(isLam, FxLam, Fx);
+                const FloatP fyFinal = select(isLam, lm.fyScalar, Fy);
+                const MaskP lamValid = isLam && lm.ok && okLx;
+                const MaskP geoValid = !isLam && ok && okY && pxOk;
+                const MaskP valid = lamValid || geoValid;
 
                 alignas(64) float fxA[kW], fyA[kW], tA[kW], qxA[kW], qyA[kW],
-                    vA[kW];
+                    vA[kW], newWlA[kW];
                 alignas(64) int32_t loA[kW], hiA[kW];
-                enoki::store_unaligned(fxA, Fx);
-                enoki::store_unaligned(fyA, Fy);
+                enoki::store_unaligned(fxA, fxFinal);
+                enoki::store_unaligned(fyA, fyFinal);
                 enoki::store_unaligned(tA, tRatio);
                 enoki::store_unaligned(qxA, qx);
                 enoki::store_unaligned(qyA, qy);
-                enoki::store_unaligned(vA, select(ok && okY && pxOk, FloatP(1.f),
-                                                  FloatP(0.f)));
+                enoki::store_unaligned(vA, select(valid, FloatP(1.f), FloatP(0.f)));
+                enoki::store_unaligned(newWlA, lm.newWl);
                 enoki::store_unaligned(loA, spanLo);
                 enoki::store_unaligned(hiA, spanHi);
 
@@ -274,10 +316,16 @@ namespace lux2
                     if (!l.active)
                         continue;
                     ++st.steps;
+                    const bool lamLane = pickArr[i] > 1.5f;
                     StepIn in;
                     in.valid = vA[i] > 0.f;
                     in.x = Pixel{int32_t(std::floor(l.px)), int32_t(std::floor(l.py))};
-                    in.y = Pixel{int32_t(std::floor(qxA[i])), int32_t(std::floor(qyA[i]))};
+                    // A wavelength move keeps the geometry, so the proposal
+                    // lands on the current pixel.
+                    in.y = lamLane
+                               ? in.x
+                               : Pixel{int32_t(std::floor(qxA[i])),
+                                       int32_t(std::floor(qyA[i]))};
                     in.a = in.valid ? AcceptProb(fxA[i], fyA[i], tA[i]) : 0.f;
                     in.u = l.rng.NextFloat();
                     ++st.proposed;
@@ -296,9 +344,14 @@ namespace lux2
                     if (so.accept)
                     {
                         ++st.accepted;
-                        std::swap(l.cur, l.scr);
-                        l.px = qxA[i];
-                        l.py = qyA[i];
+                        if (lamLane)
+                            l.wl = newWlA[i]; // hue moves with the state
+                        else
+                        {
+                            std::swap(l.cur, l.scr);
+                            l.px = qxA[i];
+                            l.py = qyA[i];
+                        }
                     }
                     // scratch <- current over the written span.
                     CopySpan(m_ps, l.scr, m_ps, l.cur, uint32_t(loA[i]),

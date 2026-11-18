@@ -56,6 +56,10 @@ namespace lux2
                                    // mutation); Tr and the degenerate guard
                                    // stay. 0 = drop nothing.
             FloatP tRatio;         // T(y->x) / T(x->y), area measure
+            // Proposed lambda and its target luminance Y
+            // of the full path at the new lambda.
+            FloatP newWl = FloatP(0.f);
+            FloatP fyScalar = FloatP(0.f);
             MutationResult()
                 : ok(false), spanLo(0), spanHi(0), winLo(0), winHi(0),
                   firstEdge(0), tRatio(1.f)

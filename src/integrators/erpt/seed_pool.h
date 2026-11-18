@@ -41,7 +41,8 @@ namespace lux2
             uint32_t n = 0u;          // vertex count, camera .. emitter
             uint32_t lightIdx = 0u;   // index into WalkCtx::lightPtrs
             float px = 0.f, py = 0.f; // raster position of the seed path
-            uint32_t reserved = 0u;
+            // 1 = no dispersive vertex.
+            uint32_t lambdaMutable = 0u;
         };
 
         class SeedPool

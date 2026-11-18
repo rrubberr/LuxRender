@@ -180,6 +180,8 @@ namespace lux2
         o.chain.m = uint32_t(std::max(1, I("mutationsperseed", 100)));
         // Consecutive-sample filter; reduces splotching from stuck chains.
         o.chain.maxConsec = uint32_t(std::max(0, I("maxconsecutive", 0)));
+        // Spreads each chain's deposits over hues (0 disables).
+        o.chain.pLambda = std::min(1.f, std::max(0.f, F("lambdamutation", 0.f)));
         // Put ed*a on the proposal and ed*(1-a) on the current
         // state instead of all ed on one.
         o.chain.splitDeposit = B("splitdeposit", true);
