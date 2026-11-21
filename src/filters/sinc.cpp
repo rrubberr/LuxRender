@@ -30,9 +30,10 @@ namespace lux2
 
     std::shared_ptr<Filter> LanczosSincFilter::CreateFilter(const PluginContext &ctx)
     {
-        const float xw = ctx.params ? ctx.params->FindOneFloat("xwidth", 4.f) : 4.f;
-        const float yw = ctx.params ? ctx.params->FindOneFloat("ywidth", 4.f) : 4.f;
-        const float tau = ctx.params ? ctx.params->FindOneFloat("tau", 3.f) : 3.f;
+        const ParamSet &params = ctx.Params();
+        const float xw = params.FindOneFloat("xwidth", 4.f);
+        const float yw = params.FindOneFloat("ywidth", 4.f);
+        const float tau = params.FindOneFloat("tau", 3.f);
         return std::make_shared<LanczosSincFilter>(xw, yw, tau);
     }
 

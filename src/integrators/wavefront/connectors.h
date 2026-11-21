@@ -30,7 +30,6 @@
 #include "integrators/wavefront/lane/keys.h"
 #include "integrators/wavefront/lane/math.h"
 #include "integrators/wavefront/lane/occlusion.h"
-#include "integrators/wavefront/seed_sink.h"
 #include "integrators/wavefront/mis.h"
 #include "integrators/wavefront/pool_view.h"
 #include "integrators/wavefront/sample_table.h"
@@ -304,23 +303,7 @@ namespace lux2
                         Lc, w, d2, s, t, &bd, &snap);
                 }
 #endif
-                if (c.seedSink)
-                {
-                    SeedRec sr;
-                    sr.kind = SeedKind::Gen;
-                    sr.cont = cont;
-                    sr.e = Lc * w;
-                    sr.sample = sample;
-                    sr.eyePs = &eyePs;
-                    sr.ePath = ePath;
-                    sr.nE = t; // connected prefix is eye[0,t) + light[0,s),
-                    sr.lightPs = &lightPs;
-                    sr.lPath = lPath;
-                    sr.nL = s; // not the full stored nE/nL
-                    c.seedSink->Emit(c, tbl, sr);
-                }
-                else
-                    AddToSample(tbl.L.data(), sample, Lc * w, cont);
+                AddToSample(tbl.L.data(), sample, Lc * w, cont);
             }
         };
 
@@ -485,24 +468,7 @@ namespace lux2
                         Lc, w, d2, Int32P(1), t, &bd, &snap);
                 }
 #endif
-                if (c.seedSink)
-                {
-                    SeedRec sr;
-                    sr.kind = SeedKind::Nee;
-                    sr.cont = cont;
-                    sr.e = Lc * w;
-                    sr.sample = sample;
-                    sr.eyePs = &eyePs;
-                    sr.ePath = ePath;
-                    sr.nE = ei + Int32P(1); // vertices [0, ei] are stored
-                    sr.vP = li.p;
-                    sr.vN = li.n;
-                    sr.vNg = li.n;
-                    sr.vLightIdx = lightIdx;
-                    c.seedSink->Emit(c, tbl, sr);
-                }
-                else
-                    AddToSample(tbl.L.data(), sample, Lc * w, cont);
+                AddToSample(tbl.L.data(), sample, Lc * w, cont);
             }
         };
 
@@ -663,26 +629,7 @@ namespace lux2
                                        w, d2, Int32P(1), Int32P(1), &bd, &snap);
                 }
 #endif
-                if (c.seedSink)
-                {
-                    SeedRec sr;
-                    sr.kind = SeedKind::CamNee;
-                    sr.cont = cont;
-                    sr.e = Lc * w;
-                    sr.sample = sample;
-                    sr.eyePs = &eyePs;
-                    sr.ePath = ePath;
-                    sr.nE = Int32P(1);
-                    sr.vP = li.p;
-                    sr.vN = li.n;
-                    sr.vNg = li.n;
-                    sr.vLightIdx = lightIdx;
-                    sr.px = px;
-                    sr.py = py;
-                    c.seedSink->Emit(c, tbl, sr);
-                }
-                else
-                    film->SplatLight(px, py, Lc * w, sw, cont);
+                film->SplatLight(px, py, Lc * w, sw, cont);
             }
         };
 
@@ -855,25 +802,7 @@ namespace lux2
                                        &chain);
                 }
 #endif
-                if (c.seedSink)
-                {
-                    SeedRec sr;
-                    sr.kind = SeedKind::Cam;
-                    sr.cont = cont;
-                    sr.e = Lc * w;
-                    sr.sample = sample;
-                    sr.eyePs = &eyePs;
-                    sr.ePath = ePath;
-                    sr.nE = Int32P(1);
-                    sr.lightPs = &lightPs;
-                    sr.lPath = lPath;
-                    sr.nL = s; // light vertices [0, s) are used
-                    sr.px = px;
-                    sr.py = py;
-                    c.seedSink->Emit(c, tbl, sr);
-                }
-                else
-                    film->SplatLight(px, py, Lc * w, sw, cont);
+                film->SplatLight(px, py, Lc * w, sw, cont);
             }
         };
 

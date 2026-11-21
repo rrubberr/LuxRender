@@ -30,8 +30,9 @@ namespace lux2
 
     std::shared_ptr<Filter> TriangleFilter::CreateFilter(const PluginContext &ctx)
     {
-        const float xw = ctx.params ? ctx.params->FindOneFloat("xwidth", 2.f) : 2.f;
-        const float yw = ctx.params ? ctx.params->FindOneFloat("ywidth", 2.f) : 2.f;
+        const ParamSet &params = ctx.Params();
+        const float xw = params.FindOneFloat("xwidth", 2.f);
+        const float yw = params.FindOneFloat("ywidth", 2.f);
         return std::make_shared<TriangleFilter>(xw, yw);
     }
 

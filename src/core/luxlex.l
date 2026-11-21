@@ -160,7 +160,6 @@ Renderer		{ return RENDERER;	}
 ReverseOrientation 	{ return REVERSEORIENTATION;	}
 Rotate			{ return ROTATE;		}
 Sampler			{ return SAMPLER;		}
-PixelSampler		{ return PIXELSAMPLER;	}
 SearchPath		{ return SEARCHPATH;		}
 Scale 			{ return SCALE;			}
 PortalShape		{ return PORTALSHAPE;           }

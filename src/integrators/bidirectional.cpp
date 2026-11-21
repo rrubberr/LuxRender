@@ -213,8 +213,6 @@ namespace lux2
         }
 #endif
 
-        OnTileBegin(scene, tile, ctx, ws, dest, spp);
-
         // Lightpath task count is one under `one`/`auto`, per task under `all`.
         const uint32_t nT =
             (ctx.lsP->kind == LightsSamplingStrategy::StrategyKind::All)
@@ -604,7 +602,6 @@ namespace lux2
         }
 #endif
         OccupancyTileEnd("bidir", tile.x0, tile.y0, unsigned(PACKET_WIDTH));
-        OnTileEnd(scene, tile, ctx, ws, dest, spp);
 
 #ifdef LUX2_INTEGRATOR_DEBUG
         // Merge this tile's diagnostics into the shared store.
@@ -616,9 +613,9 @@ namespace lux2
     std::shared_ptr<SurfaceIntegrator> BidirIntegrator::CreateSurfaceIntegrator(
         const PluginContext &ctx)
     {
-        ParamSet *p = ctx.params;
-        int eyeDepth = p ? p->FindOneInt("eyedepth", 8) : 8;
-        int lightDepth = p ? p->FindOneInt("lightdepth", 8) : 8;
+        const ParamSet &params = ctx.Params();
+        int eyeDepth = params.FindOneInt("eyedepth", 8);
+        int lightDepth = params.FindOneInt("lightdepth", 8);
         // RNG stride and vertex record layout are sized for MAX_DEPTH.
         if (eyeDepth > MAX_DEPTH || lightDepth > MAX_DEPTH)
         {
@@ -628,26 +625,26 @@ namespace lux2
             eyeDepth = std::min(eyeDepth, MAX_DEPTH);
             lightDepth = std::min(lightDepth, MAX_DEPTH);
         }
-        const int maxDepth = p ? p->FindOneInt("maxdepth", -1) : -1; // TODO: unused!
-        const float eyeRR = p ? p->FindOneFloat("eyerrthreshold", 0.f) : 0.f;
-        const float lightRR = p ? p->FindOneFloat("lightrrthreshold", 0.f) : 0.f;
-        const bool debug = p ? p->FindOneBool("debug", false) : false;
+        const int maxDepth = params.FindOneInt("maxdepth", -1); // TODO: unused!
+        const float eyeRR = params.FindOneFloat("eyerrthreshold", 0.f);
+        const float lightRR = params.FindOneFloat("lightrrthreshold", 0.f);
+        const bool debug = params.FindOneBool("debug", false);
         DiagConfig cfg;
-        cfg.noMis = p ? p->FindOneBool("nomis", false) : false;
-        cfg.misPower = p ? p->FindOneFloat("mispower", 2.f) : 2.f;
-        cfg.diag = p ? p->FindOneBool("diag", false) : false;
-        cfg.threshold = p ? p->FindOneFloat("diagthreshold", 0.f) : 0.f;
-        cfg.wfSortByPath = p ? p->FindOneBool("wf_sortpath", false) : false;
+        cfg.noMis = params.FindOneBool("nomis", false);
+        cfg.misPower = params.FindOneFloat("mispower", 2.f);
+        cfg.diag = params.FindOneBool("diag", false);
+        cfg.threshold = params.FindOneFloat("diagthreshold", 0.f);
+        cfg.wfSortByPath = params.FindOneBool("wf_sortpath", false);
         const std::string lightStrategy =
-            p ? p->FindOneString("lightstrategy", "one") : "one";
+            params.FindOneString("lightstrategy", "one");
         const std::string lightPathStrategy =
-            p ? p->FindOneString("lightpathstrategy", "one") : "one";
+            params.FindOneString("lightpathstrategy", "one");
         // Wavefront pool sizing.
-        const int wfSamples = p ? p->FindOneInt("wf_samples", 128) : 128;
-        const int wfLightPool = p ? p->FindOneInt("wf_lightpool", 0) : 0;
-        const int wfHighWater = p ? p->FindOneInt("wf_highwater", 0) : 0;
+        const int wfSamples = params.FindOneInt("wf_samples", 128);
+        const int wfLightPool = params.FindOneInt("wf_lightpool", 0);
+        const int wfHighWater = params.FindOneInt("wf_highwater", 0);
         // -1 = dispatch full packets only.
-        const int wfMinFill = p ? p->FindOneInt("wf_minfill", -1) : -1;
+        const int wfMinFill = params.FindOneInt("wf_minfill", -1);
         return std::make_shared<BidirIntegrator>(
             eyeDepth, lightDepth, maxDepth, eyeRR, lightRR, debug, cfg,
             lightStrategy, lightPathStrategy, wfSamples, wfLightPool,

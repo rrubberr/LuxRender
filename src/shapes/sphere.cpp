@@ -135,7 +135,7 @@ namespace lux2
 
     std::shared_ptr<Shape> SphereShape::CreateShape(const PluginContext &ctx)
     {
-        const ParamSet &p = *ctx.params;
+        const ParamSet &p = ctx.Params();
         const float radius = p.FindOneFloat("radius", 1.f);
         const float zmin = p.FindOneFloat("zmin", -radius);
         const float zmax = p.FindOneFloat("zmax", radius);

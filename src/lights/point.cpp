@@ -100,9 +100,11 @@ namespace lux2
 
     std::shared_ptr<Light> PointLight::CreateLight(const PluginContext &ctx)
     {
+        const ParamSet &params = ctx.Params();
+
         // Emission color/texture.
         std::shared_ptr<ColorTexture> le;
-        const std::string leName = ctx.params ? ctx.params->FindTexture("L") : "";
+        const std::string leName = params.FindTexture("L");
         if (!leName.empty() && ctx.colorTextures)
         {
             auto it = ctx.colorTextures->find(leName);
@@ -111,31 +113,25 @@ namespace lux2
         }
         if (!le)
         {
-            const RGBColor rgb =
-                ctx.params ? ctx.params->FindOneRGBColor("L", RGBColor(1.f))
-                           : RGBColor(1.f);
+            const RGBColor rgb = params.FindOneRGBColor("L", RGBColor(1.f));
             const RGBColorP rgbP(FloatP(rgb.r()), FloatP(rgb.g()),
                                  FloatP(rgb.b()));
             le = std::make_shared<ConstantColorTexture>(rgbP, /*illuminant=*/true);
         }
 
-        const float gain = ctx.params ? ctx.params->FindOneFloat("gain", 1.f) : 1.f;
+        const float gain = params.FindOneFloat("gain", 1.f);
         // Lux PointLight defaults.
-        const float power = ctx.params ? ctx.params->FindOneFloat("power", 0.f) : 0.f;
-        const float efficacy =
-            ctx.params ? ctx.params->FindOneFloat("efficacy", 0.f) : 0.f;
+        const float power = params.FindOneFloat("power", 0.f);
+        const float efficacy = params.FindOneFloat("efficacy", 0.f);
 
         // World position is the authored `from` point under the light transform.
-        const Point3f from =
-            ctx.params ? ctx.params->FindOnePoint("from", Point3f(0.f, 0.f, 0.f))
-                       : Point3f(0.f, 0.f, 0.f);
+        const Point3f from = params.FindOnePoint("from", Point3f(0.f, 0.f, 0.f));
         const Point3f worldPos = ctx.transform * from;
 
         auto light = std::make_shared<PointLight>(std::move(le), gain, power,
                                                   efficacy, worldPos);
         // Importance hint for power/importance weighting.
-        const float importance =
-            ctx.params ? ctx.params->FindOneFloat("importance", 1.f) : 1.f;
+        const float importance = params.FindOneFloat("importance", 1.f);
         light->SetImportance(importance);
         return light;
     }

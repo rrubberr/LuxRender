@@ -30,9 +30,10 @@ namespace lux2
 
     std::shared_ptr<Filter> GaussianFilter::CreateFilter(const PluginContext &ctx)
     {
-        const float xw = ctx.params ? ctx.params->FindOneFloat("xwidth", 2.f) : 2.f;
-        const float yw = ctx.params ? ctx.params->FindOneFloat("ywidth", 2.f) : 2.f;
-        const float alpha = ctx.params ? ctx.params->FindOneFloat("alpha", 1.f) : 1.f;
+        const ParamSet &params = ctx.Params();
+        const float xw = params.FindOneFloat("xwidth", 2.f);
+        const float yw = params.FindOneFloat("ywidth", 2.f);
+        const float alpha = params.FindOneFloat("alpha", 1.f);
         return std::make_shared<GaussianFilter>(xw, yw, alpha);
     }
 

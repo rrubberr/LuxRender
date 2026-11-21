@@ -576,21 +576,29 @@ namespace lux2
         // Pixel sampler.
         {
             auto &psReg = DynamicLoader::registeredPixelSamplers();
-            const std::string psname = desc.pixelSamplerName.empty()
-                                           ? "linear"
-                                           : desc.pixelSamplerName;
-            auto it = psReg.find(psname);
-            if (it != psReg.end())
+            std::string psname = desc.samplerParams.FindOneString(
+                "pixelsampler", "lowdiscrepancy");
+            if (psname == "vegas")
             {
-                PluginContext pctx;
-                pctx.params = &desc.pixelSamplerParams;
-                m_pixelSampler = it->second(pctx);
+                // Legacy sampler not ported; fall back gracefully.
+                LOG(LUX_WARNING, LUX_NOERROR)
+                    << "Pixel sampler 'vegas' is unavailable; using "
+                       "'lowdiscrepancy' instead";
+                psname = "lowdiscrepancy";
             }
-            else
+            auto it = psReg.find(psname);
+            if (it == psReg.end())
             {
                 LOG(LUX_ERROR, LUX_BADHANDLE)
                     << "No pixel sampler plugin registered as '" << psname
-                    << "'";
+                    << "'; using 'lowdiscrepancy' instead";
+                it = psReg.find("lowdiscrepancy");
+            }
+            if (it != psReg.end())
+            {
+                PluginContext pctx;
+                pctx.params = &desc.samplerParams;
+                m_pixelSampler = it->second(pctx);
             }
         }
 

@@ -31,8 +31,7 @@ namespace lux2
     std::shared_ptr<PixelSampler> TilePixelSampler::CreatePixelSampler(
         const PluginContext &ctx)
     {
-        const int bs = ctx.params ? ctx.params->FindOneInt("blocksize", 32)
-                                  : 32;
+        const int bs = ctx.Params().FindOneInt("blocksize", 32);
         return std::make_shared<TilePixelSampler>(bs);
     }
 

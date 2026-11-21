@@ -116,8 +116,8 @@ namespace lux2
     std::shared_ptr<SurfaceIntegrator> PathIntegrator::CreateSurfaceIntegrator(
         const PluginContext &ctx)
     {
-        ParamSet *p = ctx.params;
-        int maxDepth = p ? p->FindOneInt("maxdepth", 8) : 8;
+        const ParamSet &params = ctx.Params();
+        int maxDepth = params.FindOneInt("maxdepth", 8);
         if (maxDepth > MAX_DEPTH)
         {
             LOG(LUX_ERROR, LUX_SYNTAX)
@@ -126,16 +126,16 @@ namespace lux2
             maxDepth = MAX_DEPTH;
         }
         const float rrContinueProb =
-            p ? p->FindOneFloat("rrcontinueprob", 0.65f) : 0.65f;
+            params.FindOneFloat("rrcontinueprob", 0.65f);
         const std::string rrStrategy =
-            p ? p->FindOneString("rrstrategy", "efficiency") : "efficiency";
+            params.FindOneString("rrstrategy", "efficiency");
         const bool includeEnvironment =
-            p ? p->FindOneBool("includeenvironment", true) : true;
+            params.FindOneBool("includeenvironment", true);
         const bool directLightSampling =
-            p ? p->FindOneBool("directlightsampling", true) : true;
+            params.FindOneBool("directlightsampling", true);
         // Debug estimator selection: "mis" (default), "nee", or "bsdf".
         const std::string lightModeStr =
-            p ? p->FindOneString("lightmode", "mis") : "mis";
+            params.FindOneString("lightmode", "mis");
         PathIntegrator::LightMode lightMode = PathIntegrator::LightMode::MIS;
         if (lightModeStr == "nee")
             lightMode = PathIntegrator::LightMode::NEE;
@@ -143,7 +143,7 @@ namespace lux2
             lightMode = PathIntegrator::LightMode::BSDF;
         // Light sampling strategy.
         const std::string lightStrategy =
-            p ? p->FindOneString("lightstrategy", "one") : "one";
+            params.FindOneString("lightstrategy", "one");
 
         return std::make_shared<PathIntegrator>(
             maxDepth, rrContinueProb, rrStrategy,

@@ -110,7 +110,6 @@ namespace lux2
         // Options block statements.
         void Renderer(const std::string &name, const ParamSet &params);
         void Sampler(const std::string &name, const ParamSet &params);
-        void PixelSampler(const std::string &name, const ParamSet &params);
         void Accelerator(const std::string &name, const ParamSet &params);
         void Film(const std::string &name, const ParamSet &params);
         void PixelFilter(const std::string &name, const ParamSet &params);

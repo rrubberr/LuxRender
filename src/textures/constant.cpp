@@ -31,14 +31,14 @@ namespace lux2
     std::shared_ptr<FloatTexture> ConstantFloatTexture::CreateFloatTexture(
         const PluginContext &ctx)
     {
-        const float v = ctx.params->FindOneFloat("value", 1.f);
+        const float v = ctx.Params().FindOneFloat("value", 1.f);
         return std::make_shared<ConstantFloatTexture>(FloatP(v));
     }
 
     std::shared_ptr<FresnelTexture> ConstantFresnelTexture::CreateFresnelTexture(
         const PluginContext &ctx)
     {
-        const float v = ctx.params->FindOneFloat("value", 1.f);
+        const float v = ctx.Params().FindOneFloat("value", 1.f);
         return std::make_shared<ConstantFresnelTexture>(FloatP(v));
     }
 
@@ -47,7 +47,7 @@ namespace lux2
     public:
         static std::shared_ptr<ColorTexture> CreateColorTexture(const PluginContext &ctx)
         {
-            const RGBColor &rgb = ctx.params->FindOneRGBColor("value", RGBColor(1.f));
+            const RGBColor &rgb = ctx.Params().FindOneRGBColor("value", RGBColor(1.f));
             const RGBColorP rgbP(FloatP(rgb.r()), FloatP(rgb.g()), FloatP(rgb.b()));
             return std::make_shared<ConstantColorTexture>(rgbP);
         }

@@ -158,20 +158,19 @@ namespace lux2
             yRes = ctx.filmParams->FindOneInt("yresolution", 600);
         }
 
-        const float hither = std::max(EPS_RAY,
-                                      ctx.params ? ctx.params->FindOneFloat("hither", 1e-3f) : 1e-3f);
-        float yon = ctx.params ? ctx.params->FindOneFloat("yon", 1e30f) : 1e30f;
+        const ParamSet &params = ctx.Params();
+
+        const float hither =
+            std::max(EPS_RAY, params.FindOneFloat("hither", 1e-3f));
+        float yon = params.FindOneFloat("yon", 1e30f);
         yon = std::max(hither, yon);
 
-        const float shutterOpen =
-            ctx.params ? ctx.params->FindOneFloat("shutteropen", 0.f) : 0.f;
-        const float fov = ctx.params ? ctx.params->FindOneFloat("fov", 90.f) : 90.f;
+        const float shutterOpen = params.FindOneFloat("shutteropen", 0.f);
+        const float fov = params.FindOneFloat("fov", 90.f);
 
         // Frame aspect ratio -> default screen window.
-        const float frame = ctx.params
-                                ? ctx.params->FindOneFloat("frameaspectratio",
-                                                           float(xRes) / float(yRes))
-                                : float(xRes) / float(yRes);
+        const float frame = params.FindOneFloat("frameaspectratio",
+                                                float(xRes) / float(yRes));
         float screen[4];
         if (frame > 1.f)
         {
@@ -188,8 +187,7 @@ namespace lux2
             screen[3] = 1.f / frame;
         }
         std::uint32_t swi = 0;
-        const float *sw = ctx.params ? ctx.params->FindFloat("screenwindow", &swi)
-                                     : nullptr;
+        const float *sw = params.FindFloat("screenwindow", &swi);
         if (sw && swi == 4)
             for (int i = 0; i < 4; ++i)
                 screen[i] = sw[i];

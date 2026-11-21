@@ -42,11 +42,6 @@ namespace lux2
         bool wfSortByPath = false;
     };
 
-    namespace wf
-    {
-        struct SeedSink;
-    }
-
     // Bidirectional's estimator state and debug accumulator.
     struct WalkCtx : TileCtx
     {
@@ -60,9 +55,6 @@ namespace lux2
         // Diagnostic accumulator.
         BidirDiagLocal *diag = nullptr;
         DiagConfig cfg;
-        // Null in bidirectional. ERPT installs a sink that captures every
-        // finished connection as a chain seed or a direct deposit.
-        wf::SeedSink *seedSink = nullptr;
     };
 
     // Transient terms.

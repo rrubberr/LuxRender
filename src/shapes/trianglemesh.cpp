@@ -56,7 +56,7 @@ namespace lux2
     std::shared_ptr<Shape> TriangleMeshShape::CreateShape(
         const PluginContext &ctx)
     {
-        const ParamSet &p = *ctx.params;
+        const ParamSet &p = ctx.Params();
 
         std::uint32_t nVerts = 0;
         const Point3f *P = p.FindPoint("P", &nVerts);

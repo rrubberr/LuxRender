@@ -32,10 +32,11 @@ namespace lux2
     std::shared_ptr<FresnelTexture> FresnelColorTexture::CreateFresnelTexture(
         const PluginContext &ctx)
     {
+        const ParamSet &params = ctx.Params();
         std::shared_ptr<ColorTexture> color;
 
         // Look up in the color texture table.
-        const std::string texName = ctx.params->FindTexture("Kr");
+        const std::string texName = params.FindTexture("Kr");
         if (!texName.empty() && ctx.colorTextures)
         {
             auto it = ctx.colorTextures->find(texName);
@@ -46,7 +47,7 @@ namespace lux2
         // Build a constant from the RGB value.
         if (!color)
         {
-            const RGBColor &rgb = ctx.params->FindOneRGBColor("Kr", RGBColor(0.5f));
+            const RGBColor &rgb = params.FindOneRGBColor("Kr", RGBColor(0.5f));
             const RGBColorP rgbP(FloatP(rgb.r()), FloatP(rgb.g()), FloatP(rgb.b()));
             color = std::make_shared<ConstantColorTexture>(rgbP);
         }

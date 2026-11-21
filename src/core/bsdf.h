@@ -135,25 +135,6 @@ namespace lux2
                           TransportMode mode, BSDFEvalP *out,
                           MaskP active) const = 0;
 
-        // Deterministic specular step for a known delta lobe.
-        virtual void SpecularStep(const SpectrumWavelengthsP &sw,
-                                  const Vector3fP &wo,
-                                  const DifferentialGeometryP &dg,
-                                  const UInt32P &lobeType, TransportMode mode,
-                                  Vector3fP *wi, SWCSpectrumP *R,
-                                  MaskP active) const
-        {
-            // Default, so no delta specular lobe, and not a specular vertex.
-            (void)sw;
-            (void)wo;
-            (void)dg;
-            (void)lobeType;
-            (void)mode;
-            (void)active;
-            *wi = Vector3fP(0.f);
-            *R = SWCSpectrumP(0.f);
-        }
-
         ENOKI_CALL_SUPPORT_FRIEND()
     };
 

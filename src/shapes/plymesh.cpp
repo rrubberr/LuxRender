@@ -52,7 +52,7 @@ namespace lux2
 
     std::shared_ptr<Shape> PlyMeshShape::CreateShape(const PluginContext &ctx)
     {
-        const ParamSet &p = *ctx.params;
+        const ParamSet &p = ctx.Params();
         const std::string filename = p.FindOneString("filename", "none");
 
         std::vector<Point3f> P;

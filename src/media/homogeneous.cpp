@@ -31,14 +31,11 @@ namespace lux2
     std::shared_ptr<Medium> HomogeneousMedium::CreateMedium(
         const PluginContext &ctx)
     {
-        ParamSet *p = ctx.params;
-        const RGBColor sa =
-            p ? p->FindOneRGBColor("sigma_a", RGBColor(0.f)) : RGBColor(0.f);
-        const RGBColor ss =
-            p ? p->FindOneRGBColor("sigma_s", RGBColor(0.f)) : RGBColor(0.f);
-        const float g = p ? p->FindOneFloat("g", 0.f) : 0.f;
-        const RGBColor le =
-            p ? p->FindOneRGBColor("Le", RGBColor(0.f)) : RGBColor(0.f);
+        const ParamSet &params = ctx.Params();
+        const RGBColor sa = params.FindOneRGBColor("sigma_a", RGBColor(0.f));
+        const RGBColor ss = params.FindOneRGBColor("sigma_s", RGBColor(0.f));
+        const float g = params.FindOneFloat("g", 0.f);
+        const RGBColor le = params.FindOneRGBColor("Le", RGBColor(0.f));
 
         // p0/p1 is a region concept applied by the scene's
         // region path via SetBound.

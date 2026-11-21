@@ -125,8 +125,7 @@ namespace lux2
         ParamSet rendererParams;
         std::string samplerName;
         ParamSet samplerParams;
-        std::string pixelSamplerName;
-        ParamSet pixelSamplerParams;
+
         std::string filmName;
         ParamSet filmParams;
         std::string filterName;

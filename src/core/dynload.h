@@ -69,6 +69,10 @@ namespace lux2
 
         // The Film's parameters.
         const ParamSet *filmParams = nullptr;
+
+        // Null-safe view of params: an empty set when unset, so plugin
+        // factories can read by reference without per-parameter guards.
+        const ParamSet &Params() const;
     };
 
     // Registry for all plugin types.

@@ -82,9 +82,6 @@ namespace lux2
                         const SpectrumWavelengthsP &sw,
                         MaskP active) override;
 
-        void SplatLightSparse(const int32_t *x, const int32_t *y,
-                              const float *xyz, size_t n) override;
-
         void Merge(Film *other) override;
 
         // Average samples per pixel == total committed / crop pixel count.

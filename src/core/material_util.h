@@ -38,15 +38,15 @@ namespace lux2
                                                      const char *name,
                                                      float def)
     {
-        const std::string texName =
-            ctx.params ? ctx.params->FindTexture(name) : "";
+        const ParamSet &params = ctx.Params();
+        const std::string texName = params.FindTexture(name);
         if (!texName.empty() && ctx.floatTextures)
         {
             auto it = ctx.floatTextures->find(texName);
             if (it != ctx.floatTextures->end())
                 return it->second;
         }
-        const float v = ctx.params ? ctx.params->FindOneFloat(name, def) : def;
+        const float v = params.FindOneFloat(name, def);
         return std::make_shared<ConstantTexture<FloatP>>(FloatP(v));
     }
 
@@ -55,16 +55,15 @@ namespace lux2
                                                      const char *name,
                                                      const RGBColor &def)
     {
-        const std::string texName =
-            ctx.params ? ctx.params->FindTexture(name) : "";
+        const ParamSet &params = ctx.Params();
+        const std::string texName = params.FindTexture(name);
         if (!texName.empty() && ctx.colorTextures)
         {
             auto it = ctx.colorTextures->find(texName);
             if (it != ctx.colorTextures->end())
                 return it->second;
         }
-        const RGBColor rgb =
-            ctx.params ? ctx.params->FindOneRGBColor(name, def) : def;
+        const RGBColor rgb = params.FindOneRGBColor(name, def);
         return std::make_shared<ConstantColorTexture>(
             RGBColorP(FloatP(rgb.r()), FloatP(rgb.g()), FloatP(rgb.b())));
     }
@@ -74,15 +73,15 @@ namespace lux2
     inline std::shared_ptr<FresnelTexture> getFresnelTex(
         const PluginContext &ctx, const char *name, float def)
     {
-        const std::string texName =
-            ctx.params ? ctx.params->FindTexture(name) : "";
+        const ParamSet &params = ctx.Params();
+        const std::string texName = params.FindTexture(name);
         if (!texName.empty() && ctx.fresnelTextures)
         {
             auto it = ctx.fresnelTextures->find(texName);
             if (it != ctx.fresnelTextures->end())
                 return it->second;
         }
-        const float v = ctx.params ? ctx.params->FindOneFloat(name, def) : def;
+        const float v = params.FindOneFloat(name, def);
         FresnelGeneralP fg;
         fg.eta = FloatP(v);
         fg.k = FloatP(0.f);

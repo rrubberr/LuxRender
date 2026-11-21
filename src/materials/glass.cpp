@@ -214,85 +214,6 @@ namespace lux2
         enoki::masked(sample->specular, active) = MaskP(true);
     }
 
-    void GlassMaterial::SpecularStep(const SpectrumWavelengthsP &sw,
-                                     const Vector3fP &wo,
-                                     const DifferentialGeometryP &dg,
-                                     const UInt32P &lobeType, TransportMode mode,
-                                     Vector3fP *wi, SWCSpectrumP *R,
-                                     MaskP active) const
-    {
-        if (none(active))
-            return;
-
-        const FloatP cosi = dot(wo, dg.n);
-        const MaskP entering = cosi > FloatP(0.f);
-        const FloatP Kr = min(m_Kr->Evaluate(dg, sw, active), FloatP(1.f));
-        const FloatP Kt = min(m_Kt->Evaluate(dg, sw, active), FloatP(1.f));
-        const FloatP F = FresnelAt(sw, dg, cosi, active);
-        const FloatP sini2 = max(FloatP(1.f) - cosi * cosi, FloatP(0.f));
-        const FloatP ior = cauchyIor(m_index->Evaluate(dg, sw, active),
-                                     m_cauchyb->Evaluate(dg, sw, active), sw.w);
-        const Vector3fP n(dg.n.x(), dg.n.y(), dg.n.z());
-
-        // Reflection: wi = 2(n . wo)n - wo; R = F * Kr (x film phase).
-        const Vector3fP wiR = n * (FloatP(2.f) * cosi) - wo;
-        FloatP fR = F * Kr;
-        const FloatP film = m_film->Evaluate(dg, sw, active);
-        const FloatP filmindex = m_filmindex->Evaluate(dg, sw, active);
-        const MaskP hasFilm = film > FloatP(0.f);
-        if (any(hasFilm))
-        {
-            const FloatP ph = filmPhase(film, filmindex, sini2, sw.w);
-            fR = select(hasFilm, F * Kr * ph, F * Kr);
-        }
-
-        // Snell with Cauchy eta; architectural goes straight.
-        const FloatP eta =
-            select(entering || MaskP(m_architectural), FloatP(1.f) / ior, ior);
-        const FloatP sint2 = eta * eta * sini2;
-        const MaskP tir = sint2 >= FloatP(1.f);
-        const FloatP cost = sqrt(max(FloatP(1.f) - sint2, FloatP(0.f)));
-        const FloatP cosT = select(entering, -cost, cost);
-        Vector3fP wiT = fmadd(n, fmadd(eta, cosi, cosT), wo * (-eta));
-        if (m_architectural)
-            wiT = -wo;
-
-        FloatP fT;
-        if (m_architectural)
-        {
-            const FloatP one(1.f);
-            const FloatP Fe = mode == TransportMode::Radiance
-                                  ? select(entering, FloatP(0.f),
-                                           FresnelAt(sw, dg, -cosi, active))
-                                  : select(entering, F, FloatP(0.f));
-            fT = Kt * (one - Fe * fmadd(one - Fe, one - Fe, one));
-        }
-        else if (mode == TransportMode::Radiance)
-        {
-            const FloatP Ft = FresnelAt(sw, dg, cosT, active);
-            fT = (FloatP(1.f) - Ft) * (eta * eta) * Kt;
-        }
-        else
-        {
-            fT = (FloatP(1.f) - F) * abs(cosi / max(cost, EPS_ONE)) * Kt;
-        }
-
-        // Lobe selection.
-        const MaskP pickR = has_flag(lobeType, BSDFType::SpecularReflection);
-        const Vector3fP wsel = select(pickR, wiR, wiT);
-        const FloatP fsel = select(pickR, fR, fT);
-
-        // Reflection needs st > 0, transmission st < 0 and no TIR.
-        const FloatP st = sideTest(wo, wsel, dg);
-        const MaskP lobeOk =
-            select(pickR, st > FloatP(0.f), (st < FloatP(0.f)) && !tir);
-        const MaskP ok = active && lobeOk && (fsel > FloatP(0.f));
-
-        enoki::masked(*wi, active) = wsel;
-        enoki::masked(*R, active) =
-            select(ok, fsel * modeJacobian(mode, st), SWCSpectrumP(0.f));
-    }
-
     void GlassMaterial::Eval(const SpectrumWavelengthsP &sw,
                              const Vector3fP &wi, const Vector3fP &wo,
                              const DifferentialGeometryP &dg, TransportMode mode,
@@ -353,8 +274,7 @@ namespace lux2
         auto cauchyb = getFloatTex(ctx, "cauchyb", 0.f);
         auto film = getFloatTex(ctx, "film", 0.f);
         auto filmindex = getFloatTex(ctx, "filmindex", 1.5f);
-        const bool archi =
-            ctx.params ? ctx.params->FindOneBool("architectural", false) : false;
+        const bool archi = ctx.Params().FindOneBool("architectural", false);
 
         return std::make_shared<GlassMaterial>(
             std::move(Kr), std::move(Kt), std::move(index),

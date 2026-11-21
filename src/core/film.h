@@ -84,13 +84,6 @@ namespace lux2
         {
         }
 
-        // Raw sum of XYZ energy into the light buffer at integer pixels.
-        virtual void SplatLightSparse(const int32_t * /*x*/,
-                                      const int32_t * /*y*/,
-                                      const float * /*xyz*/, size_t /*n*/)
-        {
-        }
-
         // Merge another film's buffer into this one.
         virtual void Merge(Film *other) = 0;
 

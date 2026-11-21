@@ -17,6 +17,9 @@
 #include "core/scene.h"
 #include "core/math/transform.h"
 #include "lights/area.h"
+#include "pixelsamplers/hilbert.h"
+#include "pixelsamplers/linear.h"
+#include "pixelsamplers/lowdiscrepancy.h"
 
 #include <cmath>
 #include <iostream>
@@ -164,6 +167,39 @@ int main() {
         Scene scene;
         scene.Commit(desc);
         Check(!scene.HasMedia(), "vacuum scene => HasMedia() false");
+    }
+
+    // ---- 8. pixel sampler selected by legacy "pixelsampler" param -------
+    {
+        // Default (no pixelsampler param) => lowdiscrepancy.
+        SceneDescription desc;
+        Scene scene;
+        scene.Commit(desc);
+        Check(dynamic_cast<LowDiscrepancyPixelSampler *>(
+                  &scene.GetPixelSampler()) != nullptr,
+              "default pixel sampler is lowdiscrepancy");
+    }
+    {
+        // Explicit legacy parameter inside the Sampler block => hilbert.
+        SceneDescription desc;
+        const std::string ps = "hilbert";
+        desc.samplerParams.AddString("pixelsampler", &ps, 1);
+        Scene scene;
+        scene.Commit(desc);
+        Check(dynamic_cast<HilbertPixelSampler *>(
+                  &scene.GetPixelSampler()) != nullptr,
+              "\"pixelsampler\" [hilbert] selects hilbert");
+    }
+    {
+        // Unported legacy name (vegas) falls back to lowdiscrepancy.
+        SceneDescription desc;
+        const std::string ps = "vegas";
+        desc.samplerParams.AddString("pixelsampler", &ps, 1);
+        Scene scene;
+        scene.Commit(desc);
+        Check(dynamic_cast<LowDiscrepancyPixelSampler *>(
+                  &scene.GetPixelSampler()) != nullptr,
+              "vegas falls back to lowdiscrepancy");
     }
 
     std::cout << (g_failures == 0 ? "ALL PASS" : "FAILURES")

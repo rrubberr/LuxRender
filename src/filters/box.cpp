@@ -30,8 +30,9 @@ namespace lux2
 
     std::shared_ptr<Filter> BoxFilter::CreateFilter(const PluginContext &ctx)
     {
-        const float xw = ctx.params ? ctx.params->FindOneFloat("xwidth", 0.5f) : 0.5f;
-        const float yw = ctx.params ? ctx.params->FindOneFloat("ywidth", 0.5f) : 0.5f;
+        const ParamSet &params = ctx.Params();
+        const float xw = params.FindOneFloat("xwidth", 0.5f);
+        const float yw = params.FindOneFloat("ywidth", 0.5f);
         return std::make_shared<BoxFilter>(xw, yw);
     }
 

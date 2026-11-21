@@ -176,30 +176,6 @@ add_lux2_check(
 set_tests_properties(lux2pathcollapsecheck PROPERTIES TIMEOUT 300)
 
 add_lux2_check(
-	NAME lux2erptchaincheck
-	SOURCES erpt_chain_check.cpp
-	LINKS
-)
-
-add_lux2_check(
-	NAME lux2erptpathopscheck
-	SOURCES erpt/path_ops_check.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
-	NAME lux2erptscalarcheck
-	SOURCES erpt/scalar_check.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
-	NAME lux2erpt1dcheck
-	SOURCES erpt/erpt_1d.cpp
-	LINKS lux2
-)
-
-add_lux2_check(
 	NAME lux2shapecheck
 	SOURCES shape_check.cpp
 	LINKS lux2 ${LUX2_EMBREE_TARGET} Threads::Threads

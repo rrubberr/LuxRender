@@ -35,4 +35,4 @@ MakeNamedMaterial "wall_right_green"
 	"string type" ["matte"]
 
 MakeNamedMaterial "Lamp"
-	"string type" ["matte"]
+	"string type" ["null"]

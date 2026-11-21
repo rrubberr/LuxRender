@@ -31,7 +31,6 @@
 #include "integrators/wavefront/lane/lane_core.h"
 #include "integrators/wavefront/lane/math.h"
 #include "integrators/wavefront/lane/sampler_source.h"
-#include "integrators/wavefront/seed_sink.h"
 #include "integrators/wavefront/lanes.h"
 #include "integrators/wavefront/mis.h"
 #include "integrators/wavefront/sample_table.h"
@@ -185,24 +184,7 @@ namespace lux2
                         cont, Lc, w, d2, Int32P(0), nE, nullptr, &snap);
                 }
 #endif
-                if (m_c.seedSink)
-                {
-                    SeedRec sr;
-                    sr.kind = SeedKind::HitLight;
-                    sr.cont = cont;
-                    sr.e = Lc * w;
-                    sr.sample = mL.slot;
-                    sr.eyePs = m_ps;
-                    sr.ePath = mL.path;
-                    sr.nE = mL.v; // eye vertices [0, v) are stored
-                    sr.vP = h.p;
-                    sr.vN = dg.n;
-                    sr.vNg = h.ngeo;
-                    sr.vAreaId = h.lightID;
-                    m_c.seedSink->Emit(m_c, *m_tbl, sr);
-                }
-                else
-                    AddToSample(m_tbl->L.data(), mL.slot, Lc * w, cont);
+                AddToSample(m_tbl->L.data(), mL.slot, Lc * w, cont);
             }
 
             // Environment escape.

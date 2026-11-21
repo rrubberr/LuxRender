@@ -20,12 +20,19 @@
  ***************************************************************************/
 
 #include "core/dynload.h"
+#include "core/paramset.h"
 
 #include <string>
 #include <vector>
 
 namespace lux2
 {
+
+    const ParamSet &PluginContext::Params() const
+    {
+        static const ParamSet s_empty;
+        return params ? *params : s_empty;
+    }
 
     std::map<std::string, DynamicLoader::CreateShape> &DynamicLoader::registeredShapes()
     {

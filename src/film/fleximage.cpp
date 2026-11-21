@@ -192,36 +192,6 @@ namespace lux2
         enoki::scatter_add(pL + BufferSet::LZ, xyzP[2], sIdx, ok);
     }
 
-    void FlexImageFilm::SplatLightSparse(const int32_t *x, const int32_t *y,
-                                         const float *xyz, size_t n)
-    {
-        if (n == 0)
-            return;
-
-        std::lock_guard<std::mutex> lock(m_mergeMutex);
-
-        BufferSet &bs = Active();
-        if (bs.lRGB.empty())
-            return;
-
-        float *pL = bs.lRGB.data();
-        const size_t maxPix = bs.lRGB.size() / BufferSet::kStride;
-        for (size_t i = 0; i < n; ++i)
-        {
-            const int32_t px = x[i] - m_xStart;
-            const int32_t py = y[i] - m_yStart;
-            if (px < 0 || py < 0 || px >= m_xCount || py >= m_yCount)
-                continue;
-            const size_t pix = size_t(py) * size_t(m_xCount) + size_t(px);
-            if (pix >= maxPix)
-                continue;
-            float *dst = pL + pix * BufferSet::kStride;
-            dst[BufferSet::LX] += xyz[i * 3 + 0];
-            dst[BufferSet::LY] += xyz[i * 3 + 1];
-            dst[BufferSet::LZ] += xyz[i * 3 + 2];
-        }
-    }
-
     void FlexImageFilm::Merge(Film *other)
     {
         FlexImageFilm *o = dynamic_cast<FlexImageFilm *>(other);
@@ -1040,9 +1010,7 @@ namespace lux2
 
     std::shared_ptr<Film> FlexImageFilm::CreateFilm(const PluginContext &ctx)
     {
-        const ParamSet *p = ctx.params;
-        ParamSet empty;
-        const ParamSet &params = p ? *p : empty;
+        const ParamSet &params = ctx.Params();
 
         const int xres = params.FindOneInt("xresolution", 800);
         const int yres = params.FindOneInt("yresolution", 600);

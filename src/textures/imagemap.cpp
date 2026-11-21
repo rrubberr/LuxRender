@@ -48,10 +48,10 @@ namespace lux2
 
         ImageParams ParseImageParams(const PluginContext &ctx)
         {
+            const ParamSet &params = ctx.Params();
             ImageParams p;
 
-            const std::string sFilter =
-                ctx.params->FindOneString("filtertype", "bilinear");
+            const std::string sFilter = params.FindOneString("filtertype", "bilinear");
             if (sFilter == "nearest")
                 p.filterType = ImageFilterType::Nearest;
             else if (sFilter == "mipmap_trilinear")
@@ -61,7 +61,7 @@ namespace lux2
             else
                 p.filterType = ImageFilterType::Bilinear;
 
-            const std::string sWrap = ctx.params->FindOneString("wrap", "repeat");
+            const std::string sWrap = params.FindOneString("wrap", "repeat");
             if (sWrap == "black")
                 p.wrapMode = ImageWrap::Black;
             else if (sWrap == "white")
@@ -71,11 +71,11 @@ namespace lux2
             else
                 p.wrapMode = ImageWrap::Repeat;
 
-            p.maxAniso = ctx.params->FindOneFloat("maxanisotropy", 8.f);
-            p.gain = ctx.params->FindOneFloat("gain", 1.f);
-            p.gamma = ctx.params->FindOneFloat("gamma", 1.f);
-            p.filename = ctx.params->FindOneString("filename", "");
-            p.discardmm = ctx.params->FindOneInt("discardmipmaps", 0);
+            p.maxAniso = params.FindOneFloat("maxanisotropy", 8.f);
+            p.gain = params.FindOneFloat("gain", 1.f);
+            p.gamma = params.FindOneFloat("gamma", 1.f);
+            p.filename = params.FindOneString("filename", "");
+            p.discardmm = params.FindOneInt("discardmipmaps", 0);
 
             return p;
         }
@@ -150,7 +150,7 @@ namespace lux2
     {
         ImageParams p = ParseImageParams(ctx);
 
-        const std::string channel = ctx.params->FindOneString("channel", "mean");
+        const std::string channel = ctx.Params().FindOneString("channel", "mean");
         TexChannel ch;
         if (channel == "red")
             ch = TexChannel::Red;

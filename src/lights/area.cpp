@@ -448,9 +448,11 @@ namespace lux2
 
     std::shared_ptr<Light> AreaLight::CreateLight(const PluginContext &ctx)
     {
+        const ParamSet &params = ctx.Params();
+
         // Emission color/texture.
         std::shared_ptr<ColorTexture> le;
-        const std::string leName = ctx.params ? ctx.params->FindTexture("L") : "";
+        const std::string leName = params.FindTexture("L");
         if (!leName.empty() && ctx.colorTextures)
         {
             auto it = ctx.colorTextures->find(leName);
@@ -459,24 +461,19 @@ namespace lux2
         }
         if (!le)
         {
-            const RGBColor rgb =
-                ctx.params ? ctx.params->FindOneRGBColor("L", RGBColor(1.f))
-                           : RGBColor(1.f);
+            const RGBColor rgb = params.FindOneRGBColor("L", RGBColor(1.f));
             const RGBColorP rgbP(FloatP(rgb.r()), FloatP(rgb.g()), FloatP(rgb.b()));
             le = std::make_shared<ConstantColorTexture>(rgbP, /*illuminant=*/true);
         }
 
-        const float gain = ctx.params ? ctx.params->FindOneFloat("gain", 1.f) : 1.f;
+        const float gain = params.FindOneFloat("gain", 1.f);
         // Lux AreaLight defaults: power=100 W, efficacy=17 lm/W.
-        const float power =
-            ctx.params ? ctx.params->FindOneFloat("power", 100.f) : 100.f;
-        const float efficacy =
-            ctx.params ? ctx.params->FindOneFloat("efficacy", 17.f) : 17.f;
+        const float power = params.FindOneFloat("power", 100.f);
+        const float efficacy = params.FindOneFloat("efficacy", 17.f);
         auto light =
             std::make_shared<AreaLight>(std::move(le), gain, power, efficacy);
         // Importance hint for power/importance weighting.
-        const float importance =
-            ctx.params ? ctx.params->FindOneFloat("importance", 1.f) : 1.f;
+        const float importance = params.FindOneFloat("importance", 1.f);
         light->SetImportance(importance);
         return light;
     }

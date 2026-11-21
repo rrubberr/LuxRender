@@ -112,15 +112,6 @@ namespace lux2
             const PluginContext &ctx);
 
     protected:
-        // Tile hooks for ERPT.
-        virtual void OnTileBegin(const Scene &, const Tile &, WalkCtx &,
-                                 IntegratorWorkerState *, Film &, uint32_t /*spp*/)
-        {
-        }
-        virtual void OnTileEnd(const Scene &, const Tile &, WalkCtx &,
-                               IntegratorWorkerState *, Film &, uint32_t /*spp*/)
-        {
-        }
         // Worker state with derived data.
         const std::vector<LightsSamplingStrategy> &LsD() const { return m_lsD; }
 

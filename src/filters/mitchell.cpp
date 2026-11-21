@@ -30,13 +30,13 @@ namespace lux2
 
     std::shared_ptr<Filter> MitchellFilter::CreateFilter(const PluginContext &ctx)
     {
-        const float xw = ctx.params ? ctx.params->FindOneFloat("xwidth", 2.f) : 2.f;
-        const float yw = ctx.params ? ctx.params->FindOneFloat("ywidth", 2.f) : 2.f;
-        const float B = ctx.params ? ctx.params->FindOneFloat("B", 1.f / 3.f) : 1.f / 3.f;
-        const float C = ctx.params ? ctx.params->FindOneFloat("C", 1.f / 3.f) : 1.f / 3.f;
+        const ParamSet &params = ctx.Params();
+        const float xw = params.FindOneFloat("xwidth", 2.f);
+        const float yw = params.FindOneFloat("ywidth", 2.f);
+        const float B = params.FindOneFloat("B", 1.f / 3.f);
+        const float C = params.FindOneFloat("C", 1.f / 3.f);
         // Lux's "supersample" is a radial three-tap blend that we can't do here.
-        if (ctx.params)
-            ctx.params->FindOneBool("supersample", false);
+        params.FindOneBool("supersample", false);
         return std::make_shared<MitchellFilter>(xw, yw, B, C);
     }
 
