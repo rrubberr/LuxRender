@@ -184,7 +184,16 @@ void CheckSmitsTableFold() {
 	Check(ok, "Smits folded table equals RGBToSmitsSPD");
 }
 
-// CIE luminance at a single wavelength must match SWCSpectrum::Y (single).
+// Ratio between the scalar reference's uniform wavelength weight and lux2's
+// importance-sampled weight. The scalar integrates with pdf_u = 1/(END-START);
+// lux2 weights by 683/pdf_IS, so expected = ref * pdf_u / pdf_IS.
+float IsWeightRatio(float wl) {
+	const float pdfU = 1.f / (720.f - 380.f);
+	return pdfU / First(lux2::WavelengthPdf(lux2::FloatP(wl)));
+}
+
+// CIE luminance at a single wavelength must match SWCSpectrum::Y (single),
+// rescaled by the importance-sampling weight ratio.
 void CheckLuminance() {
 	bool ok = true;
 	for (int t = 0; t < 32 && ok; ++t) {
@@ -196,7 +205,7 @@ void CheckLuminance() {
 		lux2::SpectrumWavelengthsP swp;
 		swp.FromWavelength(lux2::FloatP(ref.wl));
 		lux2::SWCSpectrumP s = lux2::RGBToSmitsSPD(ToP(rgb), swp, false);
-		ok = ok && Close(First(lux2::SWCY(s, swp)), ref.Y);
+		ok = ok && Close(First(lux2::SWCY(s, swp)), ref.Y * IsWeightRatio(ref.wl));
 	}
 	Check(ok, "CIE luminance");
 }
@@ -219,9 +228,11 @@ void CheckXYZ() {
 		lux2::SWCSpectrumP sp = lux2::RGBToSmitsSPD(ToP(rgb), swp, false);
 		const lux2::XYZColorP xyz = lux2::SWCToXYZ(sp, swp);
 
-		if (!Close(First(xyz[0]), ref.c[0]) ||
-			!Close(First(xyz[1]), ref.c[1]) ||
-			!Close(First(xyz[2]), ref.c[2])) {
+		// Rescale the uniform-weighted reference by the IS weight ratio.
+		const float r = IsWeightRatio(wl);
+		if (!Close(First(xyz[0]), ref.c[0] * r) ||
+			!Close(First(xyz[1]), ref.c[1] * r) ||
+			!Close(First(xyz[2]), ref.c[2] * r)) {
 			std::cerr << "  [dbg t=" << t << " w=" << wl
 				<< " got=(" << First(xyz[0]) << "," << First(xyz[1]) << ","
 				<< First(xyz[2]) << ") ref=(" << ref.c[0] << "," << ref.c[1]

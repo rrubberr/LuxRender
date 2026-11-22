@@ -31,9 +31,28 @@
 namespace lux2
 {
 
-    // CIE matching functions carry this scale. Monochromatic SWA.
-    static constexpr Float CIE_SCALE =
-        683.f * (WAVELENGTH_END - WAVELENGTH_START);
+    // ---------------------------------------------------------------------------
+    // Wavelength importance sampling
+    // ---------------------------------------------------------------------------
+    //
+    // Samples are drawn from a cosh^-2 envelope shaped like the CIE sensor
+    // response (pbrt-v4's VisibleWavelengthsPDF), renormalized to [START, END).
+    // The radiance weight at integration time is 683/pdf(w) (see SampleCIE),
+    // which replaces the old constant 683*(END-START) used with uniform sampling.
+
+    namespace
+    {
+        constexpr Float WL_K = 0.0072f;
+        constexpr Float WL_MU = 538.f;
+        const Float WL_TA = std::tanh(WL_K * (WAVELENGTH_START - WL_MU));
+        const Float WL_TB = std::tanh(WL_K * (WAVELENGTH_END - WL_MU));
+    } // namespace
+
+    FloatP WavelengthPdf(const FloatP &wl)
+    {
+        const FloatP c = cosh(WL_K * (wl - WL_MU));
+        return FloatP(WL_K / (WL_TB - WL_TA)) / (c * c);
+    }
 
     // ---------------------------------------------------------------------------
     // SpectrumWavelengthsP
@@ -41,14 +60,16 @@ namespace lux2
 
     void SpectrumWavelengthsP::Sample(const FloatP &u1)
     {
-        // Uniform stratified wavelength over [START, END).
-        FromWavelength(FloatP(WAVELENGTH_START) +
-                       FloatP(WAVELENGTH_END - WAVELENGTH_START) * u1);
+        // Inverse CDF of the normalized cosh^-2 envelope over [START, END).
+        const FloatP t = WL_TA + u1 * (WL_TB - WL_TA);
+        FromWavelength(WL_MU + atanh(t) / WL_K);
     }
 
     void SpectrumWavelengthsP::FromWavelength(const FloatP &wl)
     {
         w = wl;
+        // Single source of truth: the pdf is a pure function of w.
+        pdf = WavelengthPdf(wl);
 
         // Smits RGB basis bins.
         const FloatP xRGB = (wl - FloatP(WAVELENGTH_START)) *
@@ -200,25 +221,27 @@ namespace lux2
 
     namespace
     {
-        // Linearized CIE table sample at sw's wavelength, scaled by CIE_SCALE.
+        // Linearized CIE table sample at sw's wavelength, weighted by the
+        // importance-sampling correction 683/pdf(w). For uniform sampling
+        // pdf == 1/(END-START), this reduces to the old 683*(END-START).
         FloatP SampleCIE(const float *table, const SpectrumWavelengthsP &sw)
         {
             const Int32P b = min(sw.binXYZ, Int32P(CIE_BINS - 2));
             const FloatP lo = gather<FloatP>(table, b);
             const FloatP hi = gather<FloatP>(table, b + 1);
-            return lerp(lo, hi, sw.offsetXYZ) * CIE_SCALE;
+            return lerp(lo, hi, sw.offsetXYZ) * (FloatP(683.f) / sw.pdf);
         }
     } // namespace
 
     FloatP SWCY(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw)
     {
-        // Monochromatic luminance ciey(w) * s scaled by CIE_SCALE.
+        // Monochromatic luminance ciey(w) * s * 683/pdf(w).
         return SampleCIE(CIE_Y, sw) * s;
     }
 
     XYZColorP SWCToXYZ(const SWCSpectrumP &s, const SpectrumWavelengthsP &sw)
     {
-        // Monochromatic cie(w) * s * 683 * (END - START) per channel.
+        // Monochromatic cie(w) * s * 683/pdf(w) per channel.
         return XYZColorP(SampleCIE(CIE_X, sw) * s,
                          SampleCIE(CIE_Y, sw) * s,
                          SampleCIE(CIE_Z, sw) * s);

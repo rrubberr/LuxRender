@@ -78,12 +78,16 @@ double First(const FloatP &p) {
 double WhiteLeMeanLum(double Le) {
     double sum = 0.0;
     int n = 0;
+    // SWCY now weights by 683/pdf_IS. A uniform wavelength grid must multiply
+    // each term by pdf_IS*(END-START) to recover the uniform-weighted integral
+    // the renderer measures (it samples lambda from pdf_IS).
     for (double wl = 380.0; wl < 720.0; wl += 1.0) {
         SpectrumWavelengthsP sw;
         sw.FromWavelength(FloatP(float(wl)));
         const RGBColorP white(FloatP(1.f), FloatP(1.f), FloatP(1.f));
         const SWCSpectrumP spd = RGBToSmitsSPD(white, sw, true);
-        sum += First(SWCY(spd * FloatP(float(Le)), sw));
+        const double pdfIS = double(WavelengthPdf(FloatP(float(wl)))[0]);
+        sum += First(SWCY(spd * FloatP(float(Le)), sw)) * pdfIS * (720.0 - 380.0);
         ++n;
     }
     return sum / double(n);
