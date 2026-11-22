@@ -59,6 +59,15 @@ namespace lux2
             return enoki::load_unaligned<UInt32P>(pathA);
         }
 
+        // First free sequential dim.
+        inline uint32_t LensDimBase(const WalkCtx &c)
+        {
+            const int lo = 2 + std::max(0, c.eyeDepth - 1) * 4;
+            const int nee = lo + 6 + std::max(0, c.lightDepth - 1) * 4;
+            const int camNee = nee + 4 * std::max(0, c.eyeDepth - 1);
+            return uint32_t(camNee + 4);
+        }
+
         // Write the camera vertex of a fresh eye path into the pool and
         // set the sample table row.
         inline void WriteCameraVertex(PathStore &ps, const WalkCtx &c,
@@ -133,7 +142,7 @@ namespace lux2
             // Admit even a single free lane.
             const uint32_t freeN = uint32_t(tbl.freeList.size());
             if (!PlanPixels(&camera, sampler, jobs, sampleBasis, lane.core.alive, 1,
-                            plan, freeN))
+                            plan, freeN, LensDimBase(c)))
                 return false;
             const MaskP fill = plan.fill;
             alignas(64) float fillA[PACKET_WIDTH];

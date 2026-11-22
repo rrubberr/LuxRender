@@ -64,6 +64,16 @@ namespace lux2
             return neeBase + 4 * std::max(0, eyeDepth - 1);
         }
 
+        // First free sequential dim, past cam-NEE. Camera aperture (DoF)
+        // streams live here; derived from the same configured depths as the
+        // other bases and kept below NEE_ALL_DIM (the "All"-strategy
+        // partition) for any user-configured eye/light depth.
+        inline int LensDimBaseI(int eyeDepth, int lightDepth)
+        {
+            return CamNeeBaseI(NeeBaseI(LightOriginBaseI(eyeDepth), lightDepth),
+                               eyeDepth) + 4;
+        }
+
         // Shared origin gather for general and camera connectors.
         inline UInt32P GatherSelIdx(const PathStore &ps, const UInt32P &path,
                                     const MaskP &)
@@ -563,7 +573,7 @@ namespace lux2
 
                 FloatP px(0.f), py(0.f), We(0.f), cosCam(0.f);
                 const MaskP inView =
-                    c.camera->Project(ewi, &px, &py, &We, &cosCam, li.ok);
+                    c.camera->Project(ewi, &px, &py, &We, &cosCam, li.ok, E0p);
                 const MaskP tryVis =
                     inView && (li.pdfL > FloatP(0.f)) && (We > FloatP(0.f));
                 if (none(tryVis))
@@ -684,7 +694,7 @@ namespace lux2
 
                 FloatP px(0.f), py(0.f), We(0.f), cosCam(0.f);
                 const MaskP inView =
-                    c.camera->Project(ewi, &px, &py, &We, &cosCam, base);
+                    c.camera->Project(ewi, &px, &py, &We, &cosCam, base, E0);
                 if (!any(inView))
                     return;
 

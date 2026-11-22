@@ -90,7 +90,7 @@ namespace lux2
     inline bool PlanPixels(const Camera *camera, const Sampler &sampler,
                            JobCursor &jobs, uint64_t sampleBasis,
                            const MaskP &alive, int k, PixelPlan &out,
-                           uint32_t maxFill = 0u)
+                           uint32_t maxFill = 0u, uint32_t lensDimBase = 0u)
     {
         if (enoki::count(!alive) < k)
             return false;
@@ -141,8 +141,16 @@ namespace lux2
 
         if (camera)
         {
-            FloatP w;
-            camera->GenerateRay(out.x, out.y, FloatP(0.f), &out.primary, &w);
+            FloatP w, ulx(0.f), uly(0.f);
+            if (camera->SampleDimensionCount() >= 2)
+            {
+                const Point2fP lens = sampler.Get2D(
+                    out.seed, out.sampleIdx, UInt32P(lensDimBase));
+                ulx = lens.x();
+                uly = lens.y();
+            }
+            camera->GenerateRay(out.x, out.y, FloatP(0.f), &out.primary, &w,
+                                MaskP(true), ulx, uly);
             out.primary.wavelengths = out.sw.w;
             out.primary.mask = UInt32P(0xFFFFFFFFu);
             out.camWeight = w;

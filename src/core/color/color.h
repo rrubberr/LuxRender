@@ -52,10 +52,7 @@ namespace lux2
     // SpectrumWavelengthsP
     // ---------------------------------------------------------------------------
 
-    // Sensor-shaped wavelength importance-sampling pdf (pbrt-v4 style cosh^-2
-    // envelope over the CIE response), renormalized to [START, END). This is a
-    // pure function of the wavelength so any SpectrumWavelengthsP rebuilt from
-    // a bare w carries the correct pdf.
+    // Sensor shaped wavelength importance sampling pdf.
     FloatP WavelengthPdf(const FloatP &wl);
 
     // A set of wavelengths. Monochromatic SWA w/ one wavelength per lane.
@@ -69,7 +66,7 @@ namespace lux2
         Int32P binXYZ; // CIE bin for w.
         FloatP offsetXYZ;
 
-        // Importance-sample a wavelength from a uniform [0,1) sample.
+        // Importance sample a wavelength from a uniform [0,1) sample.
         void Sample(const FloatP &u1);
 
         // Populate the wavelength, pdf and precomputed bins from an explicit wl.

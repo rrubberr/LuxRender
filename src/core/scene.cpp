@@ -721,6 +721,10 @@ namespace lux2
         // Keep the materials alive.
         m_materials = desc.materials;
 
+        // Resolve autofocus now that geometry is committed.
+        if (m_camera && m_embree)
+            m_camera->AutoFocus(m_embree.get());
+
         // Resolve the medium enclosing each path origin.
         if (m_embree && m_mediumTable.HasMedia())
         {

@@ -29,27 +29,41 @@
 namespace lux2
 {
 
+    class EmbreeScene;
+
     // Generates a packet of primary rays for a set of sample positions on the film.
     class Camera
     {
     public:
         virtual ~Camera() = default;
 
-        // Fill `ray` for the given film coordinates.
+        // Extra per-ray random streams beyond pixel jitter (0 = pinhole,
+        // 2 = depth of field). Integrators draw this many UNIFORM [0,1) dims
+        // and pass them to GenerateRay/SampleRay as uLensX/uLensY; the camera
+        // maps them onto the aperture itself, so integrators stay ignorant of
+        // the aperture shape.
+        virtual int SampleDimensionCount() const { return 0; }
+
+        // Fill `ray` for the given film coordinates. uLensX/uLensY are raw
+        // uniforms consumed only when SampleDimensionCount() >= 2.
         virtual void GenerateRay(const FloatP &x, const FloatP &y,
                                  const FloatP &time, RayP *ray,
                                  FloatP *weight,
-                                 MaskP active = MaskP(true)) const = 0;
+                                 MaskP active = MaskP(true),
+                                 const FloatP &uLensX = FloatP(0.f),
+                                 const FloatP &uLensY = FloatP(0.f)) const = 0;
 
         // Returns the ray, its sampling PDF, and emission weight.
         virtual void SampleRay(const FloatP &uPixelX, const FloatP &uPixelY,
                                const FloatP &time, RayP *ray, FloatP *pdf,
                                FloatP *weight,
-                               MaskP active = MaskP(true)) const
+                               MaskP active = MaskP(true),
+                               const FloatP &uLensX = FloatP(0.f),
+                               const FloatP &uLensY = FloatP(0.f)) const
         {
             const FloatP x = uPixelX * FloatP(PixelWidth());
             const FloatP y = uPixelY * FloatP(PixelHeight());
-            GenerateRay(x, y, time, ray, weight, active);
+            GenerateRay(x, y, time, ray, weight, active, uLensX, uLensY);
             enoki::masked(*pdf, active) = Pdf(*ray, active);
         }
 
@@ -62,7 +76,8 @@ namespace lux2
         // Inverse of GenerateRay.
         virtual MaskP Project(const Vector3fP & /*dirWorld*/, FloatP * /*x*/,
                               FloatP * /*y*/, FloatP * /*We*/,
-                              FloatP * /*cosCam*/, MaskP /*active*/) const
+                              FloatP * /*cosCam*/, MaskP /*active*/,
+                              const Point3fP & /*origin*/) const
         {
             return MaskP(false);
         }
@@ -73,6 +88,9 @@ namespace lux2
 
         // Worldspace origin when the camera sits at a point.
         virtual bool OriginPoint(Point3f * /*out*/) const { return false; }
+
+        // Resolve focus distance from the scene after geometry is committed.
+        virtual void AutoFocus(const EmbreeScene *) {}
     };
 
 } // namespace lux2

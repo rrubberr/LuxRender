@@ -34,11 +34,6 @@ namespace lux2
     // ---------------------------------------------------------------------------
     // Wavelength importance sampling
     // ---------------------------------------------------------------------------
-    //
-    // Samples are drawn from a cosh^-2 envelope shaped like the CIE sensor
-    // response (pbrt-v4's VisibleWavelengthsPDF), renormalized to [START, END).
-    // The radiance weight at integration time is 683/pdf(w) (see SampleCIE),
-    // which replaces the old constant 683*(END-START) used with uniform sampling.
 
     namespace
     {
@@ -222,8 +217,7 @@ namespace lux2
     namespace
     {
         // Linearized CIE table sample at sw's wavelength, weighted by the
-        // importance-sampling correction 683/pdf(w). For uniform sampling
-        // pdf == 1/(END-START), this reduces to the old 683*(END-START).
+        // importance-sampling correction 683/pdf(w).
         FloatP SampleCIE(const float *table, const SpectrumWavelengthsP &sw)
         {
             const Int32P b = min(sw.binXYZ, Int32P(CIE_BINS - 2));

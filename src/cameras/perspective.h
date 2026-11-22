@@ -36,23 +36,38 @@ namespace lux2
     {
     public:
         // screen[4] = {x0, x1, y0, y1} film plane window.
+        // lensRadius == 0 is a pinhole. blades < 3 selects a circular aperture.
         PerspectiveCamera(const Transform &cameraToWorld, const float screen[4],
                           float hither, float yon, float shutterOpen,
-                          int xRes, int yRes, float fovDeg);
+                          int xRes, int yRes, float fovDeg,
+                          float lensRadius = 0.f, float focalDistance = 1e30f,
+                          int blades = 0, int distribution = 0, int power = 3,
+                          bool autoFocus = false);
 
         void GenerateRay(const FloatP &x, const FloatP &y, const FloatP &time,
                          RayP *ray, FloatP *weight,
-                         MaskP active = MaskP(true)) const override;
+                         MaskP active = MaskP(true),
+                         const FloatP &uLensX = FloatP(0.f),
+                         const FloatP &uLensY = FloatP(0.f)) const override;
 
         void SampleRay(const FloatP &uPixelX, const FloatP &uPixelY,
                        const FloatP &time, RayP *ray, FloatP *pdf, FloatP *weight,
-                       MaskP active = MaskP(true)) const override;
+                       MaskP active = MaskP(true),
+                       const FloatP &uLensX = FloatP(0.f),
+                       const FloatP &uLensY = FloatP(0.f)) const override;
 
         FloatP Pdf(const RayP &ray, MaskP active = MaskP(true)) const override;
 
         MaskP Project(const Vector3fP &dirWorld, FloatP *x, FloatP *y,
                       FloatP *We, FloatP *cosCam,
-                      MaskP active) const override;
+                      MaskP active, const Point3fP &origin) const override;
+
+        int SampleDimensionCount() const override
+        {
+            return m_lensRadius > 0.f ? 2 : 0;
+        }
+
+        void AutoFocus(const EmbreeScene *scene) override;
 
         int PixelWidth() const override { return m_xRes; }
         int PixelHeight() const override { return m_yRes; }
@@ -73,6 +88,14 @@ namespace lux2
         float m_hither, m_yon;
         float m_shutterOpen;
         int m_xRes, m_yRes;
+
+        // Thin-lens depth of field. lensRadius == 0 reduces to a pinhole.
+        float m_lensRadius;    // aperture radius (camera-space units)
+        float m_focalDistance; // focus plane distance along the view axis
+        int m_apertureShape;   // blades (<3 = circular)
+        int m_distribution;    // radial profile selector (parity only)
+        int m_power;           // exponent for exponential profiles
+        bool m_wantsAutoFocus;
     };
 
 } // namespace lux2
