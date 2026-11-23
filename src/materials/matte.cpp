@@ -58,7 +58,8 @@ namespace lux2
                                 const DifferentialGeometryP &dg,
                                 const FloatP &u0, const FloatP &u1,
                                 const FloatP &, BSDFSampleP *sample,
-                                TransportMode mode, MaskP active) const
+                                TransportMode mode, uint32_t typeMask,
+                                MaskP active) const
     {
         if (none(active))
             return;
@@ -109,7 +110,9 @@ namespace lux2
 
         const FloatP st = sideTest(wo, wi, dg);
         // BRDF: st > 0 required; st < 0 or grazing st == 0 kills the lane.
-        const MaskP ok = active && sameHemi && (st > FloatP(0.f));
+        // A typeMask without DiffuseReflection rejects every lane.
+        const MaskP ok = active && sameHemi && (st > FloatP(0.f)) &&
+                         ((typeMask & uint32_t(BSDFType::DiffuseReflection)) != 0u);
 
         const FloatP pdf = abs(cosI) * INVPI;
         f = select(ok, f * modeJacobian(mode, st), SWCSpectrumP(0.f));

@@ -103,11 +103,13 @@ namespace lux2
         }
     }
 
-    // Sample the continuation direction.
+    // Sample the continuation direction. typeMask restricts the lobes the
+    // caller wants traced.
     inline void SampleVertex(const VertexP &v, const SpectrumWavelengthsP &sw,
                              const FloatP &u1, const FloatP &u2,
                              const FloatP &ucomp, BSDFSampleP *s, MaskP active,
-                             TransportMode mode = TransportMode::Radiance)
+                             TransportMode mode = TransportMode::Radiance,
+                             uint32_t typeMask = uint32_t(BSDFType::All))
     {
         const MaskP surf = active && !v.isMedium;
         const MaskP med = active && v.isMedium;
@@ -120,7 +122,8 @@ namespace lux2
         s->specular = MaskP(false);
 
         if (any(surf))
-            v.bsdf->SampleF(sw, v.wo, v.dg, u1, u2, ucomp, s, mode, surf);
+            v.bsdf->SampleF(sw, v.wo, v.dg, u1, u2, ucomp, s, mode, typeMask,
+                            surf);
         if (any(med))
         {
             Vector3fP wiM(FloatP(0.f));

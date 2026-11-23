@@ -69,7 +69,7 @@ struct TestDiffuse : public BSDF {
 
     void SampleF(const SpectrumWavelengthsP &, const Vector3fP &,
                  const DifferentialGeometryP &, const FloatP &, const FloatP &,
-                 const FloatP &, BSDFSampleP *s, TransportMode,
+                 const FloatP &, BSDFSampleP *s, TransportMode, uint32_t,
                  MaskP active) const override {
         ++calls;
         // Every write MUST be masked or a mixed-packet partition clobbers the
@@ -111,7 +111,7 @@ struct TestSpecular : public BSDF {
 
     void SampleF(const SpectrumWavelengthsP &, const Vector3fP &,
                  const DifferentialGeometryP &, const FloatP &, const FloatP &,
-                 const FloatP &, BSDFSampleP *s, TransportMode,
+                 const FloatP &, BSDFSampleP *s, TransportMode, uint32_t,
                  MaskP active) const override {
         ++calls;
         enoki::masked(s->wi, active) = Vector3fP(FloatP(1.f), FloatP(0.f), FloatP(0.f));
@@ -268,7 +268,7 @@ void CheckSampleFMixed(const BsdfPtrTable &table) {
     s.specular = MaskP(false);
 
     ptr->SampleF(sw, wo, dg, FloatP(0.1f), FloatP(0.2f), FloatP(0.3f), &s,
-                 TransportMode::Radiance, MaskP(true));
+                 TransportMode::Radiance, uint32_t(BSDFType::All), MaskP(true));
 
     bool pdfOk = true, woOk = true, fOk = true, typeOk = true, specOk = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
@@ -317,7 +317,7 @@ void CheckSampleFInactive(const BsdfPtrTable &table) {
     s.specular = MaskP(false);
 
     ptr->SampleF(sw, wo, dg, FloatP(0.1f), FloatP(0.2f), FloatP(0.3f), &s,
-                 TransportMode::Radiance, active);
+                 TransportMode::Radiance, uint32_t(BSDFType::All), active);
 
     bool activeOk = true, inactiveOk = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {

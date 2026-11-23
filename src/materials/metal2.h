@@ -66,7 +66,8 @@ namespace lux2
         void SampleF(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
                      const DifferentialGeometryP &dg, const FloatP &u0,
                      const FloatP &u1, const FloatP &u2, BSDFSampleP *sample,
-                     TransportMode mode, MaskP active) const override;
+                     TransportMode mode, uint32_t typeMask,
+                     MaskP active) const override;
 
         // Non-delta lobe where solid-angle density D(wh)/(4|dot(wo,wh)|).
         FloatP Pdf(const SpectrumWavelengthsP &sw, const Vector3fP &wi,

@@ -72,7 +72,8 @@ namespace lux2
         void SampleF(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
                      const DifferentialGeometryP &dg, const FloatP &u0,
                      const FloatP &u1, const FloatP &u2, BSDFSampleP *sample,
-                     TransportMode mode, MaskP active) const override;
+                     TransportMode mode, uint32_t typeMask,
+                     MaskP active) const override;
 
         // Both lobes are delta so no finite solid-angle density.
         FloatP Pdf(const SpectrumWavelengthsP &, const Vector3fP &, const Vector3fP &,
@@ -91,7 +92,7 @@ namespace lux2
         static std::shared_ptr<Material> CreateMaterial(const PluginContext &ctx);
 
     private:
-        // Monochromatic lane Cauchy IOR + Fresnel at signed cosi (signed for lux
+        // Monochromatic Cauchy IOR + Fresnel at signed cosi (signed for lux
         // two sided FresnelCauchy behavior, TIR yields F = 1).
         FloatP FresnelAt(const SpectrumWavelengthsP &sw,
                          const DifferentialGeometryP &dg, const FloatP &cosi,

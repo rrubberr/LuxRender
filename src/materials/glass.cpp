@@ -75,7 +75,8 @@ namespace lux2
                                 const DifferentialGeometryP &dg,
                                 const FloatP &, const FloatP &,
                                 const FloatP &ucomp, BSDFSampleP *sample,
-                                TransportMode mode, MaskP active) const
+                                TransportMode mode, uint32_t typeMask,
+                                MaskP active) const
     {
         if (none(active))
             return;
@@ -111,6 +112,13 @@ namespace lux2
         }
         wR = select(R > FloatP(0.f), wR, FloatP(0.f));
         wT = select(T > FloatP(0.f), wT, FloatP(0.f));
+
+        // typeMask lobe restriction drops excluded components from the
+        // mixture before selection.
+        if ((typeMask & uint32_t(BSDFType::SpecularReflection)) == 0u)
+            wR = FloatP(0.f);
+        if ((typeMask & uint32_t(BSDFType::SpecularTransmission)) == 0u)
+            wT = FloatP(0.f);
 
         const FloatP total = wR + wT;
         const MaskP selOk = total > FloatP(0.f);

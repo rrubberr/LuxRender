@@ -65,7 +65,8 @@ namespace lux2
         void SampleF(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
                      const DifferentialGeometryP &dg, const FloatP &u0,
                      const FloatP &u1, const FloatP &u2, BSDFSampleP *sample,
-                     TransportMode mode, MaskP active) const override;
+                     TransportMode mode, uint32_t typeMask,
+                     MaskP active) const override;
 
         // Lux BxDF::Pdf cosine density solid angle pdf where
         // SameHemisphere ? |cos(wi)| * INVPI : 0. No ng side test, because

@@ -53,7 +53,8 @@ namespace lux2
             void SampleF(const SpectrumWavelengthsP &sw, const Vector3fP &wo,
                          const DifferentialGeometryP &dg, const FloatP &u0,
                          const FloatP &u1, const FloatP &, BSDFSampleP *s,
-                         TransportMode mode, MaskP active) const override
+                         TransportMode mode, uint32_t typeMask,
+                         MaskP active) const override
             {
                 (void)sw;
                 const MaskP ok =
@@ -65,7 +66,10 @@ namespace lux2
                 // Lux folded  where |cosig * Dot(wo, nn) / cosi|.
                 const FloatP f =
                     abs(cosig * dot(wo, dg.n) / max(cosi, EPS_DENOM));
-                const MaskP good = ok && (cosig > FloatP(0.f));
+                // A typeMask without DiffuseReflection rejects the lane
+                // (pdf = 0) rather than leaving it unwritten.
+                const MaskP good = ok && (cosig > FloatP(0.f)) &&
+                                   ((typeMask & uint32_t(BSDFType::DiffuseReflection)) != 0u);
                 enoki::masked(s->wi, ok) = wi;
                 enoki::masked(s->f, ok) =
                     SWCSpectrumP(select(good, f, FloatP(0.f)));

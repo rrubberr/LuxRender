@@ -50,7 +50,7 @@ namespace lux2
         void SampleF(const SpectrumWavelengthsP &, const Vector3fP &wo,
                      const DifferentialGeometryP &dg, const FloatP &, const FloatP &,
                      const FloatP &, BSDFSampleP *s, TransportMode,
-                     MaskP active) const override
+                     uint32_t typeMask, MaskP active) const override
         {
             // Straight through.
             enoki::masked(s->wi, active) = -wo;
@@ -61,10 +61,13 @@ namespace lux2
             enoki::masked(s->specular, active) = MaskP(true);
 
             // Lux SingleBSDF kills the lane when |Dot(wo, ng)| is grazing
-            // so a near-tangent hit terminates.
+            // so a near-tangent hit terminates. A typeMask without Null
+            // rejects the lane as well.
             const FloatP cosWo = dot(wo, dg.ng);
             enoki::masked(s->pdf, active) =
-                select(abs(cosWo) < EPS_ONE, FloatP(0.f), FloatP(1.f));
+                select((abs(cosWo) < EPS_ONE) ||
+                           ((typeMask & uint32_t(BSDFType::Null)) == 0u),
+                       FloatP(0.f), FloatP(1.f));
         }
 
         FloatP Pdf(const SpectrumWavelengthsP &, const Vector3fP &wo, const Vector3fP &wi,

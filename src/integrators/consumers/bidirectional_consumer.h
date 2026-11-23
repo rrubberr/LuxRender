@@ -437,7 +437,8 @@ namespace lux2
                 const Vector3fP nVec(edg.n.x(), edg.n.y(), edg.n.z());
                 BSDFSampleP s0;
                 ebsdf->SampleF(mL.core.sw, nVec, edg, uDir.x(), uDir.y(), FloatP(0.f),
-                               &s0, TransportMode::Importance, okOrigin);
+                               &s0, TransportMode::Importance,
+                               uint32_t(BSDFType::All), okOrigin);
                 const Vector3fP wi0 = s0.wi;
                 const FloatP pdfDir = s0.pdf;
                 const MaskP ok = okOrigin && (pdfDir > FloatP(0.f)) &&

@@ -84,7 +84,8 @@ namespace lux2
                                  const DifferentialGeometryP &dg,
                                  const FloatP &u0, const FloatP &u1,
                                  const FloatP &, BSDFSampleP *sample,
-                                 TransportMode mode, MaskP active) const
+                                 TransportMode mode, uint32_t typeMask,
+                                 MaskP active) const
     {
         if (none(active))
             return;
@@ -125,7 +126,9 @@ namespace lux2
         const Vector3fP wi = fr.toWorld(wiL);
         const FloatP st = sideTest(wo, wi, dg);
         // BRDF st > 0 required; st < 0 or grazing st == 0 kills the lane.
-        const MaskP ok = active && sameHemi && (st > FloatP(0.f));
+        // A typeMask without GlossyReflection rejects every lane.
+        const MaskP ok = active && sameHemi && (st > FloatP(0.f)) &&
+                         ((typeMask & uint32_t(BSDFType::GlossyReflection)) != 0u);
         f = select(ok, f * modeJacobian(mode, st), SWCSpectrumP(0.f));
 
         enoki::masked(sample->wi, active) = wi;

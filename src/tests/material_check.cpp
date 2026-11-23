@@ -110,7 +110,8 @@ void CheckSample() {
     BSDFSampleP s;
     s.pdf = FloatP(-999.f);
     m->SampleF(sw, wo, dg, FloatP(0.37f), FloatP(0.61f), FloatP(0.5f),
-               &s, TransportMode::Radiance, MaskP(true));
+               &s, TransportMode::Radiance, uint32_t(BSDFType::All),
+               MaskP(true));
 
     bool pdfOk = true, fFinite = true, hemiOk = true, typeOk = true, specOk = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
@@ -168,7 +169,8 @@ float MeanLobeRatio(const MatteMaterial &m) {
 
     BSDFSampleP s;
     m.SampleF(sw, wo, dg, FloatP(0.37f), FloatP(0.61f), FloatP(0.5f),
-              &s, TransportMode::Radiance, MaskP(true));
+              &s, TransportMode::Radiance, uint32_t(BSDFType::All),
+              MaskP(true));
 
     // kd for the constant color at this SW.
     ConstantColorTexture kd(
@@ -230,7 +232,8 @@ void CheckMetal2Sample() {
     BSDFSampleP s;
     s.pdf = FloatP(-999.f);
     m->SampleF(sw, wo, dg, FloatP(0.31f), FloatP(0.72f), FloatP(0.5f),
-               &s, TransportMode::Radiance, MaskP(true));
+               &s, TransportMode::Radiance, uint32_t(BSDFType::All),
+               MaskP(true));
 
     bool pdfPos = true, fFinite = true, typeOk = true, specOk = true, hemiOk = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
@@ -258,7 +261,8 @@ void CheckMetal2PdfConsistency() {
 
     BSDFSampleP s;
     m->SampleF(sw, wo, dg, FloatP(0.31f), FloatP(0.72f), FloatP(0.5f),
-               &s, TransportMode::Radiance, MaskP(true));
+               &s, TransportMode::Radiance, uint32_t(BSDFType::All),
+               MaskP(true));
 
     FloatP pdfEval = m->Pdf(sw, s.wi, wo, dg, uint32_t(BSDFType::All),
                             TransportMode::Radiance, MaskP(true));
@@ -328,7 +332,8 @@ void CheckGlassNormal() {
     // Reflect (u2 = 0): pdf == F ~= ((1.5-1)/(1.5+1))^2 = 0.04.
     BSDFSampleP sr;
     m->SampleF(sw, wo, dg, FloatP(0.f), FloatP(0.f), FloatP(0.f),
-               &sr, TransportMode::Radiance, MaskP(true));
+               &sr, TransportMode::Radiance, uint32_t(BSDFType::All),
+               MaskP(true));
     bool reflType = true, reflPdf = true, reflSpec = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
         if (lane(sr.sampledType, i) != uint32_t(BSDFType::SpecularReflection))
@@ -343,7 +348,8 @@ void CheckGlassNormal() {
     // Transmit (u2 = 1): pdf == 1 - F ~= 0.96.
     BSDFSampleP st;
     m->SampleF(sw, wo, dg, FloatP(0.f), FloatP(0.f), FloatP(1.f),
-               &st, TransportMode::Radiance, MaskP(true));
+               &st, TransportMode::Radiance, uint32_t(BSDFType::All),
+               MaskP(true));
     bool transType = true, transPdf = true, transFinite = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
         if (lane(st.sampledType, i) != uint32_t(BSDFType::SpecularTransmission))
@@ -369,7 +375,8 @@ void CheckGlassGrazing() {
     // demonstrating F -> 1 at grazing incidence.
     BSDFSampleP s;
     m->SampleF(sw, wo, dg, FloatP(0.f), FloatP(0.f), FloatP(0.f),
-               &s, TransportMode::Radiance, MaskP(true));
+               &s, TransportMode::Radiance, uint32_t(BSDFType::All),
+               MaskP(true));
     bool ok = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i)
         if (!(lane(s.pdf, i) > 0.85f)) ok = false;
@@ -387,7 +394,8 @@ void CheckGlassTIR() {
 
     BSDFSampleP s;
     m->SampleF(sw, wo, dg, FloatP(0.f), FloatP(0.f), FloatP(0.5f),
-               &s, TransportMode::Radiance, MaskP(true));
+               &s, TransportMode::Radiance, uint32_t(BSDFType::All),
+               MaskP(true));
     bool typeOk = true, pdfOk = true;
     for (size_t i = 0; i < PACKET_WIDTH; ++i) {
         if (lane(s.sampledType, i) != uint32_t(BSDFType::SpecularReflection))
@@ -396,6 +404,59 @@ void CheckGlassTIR() {
     }
     Check(typeOk, "glass TIR -> SpecularReflection");
     Check(pdfOk, "glass TIR pdf == 1 (F == 1)");
+}
+
+// typeMask lobe restriction (irradiance-cache prerequisite).
+void CheckMatteMaskReject() {
+    auto m = MakeMatte(0.f);
+    const DifferentialGeometryP dg = MakeDG();
+    const SpectrumWavelengthsP sw = MakeSW();
+    const Vector3fP wo = MakeWoRefl();
+
+    // Mask without DiffuseReflection: every lane rejected (pdf == 0).
+    BSDFSampleP s;
+    s.pdf = FloatP(-999.f);
+    m->SampleF(sw, wo, dg, FloatP(0.37f), FloatP(0.61f), FloatP(0.5f), &s,
+               TransportMode::Radiance, uint32_t(BSDFType::GlossyReflection),
+               MaskP(true));
+    bool rejected = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        if (!(lane(s.pdf, i) == 0.f)) rejected = false;
+    Check(rejected, "matte SampleF: mask without DiffuseReflection -> pdf 0");
+}
+
+void CheckGlassMaskSelect() {
+    auto m = MakeGlass(1.5f);
+    const DifferentialGeometryP dg = MakeDG();
+    const SpectrumWavelengthsP sw = MakeSW();
+    const Vector3fP wo = enoki::normalize(
+        Vector3fP(FloatP(0.1f), FloatP(0.f), FloatP(1.f)));
+
+    // Reflection-only mask with the transmit coin (u2=1): must still
+    // reflect, because transmission was dropped from the mixture.
+    BSDFSampleP s;
+    m->SampleF(sw, wo, dg, FloatP(0.f), FloatP(0.f), FloatP(1.f), &s,
+               TransportMode::Radiance,
+               uint32_t(BSDFType::SpecularReflection), MaskP(true));
+    bool reflOnly = true, pdfOk = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i) {
+        if (lane(s.sampledType, i) != uint32_t(BSDFType::SpecularReflection))
+            reflOnly = false;
+        // Renormalized mixture: pdf == wR/total == 1.
+        if (std::fabs(lane(s.pdf, i) - 1.f) > 1e-3f) pdfOk = false;
+    }
+    Check(reflOnly, "glass mask=SpecRefl: coin=1 still reflects");
+    Check(pdfOk, "glass mask=SpecRefl: renormalized pdf == 1");
+
+    // Empty intersection: pdf == 0 on every lane.
+    BSDFSampleP s2;
+    m->SampleF(sw, wo, dg, FloatP(0.f), FloatP(0.f), FloatP(0.5f), &s2,
+               TransportMode::Radiance, uint32_t(BSDFType::Diffuse),
+               MaskP(true));
+    bool rejected = true;
+    for (size_t i = 0; i < PACKET_WIDTH; ++i)
+        if (!(lane(s2.pdf, i) == 0.f)) rejected = false;
+    Check(rejected, "glass mask=Diffuse (empty): pdf 0");
 }
 
 } // namespace
@@ -415,6 +476,8 @@ int main() {
     CheckGlassNormal();
     CheckGlassGrazing();
     CheckGlassTIR();
+    CheckMatteMaskReject();
+    CheckGlassMaskSelect();
 
     if (g_failures == 0) {
         std::cout << "ALL MATERIAL CHECKS PASSED\n";

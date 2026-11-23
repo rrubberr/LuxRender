@@ -551,7 +551,7 @@ struct VertexTestBSDF : public BSDF
     }
     void SampleF(const SpectrumWavelengthsP &, const Vector3fP &,
                  const DifferentialGeometryP &, const FloatP &, const FloatP &,
-                 const FloatP &, BSDFSampleP *s, TransportMode,
+                 const FloatP &, BSDFSampleP *s, TransportMode, uint32_t,
                  MaskP active) const override
     {
         enoki::masked(s->wi, active) = Vector3fP(FloatP(0.f), FloatP(0.f), FloatP(1.f));

@@ -58,7 +58,7 @@ class StubBSDF : public BSDF
     uint32_t flags() const override { return m_flags; }
     void SampleF(const SpectrumWavelengthsP &, const Vector3fP &,
                  const DifferentialGeometryP &, const FloatP &, const FloatP &,
-                 const FloatP &, BSDFSampleP *, TransportMode,
+                 const FloatP &, BSDFSampleP *, TransportMode, uint32_t,
                  MaskP) const override {}
     FloatP Pdf(const SpectrumWavelengthsP &, const Vector3fP &,
                const Vector3fP &, const DifferentialGeometryP &, uint32_t,

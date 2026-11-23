@@ -111,12 +111,13 @@ namespace lux2
         virtual uint32_t flags() const = 0;
 
         // Sample an outgoing direction wi given wo (wo = -incidentDir).
+        // typeMask restricts the candidate lobes (BSDFType bitmask).
         virtual void SampleF(const SpectrumWavelengthsP &sw,
                              const Vector3fP &wo,
                              const DifferentialGeometryP &dg,
                              const FloatP &u0, const FloatP &u1, const FloatP &u2,
                              BSDFSampleP *sample,
-                             TransportMode mode,
+                             TransportMode mode, uint32_t typeMask,
                              MaskP active) const = 0;
 
         // Solid angle of wi<->wo for lobes selected by typeMask.
