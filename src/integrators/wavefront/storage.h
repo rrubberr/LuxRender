@@ -361,15 +361,6 @@ namespace lux2
                 return RecFromBits(x.m);
             }
 
-            inline unsigned LaneBits(const MaskP &m)
-            {
-#if defined(__AVX512F__)
-                return unsigned(m.k);
-#else
-                return unsigned(
-                    _mm256_movemask_ps(_mm256_castsi256_ps(m.m)));
-#endif
-            }
 
             template <uint32_t WORDS>
             inline void LoadFields(VecT f[WORDS], const uint32_t *base,

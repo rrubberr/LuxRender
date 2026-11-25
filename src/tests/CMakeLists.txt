@@ -56,6 +56,15 @@ add_lux2_check(
 	LINKS lux2
 )
 
+# HashGrid: needs TBB.
+add_lux2_check(
+	NAME lux2hashgridcheck
+	SOURCES hash_grid_check.cpp
+	LINKS lux2 TBB::tbb Threads::Threads
+)
+target_compile_definitions(lux2hashgridcheck PRIVATE LUX2_HASHGRID_TESTING)
+set_tests_properties(lux2hashgridcheck PROPERTIES TIMEOUT 300)
+
 # Cornell Box scene data.
 set(LUX2_CORNELL_DATA ${CMAKE_CURRENT_SOURCE_DIR}/../../test/cornell_box/cornell_box/Scene/00001)
 

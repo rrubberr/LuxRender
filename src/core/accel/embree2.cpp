@@ -456,12 +456,7 @@ namespace lux2
         enoki::store_unaligned(
             recA, enoki::select(active, enoki::reinterpret_array<UInt32P>(gidx),
                                 UInt32P(0u)));
-#if defined(__AVX512F__)
-        const unsigned laneBits = unsigned(active.k);
-#else
-        const unsigned laneBits =
-            unsigned(_mm256_movemask_ps(_mm256_castsi256_ps(active.m)));
-#endif
+        const unsigned laneBits = LaneBits(active);
         alignas(64) SimdVec f[TRI_WORDS];
         LoadRecords<TRI_WORDS>(f, triRecords.data(), recA, laneBits);
         ShadeFromFields(

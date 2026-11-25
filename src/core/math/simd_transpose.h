@@ -24,6 +24,8 @@
 #ifndef LUX2_CORE_MATH_SIMD_TRANSPOSE_H
 #define LUX2_CORE_MATH_SIMD_TRANSPOSE_H
 
+#include "core/math/vecp.h"
+
 #include <immintrin.h>
 
 #include <cstdint>
@@ -182,6 +184,12 @@ namespace lux2
 #endif
 
 #if defined(__AVX512F__) || defined(__AVX2__)
+    // Packet mask -> lane bitset (bit i == lane i).
+    inline unsigned LaneBits(const MaskP &m)
+    {
+        return m.bitmask_();
+    }
+
     // Load one record per lane and transpose to field-major where f[w] holds
     // word w of every lane. recA[i] is lane i's record index; laneBits has
     // bit i set for active lanes.
