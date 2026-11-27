@@ -29,6 +29,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <limits>
+#include <map>
 #include <random>
 #include <set>
 #include <vector>
@@ -119,6 +121,189 @@ std::set<std::pair<int, uint32_t>> QueryNearAll(const HashGrid<WORDS> &grid,
                        });
     }
     return visited;
+}
+
+// Defined further below; forward-declared for TestNonFiniteRecords.
+template <uint32_t WORDS>
+std::set<uint32_t> QueryAtOne(const HashGrid<WORDS> &grid, float x, float y,
+                              float z);
+
+// Like QueryNearAll but counts every visit, so a (lane, recordId) pair
+// reported twice is detected. The set-based QueryNearAll silently dedups
+// and cannot catch the H1 double-count regression. Returns true if any
+// pair was visited more than once.
+template <uint32_t WORDS>
+bool QueryNearHasDuplicate(const HashGrid<WORDS> &grid,
+                           const std::vector<float> &pts)
+{
+    std::map<std::pair<int, uint32_t>, int> visits;
+    const uint32_t n = uint32_t(pts.size()) / 3u;
+    for (uint32_t base = 0; base < n; base += SimdLanes)
+    {
+        FloatP px(0.f), py(0.f), pz(0.f), r2(0.25f);
+        std::vector<int> laneOf;
+        for (int l = 0; l < SimdLanes; ++l)
+        {
+            const uint32_t i = base + uint32_t(l);
+            if (i < n)
+            {
+                px[l] = pts[i * 3 + 0];
+                py[l] = pts[i * 3 + 1];
+                pz[l] = pts[i * 3 + 2];
+                laneOf.push_back(int(i));
+            }
+            else
+                laneOf.push_back(-1);
+        }
+        Point3fP p(px, py, pz);
+        grid.QueryNear(p, r2, MaskP(true),
+                       [&](const HashGridFields &F, MaskP hit)
+                       {
+                           alignas(64) uint32_t ids[SimdLanes];
+                           enoki::store_unaligned(ids, F.U(kIdWord));
+                           for (int l = 0; l < SimdLanes; ++l)
+                           {
+                               if (!hit[l])
+                                   continue;
+                               const int lane = laneOf[l];
+                               if (lane >= 0)
+                                   visits[{lane, ids[l]}]++;
+                           }
+                       });
+    }
+    for (const auto &kv : visits)
+        if (kv.second > 1)
+            return true;
+    return false;
+}
+
+// Force the eight-cell slot-collision case: a small record count keeps the
+// slot table at the NextPow2 floor (1024), where two of the eight neighbour
+// cells collide for roughly 1% of query points. Thousands of queries make a
+// missing per-lane dedup fail deterministically.
+void TestNoDoubleCount()
+{
+    constexpr uint32_t W = 16;
+    std::mt19937 rng(4242);
+    std::uniform_real_distribution<float> pos(0.f, 4.f);
+
+    const uint32_t count = 64; // small -> slots pinned at the 1024 floor
+    std::vector<uint32_t> recs(std::size_t(count) * W, 0u);
+    for (uint32_t r = 0; r < count; ++r)
+    {
+        MakeRecord<W>(recs, r, pos(rng), pos(rng), pos(rng));
+        recs[std::size_t(r) * W + kIdWord] = r;
+    }
+    HashGrid<W> grid;
+    grid.BuildPoints(recs.data(), count, 0.6f);
+    Check(grid.Slots() == 1024u, "double-count test uses the slot floor");
+
+    std::vector<float> pts;
+    for (int i = 0; i < 20000; ++i)
+    {
+        pts.push_back(pos(rng));
+        pts.push_back(pos(rng));
+        pts.push_back(pos(rng));
+    }
+    Check(!QueryNearHasDuplicate<W>(grid, pts),
+          "QueryNever double-counts a record (H1 dedup)");
+}
+
+// Non-finite records must be skipped, not crash the build or corrupt the
+// buckets. Finite records around them must still query correctly.
+void TestNonFiniteRecords()
+{
+    constexpr uint32_t W = 16;
+    constexpr uint32_t RWORD = 6;
+    const float inf = std::numeric_limits<float>::infinity();
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+
+    // Point mode: one NaN position, one inf position among finite records.
+    {
+        std::vector<uint32_t> recs(std::size_t(4) * W, 0u);
+        MakeRecord<W>(recs, 0, 1.f, 1.f, 1.f);
+        recs[kIdWord] = 0;
+        MakeRecord<W>(recs, 1, nan, 0.f, 0.f); // NaN position
+        recs[W + kIdWord] = 1;
+        MakeRecord<W>(recs, 2, 0.f, inf, 0.f); // inf position
+        recs[2 * W + kIdWord] = 2;
+        MakeRecord<W>(recs, 3, 1.2f, 1.f, 1.f);
+        recs[3 * W + kIdWord] = 3;
+
+        HashGrid<W> grid;
+        grid.BuildPoints(recs.data(), 4, 0.6f);
+        // Query near the finite records: both must be found, no crash.
+        const auto got = QueryNearAll<W>(grid, {1.f, 1.f, 1.f});
+        Check(got.count({0, 0}) == 1 && got.count({0, 3}) == 1,
+              "point mode finds finite records despite non-finite neighbours");
+    }
+
+    // Sphere mode: a record with a NaN radius is skipped; a finite one near
+    // it is still queryable.
+    {
+        std::vector<uint32_t> recs(std::size_t(2) * W, 0u);
+        MakeRecord<W>(recs, 0, 5.f, 5.f, 5.f, nan, RWORD); // NaN radius
+        recs[kIdWord] = 10;
+        MakeRecord<W>(recs, 1, 5.f, 5.f, 5.f, 1.f, RWORD);
+        recs[W + kIdWord] = 11;
+
+        HashGrid<W> grid;
+        grid.BuildSpheres(recs.data(), 2, 0.75f, RWORD);
+        const auto got = QueryAtOne<W>(grid, 5.f, 5.f, 5.f);
+        Check(got.count(11) == 1 && got.count(10) == 0,
+              "sphere mode skips non-finite radius, keeps finite");
+    }
+}
+
+// Parallel BuildSpheres must be byte-identical across thread counts: fixed
+// chunk emission order plus a stable sort makes the bucket and cellStart a
+// pure function of the input.
+void TestSphereDeterminism()
+{
+    constexpr uint32_t W = 16;
+    constexpr uint32_t RWORD = 6;
+    std::mt19937 rng(31337);
+    std::uniform_real_distribution<float> pos(0.f, 50.f);
+    std::uniform_real_distribution<float> rad(0.05f, 2.f);
+
+    const uint32_t count = 40000;
+    std::vector<uint32_t> recs(std::size_t(count) * W, 0u);
+    for (uint32_t r = 0; r < count; ++r)
+    {
+        MakeRecord<W>(recs, r, pos(rng), pos(rng), pos(rng), rad(rng), RWORD);
+        recs[std::size_t(r) * W + kIdWord] = r;
+    }
+
+    HashGrid<W> ref;
+    ref.BuildSpheres(recs.data(), count, 1.5f, RWORD);
+    const uint32_t slots = ref.Slots();
+    std::vector<uint32_t> refBucket(ref.BucketData(),
+                                    ref.BucketData() +
+                                        ref.CellStartData()[slots]);
+    std::vector<uint32_t> refStart(ref.CellStartData(),
+                                   ref.CellStartData() + slots + 1u);
+
+    bool allMatch = true;
+    for (unsigned threads : {1u, 2u, 4u})
+    {
+        HashGrid<W> g;
+        {
+            tbb::global_control gc(
+                tbb::global_control::max_allowed_parallelism, threads);
+            g.BuildSpheres(recs.data(), count, 1.5f, RWORD);
+        }
+        const uint32_t gs = g.Slots();
+        if (gs != slots ||
+            !std::equal(refStart.begin(), refStart.end(),
+                        g.CellStartData()) ||
+            !std::equal(refBucket.begin(), refBucket.end(), g.BucketData()))
+        {
+            std::cerr << "  sphere build mismatch at threads=" << threads
+                      << "\n";
+            allMatch = false;
+        }
+    }
+    Check(allMatch, "parallel BuildSpheres byte-identical across threads");
 }
 
 std::set<std::pair<int, uint32_t>> BruteNear(
@@ -375,6 +560,9 @@ int main()
     TestCollisionHeavy();
     TestDeterminism();
     TestParallelEqualsSerial();
+    TestNoDoubleCount();
+    TestNonFiniteRecords();
+    TestSphereDeterminism();
 
     if (g_failures == 0)
     {

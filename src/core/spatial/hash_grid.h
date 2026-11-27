@@ -31,9 +31,14 @@
 #include <enoki/array.h>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
+#include <tbb/parallel_reduce.h>
+
+#include <immintrin.h>
 
 #include <algorithm>
+#include <bit>
 #include <cassert>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -46,10 +51,13 @@ namespace lux2
     {
         inline uint32_t NextPow2(uint32_t v)
         {
-            uint32_t p = 1024; // floor keeps tiny grids from degenerating
-            while (p < v)
-                p <<= 1;
-            return p;
+            constexpr uint32_t kFloor = 1024u; // keeps tiny grids from degenerating
+            constexpr uint32_t kMax = 1u << 30;
+            if (v <= kFloor)
+                return kFloor;
+            if (v > kMax)
+                return kMax; // avoid p <<= 1 overflow above 2^30
+            return 1u << (32u - static_cast<uint32_t>(__builtin_clz(v - 1u)));
         }
 
         // Teschner et al. cell hash multipliers; pow2 slot count.
@@ -108,17 +116,21 @@ namespace lux2
             }
         }
 
-        // Slots of every cell the record's sphere overlaps.
+        // Slots of every cell the record's sphere overlaps. Returns 0 for a
+        // non-finite record.
         template <uint32_t WORDS>
         inline int SplatSlots(const uint32_t *rec, const Point3f &min,
                               float invCell, uint32_t radiusWord,
-                              float splatScale, std::vector<uint32_t> &scratch,
+                              std::vector<uint32_t> &scratch,
                               uint32_t slotMask)
         {
             const float px = std::bit_cast<float>(rec[0]);
             const float py = std::bit_cast<float>(rec[1]);
             const float pz = std::bit_cast<float>(rec[2]);
-            const float R = std::bit_cast<float>(rec[radiusWord]) * splatScale;
+            const float R = std::bit_cast<float>(rec[radiusWord]);
+            if (!std::isfinite(px) || !std::isfinite(py) || !std::isfinite(pz) ||
+                !std::isfinite(R))
+                return 0;
 
             // Pad the splat AABB.
             const float Rp = R * (1.f + 4.f *
@@ -155,6 +167,32 @@ namespace lux2
                             scratch[n++] = h;
                     }
             return n;
+        }
+
+        // Upper bound on the number of (record, slot) pairs a sphere
+        // contributes. Returns 0 for a non-finite record.
+        template <uint32_t WORDS>
+        inline uint32_t SplatSpan(const uint32_t *rec, const Point3f &min,
+                                  float invCell, uint32_t radiusWord)
+        {
+            const float px = std::bit_cast<float>(rec[0]);
+            const float py = std::bit_cast<float>(rec[1]);
+            const float pz = std::bit_cast<float>(rec[2]);
+            const float R = std::bit_cast<float>(rec[radiusWord]);
+            if (!std::isfinite(px) || !std::isfinite(py) || !std::isfinite(pz) ||
+                !std::isfinite(R))
+                return 0;
+
+            const float Rp = R * (1.f + 4.f *
+                                            std::numeric_limits<float>::epsilon()) +
+                             EPS_DENOM;
+            int x0, y0, z0, x1, y1, z1;
+            CellCoord<float, int>(px - Rp, py - Rp, pz - Rp, min.x(), min.y(),
+                                  min.z(), invCell, &x0, &y0, &z0);
+            CellCoord<float, int>(px + Rp, py + Rp, pz + Rp, min.x(), min.y(),
+                                  min.z(), invCell, &x1, &y1, &z1);
+            return uint32_t(x1 - x0 + 1) * uint32_t(y1 - y0 + 1) *
+                   uint32_t(z1 - z0 + 1);
         }
     } // namespace hashgrid_detail
 
@@ -247,12 +285,12 @@ namespace lux2
                 BuildPointsParallel(records, count);
         }
 
-        // Sphere mode.
+        // Sphere mode where each sphere is splatted into every cell it
+        // overlaps; QueryAt walks a single cell.
         void BuildSpheres(const uint32_t *records, uint32_t count,
-                          float cellSize, uint32_t radiusWord,
-                          float splatScale = 1.f)
+                          float cellSize, uint32_t radiusWord)
         {
-            assert(cellSize > 0.f && radiusWord < WORDS && splatScale > 0.f);
+            assert(cellSize > 0.f && radiusWord < WORDS);
             m_mode = Mode::Spheres;
             m_count = count;
             m_radiusWord = radiusWord;
@@ -266,55 +304,179 @@ namespace lux2
             }
             assert(std::uint64_t(count) * WORDS < (1ull << 31));
 
-            // Maximum record radius.
-            float maxR = 0.f;
-            for (uint32_t r = 0; r < count; ++r)
-                maxR = std::max(
-                    maxR, std::bit_cast<float>(
-                              records[std::size_t(r) * WORDS + radiusWord]));
-            m_radius = maxR;
+            // One parallel reduce for maxR and the finite-record bbox.
+            struct Bounds
+            {
+                float lo[3], hi[3], maxR;
+            };
+            const Bounds b0{{1e30f, 1e30f, 1e30f},
+                            {-1e30f, -1e30f, -1e30f},
+                            0.f};
+            Bounds bs = tbb::parallel_reduce(
+                tbb::blocked_range<uint32_t>(0u, count, 1u << 14), b0,
+                [&](const tbb::blocked_range<uint32_t> &r, Bounds acc)
+                {
+                    for (uint32_t i = r.begin(); i != r.end(); ++i)
+                    {
+                        const uint32_t *rec =
+                            records + std::size_t(i) * WORDS;
+                        const float R =
+                            std::bit_cast<float>(rec[radiusWord]);
+                        const float px = std::bit_cast<float>(rec[0]);
+                        const float py = std::bit_cast<float>(rec[1]);
+                        const float pz = std::bit_cast<float>(rec[2]);
+                        if (!std::isfinite(px) || !std::isfinite(py) ||
+                            !std::isfinite(pz) || !std::isfinite(R))
+                            continue;
+                        acc.maxR = std::max(acc.maxR, R);
+                        acc.lo[0] = std::min(acc.lo[0], px);
+                        acc.lo[1] = std::min(acc.lo[1], py);
+                        acc.lo[2] = std::min(acc.lo[2], pz);
+                        acc.hi[0] = std::max(acc.hi[0], px);
+                        acc.hi[1] = std::max(acc.hi[1], py);
+                        acc.hi[2] = std::max(acc.hi[2], pz);
+                    }
+                    return acc;
+                },
+                [](Bounds a, const Bounds &o)
+                {
+                    for (int k = 0; k < 3; ++k)
+                    {
+                        a.lo[k] = std::min(a.lo[k], o.lo[k]);
+                        a.hi[k] = std::max(a.hi[k], o.hi[k]);
+                    }
+                    a.maxR = std::max(a.maxR, o.maxR);
+                    return a;
+                });
+            m_radius = bs.maxR;
 
             // Pad the bbox by the same factor as the splat AABBs.
-            const float pad = maxR * (1.f + 4.f *
-                                                std::numeric_limits<float>::epsilon()) +
+            const float pad = bs.maxR *
+                                      (1.f + 4.f *
+                                                    std::numeric_limits<float>::epsilon()) +
                               EPS_DENOM;
-            ComputeBBox(records, count, pad);
-            cellSize = std::max(cellSize, maxR * 0.25f);
+            for (int k = 0; k < 3; ++k)
+            {
+                bs.lo[k] -= pad;
+                bs.hi[k] += pad;
+            }
+            m_min = Point3f(bs.lo[0], bs.lo[1], bs.lo[2]);
+            m_minP = Point3fP(m_min.x(), m_min.y(), m_min.z());
+            m_maxP = Point3fP(bs.hi[0], bs.hi[1], bs.hi[2]);
+            cellSize = std::max(cellSize, bs.maxR * 0.25f);
             m_invCell = 1.f / cellSize;
-            m_slots = hashgrid_detail::NextPow2(count + count / 2u);
+
+            m_payload.assign(records, records + std::size_t(count) * WORDS);
+
+            // Size the slot table from the (record, slot) pair upper bound.
+            const uint32_t numChunks =
+                (count + kRadixChunk - 1u) / kRadixChunk;
+            std::vector<uint32_t> ub(numChunks + 1u, 0u);
+            tbb::parallel_for(
+                tbb::blocked_range<uint32_t>(0u, numChunks),
+                [&](const tbb::blocked_range<uint32_t> &chunks)
+                {
+                    for (uint32_t c = chunks.begin(); c != chunks.end(); ++c)
+                    {
+                        const uint32_t r0 = c * kRadixChunk;
+                        const uint32_t r1 =
+                            std::min(r0 + kRadixChunk, count);
+                        uint32_t s = 0;
+                        for (uint32_t r = r0; r < r1; ++r)
+                            s += hashgrid_detail::SplatSpan<WORDS>(
+                                records + std::size_t(r) * WORDS, m_min,
+                                m_invCell, radiusWord);
+                        ub[c] = s;
+                    }
+                });
+            uint32_t run = 0;
+            for (uint32_t c = 0; c < numChunks; ++c)
+            {
+                const uint32_t n = ub[c];
+                ub[c] = run;
+                run += n;
+            }
+            ub[numChunks] = run; // upper bound on total pairs
+            m_slots = hashgrid_detail::NextPow2(
+                std::max(run, count + count / 2u));
             m_slotMask = m_slots - 1u;
 
-            m_payload.assign(records,
-                             records + std::size_t(count) * WORDS);
-
-            // Count (record, slot) pairs.
-            std::vector<uint32_t> counts(m_slots, 0u);
-            std::vector<uint32_t> scratch;
-            uint64_t total = 0;
-            for (uint32_t r = 0; r < count; ++r)
+            // Emit (slot<<32 | record) pairs at the chunk upper bound offsets.
+            HugeVector<uint64_t> pairsA, pairsB;
+            pairsA.resize(std::size_t(run ? run : 1));
+            pairsB.resize(std::size_t(run ? run : 1));
+            std::vector<uint32_t> nn(numChunks + 1u, 0u);
+            tbb::parallel_for(
+                tbb::blocked_range<uint32_t>(0u, numChunks),
+                [&](const tbb::blocked_range<uint32_t> &chunks)
+                {
+                    std::vector<uint32_t> scratch;
+                    for (uint32_t c = chunks.begin(); c != chunks.end(); ++c)
+                    {
+                        const uint32_t r0 = c * kRadixChunk;
+                        const uint32_t r1 =
+                            std::min(r0 + kRadixChunk, count);
+                        uint64_t *o = &pairsA[ub[c]];
+                        for (uint32_t r = r0; r < r1; ++r)
+                        {
+                            const int n = hashgrid_detail::SplatSlots<WORDS>(
+                                records + std::size_t(r) * WORDS, m_min,
+                                m_invCell, radiusWord, scratch, m_slotMask);
+                            for (int i = 0; i < n; ++i)
+                                *o++ = (uint64_t(scratch[i]) << 32) |
+                                       uint64_t(r);
+                        }
+                        nn[c] = uint32_t(o - &pairsA[ub[c]]);
+                    }
+                });
+            // Compact.
+            run = 0;
+            for (uint32_t c = 0; c < numChunks; ++c)
             {
-                const int n = hashgrid_detail::SplatSlots<WORDS>(
-                    records + std::size_t(r) * WORDS, m_min, m_invCell,
-                    radiusWord, splatScale, scratch, m_slotMask);
-                for (int i = 0; i < n; ++i)
-                    counts[scratch[i]]++;
-                total += uint64_t(n);
+                const uint32_t n = nn[c];
+                nn[c] = run;
+                run += n;
             }
-            assert(total <= std::numeric_limits<uint32_t>::max());
-            BuildCellStart(counts.data(), uint32_t(total));
+            nn[numChunks] = run;
+            const uint32_t total = run;
 
-            // Scatter record indices.
+            tbb::parallel_for(
+                tbb::blocked_range<uint32_t>(0u, numChunks),
+                [&](const tbb::blocked_range<uint32_t> &chunks)
+                {
+                    for (uint32_t c = chunks.begin(); c != chunks.end(); ++c)
+                        std::memcpy(&pairsB[nn[c]], &pairsA[ub[c]],
+                                    std::size_t(nn[c + 1] - nn[c]) *
+                                        sizeof(uint64_t));
+                });
+
+            const uint64_t *sorted = RadixSortBySlot(
+                pairsB.data(), pairsA.data(), total, SlotBits());
+
+            // cellStart over the sorted pair keys.
+            m_cellStart.assign(m_slots + 1u, 0u);
+            tbb::parallel_for(
+                tbb::blocked_range<uint32_t>(0u, m_slots),
+                [&](const tbb::blocked_range<uint32_t> &slotRange)
+                {
+                    for (uint32_t s = slotRange.begin(); s != slotRange.end();
+                         ++s)
+                        m_cellStart[s] = uint32_t(std::lower_bound(
+                                                      sorted, sorted + total,
+                                                      uint64_t(s) << 32) -
+                                                  sorted);
+                });
+            m_cellStart[m_slots] = total;
+
+            // Bucket = record index half of each sorted pair.
             m_bucket.assign(std::size_t(total), 0u);
-            std::vector<uint32_t> cursor(m_cellStart.begin(),
-                                         m_cellStart.end() - 1);
-            for (uint32_t r = 0; r < count; ++r)
-            {
-                const int n = hashgrid_detail::SplatSlots<WORDS>(
-                    records + std::size_t(r) * WORDS, m_min, m_invCell,
-                    radiusWord, splatScale, scratch, m_slotMask);
-                for (int i = 0; i < n; ++i)
-                    m_bucket[cursor[scratch[i]]++] = r;
-            }
+            tbb::parallel_for(
+                tbb::blocked_range<uint32_t>(0u, total, 1u << 14),
+                [&](const tbb::blocked_range<uint32_t> &r)
+                {
+                    for (uint32_t i = r.begin(); i != r.end(); ++i)
+                        m_bucket[i] = uint32_t(sorted[i]);
+                });
         }
 
         // Packet proximity query (point mode).
@@ -351,6 +513,9 @@ namespace lux2
             const Int32P oz =
                 enoki::select(fz < FloatP(0.5f), Int32P(-1), Int32P(1));
 
+            // Two of the eight cells can hash to the same slot; skip
+            // so a record is never visited twice.
+            UInt32P seen[7];
             for (int s = 0; s < 8; ++s)
             {
                 const Int32P cx = (s & 1) ? bx + ox : bx;
@@ -359,8 +524,16 @@ namespace lux2
                 const UInt32P h =
                     hashgrid_detail::SlotHash(cx, cy, cz) & UInt32P(m_slotMask);
 
+                MaskP fresh = inside;
+                for (int j = 0; j < s; ++j)
+                    fresh = fresh && (h != seen[j]);
+                if (s < 7)
+                    seen[s] = h;
+                if (!enoki::any(fresh))
+                    continue;
+
                 WalkBucket</*Bucketed=*/false, /*PerRecordR=*/false>(
-                    h, inside, p, radius2, 0u, visit);
+                    h, fresh, p, radius2, 0u, visit);
             }
         }
 
@@ -477,22 +650,95 @@ namespace lux2
             }
         }
 
-        // Parallel build.
+        // Number of bits needed to index m_slots slots (log2, m_slots is a
+        // power of two).
+        uint32_t SlotBits() const
+        {
+            uint32_t b = 1u;
+            while ((1u << b) < m_slots)
+                ++b;
+            return b;
+        }
+
+        // LSD radix sort of `n` (slot<<32 | index) pairs keyed by the
+        // high 32 bits.
+        uint64_t *RadixSortBySlot(uint64_t *a, uint64_t *b, uint32_t n,
+                                  uint32_t slotBits) const
+        {
+            const uint32_t numChunks =
+                (n + kRadixChunk - 1u) / kRadixChunk;
+            assert(slotBits <= 24u); // 12-bit digits, at most two passes
+            const uint32_t w = 12u;
+            const uint32_t numPasses = (slotBits + w - 1u) / w;
+
+            std::vector<uint32_t> hist(std::size_t(numChunks) * (1u << w), 0u);
+
+            uint64_t *src = a;
+            uint64_t *dst = b;
+            for (uint32_t pass = 0; pass < numPasses; ++pass)
+            {
+                const uint32_t shift = 32u + pass * w;
+                const uint32_t pw =
+                    std::min(w, slotBits - pass * w); // last pass may be narrow
+                const uint64_t pmask = (1ull << pw) - 1ull;
+
+                tbb::parallel_for(
+                    tbb::blocked_range<uint32_t>(0u, numChunks),
+                    [&](const tbb::blocked_range<uint32_t> &chunks)
+                    {
+                        for (uint32_t c = chunks.begin(); c != chunks.end(); ++c)
+                        {
+                            uint32_t *row = &hist[std::size_t(c) << w];
+                            const uint32_t r0 = c * kRadixChunk;
+                            const uint32_t r1 =
+                                std::min(r0 + kRadixChunk, n);
+                            for (uint32_t i = r0; i < r1; ++i)
+                                row[(src[i] >> shift) & pmask]++;
+                        }
+                    });
+
+                // Exclusive scan.
+                uint32_t run = 0;
+                const uint32_t digits = 1u << pw;
+                for (uint32_t d = 0; d < digits; ++d)
+                    for (uint32_t c = 0; c < numChunks; ++c)
+                    {
+                        uint32_t *cell = &hist[std::size_t(c) << w] + d;
+                        const uint32_t cnt = *cell;
+                        *cell = run;
+                        run += cnt;
+                    }
+                assert(run == n);
+
+                tbb::parallel_for(
+                    tbb::blocked_range<uint32_t>(0u, numChunks),
+                    [&](const tbb::blocked_range<uint32_t> &chunks)
+                    {
+                        for (uint32_t c = chunks.begin(); c != chunks.end(); ++c)
+                        {
+                            uint32_t *row = &hist[std::size_t(c) << w];
+                            const uint32_t r0 = c * kRadixChunk;
+                            const uint32_t r1 =
+                                std::min(r0 + kRadixChunk, n);
+                            for (uint32_t i = r0; i < r1; ++i)
+                                dst[row[(src[i] >> shift) & pmask]++] = src[i];
+                        }
+                    });
+
+                if (pass + 1u < numPasses)
+                    std::fill(hist.begin(), hist.end(), 0u);
+
+                std::swap(src, dst);
+            }
+            return src;
+        }
+
+        // Parallel point build.
         void BuildPointsParallel(const uint32_t *records, uint32_t count)
         {
             const uint32_t numChunks =
                 (count + kRadixChunk - 1u) / kRadixChunk;
 
-            // Key width.
-            uint32_t b = 1u;
-            while ((1u << b) < m_slots)
-                ++b;
-            // 12 bit digits.
-            assert(b <= 24u);
-            const uint32_t w = 12u;
-            const uint32_t numPasses = (b + w - 1u) / w;
-
-            // resize().
             HugeVector<uint64_t> pairsA;
             HugeVector<uint64_t> pairsB;
             pairsA.resize(std::size_t(count));
@@ -517,78 +763,11 @@ namespace lux2
                     }
                 });
 
-            // Pass histograms, chunk rows [numChunks][1<<w].
-            std::vector<uint32_t> hist(
-                std::size_t(numChunks) * (1u << w), 0u);
-
-            uint64_t *src = pairsA.data();
-            uint64_t *dst = pairsB.data();
-            for (uint32_t pass = 0; pass < numPasses; ++pass)
-            {
-                // Digits come from the key half.
-                const uint32_t shift = 32u + pass * w;
-                const uint32_t pw =
-                    std::min(w, b - pass * w); // last pass may be narrow
-                const uint64_t pmask = (1ull << pw) - 1ull;
-
-                // Digit histogram per chunk.
-                tbb::parallel_for(
-                    tbb::blocked_range<uint32_t>(0u, numChunks),
-                    [&](const tbb::blocked_range<uint32_t> &chunks)
-                    {
-                        for (uint32_t c = chunks.begin(); c != chunks.end(); ++c)
-                        {
-                            uint32_t *row =
-                                &hist[std::size_t(c) << w];
-                            const uint32_t r0 = c * kRadixChunk;
-                            const uint32_t r1 =
-                                std::min(r0 + kRadixChunk, count);
-                            for (uint32_t i = r0; i < r1; ++i)
-                                row[(src[i] >> shift) & pmask]++;
-                        }
-                    });
-
-                // Exclusive scan in digit major order.
-                uint32_t run = 0;
-                const uint32_t digits = 1u << pw;
-                for (uint32_t d = 0; d < digits; ++d)
-                {
-                    for (uint32_t c = 0; c < numChunks; ++c)
-                    {
-                        uint32_t *cell = &hist[std::size_t(c) << w] + d;
-                        const uint32_t n = *cell;
-                        *cell = run;
-                        run += n;
-                    }
-                }
-                assert(run == count);
-
-                // Stable scatter with private cursors.
-                tbb::parallel_for(
-                    tbb::blocked_range<uint32_t>(0u, numChunks),
-                    [&](const tbb::blocked_range<uint32_t> &chunks)
-                    {
-                        for (uint32_t c = chunks.begin(); c != chunks.end(); ++c)
-                        {
-                            uint32_t *row =
-                                &hist[std::size_t(c) << w];
-                            const uint32_t r0 = c * kRadixChunk;
-                            const uint32_t r1 =
-                                std::min(r0 + kRadixChunk, count);
-                            for (uint32_t i = r0; i < r1; ++i)
-                                dst[row[(src[i] >> shift) & pmask]++] = src[i];
-                        }
-                    });
-
-                if (pass + 1u < numPasses)
-                    std::fill(hist.begin(), hist.end(), 0u);
-
-                std::swap(src, dst);
-            }
+            const uint64_t *sorted = RadixSortBySlot(
+                pairsA.data(), pairsB.data(), count, SlotBits());
 
             // cellStart.
             m_cellStart.assign(m_slots + 1u, 0u);
-            const uint64_t *sortedKeys = src;
             tbb::parallel_for(
                 tbb::blocked_range<uint32_t>(0u, m_slots),
                 [&](const tbb::blocked_range<uint32_t> &slotRange)
@@ -596,15 +775,14 @@ namespace lux2
                     for (uint32_t s = slotRange.begin(); s != slotRange.end();
                          ++s)
                         m_cellStart[s] = uint32_t(std::lower_bound(
-                                                      sortedKeys, sortedKeys + count,
+                                                      sorted, sorted + count,
                                                       uint64_t(s) << 32) -
-                                                  sortedKeys);
+                                                  sorted);
                 });
             m_cellStart[m_slots] = count;
 
             // Payload permutation.
             m_payload.assign(std::size_t(count) * WORDS, 0u);
-            const uint64_t *sorted = src;
             tbb::parallel_for(
                 tbb::blocked_range<std::size_t>(0u, std::size_t(count)),
                 [&](const tbb::blocked_range<std::size_t> &posRange)
@@ -612,8 +790,7 @@ namespace lux2
                     std::size_t pos = posRange.begin();
                     if (pos > 0)
                         _mm_prefetch(
-                            reinterpret_cast<const char *>(
-                                &sorted[pos - 1]),
+                            reinterpret_cast<const char *>(&sorted[pos - 1]),
                             _MM_HINT_T0);
                     for (; pos != posRange.end(); ++pos)
                     {
